@@ -65,16 +65,18 @@ struct SheetGridView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .topLeading) {
+        ZStack(alignment: .topLeading) {
+            GeometryReader { proxy in
                 grid(in: proxy)
-                // A sibling rather than an overlay: the scroll view draws under
-                // the navigation bar, and the pinned headers must not follow it
-                // up into the safe area.
+            }
+            // Keep headers below the navigation bar, but extend them beneath
+            // the floating toolbar just like the scroll view's cells.
+            GeometryReader { proxy in
                 headerOverlay(in: proxy)
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
                     .clipped()
             }
+            .ignoresSafeArea(.container, edges: .bottom)
         }
         .onChange(of: activeSheet.id) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.rowCount) { _, _ in state.refreshMetrics(in: workbook) }
@@ -921,7 +923,7 @@ struct SheetGridView: View {
                 .frame(width: visibleGridWidth, height: columnHeaderHeight)
                 .offset(x: rowHeaderWidth)
 
-            rowHeaders
+            rowHeaders(viewportHeight: proxy.size.height)
                 .frame(width: rowHeaderWidth, height: visibleGridHeight)
                 .offset(y: columnHeaderHeight)
 
@@ -963,10 +965,13 @@ struct SheetGridView: View {
         .clipped()
     }
 
-    private var rowHeaders: some View {
-        ZStack(alignment: .topLeading) {
+    private func rowHeaders(viewportHeight: Double) -> some View {
+        let top = state.scrollOffset.y - columnHeaderHeight
+        let rows = metrics.rows(in: max(0, top)...(top + max(viewportHeight, 200)))
+
+        return ZStack(alignment: .topLeading) {
             Color.headerBackground.background(.regularMaterial)
-            ForEach(visibleRows, id: \.self) { row in
+            ForEach(rows, id: \.self) { row in
                 if !activeSheet.hiddenRows.contains(row) {
                     RowHeaderCell(
                         title: String(row + 1),
