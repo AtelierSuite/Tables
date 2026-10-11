@@ -35,7 +35,7 @@ struct WorkbookView: View {
                 .focusable(state.editingAddress == nil && !state.isFormulaBarActive)
                 .focusEffectDisabled()
                 .onKeyPress(action: handleKeyPress)
-                .overlay(alignment: .bottom) {
+                .safeAreaInset(edge: .bottom, spacing: 0) {
                     #if os(iOS)
                     FloatingActionBar(
                         workbook: workbook, state: state, namespace: panelTransition,
