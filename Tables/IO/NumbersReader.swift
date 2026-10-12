@@ -334,6 +334,11 @@ struct MergeOwners {
         var lower: UInt64
         var upper: UInt64
 
+        init(lower: UInt64, upper: UInt64) {
+            self.lower = lower
+            self.upper = upper
+        }
+
         init?(_ message: ProtobufMessage?) {
             guard let message, let lower = message.uint(1), let upper = message.uint(2) else { return nil }
             self.lower = lower
