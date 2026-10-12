@@ -45,11 +45,12 @@ enum NumbersWriter {
     private static func package(from original: FileWrapper?, replacing replacements: [String: Data]) -> FileWrapper {
         func copy(_ wrapper: FileWrapper?, path: String) -> FileWrapper {
             var children: [String: FileWrapper] = [:]
-            for (name, child) in wrapper?.fileWrappers ?? [:] {
+            let existing = wrapper?.isDirectory == true ? wrapper?.fileWrappers ?? [:] : [:]
+            for (name, child) in existing {
                 let childPath = path.isEmpty ? name : path + "/" + name
                 if child.isDirectory {
                     children[name] = copy(child, path: childPath)
-                } else if replacements[childPath] == nil, let contents = child.regularFileContents {
+                } else if replacements[childPath] == nil, child.isRegularFile, let contents = child.regularFileContents {
                     children[name] = FileWrapper(regularFileWithContents: contents)
                 }
             }

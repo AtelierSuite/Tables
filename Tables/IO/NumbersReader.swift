@@ -48,8 +48,8 @@ enum NumbersReader {
     }
 
     static func document(from package: FileWrapper) throws -> (workbook: Workbook, source: NumbersSource) {
-        guard let children = package.fileWrappers else { throw Failure.notANumbersDocument }
-        if let index = children["Index.zip"]?.regularFileContents {
+        guard package.isDirectory, let children = package.fileWrappers else { throw Failure.notANumbersDocument }
+        if let index = children["Index.zip"], index.isRegularFile, let index = index.regularFileContents {
             return try document(
                 entries: ZipArchive.orderedEntries(in: index), layout: .packageWithIndexArchive, package: package
             )
@@ -61,9 +61,12 @@ enum NumbersReader {
     }
 
     private static func collect(_ wrapper: FileWrapper, path: String, into entries: inout [(path: String, data: Data)]) {
-        if let contents = wrapper.regularFileContents {
+        // Asking a folder for its contents, or a file for its children,
+        // raises an exception.
+        if wrapper.isRegularFile, let contents = wrapper.regularFileContents {
             entries.append((path, contents))
         }
+        guard wrapper.isDirectory else { return }
         for (name, child) in (wrapper.fileWrappers ?? [:]).sorted(by: { $0.key < $1.key }) {
             collect(child, path: path + "/" + name, into: &entries)
         }

@@ -111,6 +111,31 @@ struct NumbersReaderTests {
         #expect(sheet[CellAddress(row: 0, column: 1)].value == .number(1_200))
     }
 
+    @Test("A package can keep its objects in an Index folder rather than a ZIP")
+    func packageWithIndexFolder() throws {
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.text("Rent"), .number(1_200, exponent: 0)]])])
+        var folders: [String: [String: FileWrapper]] = [:]
+        for (path, data) in try ZipArchive.orderedEntries(in: document.singleFile()) {
+            let folder = (path as NSString).deletingLastPathComponent
+            folders[folder, default: [:]][(path as NSString).lastPathComponent] = FileWrapper(regularFileWithContents: data)
+        }
+        var index = folders["Index"] ?? [:]
+        index["Tables"] = FileWrapper(directoryWithFileWrappers: folders["Index/Tables"] ?? [:])
+        let package = FileWrapper(directoryWithFileWrappers: [
+            "Index": FileWrapper(directoryWithFileWrappers: index),
+            "Data": FileWrapper(directoryWithFileWrappers: folders["Data"] ?? [:]),
+        ])
+        let (workbook, source) = try NumbersReader.document(from: package)
+        #expect(workbook.sheets[0][CellAddress(row: 0, column: 1)].value == .number(1_200))
+
+        var edited = workbook
+        edited.sheets[0][CellAddress(row: 0, column: 1)] = Cell(value: .number(900))
+        let saved = try NumbersWriter.fileWrapper(for: edited, source: source, existing: package)
+        #expect(saved.fileWrappers?["Data"]?.fileWrappers?["picture.png"] != nil)
+        #expect(try NumbersReader.workbook(from: saved).sheets[0][CellAddress(row: 0, column: 1)].value == .number(900))
+    }
+
     @Test("An archive that won't decode is passed over when the tables are elsewhere")
     func skipsUndecodableArchives() throws {
         var document = NumbersDocumentBuilder()
