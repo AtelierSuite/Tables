@@ -17783,31 +17783,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This change can’t be saved in a Numbers document. You can edit values and formulas, insert and delete rows and columns, and resize rows and columns."
+            "value" : "This change can’t be saved in a Numbers document. You can edit values and formulas, insert and delete rows and columns, resize rows and columns, and rename sheets."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この変更はNumbersの書類に保存できません。値と数式の編集、行と列の挿入と削除、行と列のサイズ変更ができます。"
+            "value" : "この変更はNumbersの書類に保存できません。値と数式の編集、行と列の挿入と削除、行と列のサイズ変更、シート名の変更ができます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 변경 사항은 Numbers 문서에 저장할 수 없습니다. 값과 수식을 편집하고, 행과 열을 삽입 및 삭제하고, 행과 열의 크기를 조절할 수 있습니다."
+            "value" : "이 변경 사항은 Numbers 문서에 저장할 수 없습니다. 값과 수식을 편집하고, 행과 열을 삽입 및 삭제하고, 행과 열의 크기를 조절하고, 시트 이름을 변경할 수 있습니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此更改无法存储在 Numbers 文稿中。你可以编辑值和公式、插入和删除行与列，以及调整行和列的大小。"
+            "value" : "此更改无法存储在 Numbers 文稿中。你可以编辑值和公式、插入和删除行与列、调整行和列的大小，以及重新命名工作表。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此變更無法儲存在 Numbers 文件中。你可以編輯值和公式、插入和刪除列與欄，以及調整列和欄的大小。"
+            "value" : "此變更無法儲存在 Numbers 文件中。你可以編輯值和公式、插入和刪除列與欄、調整列和欄的大小，以及重新命名工作表。"
           }
         }
       }

@@ -175,6 +175,29 @@ struct NumbersWriterTests {
         #expect(try NumbersReader.workbook(from: index).sheets[0][CellAddress(a1: "B2")!].value == .number(7))
     }
 
+    @Test("A sheet with a table to itself can be renamed")
+    func renamesSheet() throws {
+        var (workbook, source) = try NumbersReader.document(from: budget())
+        workbook.renameSheet(workbook.sheets[0].id, to: "Household")
+        #expect(NumbersEditPolicy.violation(in: workbook, source: source) == nil)
+        let reread = try NumbersReader.workbook(from: save(workbook, source))
+        #expect(reread.sheets[0].name == "Household")
+        #expect(reread.sheets[0][CellAddress(a1: "A2")!].value == .text("Rent"))
+    }
+
+    @Test("A table sharing its sheet with others can't be renamed, being named after both")
+    func refusesRenamingSharedSheet() throws {
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [
+            .init(name: "Income", rows: [[.number(1, exponent: 0)]]),
+            .init(name: "Spending", rows: [[.number(2, exponent: 0)]]),
+        ])
+        let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        var renamed = workbook
+        renamed.renameSheet(renamed.sheets[0].id, to: "Earnings")
+        #expect(NumbersEditPolicy.reconcile(renamed, from: workbook, source: source).violation == .structure)
+    }
+
     @Test("Changes Numbers can't keep are refused rather than saved")
     func refusesUnsupportedChanges() throws {
         let (workbook, source) = try NumbersReader.document(from: budget())
@@ -187,9 +210,9 @@ struct NumbersWriterTests {
         overwritten.sheets[0][CellAddress(a1: "B3")!] = Cell(value: .number(5))
         #expect(throws: NumbersEditPolicy.Violation.protectedCell) { try save(overwritten, source) }
 
-        var renamed = workbook
-        renamed.sheets[0].name = "Other"
-        #expect(throws: NumbersEditPolicy.Violation.structure) { try save(renamed, source) }
+        var hidden = workbook
+        hidden.sheets[0].isHidden = true
+        #expect(throws: NumbersEditPolicy.Violation.structure) { try save(hidden, source) }
     }
 }
 
@@ -245,13 +268,13 @@ struct NumbersEditPolicyTests {
     }
 
     @Test("Structural changes are refused whole", arguments: [
-        "rename", "shrink", "merge", "addSheet", "hideRow",
+        "hideSheet", "shrink", "merge", "addSheet", "hideRow",
     ])
     func structure(_ change: String) throws {
         let (workbook, source) = try document()
         var edited = workbook
         switch change {
-        case "rename": edited.sheets[0].name = "Other"
+        case "hideSheet": edited.sheets[0].isHidden = true
         case "shrink": edited.sheets[0].columnCount -= 1
         case "merge": edited.sheets[0].mergedRanges = [CellRange(start: CellAddress(row: 0, column: 0), end: CellAddress(row: 1, column: 0))]
         case "addSheet": _ = edited.addSheet()

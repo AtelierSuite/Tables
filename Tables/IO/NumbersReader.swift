@@ -111,6 +111,8 @@ enum NumbersReader {
                 readers[worksheet.id] = reader
                 tables[worksheet.id] = NumbersSource.Table(
                     modelIdentifier: model.identifier,
+                    sheetIdentifier: sheetReference.uint(1),
+                    sharesSheet: models.count > 1,
                     uuid: mergeOwners.tableUUID(of: model.message),
                     storage: reader.storage,
                     protectedCells: reader.protectedCells,
@@ -268,6 +270,9 @@ final class NumbersSource: @unchecked Sendable {
     struct Table {
         /// The `TST.TableModelArchive` it came from.
         var modelIdentifier: UInt64
+        /// The `TN.SheetArchive` it is on, and whether other tables are too.
+        var sheetIdentifier: UInt64?
+        var sharesSheet = false
         /// What formulas know the table by.
         var uuid: MergeOwners.UUID?
         /// Every cell's storage, as Numbers wrote it.

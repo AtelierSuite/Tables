@@ -7,7 +7,7 @@ import Foundation
 /// comes through untouched. That only works for changes the patch can
 /// express: values and formulas typed into cells, rows and columns inserted
 /// and deleted where nothing Tables can't move depends on where they are,
-/// rows and columns resized. Anything else is turned away as it's made,
+/// rows and columns resized, sheets renamed. Anything else is turned away as it's made,
 /// rather than accepted and then lost when the document is saved.
 enum NumbersEditPolicy {
     enum Violation: Error, Equatable, LocalizedError {
@@ -118,7 +118,12 @@ enum NumbersEditPolicy {
         guard new.sheets.map(\.id) == old.sheets.map(\.id),
               new.definedNames == old.definedNames else { return .structure }
         for (sheet, previous) in zip(new.sheets, old.sheets) where sheet != previous {
-            guard sheet.name == previous.name, sheet.isHidden == previous.isHidden, sheet.kind == previous.kind,
+            // A sheet takes its name from Numbers' sheet when it has the
+            // sheet to itself; one of several tables is named after both.
+            if sheet.name != previous.name, source.tables[sheet.id].map({ $0.sharesSheet || $0.sheetIdentifier == nil }) ?? true {
+                return .structure
+            }
+            guard sheet.isHidden == previous.isHidden, sheet.kind == previous.kind,
                   sheet.tabColorHex == previous.tabColorHex,
                   sheet.charts == previous.charts, sheet.comments == previous.comments,
                   sheet.formControls == previous.formControls else { return .structure }

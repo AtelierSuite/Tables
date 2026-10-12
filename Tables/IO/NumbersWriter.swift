@@ -83,8 +83,14 @@ enum NumbersWriter {
         var patch = Patch(archive: source.archive)
         let sheetNames = NumbersSource.sheetNames(of: workbook, tables: source.tables)
         for sheet in workbook.sheets {
-            guard let table = source.tables[sheet.id], let imported = source.imported[sheet.id],
-                  sheet != imported else { continue }
+            guard let table = source.tables[sheet.id], let imported = source.imported[sheet.id] else { continue }
+            if sheet.name != imported.name, let identifier = table.sheetIdentifier, var numbersSheet = patch[identifier] {
+                numbersSheet.set(1, bytes: Array(sheet.name.utf8))
+                try patch.change(identifier, to: numbersSheet)
+            }
+            var renamedBack = sheet
+            renamedBack.name = imported.name
+            guard renamedBack != imported else { continue }
             try TableWriter(sheet: sheet, imported: imported, table: table, sheetNames: sheetNames).write(into: &patch)
         }
         guard !patch.isEmpty else { return source.entries }
