@@ -154,8 +154,12 @@ enum NumbersFormula {
                 guard let operand = stack.popLast() else { return false }
                 push(parenthesized(operand, below: Self.postfix) + "%", Self.postfix)
             case NodeType.number:
-                guard let number = NumbersFormula.number(of: node) else { return false }
-                push(CellValue.plainNumberString(number), Self.atom)
+                guard let number = NumbersFormula.number(of: node), number.isFinite else { return false }
+                // Every digit, as it was typed: written back, it has to be the
+                // same number.
+                let text = number == number.rounded() && abs(number) < 1e15
+                    ? String(Int64(number)) : "\(number)".uppercased()
+                push(text, Self.atom)
             case NodeType.boolean:
                 push(node.bool(Field.boolean) ? "TRUE" : "FALSE", Self.atom)
             case NodeType.token:

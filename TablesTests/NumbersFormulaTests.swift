@@ -185,7 +185,7 @@ struct NumbersFormulaTests {
     @Test("Formulas come back the same after being written and read again", arguments: [
         "A1+B1*2", "(A1+B1)*2", "-A1^2", "2^3^2", "(2^3)^2", "SUM($A$1:B$3,10%)", "IF(A1>=1,\"yes\",IFERROR(1/0,0))",
         "'Rates – Table 1'!B2*2", "SUM('Rates – Table 1'!A1:A9)", "AVERAGE({1,2;3,4})", "IFS(A1,1,TRUE,2)",
-        "CHOOSE(2,A1,B1,C1)", "SUM($A$1:B3)", "SUM(A1:$B$3)", "SUM($A1:B$3)", "SUM(A$1:$B3)", "A1&\" \"&B1", "A1<>B1", "COUNT(,1)", "SUM(A2:INDEX(A1:A9,3))",
+        "CHOOSE(2,A1,B1,C1)", "1.234E-09*A1", "0.1+1E+16", "SUM($A$1:B3)", "SUM(A1:$B$3)", "SUM($A1:B$3)", "SUM(A$1:$B3)", "A1&\" \"&B1", "A1<>B1", "COUNT(,1)", "SUM(A2:INDEX(A1:A9,3))",
     ])
     func roundTrip(_ formula: String) throws {
         let nodes = try #require(NumbersFormula.nodes(for: formula, context: context("D5")))

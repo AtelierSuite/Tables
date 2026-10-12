@@ -128,8 +128,11 @@ enum NumbersReader {
             guard let reader = readers[id], let table = tables[id] else { continue }
             for (address, nodes) in reader.formulas {
                 let context = NumbersFormula.Context(host: address, hostTable: table.uuid, sheetNames: sheetNames)
+                // Only formulas that can be written back, too: they are
+                // written again as rows and columns move.
                 guard address.row < workbook.sheets[index].rowCount, address.column < workbook.sheets[index].columnCount,
-                      let formula = NumbersFormula.formula(from: nodes, context: context) else { continue }
+                      let formula = NumbersFormula.formula(from: nodes, context: context),
+                      NumbersFormula.nodes(for: formula, context: context) != nil else { continue }
                 workbook.sheets[index][address].formula = formula
                 tables[id]?.protectedCells.remove(address)
             }
