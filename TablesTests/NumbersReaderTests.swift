@@ -177,8 +177,10 @@ struct NumbersDocumentBuilder {
         case date(seconds: Double)
         case duration(seconds: Double)
         case formulaError
-        /// A number Numbers calculated with a formula.
+        /// A number Numbers calculated with a formula Tables can't read.
         case formula(Int64)
+        /// A number Numbers calculated with a formula of these nodes.
+        case formulaNodes(Int64, [ProtobufMessage])
         /// Text with a cell style, a field the writer has to carry over.
         case styledText(String, style: UInt32)
     }
@@ -199,6 +201,8 @@ struct NumbersDocumentBuilder {
         /// Merges as newer versions record them, with the calculation engine.
         var mergeOwnerRanges: [CellRange] = []
         var isPreBNC = false
+        /// Gives the table the UUID formulas in other tables refer to it by.
+        var uuid: MergeOwners.UUID?
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -260,6 +264,7 @@ struct NumbersDocumentBuilder {
     private mutating func addTable(_ table: Table) -> UInt64 {
         var strings: [String] = []
         var richTexts: [UInt64] = []
+        var formulas: [[ProtobufMessage]] = []
         let columnCount = table.columnCount ?? max(1, table.rows.map(\.count).max() ?? 1)
 
         func row(_ index: Int, _ cells: [Cell]) -> ProtobufWriter {
@@ -311,7 +316,12 @@ struct NumbersDocumentBuilder {
                 return Self.cellStorage(type: 8, flags: 0, [])
             case .formula(let value):
                 formulaCount += 1
-                let fields = Self.decimal128(value, exponent: 0) + Self.littleEndian(UInt32(formulaCount))
+                let fields = Self.decimal128(value, exponent: 0) + Self.littleEndian(UInt32(1000 + formulaCount))
+                return Self.cellStorage(type: 2, flags: 0x1 | 0x200, fields)
+            case .formulaNodes(let value, let nodes):
+                formulaCount += 1
+                formulas.append(nodes)
+                let fields = Self.decimal128(value, exponent: 0) + Self.littleEndian(UInt32(formulas.count))
                 return Self.cellStorage(type: 2, flags: 0x1 | 0x200, fields)
             case .styledText(let text, let style):
                 strings.append(text)
@@ -334,6 +344,13 @@ struct NumbersDocumentBuilder {
 
         let stringTable = add(type: 6005, dataList(strings.enumerated().map { ProtobufWriter().string(3, $0.element) }))
         let richTextTable = add(type: 6005, dataList(richTexts.map { ProtobufWriter().message(9, Self.reference($0)) }))
+        let formulaTable = add(type: 6005, dataList(formulas.map { nodes in
+            var array = ProtobufMessage()
+            array.set(1, messages: nodes)
+            var formula = ProtobufMessage()
+            formula.set(1, message: array)
+            return ProtobufWriter().bytes(5, formula.encoded())
+        }))
         let rowHeaders = add(type: 6006, headers(sizes: table.rowSizes, hidden: table.hiddenRows))
         let columnHeaders = add(type: 6006, headers(sizes: table.columnSizes, hidden: table.hiddenColumns))
 
@@ -342,6 +359,7 @@ struct NumbersDocumentBuilder {
             .message(2, Self.reference(columnHeaders))
             .message(3, tileStorage)
             .message(4, Self.reference(stringTable))
+            .message(6, Self.reference(formulaTable))
             .message(17, Self.reference(richTextTable))
         if !table.mergeRegions.isEmpty {
             let map = table.mergeRegions.reduce(ProtobufWriter()) { map, range in
@@ -361,8 +379,8 @@ struct NumbersDocumentBuilder {
             .string(8, table.name)
             .double(16, 20)
             .double(17, Self.defaultColumnWidth)
-        if !table.mergeOwnerRanges.isEmpty {
-            model = model.message(84, ProtobufWriter().message(1, addMergeOwner(table.mergeOwnerRanges)))
+        if !table.mergeOwnerRanges.isEmpty || table.uuid != nil {
+            model = model.message(84, ProtobufWriter().message(1, addMergeOwner(table.mergeOwnerRanges, base: table.uuid)))
         }
         let modelIdentifier = add(type: 6001, model)
         // The table's own formula owner, which the engine knows by number.
@@ -375,17 +393,18 @@ struct NumbersDocumentBuilder {
     /// haunted owner, standing in for its base owner, which the merge owner's
     /// ranges name by the engine's internal number. Returns the haunted
     /// owner's UUID, for the table to point at.
-    private mutating func addMergeOwner(_ ranges: [CellRange]) -> ProtobufWriter {
+    private mutating func addMergeOwner(_ ranges: [CellRange], base uuid: MergeOwners.UUID? = nil) -> ProtobufWriter {
         let seed = nextIdentifier
+        let lower = uuid?.lower ?? seed, upper = uuid?.upper ?? 0xBBBB
         let haunted = ProtobufWriter().varint(1, seed).varint(2, 0xAAAA)
-        let base = ProtobufWriter().varint(1, seed).varint(2, 0xBBBB)
+        let base = ProtobufWriter().varint(1, lower).varint(2, upper)
         add(type: 4008, ProtobufWriter().message(1, haunted).varint(3, 35).message(12, base))
 
         let internalID = ownerMapEntries.count
         // The engine spells the base owner's UUID as four 32-bit words.
         let words = ProtobufWriter()
-            .varint(2, Int(seed & 0xFFFF_FFFF)).varint(3, Int(seed >> 32))
-            .varint(4, 0xBBBB).varint(5, 0)
+            .varint(2, lower & 0xFFFF_FFFF).varint(3, lower >> 32)
+            .varint(4, upper & 0xFFFF_FFFF).varint(5, upper >> 32)
         ownerMapEntries.append(ProtobufWriter().varint(1, internalID).message(2, words))
 
         let dependencies = ranges.reduce(ProtobufWriter()) { dependencies, range in

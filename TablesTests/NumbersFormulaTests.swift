@@ -210,3 +210,149 @@ struct NumbersFormulaTests {
         #expect(NumbersFormula.nodes(for: formula, context: context("B1")) == nil)
     }
 }
+
+@Suite("Numbers formula saving")
+struct NumbersFormulaSavingTests {
+    private let rates = MergeOwners.UUID(lower: 0xABCD, upper: 0xEF01)
+
+    /// A table whose C1 is Numbers' own `A1+B1`, beside a table of rates.
+    private func document() throws -> Data {
+        let sum = [
+            NumbersNodes.cell(column: -2, row: 0), NumbersNodes.cell(column: -1, row: 0),
+            NumbersNodes.node(NumbersFormula.NodeType.addition),
+        ]
+        var document = NumbersDocumentBuilder()
+        var rates = NumbersDocumentBuilder.Table(name: "Rates", rows: [[.number(3, exponent: 0)]])
+        rates.uuid = self.rates
+        document.addSheet("Sums", tables: [.init(name: "Table 1", rows: [
+            [.number(1, exponent: 0), .number(2, exponent: 0), .formulaNodes(3, sum)],
+            [.number(5, exponent: 0), .empty, .formula(9)],
+        ])])
+        document.addSheet("Rates", tables: [rates])
+        return try document.singleFile()
+    }
+
+    private func save(_ workbook: Workbook, _ source: NumbersSource) throws -> Data {
+        try #require(NumbersWriter.fileWrapper(for: workbook, source: source, existing: nil).regularFileContents)
+    }
+
+    @Test("Numbers formulas Tables can read come in as formulas, and work out again")
+    func readsFormulas() throws {
+        var (workbook, source) = try NumbersReader.document(from: document())
+        let c1 = CellAddress(a1: "C1")!
+        #expect(workbook.sheets[0][c1].formula == "A1+B1")
+        #expect(workbook.sheets[0][c1].value == .number(3))
+        #expect(workbook.sheets[0][CellAddress(a1: "C2")!].formula == nil, "a formula Tables can't read")
+        #expect(source.tables[workbook.sheets[0].id]?.protectedCells == [CellAddress(a1: "C2")!])
+
+        workbook.sheets[0][CellAddress(a1: "A1")!] = Cell(value: .number(10))
+        workbook.recalculate()
+        #expect(workbook.sheets[0][c1].value == .number(12))
+    }
+
+    @Test("A formula Tables works out differently keeps Numbers' result, and is left as Numbers wrote it")
+    func keepsNumbersResults() throws {
+        // Numbers' result for `A1+B1` is 3; this one says 4, as if Numbers
+        // read something differently.
+        let sum = [
+            NumbersNodes.cell(column: -2, row: 0), NumbersNodes.cell(column: -1, row: 0),
+            NumbersNodes.node(NumbersFormula.NodeType.addition),
+        ]
+        var builder = NumbersDocumentBuilder()
+        builder.addSheet("Sums", tables: [.init(name: "Table 1", rows: [
+            [.number(1, exponent: 0), .number(2, exponent: 0), .formulaNodes(4, sum),
+             .formulaNodes(8, [NumbersNodes.cell(column: -1, row: 0), NumbersNodes.number(2),
+                               NumbersNodes.node(NumbersFormula.NodeType.multiplication)])],
+        ])])
+        let (workbook, source) = try NumbersReader.document(from: builder.singleFile())
+        let sheet = workbook.sheets[0]
+        #expect(sheet[CellAddress(a1: "C1")!].formula == nil)
+        #expect(sheet[CellAddress(a1: "C1")!].value == .number(4))
+        #expect(source.tables[sheet.id]?.protectedCells.contains(CellAddress(a1: "C1")!) == true)
+        // D1 doubles C1, so agrees once C1 is Numbers' 4 again.
+        #expect(sheet[CellAddress(a1: "D1")!].formula == "C1*2")
+        #expect(sheet[CellAddress(a1: "D1")!].value == .number(8))
+    }
+
+    @Test("A new formula is saved with its result, and read back as a formula")
+    func writesFormula() throws {
+        let original = try document()
+        var (workbook, source) = try NumbersReader.document(from: original)
+        var cell = Cell()
+        cell.formula = "A1*Rates!A1"
+        workbook.sheets[0][CellAddress(a1: "B2")!] = cell
+        workbook.sheets[0][CellAddress(a1: "D1")!] = { var cell = Cell(); cell.formula = "C1*2"; return cell }()
+        workbook.sheets[0].addColumns(1)
+        workbook.recalculate()
+        #expect(NumbersEditPolicy.violation(in: workbook, source: source) == nil)
+        let saved = try save(workbook, source)
+
+        let (reread, rereadSource) = try NumbersReader.document(from: saved)
+        let sheet = reread.sheets[0]
+        #expect(sheet[CellAddress(a1: "B2")!].formula == "A1*Rates!A1")
+        #expect(sheet[CellAddress(a1: "B2")!].value == .number(3))
+        #expect(sheet[CellAddress(a1: "D1")!].formula == "C1*2")
+        #expect(sheet[CellAddress(a1: "C1")!].formula == "A1+B1")
+
+        let table = try #require(rereadSource.tables[sheet.id])
+        let storage = try #require(table.storage[CellAddress(a1: "B2")!].flatMap(NumbersCellStorage.init))
+        #expect(storage.hasFormula)
+        #expect(storage.type == NumbersCellStorage.CellType.number)
+        #expect(storage.field(NumbersCellStorage.Field.decimal) == NumbersCellStorage.decimal128(3))
+
+        // The engine counts the two new formulas, and is asked to work
+        // every table out again.
+        let archive = rereadSource.archive
+        let engine = try #require(archive[3]?.message)
+        #expect(engine.message(2)?.uint(5) == 4)
+        let stale = try #require(archive[NumbersDocumentBuilder.staleOwnerListIdentifier]?.message)
+        #expect(!(stale.message(1)?.messages(1).isEmpty ?? true))
+    }
+
+    @Test("A formula's result changing saves the result beside the formula it had")
+    func keepsFormulaKey() throws {
+        var (workbook, source) = try NumbersReader.document(from: document())
+        let before = try #require(source.tables[workbook.sheets[0].id]?.storage[CellAddress(a1: "C1")!])
+        workbook.sheets[0][CellAddress(a1: "A1")!] = Cell(value: .number(10))
+        workbook.recalculate()
+        let (_, saved) = try NumbersReader.document(from: save(workbook, source))
+        let after = try #require(saved.tables.values.first { $0.rowCount == 2 }?.storage[CellAddress(a1: "C1")!])
+        let old = try #require(NumbersCellStorage(before)), new = try #require(NumbersCellStorage(after))
+        #expect(new.formulaKey == old.formulaKey)
+        #expect(new.field(NumbersCellStorage.Field.decimal) == NumbersCellStorage.decimal128(12))
+    }
+
+    @Test("Formulas that read the same share one entry in the table's formulas")
+    func sharesFormulas() throws {
+        var (workbook, source) = try NumbersReader.document(from: document())
+        workbook.sheets[0].addRows(2)
+        for row in [2, 3] {
+            var cell = Cell()
+            cell.formula = "A\(row + 1)+B\(row + 1)"
+            workbook.sheets[0][CellAddress(row: row, column: 2)] = cell
+        }
+        workbook.recalculate()
+        let (_, saved) = try NumbersReader.document(from: save(workbook, source))
+        let table = try #require(saved.tables.values.first { $0.rowCount == 4 })
+        let keys = [CellAddress(a1: "C1")!, CellAddress(a1: "C3")!, CellAddress(a1: "C4")!].map {
+            table.storage[$0].flatMap(NumbersCellStorage.init)?.formulaKey
+        }
+        #expect(keys[0] != nil && keys.allSatisfy { $0 == keys[0] })
+    }
+
+    @Test("A formula Numbers can't be given is taken back; one it can is kept")
+    func policy() throws {
+        let (workbook, source) = try NumbersReader.document(from: document())
+        var edited = workbook
+        edited.sheets[0][CellAddress(a1: "B2")!] = { var cell = Cell(); cell.formula = "SUM(A:A)"; return cell }()
+        edited.sheets[0][CellAddress(a1: "C1")!] = { var cell = Cell(); cell.formula = "A1-B1"; return cell }()
+        let (result, violation) = NumbersEditPolicy.reconcile(edited, from: workbook, source: source)
+        #expect(violation == .formula)
+        #expect(result.sheets[0][CellAddress(a1: "B2")!].formula == nil)
+        #expect(result.sheets[0][CellAddress(a1: "C1")!].formula == "A1-B1")
+
+        var protected = workbook
+        protected.sheets[0][CellAddress(a1: "C2")!] = Cell(value: .number(1))
+        #expect(NumbersEditPolicy.reconcile(protected, from: workbook, source: source).violation == .protectedCell)
+    }
+}

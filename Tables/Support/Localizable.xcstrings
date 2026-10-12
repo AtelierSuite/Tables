@@ -17678,31 +17678,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Formulas can’t be saved in Numbers documents yet. Type a value instead, or save a copy as an Excel workbook."
+            "value" : "This formula can’t be saved in a Numbers document: it uses a function or a kind of reference Numbers doesn’t have. Whole rows and columns, LET and LAMBDA, table references and spilled ranges can’t be saved."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Numbersの書類にはまだ数式を保存できません。値を入力するか、Excelブックとしてコピーを保存してください。"
+            "value" : "この数式はNumbersの書類に保存できません。Numbersにない関数または参照の種類が使われています。行全体や列全体の参照、LETとLAMBDA、テーブル参照、スピル範囲は保存できません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 Numbers 문서에는 수식을 저장할 수 없습니다. 대신 값을 입력하거나 Excel 통합 문서로 사본을 저장하십시오."
+            "value" : "이 수식은 Numbers 문서에 저장할 수 없습니다. Numbers에 없는 함수나 참조 종류를 사용합니다. 행 전체나 열 전체 참조, LET과 LAMBDA, 표 참조, 분산 범위는 저장할 수 없습니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "目前还无法在 Numbers 文稿中存储公式。请改为输入值，或将副本存储为 Excel 工作簿。"
+            "value" : "此公式无法存储在 Numbers 文稿中：它使用了 Numbers 没有的函数或引用类型。整行和整列引用、LET 和 LAMBDA、表格引用以及溢出区域都无法存储。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "目前還無法在 Numbers 文件中儲存公式。請改為輸入值，或將副本儲存為 Excel 活頁簿。"
+            "value" : "此公式無法儲存在 Numbers 文件中：它使用了 Numbers 沒有的函數或參照類型。整列和整欄參照、LET 和 LAMBDA、表格參照以及溢出範圍都無法儲存。"
           }
         }
       }
@@ -17713,31 +17713,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This cell holds a Numbers formula, which Tables keeps as it is."
+            "value" : "This cell holds a Numbers formula Tables can’t read, so Tables keeps it as it is."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このセルにはNumbersの数式が含まれているため、Tablesでは変更せずにそのまま保持します。"
+            "value" : "このセルにはTablesで読み取れないNumbersの数式が含まれているため、変更せずにそのまま保持します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 셀에는 Numbers 수식이 있으므로 Tables에서 그대로 유지합니다."
+            "value" : "이 셀에는 Tables에서 읽을 수 없는 Numbers 수식이 있으므로 그대로 유지합니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此单元格包含 Numbers 公式，Tables 会将其保持原样。"
+            "value" : "此单元格包含 Tables 无法读取的 Numbers 公式，因此 Tables 会将其保持原样。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此儲存格包含 Numbers 公式，Tables 會將其保持原樣。"
+            "value" : "此儲存格包含 Tables 無法讀取的 Numbers 公式，因此 Tables 會將其保持原樣。"
           }
         }
       }

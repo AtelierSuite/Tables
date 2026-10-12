@@ -81,12 +81,14 @@ enum NumbersWriter {
         if let violation = NumbersEditPolicy.violation(in: workbook, source: source) { throw violation }
 
         var patch = Patch(archive: source.archive)
+        let sheetNames = NumbersSource.sheetNames(of: workbook, tables: source.tables)
         for sheet in workbook.sheets {
             guard let table = source.tables[sheet.id], let imported = source.imported[sheet.id],
                   sheet != imported else { continue }
-            try TableWriter(sheet: sheet, imported: imported, table: table).write(into: &patch)
+            try TableWriter(sheet: sheet, imported: imported, table: table, sheetNames: sheetNames).write(into: &patch)
         }
         guard !patch.isEmpty else { return source.entries }
+        patch.countFormulas()
         if patch.changedValues { patch.markFormulasForRecalculation() }
         try patch.updateMetadata()
         return patch.entries(from: source.entries)
@@ -106,6 +108,8 @@ private struct Patch {
     /// component of its own, which the table's component refers to.
     private(set) var newTiles: [(identifier: UInt64, owner: UInt64)] = []
     private(set) var changedValues = false
+    /// How many more cells hold formulas than did.
+    private(set) var formulaCountChange = 0
     private var nextIdentifier: UInt64
 
     init(archive: IWAArchive) {
@@ -131,6 +135,10 @@ private struct Patch {
         changedValues = true
     }
 
+    mutating func noteFormulaCountChange(_ change: Int) {
+        formulaCountChange += change
+    }
+
     /// Adds a tile for a table whose model is `owner`, returning its
     /// identifier.
     mutating func addTile(_ message: ProtobufMessage, owner: UInt64) -> UInt64 {
@@ -145,14 +153,28 @@ private struct Patch {
 
     // MARK: - Recalculation
 
+    private var calculationEngine: UInt64? {
+        archive.identifiers(ofType: NumbersReader.ObjectType.calculationEngine).first
+    }
+
+    /// Keeps the calculation engine's count of formulas up to date.
+    mutating func countFormulas() {
+        guard formulaCountChange != 0, let engine = calculationEngine, var message = self[engine],
+              var tracker = message.message(2) else { return }
+        let count = Int(tracker.uint(5) ?? 0) + formulaCountChange
+        tracker.set(5, uint: UInt64(max(0, count)))
+        message.set(2, message: tracker)
+        try? change(engine, to: message)
+    }
+
     /// Asks Numbers to recalculate every table's formulas when it next opens
     /// the document, since the values they read from may have changed.
     ///
     /// The calculation engine keeps a list of owners — tables, mostly — whose
     /// cells are out of date; every table goes on it.
     mutating func markFormulasForRecalculation() {
-        guard let engine = archive.identifiers(ofType: NumbersReader.ObjectType.calculationEngine).first,
-              let engineMessage = archive[engine]?.message,
+        guard let engine = calculationEngine,
+              let engineMessage = self[engine],
               (engineMessage.message(2)?.uint(5) ?? 0) > 0,
               let listIdentifier = engineMessage.message(15)?.uint(1),
               var list = self[listIdentifier] else { return }
@@ -260,19 +282,36 @@ private struct TableWriter {
     let sheet: Worksheet
     let imported: Worksheet
     let table: NumbersSource.Table
+    let sheetNames: [MergeOwners.UUID: String]
 
     func write(into patch: inout Patch) throws {
         guard var model = patch[table.modelIdentifier], var store = model.message(4) else { return }
         var strings = StringTable(reference: store.message(4), patch: patch)
+        var formulas = FormulaTable(reference: store.message(6), patch: patch)
 
         // The new storage of every changed cell; nil where it is now empty.
         var changedCells: [CellAddress: [UInt8]?] = [:]
         for address in Set(sheet.cells.keys).union(imported.cells.keys)
         where address.row < sheet.rowCount && address.column < sheet.columnCount {
             let cell = sheet[address], original = imported[address]
-            guard cell.value != original.value || cell.style.numberFormat != original.style.numberFormat else { continue }
+            guard cell.value != original.value || cell.style.numberFormat != original.style.numberFormat
+                    || cell.formula != original.formula else { continue }
             let storage = table.storage[address].flatMap(NumbersCellStorage.init) ?? NumbersCellStorage(type: 0)
-            let updated = storage.replacingValue(with: cell) { strings.key(for: $0) }
+            var formulaKey: UInt32?
+            if let formula = cell.formula {
+                if formula == original.formula, let key = storage.formulaKey {
+                    // Only the result has changed.
+                    formulaKey = UInt32(truncatingIfNeeded: key)
+                } else {
+                    let context = NumbersFormula.Context(host: address, hostTable: table.uuid, sheetNames: sheetNames)
+                    guard let nodes = NumbersFormula.nodes(for: formula, context: context) else {
+                        throw NumbersEditPolicy.Violation.formula
+                    }
+                    formulaKey = formulas.key(for: nodes)
+                }
+            }
+            if (formulaKey != nil) != storage.hasFormula { patch.noteFormulaCountChange(formulaKey != nil ? 1 : -1) }
+            let updated = storage.replacingValue(with: cell, formulaKey: formulaKey) { strings.key(for: $0) }
             changedCells.updateValue(updated.isBare ? nil : updated.encoded, forKey: address)
         }
         if !changedCells.isEmpty { patch.noteChangedValues() }
@@ -286,6 +325,7 @@ private struct TableWriter {
             store: &store, rowCellCounts: &rowCellCounts, patch: &patch
         )
         try strings.save(into: &patch)
+        try formulas.save(into: &patch)
         try writeRowHeaders(rowCount: rowCount, rowCellCounts: rowCellCounts, store: store, patch: &patch)
         try writeColumnHeaders(changedCells, columnCount: columnCount, store: store, patch: &patch)
 
@@ -513,6 +553,71 @@ private struct StringTable {
     /// needed does no harm, where one dropped too soon would.
     func save(into patch: inout Patch) throws {
         guard let identifier, !added.isEmpty else { return }
+        var list = list
+        let entries = (list.messages(3) + newEntries).map { entry -> ProtobufMessage in
+            guard let key = entry.uint(1).map(UInt32.init(truncatingIfNeeded:)), let count = added[key] else { return entry }
+            var entry = entry
+            entry.set(2, uint: (entry.uint(2) ?? 0) + count)
+            return entry
+        }
+        list.set(3, messages: entries)
+        list.set(2, uint: UInt64(nextKey))
+        try patch.change(identifier, to: list)
+    }
+}
+
+/// A table's formulas, a `TST.TableDataList` cells refer to by key. Cells
+/// whose formulas read the same — relative references and all, as when one
+/// is filled down a column — share one.
+private struct FormulaTable {
+    private let identifier: UInt64?
+    private var list: ProtobufMessage
+    private var keys: [[UInt8]: UInt32] = [:]
+    private var nextKey: UInt32
+    private var added: [UInt32: UInt64] = [:]
+    private var newEntries: [ProtobufMessage] = []
+
+    init(reference: ProtobufMessage?, patch: Patch) {
+        identifier = reference?.uint(1)
+        list = identifier.flatMap { patch[$0] } ?? ProtobufMessage()
+        var largest: UInt32 = 0
+        for entry in list.messages(3) {
+            guard let key = entry.uint(1).map(UInt32.init(truncatingIfNeeded:)) else { continue }
+            largest = max(largest, key)
+            if let nodes = entry.message(5)?.message(1)?.encoded(), keys[nodes] == nil { keys[nodes] = key }
+        }
+        nextKey = max(UInt32(truncatingIfNeeded: list.uint(2) ?? 1), largest + 1)
+    }
+
+    /// The key for a formula of these nodes, added if there isn't one yet.
+    mutating func key(for nodes: [ProtobufMessage]) -> UInt32 {
+        var array = ProtobufMessage()
+        array.set(1, messages: nodes)
+        let encoded = array.encoded()
+        let key: UInt32
+        if let existing = keys[encoded] {
+            key = existing
+        } else {
+            key = nextKey
+            nextKey += 1
+            keys[encoded] = key
+            var formula = ProtobufMessage()
+            formula.set(1, message: array)
+            var entry = ProtobufMessage()
+            entry.set(1, uint: UInt64(key))
+            entry.set(2, uint: 0)
+            entry.set(5, message: formula)
+            newEntries.append(entry)
+        }
+        added[key, default: 0] += 1
+        return key
+    }
+
+    /// Writes the table back if any formula gained a cell. As with strings,
+    /// formulas a change dropped are left counted.
+    func save(into patch: inout Patch) throws {
+        guard !added.isEmpty else { return }
+        guard let identifier else { throw NumbersEditPolicy.Violation.formula }
         var list = list
         let entries = (list.messages(3) + newEntries).map { entry -> ProtobufMessage in
             guard let key = entry.uint(1).map(UInt32.init(truncatingIfNeeded:)), let count = added[key] else { return entry }

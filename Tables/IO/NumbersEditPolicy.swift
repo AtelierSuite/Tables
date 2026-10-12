@@ -3,16 +3,18 @@ import Foundation
 /// The changes to a workbook read from Numbers that can be saved back to it.
 ///
 /// Saving patches the original document rather than writing a new one, so
-/// that everything Tables doesn't read — styles, charts, formulas, images,
-/// categories — comes through untouched. That only works for changes the
-/// patch can express: values typed into cells, rows and columns added at the
-/// end, rows and columns resized. Anything else is turned away as it's made,
-/// rather than accepted and then lost when the document is saved.
+/// that everything Tables doesn't read — styles, charts, images, categories —
+/// comes through untouched. That only works for changes the patch can
+/// express: values and formulas typed into cells, rows and columns added at
+/// the end, rows and columns resized. Anything else is turned away as it's
+/// made, rather than accepted and then lost when the document is saved.
 enum NumbersEditPolicy {
     enum Violation: Error, Equatable, LocalizedError {
-        /// A formula typed or pasted in: Tables can't write Numbers formulas.
+        /// A formula Numbers can't be given: one using a function or a kind
+        /// of reference it doesn't have.
         case formula
-        /// A change to a cell holding a Numbers formula, or in a pivot table.
+        /// A change to a cell holding a formula Tables can't read, or in a
+        /// pivot table.
         case protectedCell
         /// A change to sheets, tables, merged cells, hidden rows and the like.
         case structure
@@ -45,6 +47,7 @@ enum NumbersEditPolicy {
 
         var result = new
         var violation: Violation?
+        let sheetNames = NumbersSource.sheetNames(of: new, tables: source.tables)
         for (index, sheet) in new.sheets.enumerated() {
             let previous = old.sheets[index]
             guard sheet != previous, let table = source.tables[sheet.id],
@@ -52,12 +55,9 @@ enum NumbersEditPolicy {
             for address in Set(sheet.cells.keys).union(previous.cells.keys) {
                 let cell = sheet[address]
                 guard cell != previous[address] else { continue }
-                if cell.formula != nil {
+                if let reason = problem(with: cell, was: previous[address], at: address, in: table, sheetNames: sheetNames) {
                     result.sheets[index][address] = previous[address]
-                    violation = violation ?? .formula
-                } else if table.isPivot || table.protectedCells.contains(address) {
-                    result.sheets[index][address] = previous[address]
-                    violation = violation ?? .protectedCell
+                    violation = violation ?? reason
                 } else {
                     var style = imported[address].style
                     style.numberFormat = cell.style.numberFormat
@@ -69,6 +69,8 @@ enum NumbersEditPolicy {
                 }
             }
         }
+        // Formulas worked out from what was taken back need working out again.
+        if violation != nil { result.recalculate() }
         return (result, violation)
     }
 
@@ -76,15 +78,31 @@ enum NumbersEditPolicy {
     /// it can't.
     static func violation(in workbook: Workbook, source: NumbersSource) -> Violation? {
         if hasStructuralChange(workbook, from: source.imported, source: source) { return .structure }
+        let sheetNames = NumbersSource.sheetNames(of: workbook, tables: source.tables)
         for sheet in workbook.sheets {
             guard let table = source.tables[sheet.id], let imported = source.imported[sheet.id] else { continue }
             for address in Set(sheet.cells.keys).union(imported.cells.keys) {
-                let cell = sheet[address]
-                if cell.formula != nil { return .formula }
-                let original = imported[address]
-                let changed = cell.value != original.value || cell.style.numberFormat != original.style.numberFormat
-                if changed, table.isPivot || table.protectedCells.contains(address) { return .protectedCell }
+                if let reason = problem(with: sheet[address], was: imported[address], at: address, in: table, sheetNames: sheetNames) {
+                    return reason
+                }
             }
+        }
+        return nil
+    }
+
+    /// Why a cell can't be saved as it is now, if it can't. A formula's
+    /// result changing is no change of its own.
+    private static func problem(
+        with cell: Cell, was original: Cell, at address: CellAddress, in table: NumbersSource.Table,
+        sheetNames: [MergeOwners.UUID: String]
+    ) -> Violation? {
+        let edited = cell.formula != original.formula
+            || cell.formula == nil && (cell.value != original.value || cell.style.numberFormat != original.style.numberFormat)
+        guard edited else { return nil }
+        if table.isPivot || table.protectedCells.contains(address) { return .protectedCell }
+        if let formula = cell.formula, formula != original.formula {
+            let context = NumbersFormula.Context(host: address, hostTable: table.uuid, sheetNames: sheetNames)
+            if NumbersFormula.nodes(for: formula, context: context) == nil { return .formula }
         }
         return nil
     }

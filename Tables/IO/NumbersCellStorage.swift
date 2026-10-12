@@ -78,6 +78,9 @@ struct NumbersCellStorage: Hashable {
 
     var hasFormula: Bool { fields[Field.formula] != nil }
 
+    /// The key of the cell's formula in its table's formulas.
+    var formulaKey: UInt64? { key(Field.formula) }
+
     var encoded: [UInt8] {
         var output: [UInt8] = [5, type] + bookkeeping
         var flags: UInt32 = 0
@@ -148,18 +151,29 @@ struct NumbersCellStorage: Hashable {
     /// The same cell holding `cell`'s value instead, with every field that
     /// isn't part of the value kept. `stringKey` finds or adds the key for a
     /// piece of text in the table's strings.
-    func replacingValue(with cell: Cell, stringKey: (String) -> UInt32) -> NumbersCellStorage {
+    ///
+    /// For a formula, `formulaKey` is its key in the table's formulas, and
+    /// the value is the result it was last worked out to.
+    func replacingValue(
+        with cell: Cell, formulaKey: UInt32? = nil, stringKey: (String) -> UInt32
+    ) -> NumbersCellStorage {
         var storage = self
         for flag in Field.value { storage.fields[flag] = nil }
+        if let formulaKey {
+            storage.fields[Field.formula] = withUnsafeBytes(of: formulaKey.littleEndian, Array.init)
+        }
 
         switch cell.value {
         case .empty:
             storage.type = CellType.empty
         case .text(let text):
             storage.setText(stringKey(text))
+        case .error where formulaKey != nil:
+            // Numbers doesn't keep which error a formula came to; it works
+            // that out again when it opens the document.
+            storage.type = CellType.formulaError
         case .error(let error):
-            // Only a formula makes an error, and Numbers formulas can't be
-            // written; typed in, it is the text it looks like.
+            // Typed in, an error is the text it looks like.
             storage.setText(stringKey(error.rawValue))
         case .boolean(let flag):
             storage.type = CellType.boolean

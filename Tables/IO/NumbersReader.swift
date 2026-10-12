@@ -84,6 +84,7 @@ enum NumbersReader {
         var workbook = Workbook()
         workbook.sheets = []
         var tables: [Worksheet.ID: NumbersSource.Table] = [:]
+        var readers: [Worksheet.ID: TableReader] = [:]
         for sheetReference in document.message.messages(1) {
             guard let sheet = archive[sheetReference]?.message else { continue }
             let sheetName = sheet.string(1) ?? ""
@@ -106,8 +107,10 @@ enum NumbersReader {
                 let name = models.count == 1 || tableName.isEmpty ? sheetName : "\(sheetName) – \(tableName)"
                 worksheet.name = workbook.uniqueSheetName(basedOn: name)
                 workbook.sheets.append(worksheet)
+                readers[worksheet.id] = reader
                 tables[worksheet.id] = NumbersSource.Table(
                     modelIdentifier: model.identifier,
+                    uuid: mergeOwners.tableUUID(of: model.message),
                     storage: reader.storage,
                     protectedCells: reader.protectedCells,
                     isPivot: model.isPivot,
@@ -116,14 +119,93 @@ enum NumbersReader {
                 )
             }
         }
+
+        // Formulas name other tables by their worksheets, so they are read
+        // once every table has one.
+        let sheetNames = NumbersSource.sheetNames(of: workbook, tables: tables)
+        for index in workbook.sheets.indices {
+            let id = workbook.sheets[index].id
+            guard let reader = readers[id], let table = tables[id] else { continue }
+            for (address, nodes) in reader.formulas {
+                let context = NumbersFormula.Context(host: address, hostTable: table.uuid, sheetNames: sheetNames)
+                guard address.row < workbook.sheets[index].rowCount, address.column < workbook.sheets[index].columnCount,
+                      let formula = NumbersFormula.formula(from: nodes, context: context) else { continue }
+                workbook.sheets[index][address].formula = formula
+                tables[id]?.protectedCells.remove(address)
+            }
+        }
         if workbook.sheets.isEmpty {
             workbook.sheets = [Worksheet(name: Workbook.defaultSheetName(1))]
         }
         workbook.recalculate()
+        keepNumbersResults(in: &workbook, tables: &tables, readers: readers)
         let source = NumbersSource(
             layout: layout, entries: entries, package: package, archive: archive, tables: tables, imported: workbook
         )
         return (workbook, source)
+    }
+
+    /// Takes back every formula Tables works out differently from Numbers,
+    /// keeping Numbers' result: the two read some things differently —
+    /// dates typed as text, numbers written as text in arrays, lookups in
+    /// unsorted lists — and opening a document shouldn't change what it
+    /// shows.
+    ///
+    /// A formula reading one that disagrees disagrees with it, though it may
+    /// be right by itself, so formulas are taken back from where the
+    /// disagreement starts, and the rest checked again once those show
+    /// Numbers' results.
+    private static func keepNumbersResults(
+        in workbook: inout Workbook, tables: inout [Worksheet.ID: NumbersSource.Table], readers: [Worksheet.ID: TableReader]
+    ) {
+        struct Place: Hashable {
+            var sheet: Int
+            var address: CellAddress
+        }
+        while true {
+            var disagreeing: [Place: Cell] = [:]
+            for index in workbook.sheets.indices {
+                guard let reader = readers[workbook.sheets[index].id] else { continue }
+                for (address, result) in reader.results {
+                    let cell = workbook.sheets[index][address]
+                    if cell.formula != nil, !agree(cell.value, result.value) {
+                        disagreeing[Place(sheet: index, address: address)] = result
+                    }
+                }
+            }
+            guard !disagreeing.isEmpty else { return }
+
+            let sheetIndices = Dictionary(
+                workbook.sheets.enumerated().map { ($0.element.name.lowercased(), $0.offset) }, uniquingKeysWith: { $1 }
+            )
+            func readsDisagreement(_ place: Place) -> Bool {
+                let formula = workbook.sheets[place.sheet][place.address].formula ?? ""
+                return FormulaReferenceScanner.references(in: "=" + formula).contains { reference in
+                    let sheet = reference.sheetName.map { sheetIndices[$0.lowercased()] } ?? place.sheet
+                    return disagreeing.keys.contains { $0.sheet == sheet && reference.cells.contains($0.address) }
+                }
+            }
+            let starts = disagreeing.keys.filter { !readsDisagreement($0) }
+            for place in starts.isEmpty ? Array(disagreeing.keys) : starts {
+                workbook.sheets[place.sheet][place.address] = disagreeing[place]!
+                tables[workbook.sheets[place.sheet].id]?.protectedCells.insert(place.address)
+            }
+            workbook.recalculate()
+        }
+    }
+
+    private static func agree(_ tables: CellValue, _ numbers: CellValue) -> Bool {
+        switch (tables, numbers) {
+        case (.number(let ours), .number(let theirs)):
+            return abs(ours - theirs) <= max(1e-9, abs(theirs) * 1e-12)
+        case (.error, .error):
+            return true
+        case (.empty, .text(let text)), (.text(let text), .empty):
+            // Numbers keeps an empty string a formula came to as nothing.
+            return text.isEmpty
+        default:
+            return tables == numbers
+        }
     }
 
     // MARK: - Format constants
@@ -159,10 +241,12 @@ final class NumbersSource: @unchecked Sendable {
     struct Table {
         /// The `TST.TableModelArchive` it came from.
         var modelIdentifier: UInt64
+        /// What formulas know the table by.
+        var uuid: MergeOwners.UUID?
         /// Every cell's storage, as Numbers wrote it.
         var storage: [CellAddress: ArraySlice<UInt8>]
-        /// Cells holding Numbers formulas, which Tables can't write, and any
-        /// it couldn't take apart: both are left exactly as they are.
+        /// Cells holding Numbers formulas Tables can't read, and any it
+        /// couldn't take apart: both are left exactly as they are.
         var protectedCells: Set<CellAddress>
         /// Pivot tables are built from other tables by Numbers itself.
         var isPivot: Bool
@@ -199,6 +283,10 @@ private struct TableReader {
     private(set) var worksheet: Worksheet
     private(set) var storage: [CellAddress: ArraySlice<UInt8>] = [:]
     private(set) var protectedCells: Set<CellAddress> = []
+    /// The nodes of each cell's formula.
+    private(set) var formulas: [CellAddress: [ProtobufMessage]] = [:]
+    /// What each formula came to when Numbers last worked it out.
+    private(set) var results: [CellAddress: Cell] = [:]
 
     init(table: ProtobufMessage, archive: IWAArchive) throws {
         worksheet = Worksheet(name: table.string(8) ?? "")
@@ -210,6 +298,7 @@ private struct TableReader {
         guard let store = table.message(4) else { return }
         let strings = Self.dataList(store.message(4), in: archive) { $0.string(3) ?? "" }
         let richText = Self.dataList(store.message(17), in: archive) { Self.text(ofRichTextPayload: $0.message(9), in: archive) }
+        let formulaNodes = Self.dataList(store.message(6), in: archive) { $0.message(5)?.message(1)?.messages(1) ?? [] }
 
         // Rows are stored in tiles of a fixed number of rows each.
         let tiles = store.message(3)
@@ -232,8 +321,10 @@ private struct TableReader {
                     // A cell that can't be taken apart can't be rewritten
                     // either; guarding it like a formula keeps it as it is.
                     if parsed?.hasFormula ?? true { protectedCells.insert(address) }
-                    guard row < worksheet.rowCount, column < worksheet.columnCount,
-                          let cell = parsed?.cell(strings: strings, richText: richText) else { continue }
+                    if let key = parsed?.formulaKey, let nodes = formulaNodes[key] { formulas[address] = nodes }
+                    let cell = parsed?.cell(strings: strings, richText: richText)
+                    if formulas[address] != nil { results[address] = cell ?? Cell() }
+                    guard row < worksheet.rowCount, column < worksheet.columnCount, let cell else { continue }
                     worksheet[address] = cell
                 }
             }
@@ -321,6 +412,16 @@ private struct TableReader {
 extension NumbersSource {
     /// Rows per tile when a table doesn't say.
     static let defaultTileSize = 256
+
+    /// The name of the worksheet each table became, by the UUID formulas
+    /// know the table by.
+    static func sheetNames(of workbook: Workbook, tables: [Worksheet.ID: Table]) -> [MergeOwners.UUID: String] {
+        var names: [MergeOwners.UUID: String] = [:]
+        for sheet in workbook.sheets {
+            if let uuid = tables[sheet.id]?.uuid { names[uuid] = sheet.name }
+        }
+        return names
+    }
 }
 
 /// Merged cells as recent versions of Numbers record them: not with the
@@ -404,9 +505,15 @@ struct MergeOwners {
         }
     }
 
+    /// The UUID formulas know a `TST.TableModelArchive` by: the base owner
+    /// its haunted owner stands in for.
+    func tableUUID(of table: ProtobufMessage) -> UUID? {
+        UUID(table.message(84)?.message(1)).flatMap { baseOwners[$0] }
+    }
+
     /// The merged ranges of a `TST.TableModelArchive`.
     func ranges(for table: ProtobufMessage) -> [CellRange] {
-        guard let haunted = UUID(table.message(84)?.message(1)), let base = baseOwners[haunted] else { return [] }
+        guard let base = tableUUID(of: table) else { return [] }
         return rangesByOwner[base] ?? []
     }
 }
