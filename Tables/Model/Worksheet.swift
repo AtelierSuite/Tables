@@ -138,6 +138,9 @@ struct Worksheet: Identifiable, Hashable, Sendable {
     var codeName: String?
     /// Worksheet children we do not understand, in the order the file had them.
     var preservedElements: [PreservedElement] = []
+    /// Where rows and columns were in the file, kept for a file saved by
+    /// patching it; nil for every other.
+    var origins: SheetOrigins?
     /// Where each array formula spilled at the last recalculation, by the
     /// address of the formula. Recalculation starts from this so that cells
     /// reading a spilled range see it on the first pass.
@@ -285,11 +288,15 @@ struct Worksheet: Identifiable, Hashable, Sendable {
     // MARK: - Structure editing
 
     mutating func addRows(_ count: Int) {
-        rowCount = min(Self.maximumRowCount, rowCount + max(1, count))
+        let added = min(Self.maximumRowCount, rowCount + max(1, count)) - rowCount
+        origins?.appendRows(added)
+        rowCount += added
     }
 
     mutating func addColumns(_ count: Int) {
-        columnCount = min(Self.maximumColumnCount, columnCount + max(1, count))
+        let added = min(Self.maximumColumnCount, columnCount + max(1, count)) - columnCount
+        origins?.appendColumns(added)
+        columnCount += added
     }
 
     mutating func insertRows(_ count: Int, at index: Int) {
@@ -302,6 +309,7 @@ struct Worksheet: Identifiable, Hashable, Sendable {
         hiddenRows = Self.shift(hiddenRows, from: index, by: count)
         remapMerges(along: \.row) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .row)
+        origins?.insertRows(count, at: index, rowCount: rowCount)
         rowCount += count
     }
 
@@ -314,6 +322,7 @@ struct Worksheet: Identifiable, Hashable, Sendable {
         hiddenColumns = Self.shift(hiddenColumns, from: index, by: count)
         remapMerges(along: \.column) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .column)
+        origins?.insertColumns(count, at: index, columnCount: columnCount)
         columnCount += count
     }
 
@@ -329,6 +338,7 @@ struct Worksheet: Identifiable, Hashable, Sendable {
         hiddenRows = Self.shift(hiddenRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         remapMerges(along: \.row) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .row)
+        origins?.removeRows(range, rowCount: rowCount)
         rowCount -= count
     }
 
@@ -343,6 +353,7 @@ struct Worksheet: Identifiable, Hashable, Sendable {
         hiddenColumns = Self.shift(hiddenColumns.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         remapMerges(along: \.column) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .column)
+        origins?.removeColumns(range, columnCount: columnCount)
         columnCount -= count
     }
 
