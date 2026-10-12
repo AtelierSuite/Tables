@@ -60,7 +60,9 @@ struct WorkbookView: View {
         .overlay { if macroRunner.isRunning { runningMacroOverlay } }
         // The Macros sheet asks its own questions while it is up.
         .modifier(MacroPrompts(runner: macroRunner, input: $macroInput, isEnabled: !isShowingMacros))
-        .sheet(isPresented: $isShowingMacros) { macrosSheet }
+        .sheet(isPresented: $isShowingMacros) {
+            macrosSheet.presentationContentInteraction(.scrolls)
+        }
         .confirmationDialog(
             "Macros.Confirm.Title",
             isPresented: Binding(get: { pendingMacro != nil }, set: { if !$0 { pendingMacro = nil } }),
@@ -105,6 +107,7 @@ struct WorkbookView: View {
             UnsupportedFeatureNotice(report: document.unsupportedFeatures)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+                .presentationContentInteraction(.scrolls)
         }
         #endif
         #if os(macOS)
@@ -131,6 +134,7 @@ struct WorkbookView: View {
             .navigationTransition(.zoom(sourceID: panel, in: panelTransition))
             .presentationDetents(panelDetents(panel))
             .presentationDragIndicator(.visible)
+            .presentationContentInteraction(.scrolls)
             .presentationBackground(.regularMaterial)
         }
         #endif
