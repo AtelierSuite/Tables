@@ -103,6 +103,46 @@
 				</array>
 			</dict>
 		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.apple.iwork.numbers.sffnumbers</string>
+			<key>UTTypeDescription</key>
+			<string>Numbers Spreadsheet</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.spreadsheet</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>numbers</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/x-iwork-numbers-sffnumbers</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.apple.iwork.numbers.numbers</string>
+			<key>UTTypeDescription</key>
+			<string>Numbers Spreadsheet</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+				<string>public.spreadsheet</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>numbers</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
@@ -152,6 +192,19 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.tab-separated-values-text</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Numbers Spreadsheet</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.apple.iwork.numbers.sffnumbers</string>
+				<string>com.apple.iwork.numbers.numbers</string>
 			</array>
 		</dict>
 	</array>

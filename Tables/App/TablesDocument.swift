@@ -8,13 +8,23 @@ extension UTType {
     /// The `.xlsm` workbook, which may carry macros. It does not conform to
     /// the plain workbook type, so it is asked about in its own right.
     static let macroEnabledWorkbook = UTType("org.openxmlformats.spreadsheetml.sheet.macroenabled") ?? .data
+    /// A Numbers document saved as a single file, as Numbers saves by default.
+    /// Imported rather than looked up, so that a system without Numbers'
+    /// declarations can't leave it falling back on a type everything matches.
+    static let numbersDocument = UTType(importedAs: "com.apple.iwork.numbers.sffnumbers")
+    /// A Numbers document saved as a package, as older versions saved them.
+    static let numbersPackage = UTType(importedAs: "com.apple.iwork.numbers.numbers")
 }
 
-/// The app's document: an entire workbook, loaded from `.xlsx`, `.xlsm` or `.csv`.
+/// The app's document: an entire workbook, loaded from `.xlsx`, `.xlsm` or
+/// `.csv`, or imported from Numbers.
 struct TablesDocument: FileDocument {
     static let readableContentTypes: [UTType] = [
-        .openXMLWorkbook, .macroEnabledWorkbook, .commaSeparatedText, .tabSeparatedText
+        .openXMLWorkbook, .macroEnabledWorkbook, .commaSeparatedText, .tabSeparatedText,
+        .numbersDocument, .numbersPackage
     ]
+    /// Numbers is read but never written: what Tables would save could keep
+    /// only part of what the document held.
     static let writableContentTypes: [UTType] = [
         .openXMLWorkbook, .macroEnabledWorkbook, .commaSeparatedText, .tabSeparatedText
     ]
@@ -31,6 +41,9 @@ struct TablesDocument: FileDocument {
     var isPlainText: Bool
     /// Whether the file is an `.xlsm`, the only kind that keeps macros.
     var isMacroEnabled: Bool
+    /// Whether the file is a Numbers document, which Tables can't save back
+    /// to: changes are kept by saving a copy as a workbook.
+    var isImported: Bool
 
     /// What the opened file used that Tables cannot edit. Empty for anything we
     /// authored ourselves and for CSV, which has no such features to begin with.
@@ -40,22 +53,35 @@ struct TablesDocument: FileDocument {
         workbook = Workbook()
         isPlainText = false
         isMacroEnabled = false
+        isImported = false
     }
 
     init(workbook: Workbook) {
         self.workbook = workbook
         isPlainText = false
         isMacroEnabled = false
+        isImported = false
     }
 
     init(configuration: ReadConfiguration) throws {
+        isMacroEnabled = configuration.contentType.conforms(to: .macroEnabledWorkbook)
+        isImported = configuration.contentType.conforms(to: .numbersDocument)
+            || configuration.contentType.conforms(to: .numbersPackage)
+        if isImported {
+            let file = configuration.file
+            workbook = try file.isDirectory
+                ? NumbersReader.workbook(from: file)
+                : NumbersReader.workbook(from: file.regularFileContents ?? Data())
+            isPlainText = false
+            return
+        }
+
         guard let data = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
         let name = configuration.file.preferredFilename.map {
             ($0 as NSString).deletingPathExtension
         } ?? Workbook.defaultSheetName(1)
-        isMacroEnabled = configuration.contentType.conforms(to: .macroEnabledWorkbook)
 
         if configuration.contentType.conforms(to: .openXMLWorkbook)
             || configuration.contentType.conforms(to: .macroEnabledWorkbook) {
@@ -79,6 +105,12 @@ struct TablesDocument: FileDocument {
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        // Saving in place would put a workbook where the Numbers document
+        // was, under its name; refuse, so the original is never touched.
+        if configuration.contentType.conforms(to: .numbersDocument)
+            || configuration.contentType.conforms(to: .numbersPackage) {
+            throw CocoaError(.fileWriteUnsupportedScheme)
+        }
         let data: Data
         // Tab separated text does not conform to the comma separated type, so
         // ask about it in its own right rather than relying on the order here.
