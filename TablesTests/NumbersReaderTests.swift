@@ -152,6 +152,10 @@ struct NumbersDocumentBuilder {
         case date(seconds: Double)
         case duration(seconds: Double)
         case formulaError
+        /// A number Numbers calculated with a formula.
+        case formula(Int64)
+        /// Text with a cell style, a field the writer has to carry over.
+        case styledText(String, style: UInt32)
     }
 
     struct Table {
@@ -184,6 +188,12 @@ struct NumbersDocumentBuilder {
     private var nextIdentifier: UInt64 = 100
     /// Merge owners and the calculation engine's map of them.
     private var ownerMapEntries: [ProtobufWriter] = []
+    private var formulaCount = 0
+    private var tableOwnerCount = 0
+
+    /// Where the calculation engine lists owners whose formulas are out of date.
+    static let staleOwnerListIdentifier: UInt64 = 4
+    static let saveToken: UInt64 = 7
 
     mutating func addSheet(_ name: String, tables: [Table]) {
         var infos: [UInt64] = []
@@ -197,16 +207,27 @@ struct NumbersDocumentBuilder {
         var objects = objects
         let document = sheetIdentifiers.reduce(ProtobufWriter()) { $0.message(1, Self.reference($1)) }
         objects.append((1, 1, document))
-        let tracker = ProtobufWriter().message(3, ownerMapEntries.reduce(ProtobufWriter()) { $0.message(1, $1) })
-        objects.append((2, 4000, ProtobufWriter().message(2, tracker)))
+        let tracker = ProtobufWriter()
+            .message(3, ownerMapEntries.reduce(ProtobufWriter()) { $0.message(1, $1) })
+            .varint(5, formulaCount)
+        objects.append((3, 4000, ProtobufWriter().message(2, tracker).message(15, Self.reference(Self.staleOwnerListIdentifier))))
+        objects.append((Self.staleOwnerListIdentifier, 4011, ProtobufWriter()))
 
-        // Split across two archives, as Numbers splits a document.
+        // Split across archives, as Numbers splits a document, each listed
+        // as a component in the package's metadata.
         let tables = objects.filter { [6002, 6005, 6006, 6144].contains($0.type) }
         let rest = objects.filter { ![6002, 6005, 6006, 6144].contains($0.type) }
+        let metadata = ProtobufWriter()
+            .varint(1, nextIdentifier - 1)
+            .message(3, ProtobufWriter().varint(1, 1).string(2, "Document").varint(12, 5))
+            .message(3, ProtobufWriter().varint(1, 10).string(2, "Tables/DataList").varint(12, 5))
+            .varint(8, Self.saveToken)
         return try ZipArchive.archive(entries: [
             ("Index/Document.iwa", Self.archive(rest)),
             ("Index/Tables/DataList.iwa", Self.archive(tables)),
-        ])
+            ("Index/Metadata.iwa", Self.archive([(2, 11006, metadata)])),
+            ("Data/picture.png", Data([0x89, 0x50, 0x4E, 0x47])),
+        ], compressing: false)
     }
 
     // MARK: - Tables
@@ -263,6 +284,13 @@ struct NumbersDocumentBuilder {
                 return Self.cellStorage(type: 7, flags: 0x2, Self.littleEndian(seconds))
             case .formulaError:
                 return Self.cellStorage(type: 8, flags: 0, [])
+            case .formula(let value):
+                formulaCount += 1
+                let fields = Self.decimal128(value, exponent: 0) + Self.littleEndian(UInt32(formulaCount))
+                return Self.cellStorage(type: 2, flags: 0x1 | 0x200, fields)
+            case .styledText(let text, let style):
+                strings.append(text)
+                return Self.cellStorage(type: 3, flags: 0x8 | 0x20, Self.littleEndian(UInt32(strings.count)) + Self.littleEndian(style))
             }
         }
 
@@ -312,6 +340,9 @@ struct NumbersDocumentBuilder {
             model = model.message(84, ProtobufWriter().message(1, addMergeOwner(table.mergeOwnerRanges)))
         }
         let modelIdentifier = add(type: 6001, model)
+        // The table's own formula owner, which the engine knows by number.
+        add(type: 4008, ProtobufWriter().varint(2, 100 + tableOwnerCount).varint(3, 1))
+        tableOwnerCount += 1
         return add(type: 6000, ProtobufWriter().message(1, ProtobufWriter()).message(2, Self.reference(modelIdentifier)))
     }
 
