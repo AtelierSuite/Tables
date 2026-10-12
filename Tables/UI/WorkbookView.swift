@@ -17,8 +17,10 @@ struct WorkbookView: View {
     @State private var macroInput = ""
     /// A conversion waiting on the user's say-so because it would drop macros.
     @State private var pendingConversion: DocumentConversion.Target?
+    /// A change to a Numbers document with what it couldn't keep taken out,
+    /// written back in place of the change as made.
+    @State private var pendingReconciliation: Workbook?
     @Environment(\.undoManager) private var undoManager
-    @Environment(\.dismiss) private var dismiss
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -40,8 +42,9 @@ struct WorkbookView: View {
                     #if os(iOS)
                     FloatingActionBar(
                         workbook: workbook, state: state, namespace: panelTransition,
-                        // Any workbook can be given macros; delimited text has nowhere to keep them.
-                        showMacros: document.isPlainText ? nil : { isShowingMacros = true },
+                        // Any workbook can be given macros; delimited text and
+                        // Numbers documents have nowhere to keep them.
+                        showMacros: document.isPlainText || document.isNumbers ? nil : { isShowingMacros = true },
                         isMacroRunning: macroRunner.isRunning
                     )
                         .padding(.bottom, 8)
@@ -89,7 +92,8 @@ struct WorkbookView: View {
             Text("Convert.DropMacros.Message")
         }
         .onAppear {
-            state.allowsFormatting = !document.isPlainText
+            state.allowsFormatting = !document.isPlainText && !document.isNumbers
+            state.allowsInsertingAndDeleting = !document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.sheets.first?.id
                 state.refreshMetrics(in: document.workbook)
@@ -97,7 +101,7 @@ struct WorkbookView: View {
             attachHistory()
         }
         .onChange(of: undoManager) { _, _ in attachHistory() }
-        .onChange(of: document.workbook) { old, new in history.record(from: old, to: new) }
+        .onChange(of: document.workbook) { old, new in record(from: old, to: new) }
         .onChange(of: state.activeSheetID) { _, _ in
             // CSV holds one sheet; export whichever one the user is looking at.
             document.csvExport.sheetIndex = state.activeIndex(in: document.workbook)
@@ -195,7 +199,7 @@ struct WorkbookView: View {
     @ViewBuilder
     private var titleMenu: some View {
         RenameButton()
-        if let fileURL, document.isImported {
+        if let fileURL, document.isNumbers {
             Section {
                 Button("TitleMenu.SaveAsXLSX", systemImage: "square.and.arrow.down.on.square") {
                     saveCopy(besideFileAt: fileURL)
@@ -241,20 +245,38 @@ struct WorkbookView: View {
         }
     }
 
-    /// Saves an imported document's workbook, edits and all, as an `.xlsx`
-    /// beside it, then closes it: back in the browser, the copy sits next to
-    /// the original, ready to be opened and saved to.
+    /// Saves a Numbers document's workbook as an `.xlsx` beside it, leaving
+    /// the document itself as it is.
     private func saveCopy(besideFileAt fileURL: URL) {
         state.commitEditing(in: &document.workbook, then: nil)
         let workbook = document.workbook
         Task {
             do {
                 _ = try await DocumentConversion.saveCopy(of: workbook, besideFileAt: fileURL)
-                dismiss()
             } catch {
                 state.errorMessage = error.localizedDescription
             }
         }
+    }
+
+    /// Every change to the workbook passes through here on its way to the
+    /// undo stack. A Numbers document first has whatever part of the change
+    /// it couldn't save taken back out, and says why.
+    private func record(from old: Workbook, to new: Workbook) {
+        if let reconciled = pendingReconciliation {
+            pendingReconciliation = nil
+            if reconciled == new { return }
+        }
+        guard let source = document.numbersSource else { return history.record(from: old, to: new) }
+        let (allowed, violation) = NumbersEditPolicy.reconcile(new, from: old, source: source)
+        if let violation { state.errorMessage = violation.localizedDescription }
+        if allowed != new {
+            // Putting it back is itself a change, reported in a moment; the
+            // step it completes is the one recorded here.
+            pendingReconciliation = allowed
+            document.workbook = allowed
+        }
+        history.record(from: old, to: allowed)
     }
 
     // MARK: - Toolbars
@@ -380,7 +402,7 @@ struct WorkbookView: View {
     private var sharingToolbar: some ToolbarContent {
         #if os(macOS)
         // On iOS this lives in the floating action bar instead.
-        if !document.isPlainText {
+        if !document.isPlainText && !document.isNumbers {
             ToolbarItem(placement: .primaryAction) {
                 Button("Toolbar.Macros", systemImage: "curlybraces") { isShowingMacros = true }
                     .disabled(macroRunner.isRunning)

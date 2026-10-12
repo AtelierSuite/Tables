@@ -70,6 +70,10 @@ final class EditorState {
     var newCommentKind: CellComment.Kind = .thread
     /// False for delimited text, which has nowhere to keep styling.
     var allowsFormatting = true
+    /// False for Numbers documents, whose cells keep their styles and
+    /// formulas where they are: inserting or deleting rows and columns would
+    /// move the values away from them.
+    var allowsInsertingAndDeleting = true
     var errorMessage: String?
     var clipboard: [[Cell]]?
     /// The comments on the copied cells, position for position.

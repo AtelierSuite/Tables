@@ -198,7 +198,7 @@
 			<key>CFBundleTypeName</key>
 			<string>Numbers Spreadsheet</string>
 			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
+			<string>Editor</string>
 			<key>LSHandlerRank</key>
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>

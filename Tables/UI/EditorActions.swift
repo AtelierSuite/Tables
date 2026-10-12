@@ -219,7 +219,18 @@ extension EditorState {
         finishStructuralEdit(in: workbook)
     }
 
+    /// Whether rows and columns can be inserted and deleted, saying why not
+    /// when they can't.
+    private func allowsInsertingOrDeleting() -> Bool {
+        guard allowsInsertingAndDeleting else {
+            errorMessage = NumbersEditPolicy.Violation.structure.localizedDescription
+            return false
+        }
+        return true
+    }
+
     func insertRows(above: Bool, in workbook: inout Workbook) {
+        guard allowsInsertingOrDeleting() else { return }
         let index = activeIndex(in: workbook)
         let range = selectedRowRange(in: workbook.sheets[index])
         let target = above ? range.lowerBound : range.upperBound + 1
@@ -233,6 +244,7 @@ extension EditorState {
     }
 
     func insertColumns(before: Bool, in workbook: inout Workbook) {
+        guard allowsInsertingOrDeleting() else { return }
         let index = activeIndex(in: workbook)
         let range = selectedColumnRange(in: workbook.sheets[index])
         let target = before ? range.lowerBound : range.upperBound + 1
@@ -246,6 +258,7 @@ extension EditorState {
     }
 
     func deleteSelectedRows(in workbook: inout Workbook) {
+        guard allowsInsertingOrDeleting() else { return }
         let index = activeIndex(in: workbook)
         let snapshot = workbook
         let rows = selectedRowRange(in: workbook.sheets[index])
@@ -258,6 +271,7 @@ extension EditorState {
     }
 
     func deleteSelectedColumns(in workbook: inout Workbook) {
+        guard allowsInsertingOrDeleting() else { return }
         let index = activeIndex(in: workbook)
         let snapshot = workbook
         let columns = selectedColumnRange(in: workbook.sheets[index])

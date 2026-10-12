@@ -23,10 +23,9 @@ struct TablesDocument: FileDocument {
         .openXMLWorkbook, .macroEnabledWorkbook, .commaSeparatedText, .tabSeparatedText,
         .numbersDocument, .numbersPackage
     ]
-    /// Numbers is read but never written: what Tables would save could keep
-    /// only part of what the document held.
     static let writableContentTypes: [UTType] = [
-        .openXMLWorkbook, .macroEnabledWorkbook, .commaSeparatedText, .tabSeparatedText
+        .openXMLWorkbook, .macroEnabledWorkbook, .commaSeparatedText, .tabSeparatedText,
+        .numbersDocument, .numbersPackage
     ]
 
     var workbook: Workbook
@@ -41,9 +40,13 @@ struct TablesDocument: FileDocument {
     var isPlainText: Bool
     /// Whether the file is an `.xlsm`, the only kind that keeps macros.
     var isMacroEnabled: Bool
-    /// Whether the file is a Numbers document, which Tables can't save back
-    /// to: changes are kept by saving a copy as a workbook.
-    var isImported: Bool
+    /// The Numbers document the workbook was read from, which saving
+    /// patches with the workbook's changes. Nil for any other kind of file.
+    let numbersSource: NumbersSource?
+
+    /// Whether the file is a Numbers document, which keeps only the changes
+    /// `NumbersEditPolicy` allows.
+    var isNumbers: Bool { numbersSource != nil }
 
     /// What the opened file used that Tables cannot edit. Empty for anything we
     /// authored ourselves and for CSV, which has no such features to begin with.
@@ -53,28 +56,29 @@ struct TablesDocument: FileDocument {
         workbook = Workbook()
         isPlainText = false
         isMacroEnabled = false
-        isImported = false
+        numbersSource = nil
     }
 
     init(workbook: Workbook) {
         self.workbook = workbook
         isPlainText = false
         isMacroEnabled = false
-        isImported = false
+        numbersSource = nil
     }
 
     init(configuration: ReadConfiguration) throws {
         isMacroEnabled = configuration.contentType.conforms(to: .macroEnabledWorkbook)
-        isImported = configuration.contentType.conforms(to: .numbersDocument)
-            || configuration.contentType.conforms(to: .numbersPackage)
-        if isImported {
+        if Self.isNumbers(configuration.contentType) {
             let file = configuration.file
-            workbook = try file.isDirectory
-                ? NumbersReader.workbook(from: file)
-                : NumbersReader.workbook(from: file.regularFileContents ?? Data())
+            let document = try file.isDirectory
+                ? NumbersReader.document(from: file)
+                : NumbersReader.document(from: file.regularFileContents ?? Data())
+            workbook = document.workbook
+            numbersSource = document.source
             isPlainText = false
             return
         }
+        numbersSource = nil
 
         guard let data = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
@@ -105,11 +109,13 @@ struct TablesDocument: FileDocument {
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        // Saving in place would put a workbook where the Numbers document
-        // was, under its name; refuse, so the original is never touched.
-        if configuration.contentType.conforms(to: .numbersDocument)
-            || configuration.contentType.conforms(to: .numbersPackage) {
-            throw CocoaError(.fileWriteUnsupportedScheme)
+        if Self.isNumbers(configuration.contentType) {
+            // Only into the document it came from: Tables can patch a Numbers
+            // document but can't make one.
+            guard let numbersSource else { throw CocoaError(.fileWriteUnsupportedScheme) }
+            return try NumbersWriter.fileWrapper(
+                for: workbook, source: numbersSource, existing: configuration.existingFile
+            )
         }
         let data: Data
         // Tab separated text does not conform to the comma separated type, so
@@ -124,6 +130,10 @@ struct TablesDocument: FileDocument {
             )
         }
         return FileWrapper(regularFileWithContents: data)
+    }
+
+    private static func isNumbers(_ type: UTType) -> Bool {
+        type.conforms(to: .numbersDocument) || type.conforms(to: .numbersPackage)
     }
 
     /// Saving as delimited text writes whichever sheet the user picked.
