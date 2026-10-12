@@ -18,6 +18,7 @@ struct WorkbookView: View {
     /// A conversion waiting on the user's say-so because it would drop macros.
     @State private var pendingConversion: DocumentConversion.Target?
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.dismiss) private var dismiss
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -194,7 +195,13 @@ struct WorkbookView: View {
     @ViewBuilder
     private var titleMenu: some View {
         RenameButton()
-        if let fileURL {
+        if let fileURL, document.isImported {
+            Section {
+                Button("TitleMenu.SaveAsXLSX", systemImage: "square.and.arrow.down.on.square") {
+                    saveCopy(besideFileAt: fileURL)
+                }
+            }
+        } else if let fileURL {
             Section {
                 ForEach(DocumentConversion.targets(for: fileURL)) { target in
                     Button(conversionTitle(for: target), systemImage: "arrow.triangle.2.circlepath") {
@@ -231,6 +238,22 @@ struct WorkbookView: View {
             document.isPlainText = false
             document.isMacroEnabled = target == .macroEnabledWorkbook
             state.allowsFormatting = true
+        }
+    }
+
+    /// Saves an imported document's workbook, edits and all, as an `.xlsx`
+    /// beside it, then closes it: back in the browser, the copy sits next to
+    /// the original, ready to be opened and saved to.
+    private func saveCopy(besideFileAt fileURL: URL) {
+        state.commitEditing(in: &document.workbook, then: nil)
+        let workbook = document.workbook
+        Task {
+            do {
+                _ = try await DocumentConversion.saveCopy(of: workbook, besideFileAt: fileURL)
+                dismiss()
+            } catch {
+                state.errorMessage = error.localizedDescription
+            }
         }
     }
 

@@ -67,6 +67,34 @@ enum DocumentConversion {
         return destination
     }
 
+    /// Writes `workbook` as an `.xlsx` beside the file, leaving the file as it
+    /// was, and returns where the copy went.
+    ///
+    /// For documents Tables reads but cannot write, such as Numbers ones:
+    /// converting those in place would throw away everything Tables did not
+    /// read from them, so the copy is where changes are kept instead.
+    @concurrent
+    static func saveCopy(of workbook: Workbook, besideFileAt url: URL) async throws -> URL {
+        let data = try XLSXWriter.data(from: workbook, macroEnabled: false)
+        let destination = availableURL(
+            for: url.deletingPathExtension().lastPathComponent,
+            extension: Target.workbook.pathExtension,
+            in: url.deletingLastPathComponent()
+        )
+
+        var coordinationError: NSError?
+        var failure: Error?
+        NSFileCoordinator().coordinate(writingItemAt: destination, options: .forReplacing, error: &coordinationError) {
+            do {
+                try data.write(to: $0, options: .atomic)
+            } catch {
+                failure = error
+            }
+        }
+        if let error = coordinationError ?? failure { throw error }
+        return destination
+    }
+
     /// `name.ext`, or `name 2.ext` and upwards when that is taken.
     private static func availableURL(for name: String, extension pathExtension: String, in folder: URL) -> URL {
         var candidate = folder.appendingPathComponent(name).appendingPathExtension(pathExtension)

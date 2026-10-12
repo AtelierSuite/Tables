@@ -18866,6 +18866,41 @@
         }
       }
     },
+    "TitleMenu.SaveAsXLSX" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save as Excel Workbook (.xlsx)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excelブック（.xlsx）として保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excel 통합 문서(.xlsx)로 저장"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储为 Excel 工作簿 (.xlsx)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存為 Excel 活頁簿 (.xlsx)"
+          }
+        }
+      }
+    },
     "Toolbar.Bold" : {
       "extractionState" : "manual",
       "localizations" : {
