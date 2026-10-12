@@ -47,6 +47,33 @@ struct ProtobufMessageTests {
         #expect(unpacked.uints(1) == [1, 2])
     }
 
+    @Test("A message writes back byte for byte, and a changed field keeps its place")
+    func writesBack() throws {
+        let bytes = ProtobufWriter()
+            .varint(3, 1)
+            .string(1, "kept")
+            .message(2, ProtobufWriter().varint(1, 9))
+            .double(4, 2.5)
+            .varint(3, 2)
+            .bytes
+        var message = try ProtobufMessage(bytes)
+        #expect(message.encoded() == bytes)
+
+        message.set(1, bytes: Array("changed".utf8))
+        message.set(3, uint: 7)
+        var nested = ProtobufMessage()
+        nested.set(1, uint: 10)
+        message.append(2, message: nested)
+        let expected = ProtobufWriter()
+            .varint(3, 7)
+            .string(1, "changed")
+            .message(2, ProtobufWriter().varint(1, 9))
+            .message(2, ProtobufWriter().varint(1, 10))
+            .double(4, 2.5)
+            .bytes
+        #expect(message.encoded() == expected)
+    }
+
     @Test("Damaged messages are rejected", arguments: [
         // A length running past the end.
         [0x0A, 0x05, 0x61],
