@@ -111,6 +111,20 @@ struct NumbersReaderTests {
         #expect(sheet[CellAddress(row: 0, column: 1)].value == .number(1_200))
     }
 
+    @Test("The notice lists what Tables keeps but can't edit")
+    func features() throws {
+        var plain = NumbersDocumentBuilder()
+        plain.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.text("Rent")]])])
+        let (_, source) = try NumbersReader.document(from: plain.singleFile())
+        #expect(source.features.noticeMessage.contains(UnsupportedFeature.formatting.label))
+        #expect(!source.features.noticeMessage.contains(UnsupportedFeature.unreadFormulas.label))
+
+        var withFormula = NumbersDocumentBuilder()
+        withFormula.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.formula(3)]])])
+        let (_, formulaSource) = try NumbersReader.document(from: withFormula.singleFile())
+        #expect(formulaSource.features.noticeMessage.contains(UnsupportedFeature.unreadFormulas.label))
+    }
+
     @Test("A package can keep its objects in an Index folder rather than a ZIP")
     func packageWithIndexFolder() throws {
         var document = NumbersDocumentBuilder()

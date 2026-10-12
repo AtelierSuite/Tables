@@ -59,7 +59,7 @@ struct TablesDocument: FileDocument {
 
     /// What the opened file used that Tables cannot edit. Empty for anything we
     /// authored ourselves and for CSV, which has no such features to begin with.
-    var unsupportedFeatures: UnsupportedFeatureReport { workbook.unsupportedFeatures }
+    var unsupportedFeatures: UnsupportedFeatureReport { numbersSource?.features ?? workbook.unsupportedFeatures }
 
     init() {
         workbook = Workbook()

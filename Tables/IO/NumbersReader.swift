@@ -151,7 +151,7 @@ enum NumbersReader {
         keepNumbersResults(in: &workbook, tables: &tables, readers: readers)
         let source = NumbersSource(
             layout: layout, entries: entries, package: package, archive: archive, tables: tables, imported: workbook,
-            hasLinkedContent: hasLinkedContent(archive)
+            hasLinkedContent: hasLinkedContent(archive), features: features(archive, tables: tables)
         )
         return (workbook, source)
     }
@@ -219,6 +219,33 @@ enum NumbersReader {
         }
     }
 
+    /// What the document has that Tables keeps exactly as it is but can't
+    /// edit, for the notice shown when it opens.
+    private static func features(_ archive: IWAArchive, tables: [Worksheet.ID: NumbersSource.Table]) -> UnsupportedFeatureReport {
+        var report = UnsupportedFeatureReport()
+        report.record(.formatting, isPreserved: true)
+        if !archive.identifiers(ofType: ObjectType.chartDrawable).isEmpty
+            || !archive.identifiers(ofType: ObjectType.image).isEmpty
+            || !archive.identifiers(ofType: ObjectType.movie).isEmpty {
+            report.record(.chartsAndImages, isPreserved: true)
+        }
+        if tables.values.contains(where: \.isPivot) { report.record(.pivotTables, isPreserved: true) }
+        if archive.identifiers(ofType: ObjectType.groupBy).contains(where: { identifier in
+            archive[identifier].map { $0.message.has(2) && $0.message.bool(6) } ?? false
+        }) {
+            report.record(.categories, isPreserved: true)
+        }
+        if archive.identifiers(ofType: ObjectType.filterSet).contains(where: { identifier in
+            archive[identifier].map { $0.message.has(7) || $0.message.has(3) } ?? false
+        }) {
+            report.record(.autoFilter, isPreserved: true)
+        }
+        if tables.values.contains(where: { !$0.protectedCells.isEmpty }) {
+            report.record(.unreadFormulas, isPreserved: true)
+        }
+        return report
+    }
+
     /// Whether anything in the document follows cells by where they are in
     /// ways Tables can't move along with them: a chart's data, a table's
     /// categories, a filter's rules.
@@ -248,6 +275,8 @@ enum NumbersReader {
         static let formulaOwnerDependencies = 4008
         static let packageMetadata = 11006
         static let chartDrawable = 5021
+        static let image = 3005
+        static let movie = 3007
         static let filterSet = 6220
         static let groupBy = 6373
     }
@@ -304,12 +333,16 @@ final class NumbersSource: @unchecked Sendable {
     /// Whether charts, categories or filters follow cells by where they are,
     /// so rows and columns can't be inserted or deleted under them.
     let hasLinkedContent: Bool
+    /// What Tables keeps but can't edit.
+    let features: UnsupportedFeatureReport
 
     init(
         layout: Layout, entries: [(path: String, data: Data)], package: FileWrapper?, archive: IWAArchive,
-        tables: [Worksheet.ID: Table], imported: Workbook, hasLinkedContent: Bool = false
+        tables: [Worksheet.ID: Table], imported: Workbook, hasLinkedContent: Bool = false,
+        features: UnsupportedFeatureReport = UnsupportedFeatureReport()
     ) {
         self.hasLinkedContent = hasLinkedContent
+        self.features = features
         self.layout = layout
         self.entries = entries
         self.package = package

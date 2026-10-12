@@ -45,6 +45,13 @@ enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Comparable {
     case slicers
     case documentProperties
     case macros
+    /// A Numbers document's styles, kept but not editable.
+    case formatting
+    /// A Numbers table's categories.
+    case categories
+    /// Formulas Tables can't read, or works out differently, so keeps the
+    /// result the file had.
+    case unreadFormulas
 
     var label: String {
         switch self {
@@ -63,6 +70,9 @@ enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Comparable {
         case .slicers: return String(localized: "UnsupportedFeature.Slicers")
         case .documentProperties: return String(localized: "UnsupportedFeature.DocumentProperties")
         case .macros: return String(localized: "UnsupportedFeature.Macros")
+        case .formatting: return String(localized: "UnsupportedFeature.Formatting")
+        case .categories: return String(localized: "UnsupportedFeature.Categories")
+        case .unreadFormulas: return String(localized: "UnsupportedFeature.UnreadFormulas")
         }
     }
 
