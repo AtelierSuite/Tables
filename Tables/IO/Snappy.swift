@@ -1,8 +1,8 @@
 import Foundation
 
-/// Decompresses raw Snappy blocks, the compression iWork uses inside its
-/// `.iwa` archives. Only the block format: iWork frames the blocks itself,
-/// without Snappy's own stream framing or checksums.
+/// Compresses and decompresses raw Snappy blocks, the compression iWork uses
+/// inside its `.iwa` archives. Only the block format: iWork frames the blocks
+/// itself, without Snappy's own stream framing or checksums.
 enum Snappy {
     enum Failure: Error {
         case corrupt
@@ -76,6 +76,82 @@ enum Snappy {
             shift += 7
         }
         throw Failure.corrupt
+    }
+
+    /// Compresses one block: a greedy search for repeats of four bytes or
+    /// more through a hash of the last place each four-byte run was seen.
+    /// Offsets are kept within two bytes, which is all a block iWork writes —
+    /// at most 64 KiB — can need.
+    static func compress(_ input: ArraySlice<UInt8>) -> [UInt8] {
+        var output: [UInt8] = []
+        output.reserveCapacity(input.count / 2 + 16)
+        var length = input.count
+        while length >= 0x80 {
+            output.append(UInt8(length & 0x7F) | 0x80)
+            length >>= 7
+        }
+        output.append(UInt8(length))
+
+        let bytes = Array(input)
+        var table = [Int](repeating: -1, count: 1 << 14)
+        var literalStart = 0
+        var cursor = 0
+        func hash(_ position: Int) -> Int {
+            let word = UInt32(bytes[position]) | UInt32(bytes[position + 1]) << 8
+                | UInt32(bytes[position + 2]) << 16 | UInt32(bytes[position + 3]) << 24
+            return Int((word &* 0x1E35_A7BD) >> 18)
+        }
+
+        while cursor + 4 <= bytes.count {
+            let slot = hash(cursor)
+            let candidate = table[slot]
+            table[slot] = cursor
+            guard candidate >= 0, cursor - candidate <= 0xFFFF,
+                  bytes[candidate..<(candidate + 4)] == bytes[cursor..<(cursor + 4)] else {
+                cursor += 1
+                continue
+            }
+            var matchLength = 4
+            while cursor + matchLength < bytes.count, bytes[candidate + matchLength] == bytes[cursor + matchLength] {
+                matchLength += 1
+            }
+            appendLiteral(bytes[literalStart..<cursor], to: &output)
+            appendCopy(offset: cursor - candidate, length: matchLength, to: &output)
+            cursor += matchLength
+            literalStart = cursor
+        }
+        appendLiteral(bytes[literalStart...], to: &output)
+        return output
+    }
+
+    private static func appendLiteral(_ literal: ArraySlice<UInt8>, to output: inout [UInt8]) {
+        guard !literal.isEmpty else { return }
+        let lengthLessOne = literal.count - 1
+        if lengthLessOne < 60 {
+            output.append(UInt8(lengthLessOne << 2))
+        } else {
+            var extra: [UInt8] = []
+            var remaining = lengthLessOne
+            while remaining > 0 {
+                extra.append(UInt8(remaining & 0xFF))
+                remaining >>= 8
+            }
+            output.append(UInt8((59 + extra.count) << 2))
+            output += extra
+        }
+        output += literal
+    }
+
+    /// Copies of up to 64 bytes at a time, with two-byte offsets.
+    private static func appendCopy(offset: Int, length: Int, to output: inout [UInt8]) {
+        var remaining = length
+        while remaining > 0 {
+            // Never leave fewer than four bytes: a copy can't be that short.
+            var chunk = min(remaining, 64)
+            if (1..<4).contains(remaining - chunk) { chunk = remaining - 4 }
+            output += [UInt8((chunk - 1) << 2 | 2), UInt8(offset & 0xFF), UInt8(offset >> 8)]
+            remaining -= chunk
+        }
     }
 
     /// Repeats bytes already written. The ranges may overlap, which is how

@@ -43,6 +43,21 @@ struct SnappyTests {
         #expect(try decompress([0x08, 0x04, 0x61, 0x62, 0x17, 0x02, 0x00, 0x00, 0x00]) == "abababab")
     }
 
+    @Test("What it compresses decompresses back the same, and repeats shrink", arguments: [
+        Array(String(repeating: "Numbers ", count: 2_000).utf8),
+        (0..<70_000).map { UInt8(truncatingIfNeeded: $0 &* 2_654_435_761 >> 13) },
+        Array("short".utf8),
+        [],
+        [UInt8](repeating: 7, count: 131),
+    ] as [[UInt8]])
+    func roundTrip(_ bytes: [UInt8]) throws {
+        let compressed = Snappy.compress(bytes[...])
+        #expect(try Snappy.decompress(compressed[...]) == bytes)
+        if bytes.count > 1_000, Set(bytes).count < 20 {
+            #expect(compressed.count < bytes.count / 10)
+        }
+    }
+
     @Test("Damaged blocks are rejected rather than misread", arguments: [
         // A copy reaching back before the start.
         [0x08, 0x04, 0x61, 0x62, 0x09, 0x05],
