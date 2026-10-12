@@ -22,6 +22,16 @@ struct ZipArchiveTests {
         #expect(entries["c.bin"] == binary)
     }
 
+    @Test("Entries read back in the archive's order, and can be stored uncompressed")
+    func orderAndStorage() throws {
+        let text = Data(String(repeating: "Index ", count: 500).utf8)
+        let entries = [("Index/Document.iwa", text), ("Data/b.png", Data([1, 2])), ("Index/A.iwa", text)]
+        let stored = try ZipArchive.archive(entries: entries, compressing: false)
+        #expect(try ZipArchive.orderedEntries(in: stored).map(\.path) == entries.map(\.0))
+        #expect(stored.count > text.count * 2, "nothing was deflated")
+        #expect(try ZipArchive.archive(entries: entries).count < stored.count)
+    }
+
     @Test("Non-archives are rejected rather than misread")
     func rejectsGarbage() {
         #expect(throws: (any Error).self) {

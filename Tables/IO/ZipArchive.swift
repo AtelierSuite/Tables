@@ -69,11 +69,17 @@ enum ZipArchive {
 
     /// Reads every entry into a path-keyed table.
     static func entries(in data: Data) throws -> [String: Data] {
+        Dictionary(try orderedEntries(in: data), uniquingKeysWith: { _, last in last })
+    }
+
+    /// Reads every entry in the order the archive lists them, for writing an
+    /// archive back as it was.
+    static func orderedEntries(in data: Data) throws -> [(path: String, data: Data)] {
         let bytes = [UInt8](data)
         guard !bytes.starts(with: compoundFileSignature) else { throw ZipError.protectedOrLegacyWorkbook }
         guard let directoryStart = locateCentralDirectory(bytes) else { throw ZipError.notAnArchive }
 
-        var result: [String: Data] = [:]
+        var result: [(path: String, data: Data)] = []
         var offset = directoryStart
         while offset + 46 <= bytes.count, readUInt32(bytes, offset) == centralDirectorySignature {
             let record = try directoryRecord(bytes, at: offset)
@@ -83,7 +89,7 @@ enum ZipArchive {
             guard record.flags & 1 == 0 else { throw ZipError.encryptedEntry(record.name) }
 
             if !record.name.hasSuffix("/") {
-                result[record.name] = try extract(bytes, record: record)
+                result.append((record.name, try extract(bytes, record: record)))
             }
             offset += record.length
         }
@@ -253,8 +259,9 @@ enum ZipArchive {
     // MARK: - Writing
 
     /// Builds an archive. Entries are written in the order given, which matters
-    /// for OOXML readers that expect `[Content_Types].xml` first.
-    static func archive(entries: [(path: String, data: Data)]) throws -> Data {
+    /// for OOXML readers that expect `[Content_Types].xml` first. Without
+    /// `compressing`, every entry is stored as it is, as iWork stores them.
+    static func archive(entries: [(path: String, data: Data)], compressing: Bool = true) throws -> Data {
         var output = Data()
         var directory = Data()
         var count: UInt16 = 0
@@ -266,7 +273,7 @@ enum ZipArchive {
 
             var payload = entry.data
             var method: UInt16 = 0
-            if entry.data.count > 64, let deflated = deflate(entry.data), deflated.count < entry.data.count {
+            if compressing, entry.data.count > 64, let deflated = deflate(entry.data), deflated.count < entry.data.count {
                 payload = deflated
                 method = 8
             }
