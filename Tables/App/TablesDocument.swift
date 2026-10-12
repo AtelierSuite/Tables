@@ -48,6 +48,15 @@ struct TablesDocument: FileDocument {
     /// `NumbersEditPolicy` allows.
     var isNumbers: Bool { numbersSource != nil }
 
+    /// Whether rows and columns can be inserted into and deleted from a sheet:
+    /// in a Numbers document, only where nothing Tables can't move depends on
+    /// where its cells are.
+    func allowsMovingCells(in sheetID: Worksheet.ID?) -> Bool {
+        guard let source = numbersSource else { return true }
+        guard let sheetID, let table = source.tables[sheetID], let imported = source.imported[sheetID] else { return false }
+        return NumbersEditPolicy.canMoveCells(in: table, imported: imported, source: source)
+    }
+
     /// What the opened file used that Tables cannot edit. Empty for anything we
     /// authored ourselves and for CSV, which has no such features to begin with.
     var unsupportedFeatures: UnsupportedFeatureReport { workbook.unsupportedFeatures }

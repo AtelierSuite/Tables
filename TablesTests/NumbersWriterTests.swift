@@ -288,3 +288,124 @@ struct NumbersCellStorageTests {
         #expect(number.encoded[6] & 0x80 == 0, "no longer marked as holding a string")
     }
 }
+
+@Suite("Numbers rows and columns")
+struct NumbersMovingTests {
+    /// Item and Amount under a header row, totalled by Numbers' own
+    /// `SUM(B2:B3)`, with borders and an identifier for every row and column.
+    private func document(protected: Bool = false) throws -> Data {
+        let sum = [
+            NumbersNodes.relativeRange(columns: 0...0, rows: -2 ... -1),
+            NumbersNodes.function("SUM", arguments: 1),
+        ]
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [
+            [.text("Item"), .text("Amount")],
+            [.styledText("Rent", style: 77), .number(1_200, exponent: 0)],
+            [.text("Food"), .number(300, exponent: 0)],
+            [.text("Total"), .formulaNodes(1_500, sum), protected ? .formula(1) : .empty],
+        ])
+        table.headerRows = 1
+        table.hasIdentifiers = true
+        table.leftBorders = [1: 1..<3]
+        table.topBorders = [3: 0..<2]
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [table])
+        return try document.singleFile()
+    }
+
+    private func save(_ workbook: Workbook, _ source: NumbersSource) throws -> Data {
+        try #require(NumbersWriter.fileWrapper(for: workbook, source: source, existing: nil).regularFileContents)
+    }
+
+    private func model(in source: NumbersSource) throws -> ProtobufMessage {
+        let table = try #require(source.tables.values.first)
+        return try #require(source.archive[table.modelIdentifier]?.message)
+    }
+
+    @Test("A row inserted in the middle moves the cells below with everything Numbers stored for them")
+    func insertRow() throws {
+        var (workbook, source) = try NumbersReader.document(from: document())
+        workbook.sheets[0].insertRows(1, at: 2)
+        workbook.recalculate()
+        #expect(NumbersEditPolicy.violation(in: workbook, source: source) == nil)
+        let (reread, saved) = try NumbersReader.document(from: save(workbook, source))
+
+        let sheet = reread.sheets[0]
+        #expect(sheet.rowCount == 5)
+        #expect(sheet[CellAddress(a1: "A2")!].value == .text("Rent"))
+        #expect(sheet[CellAddress(a1: "A3")!].isBlank)
+        #expect(sheet[CellAddress(a1: "A4")!].value == .text("Food"))
+        #expect(sheet[CellAddress(a1: "B5")!].formula == "SUM(B2:B4)")
+        #expect(sheet[CellAddress(a1: "B5")!].value == .number(1_500))
+        let table = try #require(saved.tables.values.first)
+        let rent = try #require(table.storage[CellAddress(a1: "A2")!].flatMap(NumbersCellStorage.init))
+        #expect(rent.field(0x20) == [77, 0, 0, 0], "Rent's cell style stays with it")
+
+        // Rows keep their identifiers; the new one gets its own.
+        let model = try model(in: saved)
+        let map = try #require(saved.archive[model.message(46)]?.message)
+        let uids: [(upper: UInt64, lower: UInt64)] = map.messages(4).map { ($0.uint(2) ?? 0, $0.uint(1) ?? 0) }
+        #expect(uids.count == 5)
+        let isSorted = zip(uids, uids.dropFirst()).allSatisfy { $0.upper < $1.upper || ($0.upper == $1.upper && $0.lower < $1.lower) }
+        #expect(isSorted)
+        let forIndex = map.uints(6).map(Int.init), indexFor = map.uints(5).map(Int.init)
+        #expect(forIndex.indices.allSatisfy { indexFor[forIndex[$0]] == $0 })
+        let food = NumbersDocumentBuilder.identifierUUID(2, row: true)
+        #expect(uids[forIndex[3]].lower == food.lower && uids[forIndex[3]].upper == food.upper)
+
+        // Borders: the one down column B splits around the new row, and the
+        // one over Total moves down with it.
+        let sidecar = try #require(saved.archive[model.message(49)]?.message)
+        #expect(sidecar.uint(3) == 5)
+        let left = try #require(saved.archive[sidecar.messages(4).first]?.message)
+        #expect(left.messages(2).map { [$0.int(1) ?? -1, $0.int(2) ?? -1] } == [[1, 1], [3, 1]])
+        let top = try #require(saved.archive[sidecar.messages(6).first]?.message)
+        #expect(top.int(1) == 4)
+    }
+
+    @Test("A deleted column takes its cells, borders and identifier with it")
+    func deleteColumn() throws {
+        var (workbook, source) = try NumbersReader.document(from: document())
+        workbook.sheets[0].removeColumns(0...0)
+        workbook.recalculate()
+        let (reread, saved) = try NumbersReader.document(from: save(workbook, source))
+        let sheet = reread.sheets[0]
+        #expect(sheet.columnCount == 2)
+        #expect(sheet[CellAddress(a1: "A2")!].value == .number(1_200))
+        #expect(sheet[CellAddress(a1: "A4")!].formula == "SUM(A2:A3)")
+        let model = try model(in: saved)
+        let sidecar = try #require(saved.archive[model.message(49)]?.message)
+        let left = try #require(saved.archive[sidecar.messages(4).first]?.message)
+        #expect(left.int(1) == 0)
+        let map = try #require(saved.archive[model.message(46)]?.message)
+        #expect(map.messages(1).count == 2)
+    }
+
+    @Test("Deleting rows drops their cells and counts the formulas gone")
+    func deleteRows() throws {
+        var (workbook, source) = try NumbersReader.document(from: document())
+        workbook.sheets[0].removeRows(2...3)
+        let (reread, saved) = try NumbersReader.document(from: save(workbook, source))
+        #expect(reread.sheets[0].rowCount == 2)
+        #expect(reread.sheets[0][CellAddress(a1: "A2")!].value == .text("Rent"))
+        let engine = try #require(saved.archive[3]?.message)
+        #expect(engine.message(2)?.uint(5) == 0)
+    }
+
+    @Test("Moving cells is refused where something Tables can't move depends on them")
+    func refused() throws {
+        let (protectedWorkbook, protectedSource) = try NumbersReader.document(from: document(protected: true))
+        var edited = protectedWorkbook
+        edited.sheets[0].insertRows(1, at: 2)
+        #expect(NumbersEditPolicy.reconcile(edited, from: protectedWorkbook, source: protectedSource).violation == .movingCells)
+
+        let (workbook, source) = try NumbersReader.document(from: document())
+        var header = workbook
+        header.sheets[0].insertRows(1, at: 0)
+        #expect(NumbersEditPolicy.reconcile(header, from: workbook, source: source).violation == .movingCells)
+        var appended = workbook
+        appended.sheets[0].insertRows(1, at: 2)
+        appended.sheets[0].insertColumns(1, at: 1)
+        #expect(NumbersEditPolicy.reconcile(appended, from: workbook, source: source).violation == nil)
+    }
+}

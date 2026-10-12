@@ -106,6 +106,7 @@ enum NumbersReader {
                 let tableName = model.message.string(8) ?? ""
                 let name = models.count == 1 || tableName.isEmpty ? sheetName : "\(sheetName) – \(tableName)"
                 worksheet.name = workbook.uniqueSheetName(basedOn: name)
+                worksheet.origins = SheetOrigins()
                 workbook.sheets.append(worksheet)
                 readers[worksheet.id] = reader
                 tables[worksheet.id] = NumbersSource.Table(
@@ -115,7 +116,11 @@ enum NumbersReader {
                     protectedCells: reader.protectedCells,
                     isPivot: model.isPivot,
                     rowCount: model.message.int(6) ?? 0,
-                    columnCount: model.message.int(7) ?? 0
+                    columnCount: model.message.int(7) ?? 0,
+                    headerRows: model.message.int(9) ?? 0,
+                    headerColumns: model.message.int(10) ?? 0,
+                    footerRows: model.message.int(11) ?? 0,
+                    rowHeaderBuckets: model.message.message(4)?.message(1)?.messages(2).count ?? 0
                 )
             }
         }
@@ -143,7 +148,8 @@ enum NumbersReader {
         workbook.recalculate()
         keepNumbersResults(in: &workbook, tables: &tables, readers: readers)
         let source = NumbersSource(
-            layout: layout, entries: entries, package: package, archive: archive, tables: tables, imported: workbook
+            layout: layout, entries: entries, package: package, archive: archive, tables: tables, imported: workbook,
+            hasLinkedContent: hasLinkedContent(archive)
         )
         return (workbook, source)
     }
@@ -211,6 +217,21 @@ enum NumbersReader {
         }
     }
 
+    /// Whether anything in the document follows cells by where they are in
+    /// ways Tables can't move along with them: a chart's data, a table's
+    /// categories, a filter's rules.
+    private static func hasLinkedContent(_ archive: IWAArchive) -> Bool {
+        if !archive.identifiers(ofType: ObjectType.chartDrawable).isEmpty { return true }
+        for identifier in archive.identifiers(ofType: ObjectType.groupBy) {
+            // Categories only once grouped by a column, and switched on.
+            if let groupBy = archive[identifier]?.message, groupBy.has(2), groupBy.bool(6) { return true }
+        }
+        for identifier in archive.identifiers(ofType: ObjectType.filterSet) {
+            if let filters = archive[identifier]?.message, filters.has(7) || filters.has(3) { return true }
+        }
+        return false
+    }
+
     // MARK: - Format constants
 
     /// The document object always has this identifier.
@@ -224,6 +245,9 @@ enum NumbersReader {
         static let calculationEngine = 4000
         static let formulaOwnerDependencies = 4008
         static let packageMetadata = 11006
+        static let chartDrawable = 5021
+        static let filterSet = 6220
+        static let groupBy = 6373
     }
 }
 
@@ -255,6 +279,11 @@ final class NumbersSource: @unchecked Sendable {
         var isPivot: Bool
         var rowCount: Int
         var columnCount: Int
+        var headerRows = 0
+        var headerColumns = 0
+        var footerRows = 0
+        /// How many pieces the table's row sizes are kept in.
+        var rowHeaderBuckets = 0
     }
 
     let layout: Layout
@@ -267,11 +296,15 @@ final class NumbersSource: @unchecked Sendable {
     let tables: [Worksheet.ID: Table]
     /// The workbook as read, for telling what has changed since.
     let imported: Workbook
+    /// Whether charts, categories or filters follow cells by where they are,
+    /// so rows and columns can't be inserted or deleted under them.
+    let hasLinkedContent: Bool
 
     init(
         layout: Layout, entries: [(path: String, data: Data)], package: FileWrapper?, archive: IWAArchive,
-        tables: [Worksheet.ID: Table], imported: Workbook
+        tables: [Worksheet.ID: Table], imported: Workbook, hasLinkedContent: Bool = false
     ) {
+        self.hasLinkedContent = hasLinkedContent
         self.layout = layout
         self.entries = entries
         self.package = package

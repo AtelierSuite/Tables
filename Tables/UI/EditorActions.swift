@@ -223,7 +223,7 @@ extension EditorState {
     /// when they can't.
     private func allowsInsertingOrDeleting() -> Bool {
         guard allowsInsertingAndDeleting else {
-            errorMessage = NumbersEditPolicy.Violation.structure.localizedDescription
+            errorMessage = NumbersEditPolicy.Violation.movingCells.localizedDescription
             return false
         }
         return true

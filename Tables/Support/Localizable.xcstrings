@@ -17707,6 +17707,41 @@
         }
       }
     },
+    "Numbers.Restriction.MovingCells" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rows and columns can’t be inserted or deleted here: a chart, a filter, categories, merged or hidden cells, or a formula Tables can’t read depends on where the cells are, and would be left behind. Header and footer rows stay where they are."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここでは行や列を挿入または削除できません。グラフ、フィルタ、カテゴリ、結合または非表示のセル、あるいはTablesで読み取れない数式がセルの位置に依存しているため、取り残されてしまいます。ヘッダ行とフッタ行は移動できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여기에서는 행이나 열을 삽입하거나 삭제할 수 없습니다. 차트, 필터, 카테고리, 병합되거나 가려진 셀, 또는 Tables에서 읽을 수 없는 수식이 셀의 위치에 따라 달라지므로 남겨지게 됩니다. 머리말 행과 꼬리말 행은 그대로 유지됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此处无法插入或删除行和列：图表、过滤器、类别、合并或隐藏的单元格，或 Tables 无法读取的公式依赖于单元格的位置，会被留在原处。表头行和表尾行保持原位。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此處無法插入或刪除列和欄：圖表、過濾器、類別、合併或隱藏的儲存格，或 Tables 無法讀取的公式依賴於儲存格的位置，會被留在原處。標題列和註腳列保持原位。"
+          }
+        }
+      }
+    },
     "Numbers.Restriction.ProtectedCell" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17748,31 +17783,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This change can’t be saved in a Numbers document. You can edit values, add rows and columns at the end, and resize rows and columns."
+            "value" : "This change can’t be saved in a Numbers document. You can edit values and formulas, insert and delete rows and columns, and resize rows and columns."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この変更はNumbersの書類に保存できません。値の編集、末尾への行と列の追加、行と列のサイズ変更ができます。"
+            "value" : "この変更はNumbersの書類に保存できません。値と数式の編集、行と列の挿入と削除、行と列のサイズ変更ができます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 변경 사항은 Numbers 문서에 저장할 수 없습니다. 값을 편집하고, 끝에 행과 열을 추가하고, 행과 열의 크기를 조절할 수 있습니다."
+            "value" : "이 변경 사항은 Numbers 문서에 저장할 수 없습니다. 값과 수식을 편집하고, 행과 열을 삽입 및 삭제하고, 행과 열의 크기를 조절할 수 있습니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此更改无法存储在 Numbers 文稿中。你可以编辑值、在末尾添加行和列，以及调整行和列的大小。"
+            "value" : "此更改无法存储在 Numbers 文稿中。你可以编辑值和公式、插入和删除行与列，以及调整行和列的大小。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此變更無法儲存在 Numbers 文件中。你可以編輯值、在末尾加入列和欄，以及調整列和欄的大小。"
+            "value" : "此變更無法儲存在 Numbers 文件中。你可以編輯值和公式、插入和刪除列與欄，以及調整列和欄的大小。"
           }
         }
       }

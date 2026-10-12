@@ -203,6 +203,13 @@ struct NumbersDocumentBuilder {
         var isPreBNC = false
         /// Gives the table the UUID formulas in other tables refer to it by.
         var uuid: MergeOwners.UUID?
+        var headerRows = 0
+        /// Gives every row and column a UUID, as Numbers does.
+        var hasIdentifiers = false
+        /// Borders down the left of columns, over rows, by column.
+        var leftBorders: [Int: Range<Int>] = [:]
+        /// Borders along the top of rows, over columns, by row.
+        var topBorders: [Int: Range<Int>] = [:]
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -379,6 +386,13 @@ struct NumbersDocumentBuilder {
             .string(8, table.name)
             .double(16, 20)
             .double(17, Self.defaultColumnWidth)
+        if table.headerRows > 0 { model = model.varint(9, table.headerRows) }
+        if table.hasIdentifiers {
+            model = model.message(46, Self.reference(addIdentifiers(rows: table.rowCount ?? table.rows.count, columns: columnCount)))
+        }
+        if !table.leftBorders.isEmpty || !table.topBorders.isEmpty {
+            model = model.message(49, Self.reference(addBorders(table, rows: table.rowCount ?? table.rows.count, columns: columnCount)))
+        }
         if !table.mergeOwnerRanges.isEmpty || table.uuid != nil {
             model = model.message(84, ProtobufWriter().message(1, addMergeOwner(table.mergeOwnerRanges, base: table.uuid)))
         }
@@ -387,6 +401,44 @@ struct NumbersDocumentBuilder {
         add(type: 4008, ProtobufWriter().varint(2, 100 + tableOwnerCount).varint(3, 1))
         tableOwnerCount += 1
         return add(type: 6000, ProtobufWriter().message(1, ProtobufWriter()).message(2, Self.reference(modelIdentifier)))
+    }
+
+    /// Identifiers for each row and column, numbered so their order differs
+    /// from the rows' and columns', as Numbers' random ones do.
+    static func identifierUUID(_ index: Int, row: Bool) -> (lower: UInt64, upper: UInt64) {
+        (UInt64(index) * 7 % 13, row ? UInt64(1000 - index) : UInt64(2000 - index))
+    }
+
+    private mutating func addIdentifiers(rows: Int, columns: Int) -> UInt64 {
+        var map = ProtobufWriter()
+        for (count, isRow, fields) in [(columns, false, (1, 2, 3)), (rows, true, (4, 5, 6))] {
+            let uids = (0..<count).map { Self.identifierUUID($0, row: isRow) }
+            let order = uids.indices.sorted { (uids[$0].upper, uids[$0].lower) < (uids[$1].upper, uids[$1].lower) }
+            var forIndex = [Int](repeating: 0, count: count)
+            for (position, index) in order.enumerated() { forIndex[index] = position }
+            for index in order {
+                map = map.message(fields.0, ProtobufWriter().varint(1, uids[index].lower).varint(2, uids[index].upper))
+            }
+            for index in order { map = map.varint(fields.1, index) }
+            for position in forIndex { map = map.varint(fields.2, position) }
+        }
+        return add(type: 6267, map)
+    }
+
+    private mutating func addBorders(_ table: Table, rows: Int, columns: Int) -> UInt64 {
+        func layer(_ index: Int, _ range: Range<Int>) -> ProtobufWriter {
+            let run = ProtobufWriter().varint(1, range.lowerBound).varint(2, range.count)
+                .message(3, ProtobufWriter().float(1, 1)).varint(4, 7)
+            return ProtobufWriter().varint(1, index).message(2, run)
+        }
+        var sidecar = ProtobufWriter().varint(1, 7).varint(2, columns).varint(3, rows)
+        for (column, range) in table.leftBorders.sorted(by: { $0.key < $1.key }) {
+            sidecar = sidecar.message(4, Self.reference(add(type: 6306, layer(column, range))))
+        }
+        for (row, range) in table.topBorders.sorted(by: { $0.key < $1.key }) {
+            sidecar = sidecar.message(6, Self.reference(add(type: 6306, layer(row, range))))
+        }
+        return add(type: 6305, sidecar)
     }
 
     /// Registers the owners newer files record merges through: the table's

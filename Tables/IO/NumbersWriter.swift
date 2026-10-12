@@ -289,30 +289,21 @@ private struct TableWriter {
         var strings = StringTable(reference: store.message(4), patch: patch)
         var formulas = FormulaTable(reference: store.message(6), patch: patch)
 
+        if sheet.origins?.hasMoved ?? false {
+            return try writeMoved(model: model, store: store, strings: &strings, formulas: &formulas, patch: &patch)
+        }
+
         // The new storage of every changed cell; nil where it is now empty.
         var changedCells: [CellAddress: [UInt8]?] = [:]
         for address in Set(sheet.cells.keys).union(imported.cells.keys)
         where address.row < sheet.rowCount && address.column < sheet.columnCount {
             let cell = sheet[address], original = imported[address]
-            guard cell.value != original.value || cell.style.numberFormat != original.style.numberFormat
-                    || cell.formula != original.formula else { continue }
-            let storage = table.storage[address].flatMap(NumbersCellStorage.init) ?? NumbersCellStorage(type: 0)
-            var formulaKey: UInt32?
-            if let formula = cell.formula {
-                if formula == original.formula, let key = storage.formulaKey {
-                    // Only the result has changed.
-                    formulaKey = UInt32(truncatingIfNeeded: key)
-                } else {
-                    let context = NumbersFormula.Context(host: address, hostTable: table.uuid, sheetNames: sheetNames)
-                    guard let nodes = NumbersFormula.nodes(for: formula, context: context) else {
-                        throw NumbersEditPolicy.Violation.formula
-                    }
-                    formulaKey = formulas.key(for: nodes)
-                }
-            }
-            if (formulaKey != nil) != storage.hasFormula { patch.noteFormulaCountChange(formulaKey != nil ? 1 : -1) }
-            let updated = storage.replacingValue(with: cell, formulaKey: formulaKey) { strings.key(for: $0) }
-            changedCells.updateValue(updated.isBare ? nil : updated.encoded, forKey: address)
+            guard Self.differs(cell, from: original) else { continue }
+            let updated = try storage(
+                for: cell, at: address, was: original, stored: table.storage[address],
+                strings: &strings, formulas: &formulas, patch: &patch
+            )
+            changedCells.updateValue(updated, forKey: address)
         }
         if !changedCells.isEmpty { patch.noteChangedValues() }
 
@@ -333,6 +324,36 @@ private struct TableWriter {
         if rowCount != table.rowCount { model.set(6, uint: UInt64(rowCount)) }
         if columnCount != table.columnCount { model.set(7, uint: UInt64(columnCount)) }
         try patch.change(table.modelIdentifier, to: model)
+    }
+
+    private static func differs(_ cell: Cell, from original: Cell) -> Bool {
+        cell.value != original.value || cell.style.numberFormat != original.style.numberFormat
+            || cell.formula != original.formula
+    }
+
+    /// What to store for `cell` at `address`, from what Numbers stored for
+    /// the cell it was; nil where it is now empty.
+    private func storage(
+        for cell: Cell, at address: CellAddress, was original: Cell, stored: ArraySlice<UInt8>?,
+        strings: inout StringTable, formulas: inout FormulaTable, patch: inout Patch, keepingFormula: Bool = true
+    ) throws -> [UInt8]? {
+        let storage = stored.flatMap(NumbersCellStorage.init) ?? NumbersCellStorage(type: 0)
+        var formulaKey: UInt32?
+        if let formula = cell.formula {
+            if keepingFormula, formula == original.formula, let key = storage.formulaKey {
+                // Only the result has changed.
+                formulaKey = UInt32(truncatingIfNeeded: key)
+            } else {
+                let context = NumbersFormula.Context(host: address, hostTable: table.uuid, sheetNames: sheetNames)
+                guard let nodes = NumbersFormula.nodes(for: formula, context: context) else {
+                    throw NumbersEditPolicy.Violation.formula
+                }
+                formulaKey = formulas.key(for: nodes)
+            }
+        }
+        if (formulaKey != nil) != storage.hasFormula { patch.noteFormulaCountChange(formulaKey != nil ? 1 : -1) }
+        let updated = storage.replacingValue(with: cell, formulaKey: formulaKey) { strings.key(for: $0) }
+        return updated.isBare ? nil : updated.encoded
     }
 
     // MARK: - Tiles
@@ -397,21 +418,30 @@ private struct TableWriter {
             if let existing {
                 try patch.change(existing, to: tile)
             } else {
-                let identifier = patch.addTile(tile, owner: table.modelIdentifier)
-                var reference = ProtobufMessage()
-                reference.set(1, uint: identifier)
-                var entry = ProtobufMessage()
-                entry.set(1, uint: UInt64(number))
-                entry.set(2, message: reference)
-                tileStorage.append(1, message: entry)
-                var node = ProtobufMessage()
-                node.set(1, uint: UInt64(number * tileSize))
-                node.set(2, uint: UInt64(number))
-                rowTileTree.append(1, message: node)
+                addTile(tile, number: number, tileSize: tileSize, tileStorage: &tileStorage, rowTileTree: &rowTileTree, patch: &patch)
             }
         }
         store.set(3, message: tileStorage)
         if store.has(9) || !rowTileTree.fields.isEmpty { store.set(9, message: rowTileTree) }
+    }
+
+    /// Adds a tile for rows past the last of the table's tiles, listing it
+    /// with the others and in the tree that finds a row's tile.
+    private func addTile(
+        _ tile: ProtobufMessage, number: Int, tileSize: Int,
+        tileStorage: inout ProtobufMessage, rowTileTree: inout ProtobufMessage, patch: inout Patch
+    ) {
+        let identifier = patch.addTile(tile, owner: table.modelIdentifier)
+        var reference = ProtobufMessage()
+        reference.set(1, uint: identifier)
+        var entry = ProtobufMessage()
+        entry.set(1, uint: UInt64(number))
+        entry.set(2, message: reference)
+        tileStorage.append(1, message: entry)
+        var node = ProtobufMessage()
+        node.set(1, uint: UInt64(number * tileSize))
+        node.set(2, uint: UInt64(number))
+        rowTileTree.append(1, message: node)
     }
 
     private static func newTile(wideRows: Bool) -> ProtobufMessage {
@@ -505,6 +535,308 @@ private struct TableWriter {
         }
         bucket.set(2, messages: order.sorted().map { headers[$0]! })
         try patch.change(identifier, to: bucket)
+    }
+}
+
+/// A table whose rows or columns were inserted or deleted, rewritten whole:
+/// every cell's storage goes where its row and column went, along with the
+/// row and column sizes, borders and the identifiers Numbers keeps for each
+/// row and column.
+private extension TableWriter {
+    /// Where the file's rows and columns are now, and back.
+    struct Moves {
+        let rowCount: Int
+        let columnCount: Int
+        let fileRows: [Int?]
+        let fileColumns: [Int?]
+        let rowNow: [Int: Int]
+        let columnNow: [Int: Int]
+
+        init(sheet: Worksheet, table: NumbersSource.Table) {
+            let origins = sheet.origins ?? SheetOrigins()
+            rowCount = sheet.rowCount
+            columnCount = sheet.columnCount
+            fileRows = (0..<rowCount).map { origins.row($0).flatMap { $0 < table.rowCount ? $0 : nil } }
+            fileColumns = (0..<columnCount).map { origins.column($0).flatMap { $0 < table.columnCount ? $0 : nil } }
+            rowNow = Dictionary(fileRows.enumerated().compactMap { now, file in file.map { ($0, now) } }, uniquingKeysWith: { $1 })
+            columnNow = Dictionary(fileColumns.enumerated().compactMap { now, file in file.map { ($0, now) } }, uniquingKeysWith: { $1 })
+        }
+
+        func fileAddress(_ address: CellAddress) -> CellAddress? {
+            guard let row = fileRows[address.row], let column = fileColumns[address.column] else { return nil }
+            return CellAddress(row: row, column: column)
+        }
+    }
+
+    func writeMoved(
+        model: ProtobufMessage, store: ProtobufMessage,
+        strings: inout StringTable, formulas: inout FormulaTable, patch: inout Patch
+    ) throws {
+        var model = model, store = store
+        let moves = Moves(sheet: sheet, table: table)
+
+        // Each cell's storage where its row and column are now.
+        var cells: [CellAddress: ArraySlice<UInt8>] = [:]
+        for (address, bytes) in table.storage {
+            guard let row = moves.rowNow[address.row], let column = moves.columnNow[address.column] else {
+                if NumbersCellStorage(bytes)?.hasFormula ?? false { patch.noteFormulaCountChange(-1) }
+                continue
+            }
+            cells[CellAddress(row: row, column: column)] = bytes
+        }
+        // Then the changes made to them. Every formula is written again: its
+        // references count from its cell, and either may have moved.
+        for address in Set(cells.keys).union(sheet.cells.keys)
+        where address.row < moves.rowCount && address.column < moves.columnCount {
+            let cell = sheet[address]
+            let original = moves.fileAddress(address).map { imported[$0] } ?? Cell()
+            guard cell.formula != nil || Self.differs(cell, from: original) else { continue }
+            let updated = try storage(
+                for: cell, at: address, was: original, stored: cells[address],
+                strings: &strings, formulas: &formulas, patch: &patch, keepingFormula: false
+            )
+            cells[address] = updated.map { $0[...] }
+        }
+        patch.noteChangedValues()
+
+        var cellsByRow: [Int: [Int: ArraySlice<UInt8>]] = [:]
+        var cellsPerColumn: [Int: Int] = [:]
+        for (address, bytes) in cells {
+            cellsByRow[address.row, default: [:]][address.column] = bytes
+            cellsPerColumn[address.column, default: 0] += 1
+        }
+
+        try rewriteTiles(cellsByRow, moves: moves, store: &store, patch: &patch)
+        try strings.save(into: &patch)
+        try formulas.save(into: &patch)
+        if let bucket = store.message(1)?.messages(2).first?.uint(1) {
+            try rewriteHeaders(
+                bucket, count: moves.rowCount, fileIndices: moves.fileRows,
+                cellCounts: { cellsByRow[$0]?.count ?? 0 },
+                size: { sheet.rowHeights[$0] }, fileSize: { imported.rowHeights[$0] }, patch: &patch
+            )
+        }
+        if let bucket = store.message(2)?.uint(1) {
+            try rewriteHeaders(
+                bucket, count: moves.columnCount, fileIndices: moves.fileColumns,
+                cellCounts: { cellsPerColumn[$0] ?? 0 },
+                size: { sheet.columnWidths[$0] }, fileSize: { imported.columnWidths[$0] }, patch: &patch
+            )
+        }
+        if let identifier = model.message(46)?.uint(1) {
+            try rewriteIdentifiers(identifier, moves: moves, patch: &patch)
+        }
+        if let identifier = model.message(49)?.uint(1) {
+            try rewriteStrokes(identifier, moves: moves, patch: &patch)
+        }
+
+        model.set(4, message: store)
+        model.set(6, uint: UInt64(moves.rowCount))
+        model.set(7, uint: UInt64(moves.columnCount))
+        try patch.change(table.modelIdentifier, to: model)
+    }
+
+    // MARK: Tiles
+
+    private func rewriteTiles(
+        _ cellsByRow: [Int: [Int: ArraySlice<UInt8>]], moves: Moves, store: inout ProtobufMessage, patch: inout Patch
+    ) throws {
+        var tileStorage = store.message(3) ?? ProtobufMessage()
+        let tileSize = tileStorage.int(2).flatMap { $0 > 0 ? $0 : nil } ?? NumbersSource.defaultTileSize
+        var tilesByNumber: [Int: UInt64] = [:]
+        var fileInfos: [Int: ProtobufMessage] = [:]
+        var offsetColumns = moves.columnCount
+        for entry in tileStorage.messages(1) {
+            guard let number = entry.int(1), let identifier = entry.message(2)?.uint(1) else { continue }
+            tilesByNumber[number] = identifier
+            for info in patch[identifier]?.messages(5) ?? [] {
+                guard let index = info.int(1) else { continue }
+                fileInfos[number * tileSize + index] = info
+                offsetColumns = max(offsetColumns, (info.bytes(7)?.count ?? 0) / 2)
+            }
+        }
+        if fileInfos.isEmpty { offsetColumns = max(offsetColumns, NumbersEditPolicy.maximumColumnCount) }
+
+        var rowTileTree = store.message(9) ?? ProtobufMessage()
+        let tileCount = (moves.rowCount + tileSize - 1) / tileSize
+        for number in 0..<max(tileCount, (tilesByNumber.keys.max() ?? -1) + 1) {
+            let rows = (number * tileSize)..<min(moves.rowCount, (number + 1) * tileSize)
+            // A new row with nothing in it is stored as nothing, as Numbers
+            // stores one.
+            let stored = rows.filter { cellsByRow[$0] != nil || moves.fileRows[$0].flatMap { fileInfos[$0] } != nil }
+            let infos = stored.map { row -> ProtobufMessage in
+                let index = row - number * tileSize
+                var info = moves.fileRows[row].flatMap { fileInfos[$0] } ?? Self.newRowInfo(index: index)
+                let encoded = NumbersTileRow(cells: cellsByRow[row] ?? [:]).encoded(columns: offsetColumns)
+                info.set(1, uint: UInt64(index))
+                info.set(2, uint: UInt64(cellsByRow[row]?.count ?? 0))
+                info.set(6, bytes: encoded.buffer)
+                info.set(7, bytes: encoded.offsets)
+                info.set(8, bool: encoded.wide)
+                return info
+            }
+            let existing = tilesByNumber[number]
+            var tile = existing.flatMap { patch[$0] } ?? Self.newTile(wideRows: tileStorage.bool(3))
+            tile.set(5, messages: infos)
+            tile.set(4, uint: UInt64((stored.last.map { $0 - number * tileSize } ?? -1) + 1))
+            if let existing {
+                try patch.change(existing, to: tile)
+            } else {
+                addTile(tile, number: number, tileSize: tileSize, tileStorage: &tileStorage, rowTileTree: &rowTileTree, patch: &patch)
+            }
+        }
+        store.set(3, message: tileStorage)
+        if store.has(9) || !rowTileTree.fields.isEmpty { store.set(9, message: rowTileTree) }
+    }
+
+    // MARK: Headers
+
+    /// Moves each row's or column's header — its size, its cell count — to
+    /// where the row or column is now.
+    private func rewriteHeaders(
+        _ identifier: UInt64, count: Int, fileIndices: [Int?], cellCounts: (Int) -> Int,
+        size: (Int) -> Double?, fileSize: (Int) -> Double?, patch: inout Patch
+    ) throws {
+        guard var bucket = patch[identifier] else { return }
+        var fileHeaders: [Int: ProtobufMessage] = [:]
+        for header in bucket.messages(2) {
+            if let index = header.int(1) { fileHeaders[index] = header }
+        }
+        var headers: [ProtobufMessage] = []
+        for index in 0..<count {
+            let file = fileIndices[index]
+            let cells = cellCounts(index)
+            let resized = size(index) != file.flatMap(fileSize)
+            guard var header = file.flatMap({ fileHeaders[$0] }) ?? ((cells > 0 || resized) ? ProtobufMessage() : nil) else {
+                continue
+            }
+            if !header.has(1) {
+                header.set(2, float: 0)
+                header.set(3, uint: 0)
+            }
+            header.set(1, uint: UInt64(index))
+            if resized { header.set(2, float: Float(size(index) ?? 0)) }
+            header.set(4, uint: UInt64(cells))
+            headers.append(header)
+        }
+        bucket.set(2, messages: headers)
+        try patch.change(identifier, to: bucket)
+    }
+
+    // MARK: Identifiers
+
+    /// The UUID Numbers knows each row and column by, kept sorted with each
+    /// one's index alongside: rows and columns keep theirs as they move, and
+    /// new ones are given one.
+    private func rewriteIdentifiers(_ identifier: UInt64, moves: Moves, patch: inout Patch) throws {
+        guard var map = patch[identifier] else { return }
+        func rewrite(sorted: Int, indexForUID: Int, uidForIndex: Int, fileIndices: [Int?]) {
+            let uids = map.messages(sorted)
+            let forIndex = map.uints(uidForIndex).map(Int.init)
+            let packed = map.fields.contains { $0.number == uidForIndex && { if case .bytes = $0 { return true }; return false }($0.value) }
+            var assigned: [(upper: UInt64, lower: UInt64)] = fileIndices.map { file in
+                if let file, file < forIndex.count, forIndex[file] < uids.count {
+                    let uid = uids[forIndex[file]]
+                    return (uid.uint(2) ?? 0, uid.uint(1) ?? 0)
+                }
+                return (UInt64.random(in: .min ... .max), UInt64.random(in: .min ... .max))
+            }
+            let order = assigned.indices.sorted { (assigned[$0].upper, assigned[$0].lower) < (assigned[$1].upper, assigned[$1].lower) }
+            var uidOfIndex = [Int](repeating: 0, count: assigned.count)
+            for (position, index) in order.enumerated() { uidOfIndex[index] = position }
+            let sortedUIDs = order.map { index -> ProtobufMessage in
+                var uid = ProtobufMessage()
+                uid.set(1, uint: assigned[index].lower)
+                uid.set(2, uint: assigned[index].upper)
+                return uid
+            }
+            map.set(sorted, messages: sortedUIDs)
+            Self.setUInts(&map, indexForUID, order.map(UInt64.init), packed: packed)
+            Self.setUInts(&map, uidForIndex, uidOfIndex.map(UInt64.init), packed: packed)
+        }
+        rewrite(sorted: 1, indexForUID: 2, uidForIndex: 3, fileIndices: moves.fileColumns)
+        rewrite(sorted: 4, indexForUID: 5, uidForIndex: 6, fileIndices: moves.fileRows)
+        try patch.change(identifier, to: map)
+    }
+
+    private static func setUInts(_ message: inout ProtobufMessage, _ number: Int, _ values: [UInt64], packed: Bool) {
+        if packed {
+            var bytes: [UInt8] = []
+            for value in values { ProtobufMessage.appendVarint(value, to: &bytes) }
+            message.set(number, bytes: bytes)
+        } else {
+            message.set(number, values.map { .varint($0) })
+        }
+    }
+
+    // MARK: Borders
+
+    /// Moves the table's borders with its rows and columns. Each row's and
+    /// column's borders are a layer of runs along it: a layer moves with its
+    /// row or column, and its runs are laid out again along the other.
+    private func rewriteStrokes(_ identifier: UInt64, moves: Moves, patch: inout Patch) throws {
+        guard var sidecar = patch[identifier] else { return }
+        // Left and right column borders run down the rows; top and bottom
+        // row borders run along the columns.
+        for (field, isColumnLayer) in [(4, true), (5, true), (6, false), (7, false)] {
+            var kept: [ProtobufMessage] = []
+            for reference in sidecar.messages(field) {
+                guard let layerIdentifier = reference.uint(1), var layer = patch[layerIdentifier],
+                      let index = layer.int(1) else { kept.append(reference); continue }
+                let now = isColumnLayer ? moves.columnNow[index] : moves.rowNow[index]
+                guard let now else { continue }
+                layer.set(1, uint: UInt64(now))
+                layer.set(2, messages: Self.movedRuns(
+                    layer.messages(2), fileIndices: isColumnLayer ? moves.fileRows : moves.fileColumns
+                ))
+                try patch.change(layerIdentifier, to: layer)
+                kept.append(reference)
+            }
+            sidecar.set(field, messages: kept)
+        }
+        sidecar.set(2, uint: UInt64(moves.columnCount))
+        sidecar.set(3, uint: UInt64(moves.rowCount))
+        try patch.change(identifier, to: sidecar)
+    }
+
+    /// Runs of one stroke over consecutive rows or columns, laid out again
+    /// where those rows or columns are now.
+    private static func movedRuns(_ runs: [ProtobufMessage], fileIndices: [Int?]) -> [ProtobufMessage] {
+        // The stroke at each of the file's positions: the run's own fields
+        // but its origin and length.
+        var strokes: [Int: ProtobufMessage] = [:]
+        for run in runs {
+            guard let origin = run.int(1).map({ Int(Int32(truncatingIfNeeded: $0)) }) else { continue }
+            var stroke = run
+            stroke.set(1, [])
+            stroke.set(2, [])
+            for position in origin..<(origin + (run.int(2) ?? 1)) { strokes[position] = stroke }
+        }
+        var moved: [ProtobufMessage] = []
+        var current: (origin: Int, length: Int, stroke: ProtobufMessage)?
+        func close() {
+            guard let run = current else { return }
+            // Origin and length come first, as Numbers writes them.
+            var message = ProtobufMessage()
+            message.set(1, uint: UInt64(bitPattern: Int64(run.origin)))
+            message.set(2, uint: UInt64(run.length))
+            for number in run.stroke.fields.map(\.number) where !message.has(number) {
+                message.set(number, run.stroke.fields.filter { $0.number == number }.map(\.value))
+            }
+            moved.append(message)
+            current = nil
+        }
+        for (position, file) in fileIndices.enumerated() {
+            guard let stroke = file.flatMap({ strokes[$0] }) else { close(); continue }
+            if let run = current, run.stroke.encoded() == stroke.encoded(), run.origin + run.length == position {
+                current?.length += 1
+            } else {
+                close()
+                current = (position, 1, stroke)
+            }
+        }
+        close()
+        return moved
     }
 }
 

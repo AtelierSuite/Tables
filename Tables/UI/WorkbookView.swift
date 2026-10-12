@@ -93,11 +93,11 @@ struct WorkbookView: View {
         }
         .onAppear {
             state.allowsFormatting = !document.isPlainText && !document.isNumbers
-            state.allowsInsertingAndDeleting = !document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.sheets.first?.id
                 state.refreshMetrics(in: document.workbook)
             }
+            state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)
             attachHistory()
         }
         .onChange(of: undoManager) { _, _ in attachHistory() }
@@ -105,6 +105,7 @@ struct WorkbookView: View {
         .onChange(of: state.activeSheetID) { _, _ in
             // CSV holds one sheet; export whichever one the user is looking at.
             document.csvExport.sheetIndex = state.activeIndex(in: document.workbook)
+            state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)
         }
         #if os(iOS)
         .toolbar { editorToolbar }
