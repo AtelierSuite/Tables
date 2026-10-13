@@ -252,7 +252,7 @@ struct NumbersEditPolicyTests {
         #expect(violation != nil)
     }
 
-    @Test("Formatting is reset to the document's, keeping a number's format")
+    @Test("In a table without a list of styles, formatting is reset to the document's, keeping a number's format")
     func formatting() throws {
         let (workbook, source) = try document()
         var edited = workbook
@@ -506,5 +506,143 @@ struct NumbersHidingTests {
         default: edited.sheets[0].setRows(0...0, hidden: true)
         }
         #expect(NumbersEditPolicy.reconcile(edited, from: workbook, source: source).violation == .structure)
+    }
+}
+
+@Suite("Numbers formatting")
+struct NumbersFormattingTests {
+    private func document() throws -> (Workbook, NumbersSource) {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [
+            [.text("Item"), .text("Amount")], [.boldText("Rent"), .text("Food")], [.text("Fuel"), .text("Gas")],
+        ])
+        table.headerRows = 1
+        table.hasStyles = true
+        document.addSheet("Budget", tables: [table])
+        return try NumbersReader.document(from: document.singleFile())
+    }
+
+    private func save(_ workbook: Workbook, _ source: NumbersSource) throws -> Data {
+        try #require(NumbersWriter.fileWrapper(for: workbook, source: source, existing: nil).regularFileContents)
+    }
+
+    private func edit(_ workbook: Workbook, _ reference: String, _ change: (inout CellStyle) -> Void) -> Workbook {
+        var workbook = workbook
+        let address = CellAddress(a1: reference)!
+        var cell = workbook.sheets[0][address]
+        change(&cell.style)
+        workbook.sheets[0][address] = cell
+        return workbook
+    }
+
+    /// The style a cell's storage field refers to, through the table's list.
+    private func style(_ field: UInt32, at reference: String, in source: NumbersSource) throws -> ProtobufMessage? {
+        let table = try #require(source.tables.values.first)
+        let storage = try #require(table.storage[CellAddress(a1: reference)!].flatMap(NumbersCellStorage.init))
+        guard let key = storage.key(of: field) else { return nil }
+        let model = try #require(source.archive[table.modelIdentifier]?.message)
+        let list = try #require(source.archive[model.message(4)?.message(5)]?.message)
+        let entry = try #require(list.messages(3).first { $0.uint(1) == key })
+        return source.archive[entry.message(4)]?.message
+    }
+
+    @Test("Bold, italic, colours, size and alignment are saved as variations of the cell's styles")
+    func formats() throws {
+        let (workbook, source) = try document()
+        var edited = edit(workbook, "B2") {
+            $0.isBold = true
+            $0.isItalic = true
+            $0.isUnderlined = true
+            $0.isStruckThrough = true
+            $0.fontSize = 14
+            $0.textColorHex = "FF0000FF"
+            $0.horizontalAlignment = .center
+            $0.fillColorHex = "FFFF0000"
+            $0.verticalAlignment = .bottom
+            $0.wrapsText = false
+        }
+        edited = NumbersEditPolicy.reconcile(edited, from: workbook, source: source).workbook
+        #expect(NumbersEditPolicy.violation(in: edited, source: source) == nil)
+
+        let (reread, rereadSource) = try NumbersReader.document(from: save(edited, source))
+        let style = reread.sheets[0][CellAddress(a1: "B2")!].style
+        #expect(style.isBold && style.isItalic && style.isUnderlined && style.isStruckThrough)
+        #expect(style.fontSize == 14)
+        #expect(style.textColorHex == "FF0000FF")
+        #expect(style.horizontalAlignment == .center)
+        #expect(style.fillColorHex == "FFFF0000")
+        #expect(style.verticalAlignment == .bottom)
+        #expect(!style.wrapsText)
+        #expect(reread.sheets[0][CellAddress(a1: "B2")!].value == .text("Food"))
+        #expect(reread.sheets[0][CellAddress(a1: "A2")!].style.isBold, "others keep theirs")
+
+        let text = try #require(try self.style(NumbersStyles.Field.textStyle, at: "B2", in: rereadSource))
+        let base = try #require(text.message(1))
+        #expect(base.bool(4), "a variation")
+        let root = try #require(base.message(3)?.uint(1))
+        #expect(rereadSource.archive[root]?.message.message(1)?.string(1) == "Body", "of the body's text style")
+        let sheet = try #require(rereadSource.archive[base.message(5)]?.message)
+        let made = try #require(rereadSource.archive.identifiers(ofType: NumbersStyles.ObjectType.paragraphStyle).max())
+        #expect(sheet.messages(1).contains { $0.uint(1) == made }, "listed in the stylesheet")
+        #expect(sheet.messages(5).contains { $0.message(1)?.uint(1) == root && $0.messages(2).contains { $0.uint(1) == made } })
+        let cell = try #require(try self.style(NumbersStyles.Field.cellStyle, at: "B2", in: rereadSource))
+        #expect(cell.message(1)?.bool(4) == true)
+    }
+
+    @Test("Cells formatted alike share a variation, Numbers' own where it has one")
+    func sharesVariations() throws {
+        let (workbook, source) = try document()
+        var edited = edit(workbook, "B2") { $0.isItalic = true }
+        edited = edit(edited, "B3") { $0.isItalic = true }
+        edited = edit(edited, "A3") { $0.isBold = true }
+        let (_, rereadSource) = try NumbersReader.document(from: save(edited, source))
+        let paragraphStyles = rereadSource.archive.identifiers(ofType: NumbersStyles.ObjectType.paragraphStyle)
+        #expect(paragraphStyles.count == source.archive.identifiers(ofType: NumbersStyles.ObjectType.paragraphStyle).count + 1)
+
+        let table = try #require(rereadSource.tables.values.first)
+        func key(_ reference: String) -> UInt64? {
+            table.storage[CellAddress(a1: reference)!].flatMap(NumbersCellStorage.init)?.key(of: NumbersStyles.Field.textStyle)
+        }
+        #expect(key("B2") != nil && key("B2") == key("B3"))
+        #expect(key("A3") == key("A2"), "the bold Numbers made")
+    }
+
+    @Test("Formatting put back to its part's default leaves the cell to it")
+    func clears() throws {
+        let (workbook, source) = try document()
+        var edited = edit(workbook, "A2") { $0.isBold = false }
+        edited = edit(edited, "A1") { $0.fillColorHex = nil }
+        let (reread, rereadSource) = try NumbersReader.document(from: save(edited, source))
+        #expect(!reread.sheets[0][CellAddress(a1: "A2")!].style.isBold)
+        #expect(try style(NumbersStyles.Field.textStyle, at: "A2", in: rereadSource) == nil)
+        #expect(reread.sheets[0][CellAddress(a1: "A1")!].style.fillColorHex == nil)
+        #expect(reread.sheets[0][CellAddress(a1: "B1")!].style.fillColorHex == NumbersDocumentBuilder.headerFill)
+    }
+
+    @Test("New styles in the stylesheet are listed as references of the table's list of styles")
+    func listsReferences() throws {
+        let (workbook, source) = try document()
+        let data = try save(edit(workbook, "B2") { $0.isItalic = true }, source)
+        let (_, rereadSource) = try NumbersReader.document(from: data)
+        let made = try #require(rereadSource.archive.identifiers(ofType: NumbersStyles.ObjectType.paragraphStyle).max())
+        let metadataIdentifier = try #require(rereadSource.archive.identifiers(ofType: NumbersReader.ObjectType.packageMetadata).first)
+        let metadata = try #require(rereadSource.archive[metadataIdentifier]?.message)
+        let dataLists = try #require(metadata.messages(3).first { $0.string(2) == "Tables/DataList" })
+        #expect(dataLists.messages(6).contains { $0.uint(1) == 1 && $0.uint(2) == made })
+    }
+
+    @Test("Formatting Numbers can't be given is put back, keeping what it can")
+    func keepsWhatCanBeSaved() throws {
+        let (workbook, source) = try document()
+        let edited = edit(workbook, "B2") {
+            $0.isBold = true
+            $0.fontName = "Courier"
+            $0.borders = .all
+        }
+        let result = NumbersEditPolicy.reconcile(edited, from: workbook, source: source).workbook
+        let style = result.sheets[0][CellAddress(a1: "B2")!].style
+        #expect(style.isBold)
+        #expect(style.fontName == workbook.sheets[0][CellAddress(a1: "B2")!].style.fontName)
+        #expect(style.borders.isEmpty)
     }
 }
