@@ -103,9 +103,15 @@ enum NumbersFormula {
     /// gives them is taken by a different Excel function.
     private static let renamedFunctions: [String: String] = ["DURATION": "DURATION.TIME"]
 
+    /// Functions that look up exchange rates and prices on the internet,
+    /// which Tables doesn't: their formulas are read and written back all the
+    /// same, and show the result Numbers last fetched, never working it out
+    /// again, as a formula calling a function Tables lacks does.
+    private static let fetchingFunctions: Set<String> = ["CURRENCY", "CURRENCYH", "CURRENCYCONVERT", "STOCK", "STOCKH"]
+
     /// Whether a function means the same in both apps.
     private static func isShared(_ name: String) -> Bool {
-        FormulaFunctions.isKnown(name) && !differentFunctions.contains(name)
+        FormulaFunctions.isKnown(name) && !differentFunctions.contains(name) || fetchingFunctions.contains(name)
     }
 
     /// The name Tables knows a Numbers function by.

@@ -282,6 +282,26 @@ struct NumbersFormulaSavingTests {
         #expect(sheet[CellAddress(a1: "D1")!].value == .number(8))
     }
 
+    @Test("A formula fetching exchange rates is read, and keeps the result Numbers fetched")
+    func keepsFetchedResults() throws {
+        let usd = NumbersNodes.node(NumbersFormula.NodeType.string) { $0.set(6, bytes: Array("USD".utf8)) }
+        let convert = [NumbersNodes.cell(column: -1, row: 0), usd, NumbersNodes.function("CURRENCYCONVERT", arguments: 2)]
+        var builder = NumbersDocumentBuilder()
+        builder.addSheet("Money", tables: [.init(name: "Table 1", rows: [
+            [.number(1000, exponent: 0), .formulaNodes(7, convert)],
+        ])])
+        let (read, source) = try NumbersReader.document(from: builder.singleFile())
+        var workbook = read
+        let b1 = CellAddress(a1: "B1")!
+        #expect(workbook.sheets[0][b1].formula == "CURRENCYCONVERT(A1,\"USD\")")
+        #expect(workbook.sheets[0][b1].value == .number(7))
+        #expect(source.tables[workbook.sheets[0].id]?.protectedCells.isEmpty == true)
+
+        workbook.sheets[0][CellAddress(a1: "A1")!] = Cell(value: .number(2000))
+        workbook.recalculate()
+        #expect(workbook.sheets[0][b1].value == .number(7), "never worked out again")
+    }
+
     @Test("A new formula is saved with its result, and read back as a formula")
     func writesFormula() throws {
         let original = try document()
