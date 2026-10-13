@@ -180,11 +180,18 @@ enum NumbersStyles {
         /// The cell style `base` with what a text style and a cell style say.
         func style(text: UInt64?, cell: UInt64?, base: CellStyle = CellStyle()) -> CellStyle {
             var style = base
+            if text != nil { readText(text, into: &style) }
+            if cell != nil { readCell(cell, into: &style) }
+            return style
+        }
+
+        private func flag(_ number: Int) -> (ProtobufMessage) -> Bool? {
+            { $0.has(number) ? $0.bool(number) : nil }
+        }
+
+        private func readText(_ text: UInt64?, into style: inout CellStyle) {
             func character<T>(_ read: (ProtobufMessage) -> T?) -> T? {
                 value(text, properties: Number.characterProperties, read)
-            }
-            func flag(_ number: Int) -> (ProtobufMessage) -> Bool? {
-                { $0.has(number) ? $0.bool(number) : nil }
             }
             style.isBold = character(flag(Number.bold)) ?? false
             style.isItalic = character(flag(Number.italic)) ?? false
@@ -199,7 +206,9 @@ enum NumbersStyles {
             style.textColorHex = color == "FF000000" ? nil : color
             let alignment = value(text, properties: Number.paragraphProperties) { $0.uint(Number.alignment) }
             style.horizontalAlignment = Self.horizontalAlignment(alignment)
+        }
 
+        private func readCell(_ cell: UInt64?, into style: inout CellStyle) {
             func cellValue<T>(_ read: (ProtobufMessage) -> T?) -> T? {
                 value(cell, properties: Number.cellProperties, read)
             }
@@ -211,7 +220,6 @@ enum NumbersStyles {
             style.fillColorHex = fill ?? nil
             style.wrapsText = cellValue(flag(Number.wraps)) ?? true
             style.verticalAlignment = Self.verticalAlignment(cellValue { $0.uint(Number.verticalAlignment) })
-            return style
         }
 
         static func horizontalAlignment(_ value: UInt64?) -> HorizontalTextAlignment {

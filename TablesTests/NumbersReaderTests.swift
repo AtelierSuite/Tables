@@ -136,6 +136,32 @@ struct NumbersReaderTests {
         #expect(source.tables[sheet.id]?.hidden.lockedRows == [3], "a filter would only hide it again")
     }
 
+    @Test("Formatting comes from each cell's own styles, or else its part of the table's")
+    func formatting() throws {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [
+            [.text("Item")], [.boldText("Rent"), .text("Food")],
+        ])
+        table.columnCount = 2
+        table.headerRows = 1
+        table.hasStyles = true
+        document.addSheet("Sheet 1", tables: [table])
+        let sheet = try NumbersReader.workbook(from: document.singleFile()).sheets[0]
+
+        let header = sheet[CellAddress(a1: "A1")!].style
+        #expect(header.isBold)
+        #expect(header.fillColorHex == NumbersDocumentBuilder.headerFill)
+        #expect(sheet[CellAddress(a1: "B1")!].style.fillColorHex == NumbersDocumentBuilder.headerFill, "a header's fill reaches empty cells")
+        let bold = sheet[CellAddress(a1: "A2")!].style
+        #expect(bold.isBold)
+        #expect(bold.fontSize == 10, "from the style the variation is of")
+        #expect(bold.fillColorHex == nil)
+        #expect(bold.wrapsText)
+        #expect(bold.verticalAlignment == .top)
+        #expect(bold.textColorHex == nil, "black is the default")
+        #expect(!sheet[CellAddress(a1: "B2")!].style.isBold)
+    }
+
     @Test("A document saved as a package reads the same as a single file")
     func package() throws {
         var document = NumbersDocumentBuilder()
@@ -234,6 +260,9 @@ struct NumbersDocumentBuilder {
         case formulaNodes(Int64, [ProtobufMessage])
         /// Text with a cell style, a field the writer has to carry over.
         case styledText(String, style: UInt32)
+        /// Text in a bold variation of the body's text style, as Numbers
+        /// makes one, in a table with styles.
+        case boldText(String)
     }
 
     struct Table {
@@ -267,6 +296,10 @@ struct NumbersDocumentBuilder {
         var userHiddenRows: Set<Int> = []
         var userHiddenColumns: Set<Int> = []
         var filteredRows: Set<Int> = []
+        /// Gives the table a list of styles and default styles for its
+        /// parts: 10-point black text, wrapped at the top, in the body, and
+        /// bold text on a grey fill in header rows.
+        var hasStyles = false
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -283,6 +316,19 @@ struct NumbersDocumentBuilder {
     private var ownerMapEntries: [ProtobufWriter] = []
     private var formulaCount = 0
     private var tableOwnerCount = 0
+    private var stylesheet: Styles?
+
+    /// The document's styles, made by the first table that has them.
+    struct Styles {
+        var sheet: UInt64
+        var bodyText: UInt64
+        var headerText: UInt64
+        var boldText: UInt64
+        var bodyCell: UInt64
+        var headerCell: UInt64
+    }
+
+    static let headerFill = "FFC0C0C0"
 
     /// Where the calculation engine lists owners whose formulas are out of date.
     static let staleOwnerListIdentifier: UInt64 = 4
@@ -387,6 +433,9 @@ struct NumbersDocumentBuilder {
                 formulas.append(nodes)
                 let fields = Self.decimal128(value, exponent: 0) + Self.littleEndian(UInt32(formulas.count))
                 return Self.cellStorage(type: 2, flags: 0x1 | 0x200, fields)
+            case .boldText(let text):
+                strings.append(text)
+                return Self.cellStorage(type: 3, flags: 0x8 | 0x40, Self.littleEndian(UInt32(strings.count)) + Self.littleEndian(UInt32(1)))
             case .styledText(let text, let style):
                 strings.append(text)
                 return Self.cellStorage(type: 3, flags: 0x8 | 0x20, Self.littleEndian(UInt32(strings.count)) + Self.littleEndian(style))
@@ -435,6 +484,12 @@ struct NumbersDocumentBuilder {
             store = store.message(13, Self.reference(add(type: 6144, map)))
         }
 
+        let styles = table.hasStyles ? addStyles() : nil
+        if let styles {
+            store = store.message(5, Self.reference(add(type: 6005, ProtobufWriter().varint(1, 4).varint(2, 2)
+                .message(3, ProtobufWriter().varint(1, 1).varint(2, 1).message(4, Self.reference(styles.boldText))))))
+        }
+
         var model = ProtobufWriter()
             .string(1, "table-\(nextIdentifier)")
             .message(4, store)
@@ -451,6 +506,12 @@ struct NumbersDocumentBuilder {
             model = model.message(49, Self.reference(addBorders(table, rows: table.rowCount ?? table.rows.count, columns: columnCount)))
         }
         if table.hasHiddenStates { model = model.message(70, Self.hiddenStates(table)) }
+        if let styles {
+            for (field, style) in [(24, styles.bodyText), (25, styles.headerText), (26, styles.bodyText), (27, styles.bodyText),
+                                   (18, styles.bodyCell), (19, styles.headerCell), (20, styles.bodyCell), (21, styles.bodyCell)] {
+                model = model.message(field, Self.reference(style))
+            }
+        }
         if !table.mergeOwnerRanges.isEmpty || table.uuid != nil {
             model = model.message(84, ProtobufWriter().message(1, addMergeOwner(table.mergeOwnerRanges, base: table.uuid)))
         }
@@ -465,6 +526,39 @@ struct NumbersDocumentBuilder {
     /// from the rows' and columns', as Numbers' random ones do.
     static func identifierUUID(_ index: Int, row: Bool) -> (lower: UInt64, upper: UInt64) {
         (UInt64(index) * 7 % 13, row ? UInt64(1000 - index) : UInt64(2000 - index))
+    }
+
+    private mutating func addStyles() -> Styles {
+        if let stylesheet { return stylesheet }
+        let sheet = nextIdentifier
+        nextIdentifier += 1
+        func base(_ name: String?, parent: UInt64? = nil, variation: Bool = false) -> ProtobufWriter {
+            var base = ProtobufWriter()
+            if let name { base = base.string(1, name) }
+            if let parent { base = base.message(3, Self.reference(parent)) }
+            if variation { base = base.bool(4, true) }
+            return base.message(5, Self.reference(sheet))
+        }
+        let black = ProtobufWriter().varint(1, 1).float(3, 0).float(4, 0).float(5, 0).float(6, 1)
+        let grey = ProtobufWriter().varint(1, 1).float(3, 192 / 255).float(4, 192 / 255).float(5, 192 / 255).float(6, 1)
+        let bodyText = add(type: 2022, ProtobufWriter().message(1, base("Body"))
+            .message(11, ProtobufWriter().float(3, 10).message(7, black)).message(12, ProtobufWriter().varint(1, 4)))
+        let headerText = add(type: 2022, ProtobufWriter().message(1, base("Header", parent: bodyText))
+            .message(11, ProtobufWriter().bool(1, true)))
+        let boldText = add(type: 2022, ProtobufWriter().message(1, base(nil, parent: bodyText, variation: true))
+            .varint(10, 1).message(11, ProtobufWriter().bool(1, true)).message(12, ProtobufWriter()))
+        let bodyCell = add(type: 6004, ProtobufWriter().message(1, base("Body Cell"))
+            .message(11, ProtobufWriter().bool(3, true).varint(8, 0)))
+        let headerCell = add(type: 6004, ProtobufWriter().message(1, base("Header Cell", parent: bodyCell))
+            .message(11, ProtobufWriter().message(1, ProtobufWriter().message(1, grey))))
+        let all = [bodyText, headerText, boldText, bodyCell, headerCell]
+        let stylesheetMessage = all.reduce(ProtobufWriter()) { $0.message(1, Self.reference($1)) }
+            .message(5, ProtobufWriter().message(1, Self.reference(bodyText)).message(2, Self.reference(boldText)))
+        objects.append((sheet, 401, stylesheetMessage))
+        let styles = Styles(sheet: sheet, bodyText: bodyText, headerText: headerText, boldText: boldText,
+                            bodyCell: bodyCell, headerCell: headerCell)
+        stylesheet = styles
+        return styles
     }
 
     private static func hiddenStates(_ table: Table) -> ProtobufWriter {
