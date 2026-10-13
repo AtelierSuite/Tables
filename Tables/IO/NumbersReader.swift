@@ -458,7 +458,12 @@ private struct TableReader {
         let regions: NumbersStyles.Regions
         let rowCount: Int
         let resolver: NumbersStyles.Resolver
-        private var resolved: [[UInt64?]: CellStyle] = [:]
+        private var resolved: [Key: CellStyle] = [:]
+
+        private struct Key: Hashable {
+            let text: UInt64?
+            let cell: UInt64?
+        }
 
         init(regions: NumbersStyles.Regions, rowCount: Int, archive: IWAArchive) {
             self.regions = regions
@@ -472,9 +477,10 @@ private struct TableReader {
             let part = regions.part(row: row, column: column, rowCount: rowCount)
             let text = text ?? regions.text[part]
             let cell = cell ?? regions.cell[part]
-            var style = resolved[[text, cell]] ?? {
+            let key = Key(text: text, cell: cell)
+            var style = resolved[key] ?? {
                 let style = resolver.style(text: text, cell: cell)
-                resolved[[text, cell]] = style
+                resolved[key] = style
                 return style
             }()
             style.numberFormat = base.numberFormat
