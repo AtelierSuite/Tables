@@ -128,7 +128,9 @@ enum NumbersReader {
                     rowIdentifiers: reader.identifiers.rows,
                     columnIdentifiers: reader.identifiers.columns,
                     hidden: reader.hidden,
-                    hasHiddenStates: model.message.message(70)?.messages(2).first?.has(3) ?? false
+                    hasHiddenStates: model.message.message(70)?.messages(2).first?.has(3) ?? false,
+                    canFormat: model.message.message(4)?.has(5) ?? false
+                        && NumbersStyles.Regions(model: model.message).hasBodyStyles
                 )
             }
         }
@@ -333,6 +335,9 @@ final class NumbersSource: @unchecked Sendable {
         var hidden = NumbersHiddenStates.Hidden()
         /// Whether the table keeps a list of hidden rows and columns.
         var hasHiddenStates = false
+        /// Whether the table keeps a list of styles, and defaults for its
+        /// body, for formatting to go in.
+        var canFormat = false
     }
 
     let layout: Layout
@@ -390,6 +395,8 @@ private struct TableReader {
         let strings = Self.dataList(store.message(4), in: archive) { $0.string(3) ?? "" }
         let richText = Self.dataList(store.message(17), in: archive) { Self.text(ofRichTextPayload: $0.message(9), in: archive) }
         let formulaNodes = Self.dataList(store.message(6), in: archive) { $0.message(5)?.message(1)?.messages(1) ?? [] }
+        let styles = Self.dataList(store.message(5), in: archive) { $0.message(4)?.uint(1) }
+        var formatting = Formatting(regions: NumbersStyles.Regions(model: table), rowCount: rowCount, archive: archive)
 
         // Rows are stored in tiles of a fixed number of rows each.
         let tiles = store.message(3)
@@ -413,17 +420,76 @@ private struct TableReader {
                     // either; guarding it like a formula keeps it as it is.
                     if parsed?.hasFormula ?? true { protectedCells.insert(address) }
                     if let key = parsed?.formulaKey, let nodes = formulaNodes[key] { formulas[address] = nodes }
-                    let cell = parsed?.cell(strings: strings, richText: richText)
+                    var cell = parsed.map { $0.cell(strings: strings, richText: richText) ?? Cell() }
+                    if let parsed, let base = cell?.style {
+                        cell?.style = formatting.style(
+                            row: row, column: column,
+                            text: parsed.key(of: NumbersStyles.Field.textStyle).flatMap { styles[$0] ?? nil },
+                            cell: parsed.key(of: NumbersStyles.Field.cellStyle).flatMap { styles[$0] ?? nil },
+                            base: base
+                        )
+                    }
                     if formulas[address] != nil { results[address] = cell ?? Cell() }
-                    guard row < worksheet.rowCount, column < worksheet.columnCount, let cell else { continue }
+                    guard row < worksheet.rowCount, column < worksheet.columnCount, let cell, !cell.isEmptyEntirely else { continue }
                     worksheet[address] = cell
                 }
             }
         }
+        formatHeadersAndFooters(&formatting)
 
         readHeaders(store, table: table, archive: archive)
         worksheet.mergedRanges = Self.mergedRanges(store, in: archive)
         readHiddenStates(table, archive: archive)
+    }
+
+    /// What the styles of each part of a table and of each cell come to.
+    private struct Formatting {
+        let regions: NumbersStyles.Regions
+        let rowCount: Int
+        let resolver: NumbersStyles.Resolver
+        private var resolved: [[UInt64?]: CellStyle] = [:]
+
+        init(regions: NumbersStyles.Regions, rowCount: Int, archive: IWAArchive) {
+            self.regions = regions
+            self.rowCount = rowCount
+            resolver = NumbersStyles.Resolver { archive[$0]?.message }
+        }
+
+        /// A cell's formatting: its own styles' where it has them, else its
+        /// part of the table's, over `base`, which keeps the number format.
+        mutating func style(row: Int, column: Int, text: UInt64?, cell: UInt64?, base: CellStyle) -> CellStyle {
+            let part = regions.part(row: row, column: column, rowCount: rowCount)
+            let text = text ?? regions.text[part]
+            let cell = cell ?? regions.cell[part]
+            var style = resolved[[text, cell]] ?? {
+                let style = resolver.style(text: text, cell: cell)
+                resolved[[text, cell]] = style
+                return style
+            }()
+            style.numberFormat = base.numberFormat
+            return style
+        }
+    }
+
+    /// Gives the cells of the header rows and columns and the footer rows
+    /// that Numbers stores nothing for their part's formatting, which Tables
+    /// keeps with each cell: a header's fill reaches across the whole row.
+    private mutating func formatHeadersAndFooters(_ formatting: inout Formatting) {
+        let regions = formatting.regions
+        let rows = worksheet.rowCount, columns = worksheet.columnCount
+        let footers = regions.footerRows > 0 ? max(0, rows - regions.footerRows)..<rows : rows..<rows
+        var addresses: [CellAddress] = []
+        for row in Array(0..<min(regions.headerRows, rows)) + Array(footers) {
+            for column in 0..<columns { addresses.append(CellAddress(row: row, column: column)) }
+        }
+        for column in 0..<min(regions.headerColumns, columns) {
+            for row in min(regions.headerRows, rows)..<footers.lowerBound { addresses.append(CellAddress(row: row, column: column)) }
+        }
+        for address in addresses where storage[address] == nil {
+            var cell = worksheet[address]
+            cell.style = formatting.style(row: address.row, column: address.column, text: nil, cell: nil, base: cell.style)
+            if !cell.isEmptyEntirely { worksheet[address] = cell }
+        }
     }
 
     /// The rows and columns hidden by hand, by a filter or by a pivot table.

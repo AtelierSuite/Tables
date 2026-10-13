@@ -40,10 +40,10 @@ enum NumbersEditPolicy {
     /// `new` with every change from `old` that can't be saved taken back out,
     /// and the reason the first one couldn't be.
     ///
-    /// Formatting is the one exception: it is quietly reset to the
-    /// document's own, as it is for delimited text, so pasting keeps the
-    /// values and leaves the formatting behind. A number's format is kept,
-    /// since it decides whether the number is saved as a date.
+    /// Formatting Numbers can't be given — fonts, borders, indents — is the
+    /// one exception: it is quietly put back as it was, so pasting keeps the
+    /// values and the formatting that can be saved and leaves the rest
+    /// behind.
     static func reconcile(
         _ new: Workbook, from old: Workbook, source: NumbersSource
     ) -> (workbook: Workbook, violation: Violation?) {
@@ -64,8 +64,10 @@ enum NumbersEditPolicy {
                     result.sheets[index][address] = previous[address]
                     violation = violation ?? reason
                 } else {
-                    var style = imported[address].style
-                    style.numberFormat = cell.style.numberFormat
+                    let style = NumbersStyles.keepingWhatCanBeSaved(
+                        cell.style, imported: imported[address].style,
+                        canFormat: table.canFormat, isRichText: isRichText(address, in: table)
+                    )
                     if style != cell.style {
                         var coerced = cell
                         coerced.style = style
@@ -103,6 +105,8 @@ enum NumbersEditPolicy {
     ) -> Violation? {
         let edited = cell.formula != original.formula
             || cell.formula == nil && (cell.value != original.value || cell.style.numberFormat != original.style.numberFormat)
+            || NumbersStyles.TextFormat(cell.style) != NumbersStyles.TextFormat(original.style)
+            || NumbersStyles.CellFormat(cell.style) != NumbersStyles.CellFormat(original.style)
         guard edited else { return nil }
         if table.isPivot || table.protectedCells.contains(address) { return .protectedCell }
         if let formula = cell.formula, formula != original.formula {
@@ -110,6 +114,10 @@ enum NumbersEditPolicy {
             if NumbersFormula.nodes(for: formula, context: context) == nil { return .formula }
         }
         return nil
+    }
+
+    private static func isRichText(_ address: CellAddress, in table: NumbersSource.Table) -> Bool {
+        table.storage[address].flatMap(NumbersCellStorage.init)?.type == NumbersCellStorage.CellType.richText
     }
 
     /// Why the change from `old` to `new` touches more than cells, sizes, and

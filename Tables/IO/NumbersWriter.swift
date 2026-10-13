@@ -145,6 +145,30 @@ private struct Patch {
         formulaCountChange += change
     }
 
+    /// Variations of styles made by this save, so cells formatted alike
+    /// share one: by what they are a variation of and what they set.
+    var styleVariations: [String: UInt64] = [:]
+    /// References from one object to another in a different component,
+    /// which the components' metadata lists.
+    private(set) var externalReferences: [(from: UInt64, to: UInt64)] = []
+
+    /// Adds an object to the archive `neighbour` is in, returning its
+    /// identifier.
+    mutating func addObject(_ message: ProtobufMessage, type: Int, alongside neighbour: UInt64) -> UInt64? {
+        guard let path = archive[neighbour]?.path else { return nil }
+        let identifier = nextIdentifier
+        nextIdentifier += 1
+        additions[path, default: []].append((identifier, type, message))
+        return identifier
+    }
+
+    /// Notes that one object now refers to another, as Numbers keeps every
+    /// object's references with it.
+    mutating func addReference(from source: UInt64, to target: UInt64) {
+        references[source, default: []].append(target)
+        externalReferences.append((source, target))
+    }
+
     /// Adds a tile for a table whose model is `owner`, returning its
     /// identifier.
     mutating func addTile(_ message: ProtobufMessage, owner: UInt64) -> UInt64 {
@@ -245,8 +269,34 @@ private struct Patch {
             component.set(12, uint: token)
             components.append(component)
         }
+        addExternalReferences(to: &components)
         metadata.set(3, messages: components)
         changes[identifier] = metadata
+    }
+
+    /// Lists each reference between objects in different components with
+    /// the component it comes from.
+    private func addExternalReferences(to components: inout [ProtobufMessage]) {
+        let componentsByPath = Dictionary(
+            components.compactMap { component in component.uint(1).map { (Self.path(of: component), $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        for (source, target) in externalReferences {
+            guard let sourcePath = path(of: source), let targetPath = path(of: target), sourcePath != targetPath,
+                  let targetComponent = componentsByPath[targetPath],
+                  let index = components.firstIndex(where: { Self.path(of: $0) == sourcePath }) else { continue }
+            let listed = components[index].messages(6).contains { $0.uint(1) == targetComponent && $0.uint(2) == target }
+            guard !listed else { continue }
+            var reference = ProtobufMessage()
+            reference.set(1, uint: targetComponent)
+            reference.set(2, uint: target)
+            components[index].append(6, message: reference)
+        }
+    }
+
+    /// The archive an object is in, or is being added to.
+    private func path(of identifier: UInt64) -> String? {
+        archive[identifier]?.path ?? additions.first { $0.value.contains { $0.identifier == identifier } }?.key
     }
 
     /// The archive a component is stored in: its locator, or failing that its
@@ -294,9 +344,12 @@ private struct TableWriter {
         guard var model = patch[table.modelIdentifier], var store = model.message(4) else { return }
         var strings = StringTable(reference: store.message(4), patch: patch)
         var formulas = FormulaTable(reference: store.message(6), patch: patch)
+        var formatting = TableFormatting(model: model, rowCount: sheet.rowCount, patch: patch)
 
         if sheet.origins?.hasMoved ?? false {
-            return try writeMoved(model: model, store: store, strings: &strings, formulas: &formulas, patch: &patch)
+            return try writeMoved(
+                model: model, store: store, strings: &strings, formulas: &formulas, formatting: &formatting, patch: &patch
+            )
         }
 
         // The new storage of every changed cell; nil where it is now empty.
@@ -307,7 +360,7 @@ private struct TableWriter {
             guard Self.differs(cell, from: original) else { continue }
             let updated = try storage(
                 for: cell, at: address, was: original, stored: table.storage[address],
-                strings: &strings, formulas: &formulas, patch: &patch
+                strings: &strings, formulas: &formulas, formatting: &formatting, patch: &patch
             )
             changedCells.updateValue(updated, forKey: address)
         }
@@ -323,6 +376,7 @@ private struct TableWriter {
         )
         try strings.save(into: &patch)
         try formulas.save(into: &patch)
+        try formatting.save(into: &patch)
         try writeRowHeaders(rowCount: rowCount, rowCellCounts: rowCellCounts, store: store, patch: &patch)
         try writeColumnHeaders(changedCells, columnCount: columnCount, store: store, patch: &patch)
 
@@ -343,13 +397,16 @@ private struct TableWriter {
     private static func differs(_ cell: Cell, from original: Cell) -> Bool {
         cell.value != original.value || cell.style.numberFormat != original.style.numberFormat
             || cell.formula != original.formula
+            || NumbersStyles.TextFormat(cell.style) != NumbersStyles.TextFormat(original.style)
+            || NumbersStyles.CellFormat(cell.style) != NumbersStyles.CellFormat(original.style)
     }
 
     /// What to store for `cell` at `address`, from what Numbers stored for
     /// the cell it was; nil where it is now empty.
     private func storage(
         for cell: Cell, at address: CellAddress, was original: Cell, stored: ArraySlice<UInt8>?,
-        strings: inout StringTable, formulas: inout FormulaTable, patch: inout Patch, keepingFormula: Bool = true
+        strings: inout StringTable, formulas: inout FormulaTable, formatting: inout TableFormatting,
+        patch: inout Patch, keepingFormula: Bool = true
     ) throws -> [UInt8]? {
         let storage = stored.flatMap(NumbersCellStorage.init) ?? NumbersCellStorage(type: 0)
         var formulaKey: UInt32?
@@ -366,7 +423,8 @@ private struct TableWriter {
             }
         }
         if (formulaKey != nil) != storage.hasFormula { patch.noteFormulaCountChange(formulaKey != nil ? 1 : -1) }
-        let updated = storage.replacingValue(with: cell, formulaKey: formulaKey) { strings.key(for: $0) }
+        var updated = storage.replacingValue(with: cell, formulaKey: formulaKey) { strings.key(for: $0) }
+        try formatting.format(&updated, as: cell.style, was: original.style, at: address, patch: &patch)
         return updated.isBare ? nil : updated.encoded
     }
 
@@ -583,8 +641,8 @@ private extension TableWriter {
     }
 
     func writeMoved(
-        model: ProtobufMessage, store: ProtobufMessage,
-        strings: inout StringTable, formulas: inout FormulaTable, patch: inout Patch
+        model: ProtobufMessage, store: ProtobufMessage, strings: inout StringTable, formulas: inout FormulaTable,
+        formatting: inout TableFormatting, patch: inout Patch
     ) throws {
         var model = model, store = store
         let moves = Moves(sheet: sheet, table: table)
@@ -607,7 +665,7 @@ private extension TableWriter {
             guard cell.formula != nil || Self.differs(cell, from: original) else { continue }
             let updated = try storage(
                 for: cell, at: address, was: original, stored: cells[address],
-                strings: &strings, formulas: &formulas, patch: &patch, keepingFormula: false
+                strings: &strings, formulas: &formulas, formatting: &formatting, patch: &patch, keepingFormula: false
             )
             cells[address] = updated.map { $0[...] }
         }
@@ -623,6 +681,7 @@ private extension TableWriter {
         try rewriteTiles(cellsByRow, moves: moves, store: &store, patch: &patch)
         try strings.save(into: &patch)
         try formulas.save(into: &patch)
+        try formatting.save(into: &patch)
         if let bucket = store.message(1)?.messages(2).first?.uint(1) {
             try rewriteHeaders(
                 bucket, count: moves.rowCount, fileIndices: moves.fileRows,
@@ -851,6 +910,185 @@ private extension TableWriter {
         }
         close()
         return moved
+    }
+}
+
+/// Formatting changed in a table's cells, given to Numbers as variations
+/// of the styles they had, which the table's list of styles refers cells to.
+private struct TableFormatting {
+    private let regions: NumbersStyles.Regions
+    private let rowCount: Int
+    private let resolver: NumbersStyles.Resolver
+    private let identifier: UInt64?
+    private var list: ProtobufMessage
+    private var keys: [UInt64: UInt32] = [:]
+    private var references: [UInt32: UInt64] = [:]
+    private var nextKey: UInt32
+    private var added: [UInt32: UInt64] = [:]
+    private var newEntries: [ProtobufMessage] = []
+
+    init(model: ProtobufMessage, rowCount: Int, patch: Patch) {
+        regions = NumbersStyles.Regions(model: model)
+        self.rowCount = rowCount
+        let archive = patch.archive
+        resolver = NumbersStyles.Resolver { archive[$0]?.message }
+        identifier = model.message(4)?.message(5)?.uint(1)
+        list = identifier.flatMap { patch[$0] } ?? ProtobufMessage()
+        var largest: UInt32 = 0
+        for entry in list.messages(3) {
+            guard let key = entry.uint(1).map(UInt32.init(truncatingIfNeeded:)) else { continue }
+            largest = max(largest, key)
+            if let style = entry.message(4)?.uint(1) {
+                references[key] = style
+                if keys[style] == nil { keys[style] = key }
+            }
+        }
+        nextKey = max(UInt32(truncatingIfNeeded: list.uint(2) ?? 1), largest + 1)
+    }
+
+    /// Gives a cell's storage the styles for the formatting it has now,
+    /// where that differs from what it had.
+    mutating func format(
+        _ storage: inout NumbersCellStorage, as style: CellStyle, was original: CellStyle, at address: CellAddress,
+        patch: inout Patch
+    ) throws {
+        let part = regions.part(row: address.row, column: address.column, rowCount: rowCount)
+        let resolver = resolver
+        let oldText = NumbersStyles.TextFormat(original), newText = NumbersStyles.TextFormat(style)
+        if oldText != newText, storage.type != NumbersCellStorage.CellType.richText {
+            try restyle(&storage, field: NumbersStyles.Field.textStyle, partDefault: regions.text[part], patch: &patch) {
+                root, character, paragraph in
+                let rootFormat = NumbersStyles.TextFormat(resolver.style(text: root, cell: nil))
+                NumbersStyles.applyText(from: oldText, to: newText, root: rootFormat, character: &character, paragraph: &paragraph)
+            }
+        }
+        let oldCell = NumbersStyles.CellFormat(original), newCell = NumbersStyles.CellFormat(style)
+        if oldCell != newCell {
+            try restyle(&storage, field: NumbersStyles.Field.cellStyle, partDefault: regions.cell[part], patch: &patch) {
+                root, properties, _ in
+                let rootFormat = NumbersStyles.CellFormat(resolver.style(text: nil, cell: root))
+                NumbersStyles.applyCell(from: oldCell, to: newCell, root: rootFormat, properties: &properties)
+            }
+        }
+    }
+
+    /// Points a cell's style field at a variation of the style it has, made
+    /// by `change` from that style's own properties: the text style's
+    /// character and paragraph properties, or the cell style's.
+    private mutating func restyle(
+        _ storage: inout NumbersCellStorage, field: UInt32, partDefault: UInt64?, patch: inout Patch,
+        change: (UInt64, inout ProtobufMessage, inout ProtobufMessage) -> Void
+    ) throws {
+        guard identifier != nil,
+              let current = storage.key(of: field).flatMap({ references[UInt32(truncatingIfNeeded: $0)] }) ?? partDefault,
+              let style = patch[current] else { throw NumbersEditPolicy.Violation.structure }
+        let isText = field == NumbersStyles.Field.textStyle
+        let base = style.message(NumbersStyles.Number.base)
+        let isVariation = base?.bool(NumbersStyles.Number.isVariation) ?? false
+        let root = isVariation ? base?.message(NumbersStyles.Number.parent)?.uint(1) ?? current : current
+        guard let stylesheet = patch[root]?.message(NumbersStyles.Number.base)?.message(NumbersStyles.Number.stylesheet)?.uint(1)
+                ?? base?.message(NumbersStyles.Number.stylesheet)?.uint(1) else { throw NumbersEditPolicy.Violation.structure }
+
+        let first = isText ? NumbersStyles.Number.characterProperties : NumbersStyles.Number.cellProperties
+        var properties = (isVariation ? style.message(first) : nil) ?? ProtobufMessage()
+        var paragraph = (isVariation && isText ? style.message(NumbersStyles.Number.paragraphProperties) : nil) ?? ProtobufMessage()
+        change(root, &properties, &paragraph)
+
+        let made: UInt64
+        if properties.fields.isEmpty && paragraph.fields.isEmpty {
+            made = root
+        } else {
+            var groups = [(number: first, message: properties)]
+            if isText { groups.append((NumbersStyles.Number.paragraphProperties, paragraph)) }
+            made = try Self.variation(of: root, stylesheet: stylesheet, isText: isText, groups: groups, patch: &patch)
+        }
+        storage.setKey(made == partDefault ? nil : key(for: made, patch: &patch), of: field)
+    }
+
+    /// A variation of `root` setting these properties: one this save or
+    /// Numbers already made, or a new one, added to the stylesheet.
+    private static func variation(
+        of root: UInt64, stylesheet: UInt64, isText: Bool, groups: [(number: Int, message: ProtobufMessage)],
+        patch: inout Patch
+    ) throws -> UInt64 {
+        let type = isText ? NumbersStyles.ObjectType.paragraphStyle : NumbersStyles.ObjectType.cellStyle
+        let signature = "\(type) \(root) " + groups.map { "\($0.number):\($0.message.encoded())" }.joined(separator: " ")
+        if let made = patch.styleVariations[signature] { return made }
+        guard var sheet = patch[stylesheet] else { throw NumbersEditPolicy.Violation.structure }
+
+        var children = sheet.messages(5)
+        let entry = children.firstIndex { $0.message(1)?.uint(1) == root }
+        // Numbers' own, where it made one the same.
+        for child in entry.map({ children[$0].messages(2).compactMap { $0.uint(1) } }) ?? [] {
+            guard patch.archive[child]?.type == type, let style = patch[child],
+                  style.message(NumbersStyles.Number.base)?.bool(NumbersStyles.Number.isVariation) ?? false,
+                  groups.allSatisfy({ style.message($0.number)?.encoded() == $0.message.encoded() }) else { continue }
+            patch.styleVariations[signature] = child
+            return child
+        }
+
+        let message = NumbersStyles.variation(of: root, stylesheet: stylesheet, type: type, properties: groups)
+        guard let made = patch.addObject(message, type: type, alongside: stylesheet) else {
+            throw NumbersEditPolicy.Violation.structure
+        }
+        patch.addReference(from: made, to: root)
+        var reference = ProtobufMessage()
+        reference.set(1, uint: made)
+        sheet.append(1, message: reference)
+        if let entry {
+            children[entry].append(2, message: reference)
+        } else {
+            var parent = ProtobufMessage()
+            parent.set(1, uint: root)
+            var newEntry = ProtobufMessage()
+            newEntry.set(1, message: parent)
+            newEntry.set(2, messages: [reference])
+            children.append(newEntry)
+        }
+        sheet.set(5, messages: children)
+        try patch.change(stylesheet, to: sheet)
+        patch.addReference(from: stylesheet, to: made)
+        patch.styleVariations[signature] = made
+        return made
+    }
+
+    /// The key a style has in the table's list, added if it isn't there.
+    private mutating func key(for style: UInt64, patch: inout Patch) -> UInt32 {
+        let key: UInt32
+        if let existing = keys[style] {
+            key = existing
+        } else {
+            key = nextKey
+            nextKey += 1
+            keys[style] = key
+            references[key] = style
+            var reference = ProtobufMessage()
+            reference.set(1, uint: style)
+            var entry = ProtobufMessage()
+            entry.set(1, uint: UInt64(key))
+            entry.set(2, uint: 0)
+            entry.set(4, message: reference)
+            newEntries.append(entry)
+            if let identifier { patch.addReference(from: identifier, to: style) }
+        }
+        added[key, default: 0] += 1
+        return key
+    }
+
+    /// Writes the list back if any style gained a cell. As with strings,
+    /// styles a change dropped are left counted.
+    func save(into patch: inout Patch) throws {
+        guard let identifier, !added.isEmpty else { return }
+        var list = list
+        let entries = (list.messages(3) + newEntries).map { entry -> ProtobufMessage in
+            guard let key = entry.uint(1).map(UInt32.init(truncatingIfNeeded:)), let count = added[key] else { return entry }
+            var entry = entry
+            entry.set(2, uint: (entry.uint(2) ?? 0) + count)
+            return entry
+        }
+        list.set(3, messages: entries)
+        list.set(2, uint: UInt64(nextKey))
+        try patch.change(identifier, to: list)
     }
 }
 

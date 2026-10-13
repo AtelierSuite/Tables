@@ -81,6 +81,14 @@ struct NumbersCellStorage: Hashable {
     /// The key of the cell's formula in its table's formulas.
     var formulaKey: UInt64? { key(Field.formula) }
 
+    /// The key a field holds into one of its table's lists — a style's, say.
+    func key(of flag: UInt32) -> UInt64? { key(flag) }
+
+    /// Sets the key a field holds, or removes the field.
+    mutating func setKey(_ key: UInt32?, of flag: UInt32) {
+        fields[flag] = key.map { withUnsafeBytes(of: $0.littleEndian, Array.init) }
+    }
+
     var encoded: [UInt8] {
         var output: [UInt8] = [5, type] + bookkeeping
         var flags: UInt32 = 0
