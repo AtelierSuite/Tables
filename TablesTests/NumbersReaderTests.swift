@@ -62,6 +62,24 @@ struct NumbersReaderTests {
         #expect(workbook.sheets[2][CellAddress(row: 0, column: 0)].value == .text("Second"))
     }
 
+    @Test("The tables sharing a sheet are known together, by their sheet's name and their own")
+    func tablesSharingASheet() throws {
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.text("Rent")]])])
+        document.addSheet("Plans", tables: [
+            .init(name: "Trips", rows: [[.text("Kyoto")]]),
+            .init(name: "Extra", rows: [[.text("Second")]]),
+        ])
+        let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        let sheets = workbook.sheets
+
+        #expect(source.worksheets(sharingSheetWith: sheets[0].id, in: workbook).isEmpty)
+        let shared = source.worksheets(sharingSheetWith: sheets[2].id, in: workbook)
+        #expect(shared.map(\.id) == [sheets[1].id, sheets[2].id])
+        #expect(shared.map { source.tables[$0.id]?.sheetName } == ["Plans", "Plans"])
+        #expect(shared.map { source.tables[$0.id]?.tableName } == ["Trips", "Extra"])
+    }
+
     @Test("Rows past the first tile land where they belong")
     func laterTiles() throws {
         var document = NumbersDocumentBuilder()

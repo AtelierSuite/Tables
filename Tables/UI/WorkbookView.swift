@@ -32,6 +32,11 @@ struct WorkbookView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let source = document.numbersSource, sheetTables.count > 1 {
+                TableTabBarView(workbook: workbook, state: state, tables: sheetTables, numbersSource: source)
+                    .background(.bar)
+                Divider()
+            }
             sheetContent
                 // Keyboard navigation belongs to the grid, and only while no
                 // text field is up — otherwise it holds focus away from them.
@@ -57,7 +62,7 @@ struct WorkbookView: View {
                 FormulaBarView(workbook: workbook, state: state)
                 Divider()
             }
-            SheetTabBarView(workbook: workbook, state: state)
+            SheetTabBarView(workbook: workbook, state: state, numbersSource: document.numbersSource)
                 .background(.bar)
         }
         .background(Color.sheetBackground)
@@ -158,6 +163,12 @@ struct WorkbookView: View {
     }
 
     private var activeSheet: Worksheet { state.activeSheet(in: document.workbook) }
+
+    /// The tables on the Numbers sheet the active table is on, when it
+    /// shares that sheet with others.
+    private var sheetTables: [Worksheet] {
+        document.numbersSource?.worksheets(sharingSheetWith: activeSheet.id, in: document.workbook) ?? []
+    }
 
     @ViewBuilder
     private var sheetContent: some View {

@@ -113,6 +113,8 @@ enum NumbersReader {
                     modelIdentifier: model.identifier,
                     sheetIdentifier: sheetReference.uint(1),
                     sharesSheet: models.count > 1,
+                    sheetName: sheetName,
+                    tableName: tableName,
                     uuid: mergeOwners.tableUUID(of: model.message),
                     storage: reader.storage,
                     protectedCells: reader.protectedCells,
@@ -306,6 +308,9 @@ final class NumbersSource: @unchecked Sendable {
         /// The `TN.SheetArchive` it is on, and whether other tables are too.
         var sheetIdentifier: UInt64?
         var sharesSheet = false
+        /// The names Numbers shows for the sheet and for the table on it.
+        var sheetName = ""
+        var tableName = ""
         /// What formulas know the table by.
         var uuid: MergeOwners.UUID?
         /// Every cell's storage, as Numbers wrote it.
@@ -523,6 +528,14 @@ extension NumbersSource {
             if let uuid = tables[sheet.id]?.uuid { names[uuid] = sheet.name }
         }
         return names
+    }
+
+    /// The worksheets made from the tables on the same Numbers sheet as the
+    /// one `id` was, in order — empty when that table has the sheet to
+    /// itself.
+    func worksheets(sharingSheetWith id: Worksheet.ID, in workbook: Workbook) -> [Worksheet] {
+        guard let table = tables[id], table.sharesSheet, let sheet = table.sheetIdentifier else { return [] }
+        return workbook.sheets.filter { tables[$0.id]?.sheetIdentifier == sheet }
     }
 }
 

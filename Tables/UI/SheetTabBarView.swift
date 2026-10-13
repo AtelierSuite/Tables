@@ -4,6 +4,9 @@ import SwiftUI
 struct SheetTabBarView: View {
     @Binding var workbook: Workbook
     @Bindable var state: EditorState
+    /// The Numbers document the workbook was read from, whose sheets holding
+    /// several tables take one tab between them.
+    var numbersSource: NumbersSource?
 
     @State private var renamingSheetID: Worksheet.ID?
     @State private var draftName = ""
@@ -51,13 +54,13 @@ struct SheetTabBarView: View {
                     // tabs, which bridged neighbours into one blob of glass.
                     GlassEffectContainer(spacing: 0) {
                         HStack(spacing: tabSpacing) {
-                            ForEach(workbook.visibleSheets) { sheet in
+                            ForEach(tabSheets) { sheet in
                                 tab(for: sheet)
                             }
                         }
                     }
                     .padding(.horizontal, 2)
-                    .animation(.snappy(duration: 0.22), value: workbook.visibleSheets.map(\.id))
+                    .animation(.snappy(duration: 0.22), value: tabSheets.map(\.id))
                 }
                 .scrollIndicators(.hidden)
                 // A tab being carried has to ride over its neighbours, and a
@@ -71,6 +74,28 @@ struct SheetTabBarView: View {
     }
 
     private var hiddenSheets: [Worksheet] { workbook.sheets.filter(\.isHidden) }
+
+    /// The sheets that get a tab: every visible one, but only the first of
+    /// the tables a Numbers sheet holds — the rest are reached from the
+    /// strip of tables above the grid.
+    private var tabSheets: [Worksheet] {
+        workbook.visibleSheets.filter { sheet in
+            tables(sharingTabWith: sheet).first.map { $0.id == sheet.id } ?? true
+        }
+    }
+
+    /// The tables a tab stands for when its Numbers sheet holds several.
+    private func tables(sharingTabWith sheet: Worksheet) -> [Worksheet] {
+        numbersSource?.worksheets(sharingSheetWith: sheet.id, in: workbook) ?? []
+    }
+
+    /// What a tab is called: a Numbers sheet's own name when it holds
+    /// several tables, as each of its worksheets is named after both.
+    private func tabName(for sheet: Worksheet) -> String {
+        guard !tables(sharingTabWith: sheet).isEmpty, let name = numbersSource?.tables[sheet.id]?.sheetName,
+              !name.isEmpty else { return sheet.name }
+        return name
+    }
 
     /// The only way back to a hidden sheet, so hiding one is never a one-way door.
     private var hiddenSheetsMenu: some View {
@@ -98,7 +123,9 @@ struct SheetTabBarView: View {
 
     @ViewBuilder
     private func tab(for sheet: Worksheet) -> some View {
-        let isActive = sheet.id == state.activeSheet(in: workbook).id
+        let activeID = state.activeSheet(in: workbook).id
+        let grouped = tables(sharingTabWith: sheet)
+        let isActive = sheet.id == activeID || grouped.contains { $0.id == activeID }
 
         Group {
             if renamingSheetID == sheet.id {
@@ -114,7 +141,7 @@ struct SheetTabBarView: View {
                     .font(.system(size: 13))
                     .lineLimit(1)
             } else {
-                Text(sheet.name)
+                Text(tabName(for: sheet))
                     .font(.system(size: 13))
                     .lineLimit(1)
             }
@@ -139,7 +166,8 @@ struct SheetTabBarView: View {
         .zIndex(draggingSheetID == sheet.id ? 1 : 0)
         .animation(.snappy(duration: 0.2), value: draggingSheetID)
         .onTapGesture(count: 2) { menuTriggers[sheet.id, default: 0] += 1 }
-        .onTapGesture { state.selectSheet(sheet.id, in: workbook) }
+        // A tab already showing one of its tables stays on that table.
+        .onTapGesture { if grouped.isEmpty || !isActive { state.selectSheet(sheet.id, in: workbook) } }
         .gesture(reorderGesture(for: sheet))
         .background {
             NativeMenuPresenter(
@@ -151,10 +179,13 @@ struct SheetTabBarView: View {
     // MARK: - Menu
 
     private func menuActions(for sheet: Worksheet) -> [HeaderMenuAction] {
-        [
+        // A tab standing for several tables has no one name to rename.
+        let rename = tables(sharingTabWith: sheet).isEmpty ? [
             HeaderMenuAction(title: String(localized: "SheetTabBar.Menu.Rename"), symbol: "pencil") {
                 beginRename(sheet)
             },
+        ] : []
+        return rename + [
             HeaderMenuAction(
                 title: String(localized: "SheetTabBar.Menu.Duplicate"), symbol: "plus.square.on.square"
             ) {
@@ -204,7 +235,8 @@ struct SheetTabBarView: View {
         layoutShift = 0
         // Picking a tab up also makes it the one being worked on, which is what
         // dropping it somewhere implies anyway.
-        if sheet.id != state.activeSheet(in: workbook).id {
+        let activeID = state.activeSheet(in: workbook).id
+        if sheet.id != activeID, !tables(sharingTabWith: sheet).contains(where: { $0.id == activeID }) {
             state.selectSheet(sheet.id, in: workbook)
         }
     }
@@ -218,7 +250,7 @@ struct SheetTabBarView: View {
     /// Swaps the dragged tab past a neighbour once it has been carried over
     /// half of that neighbour, and books the distance the swap moved it.
     private func reorder(_ sheet: Worksheet, by displacement: Double) {
-        let visible = workbook.visibleSheets
+        let visible = tabSheets
         guard let position = visible.firstIndex(where: { $0.id == sheet.id }) else { return }
 
         let neighborIndex = displacement > 0 ? position + 1 : position - 1
