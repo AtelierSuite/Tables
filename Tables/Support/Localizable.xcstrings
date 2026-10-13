@@ -20091,37 +20091,37 @@
         }
       }
     },
-    "UnsupportedFeature.Formatting" : {
+    "UnsupportedFeature.FontsAndBorders" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Formatting"
+            "value" : "Fonts and borders"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書式"
+            "value" : "フォントと罫線"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "서식"
+            "value" : "서체 및 테두리"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "格式"
+            "value" : "字体和边框"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "格式"
+            "value" : "字體和邊框"
           }
         }
       }

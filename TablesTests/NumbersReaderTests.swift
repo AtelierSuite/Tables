@@ -179,7 +179,7 @@ struct NumbersReaderTests {
         var plain = NumbersDocumentBuilder()
         plain.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.text("Rent")]])])
         let (_, source) = try NumbersReader.document(from: plain.singleFile())
-        #expect(source.features.noticeMessage.contains(UnsupportedFeature.formatting.label))
+        #expect(source.features.noticeMessage.contains(UnsupportedFeature.fontsAndBorders.label))
         #expect(!source.features.noticeMessage.contains(UnsupportedFeature.unreadFormulas.label))
 
         var withFormula = NumbersDocumentBuilder()
