@@ -99,9 +99,24 @@ enum NumbersFormula {
     /// bond's.
     private static let differentFunctions: Set<String> = ["DURATION"]
 
+    /// Numbers' functions Tables knows by another name, as the name Numbers
+    /// gives them is taken by a different Excel function.
+    private static let renamedFunctions: [String: String] = ["DURATION": "DURATION.TIME"]
+
     /// Whether a function means the same in both apps.
     private static func isShared(_ name: String) -> Bool {
         FormulaFunctions.isKnown(name) && !differentFunctions.contains(name)
+    }
+
+    /// The name Tables knows a Numbers function by.
+    private static func tablesName(_ numbersName: String) -> String {
+        renamedFunctions[numbersName] ?? numbersName
+    }
+
+    /// The index Numbers calls a Tables function by.
+    private static func numbersIndex(_ tablesName: String) -> Int? {
+        let numbersName = renamedFunctions.first { $0.value == tablesName }?.key ?? tablesName
+        return NumbersFunctionIndex.indices[numbersName]
     }
 
     // MARK: - Reading
@@ -234,7 +249,8 @@ enum NumbersFormula {
 
         private mutating func function(_ node: ProtobufMessage) -> Bool {
             let count = node.int(Field.argumentCount) ?? 0
-            guard let index = node.int(Field.functionIndex), let name = NumbersFunctionIndex.names[index],
+            guard let index = node.int(Field.functionIndex),
+                  let name = NumbersFunctionIndex.names[index].map(NumbersFormula.tablesName),
                   NumbersFormula.isShared(name), stack.count >= count else { return false }
             let arguments = stack.suffix(count).map(\.text)
             stack.removeLast(count)
@@ -447,7 +463,7 @@ enum NumbersFormula {
 
         private mutating func writeCall(_ name: String, arguments: [FormulaSyntax]) throws {
             let name = name.uppercased()
-            guard let index = NumbersFunctionIndex.indices[name], isShared(name), !["LET", "LAMBDA"].contains(name) else {
+            guard let index = numbersIndex(name), isShared(name), !["LET", "LAMBDA"].contains(name) else {
                 throw Unwritable()
             }
             let firstLazy = lazyArguments[name] ?? Int.max

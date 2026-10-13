@@ -87,6 +87,17 @@ extension FormulaFunctions {
             guard (0...4).contains(basis) else { throw .numberError }
             return .number(FormulaDates.yearFraction(min(first, second), max(first, second), basis: basis))
         },
+        // Numbers' `DURATION`, under a name of its own as Excel's `DURATION`
+        // is a bond's: weeks, days, hours, minutes, seconds and milliseconds,
+        // any left out, added up into a length of time in days.
+        "DURATION.TIME": FunctionSpec(1...6) { call throws(CellError) in
+            let days: [Double] = [7, 1, 1.0 / 24, 1.0 / 1440, 1.0 / 86_400, 1.0 / 86_400_000]
+            var total = 0.0
+            for (index, unit) in days.enumerated() where index < call.count {
+                total += try call.number(index, default: 0) * unit
+            }
+            return .number(total)
+        },
     ]
 }
 

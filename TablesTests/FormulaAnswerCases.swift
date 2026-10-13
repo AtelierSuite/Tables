@@ -152,6 +152,12 @@ let exampleFormulaAnswerCases: [FormulaAnswerCase] = [
     .init(function: "DATE", formula: "=DATE(1900,3,1)", expected: .number(61), absoluteTolerance: 0),
     .init(function: "DATE", formula: "=DATE(2024,14,1)", expected: .number(45689), absoluteTolerance: 0),
     .init(function: "DATE", formula: "=DATE(24,1,1)", expected: .number(8767), absoluteTolerance: 0),
+    // Numbers' DURATION, from Apple's examples, in days.
+    .init(function: "DURATION.TIME", formula: "=DURATION.TIME(1)", expected: .number(7), absoluteTolerance: 0),
+    .init(function: "DURATION.TIME", formula: "=DURATION.TIME(,,1)", expected: .number(1.0 / 24), absoluteTolerance: 1e-15),
+    .init(function: "DURATION.TIME", formula: "=DURATION.TIME(1.5)", expected: .number(10.5), absoluteTolerance: 0),
+    .init(function: "DURATION.TIME", formula: "=DURATION.TIME(0,2,-24)", expected: .number(1), absoluteTolerance: 1e-15),
+    .init(function: "DURATION.TIME", formula: "=DURATION.TIME(3,2,7,10,15.3505)", expected: .number(2_013_015.3505 / 86_400), absoluteTolerance: 1e-12),
     .init(function: "DATEDIF", formula: "=DATEDIF(DATE(2001,1,1),DATE(2003,1,1),\"Y\")", expected: .number(2), absoluteTolerance: 0),
     .init(function: "DATEDIF", formula: "=DATEDIF(DATE(2001,6,1),DATE(2002,8,15),\"D\")", expected: .number(440), absoluteTolerance: 0),
     .init(function: "DATEDIF", formula: "=DATEDIF(DATE(2001,6,1),DATE(2002,8,15),\"MD\")", expected: .number(14), absoluteTolerance: 0),

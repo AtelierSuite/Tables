@@ -182,6 +182,14 @@ struct NumbersFormulaTests {
         #expect(NumbersFormula.formula(from: [unknownTable], context: context("B1")) == nil)
     }
 
+    @Test("Numbers' DURATION reads as DURATION.TIME, and is written back as Numbers' DURATION")
+    func duration() throws {
+        let nodes = [NumbersNodes.number(0), NumbersNodes.number(8), NumbersNodes.function("DURATION", arguments: 2)]
+        #expect(NumbersFormula.formula(from: nodes, context: context("B1")) == "DURATION.TIME(0,8)")
+        let written = try #require(NumbersFormula.nodes(for: "DURATION.TIME(0,8)", context: context("B1")))
+        #expect(written.last?.int(2) == NumbersFunctionIndex.indices["DURATION"])
+    }
+
     @Test("Formulas come back the same after being written and read again", arguments: [
         "A1+B1*2", "(A1+B1)*2", "-A1^2", "2^3^2", "(2^3)^2", "SUM($A$1:B$3,10%)", "IF(A1>=1,\"yes\",IFERROR(1/0,0))",
         "'Rates – Table 1'!B2*2", "SUM('Rates – Table 1'!A1:A9)", "AVERAGE({1,2;3,4})", "IFS(A1,1,TRUE,2)",
