@@ -199,6 +199,14 @@ struct NumbersReaderTests {
         let (_, styledSource) = try NumbersReader.document(from: styled.singleFile())
         #expect(styledSource.features.noticeMessage.contains(UnsupportedFeature.fontsAndBorders.label))
         #expect(!styledSource.features.noticeMessage.contains(UnsupportedFeature.formatting.label))
+        #expect(!styledSource.features.noticeMessage.contains(UnsupportedFeature.richTextFormatting.label))
+
+        var rich = NumbersDocumentBuilder()
+        var richTable = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.richText("Rent")]])
+        richTable.hasStyles = true
+        rich.addSheet("Budget", tables: [richTable])
+        let (_, richSource) = try NumbersReader.document(from: rich.singleFile())
+        #expect(richSource.features.noticeMessage.contains(UnsupportedFeature.richTextFormatting.label))
 
         var withFormula = NumbersDocumentBuilder()
         withFormula.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.formula(3)]])])

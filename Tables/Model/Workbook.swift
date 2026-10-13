@@ -51,6 +51,9 @@ enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Comparable {
     /// A Numbers document's fonts, borders and the like, kept but not
     /// editable.
     case fontsAndBorders
+    /// The text formatting of a Numbers cell holding rich text, whose runs
+    /// of text are formatted on their own.
+    case richTextFormatting
     /// A Numbers table's categories.
     case categories
     /// Formulas Tables can't read, or works out differently, so keeps the
@@ -76,6 +79,7 @@ enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Comparable {
         case .macros: return String(localized: "UnsupportedFeature.Macros")
         case .formatting: return String(localized: "UnsupportedFeature.Formatting")
         case .fontsAndBorders: return String(localized: "UnsupportedFeature.FontsAndBorders")
+        case .richTextFormatting: return String(localized: "UnsupportedFeature.RichTextFormatting")
         case .categories: return String(localized: "UnsupportedFeature.Categories")
         case .unreadFormulas: return String(localized: "UnsupportedFeature.UnreadFormulas")
         }

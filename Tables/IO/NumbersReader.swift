@@ -130,7 +130,8 @@ enum NumbersReader {
                     hidden: reader.hidden,
                     hasHiddenStates: model.message.message(70)?.messages(2).first?.has(3) ?? false,
                     canFormat: model.message.message(4)?.has(5) ?? false
-                        && NumbersStyles.Regions(model: model.message).hasBodyStyles
+                        && NumbersStyles.Regions(model: model.message).hasBodyStyles,
+                    hasRichText: reader.hasRichText
                 )
             }
         }
@@ -234,6 +235,9 @@ enum NumbersReader {
         // A table with no list of styles keeps all its formatting as it was.
         let canFormatAll = tables.values.allSatisfy(\.canFormat)
         report.record(canFormatAll ? .fontsAndBorders : .formatting, isPreserved: true)
+        if tables.values.contains(where: { $0.canFormat && $0.hasRichText }) {
+            report.record(.richTextFormatting, isPreserved: true)
+        }
         if !archive.identifiers(ofType: ObjectType.chartDrawable).isEmpty
             || !archive.identifiers(ofType: ObjectType.image).isEmpty
             || !archive.identifiers(ofType: ObjectType.movie).isEmpty {
@@ -340,6 +344,9 @@ final class NumbersSource: @unchecked Sendable {
         /// Whether the table keeps a list of styles, and defaults for its
         /// body, for formatting to go in.
         var canFormat = false
+        /// Whether any cell holds rich text, whose runs keep their own text
+        /// formatting.
+        var hasRichText = false
     }
 
     let layout: Layout
@@ -385,6 +392,7 @@ private struct TableReader {
     private(set) var results: [CellAddress: Cell] = [:]
     private(set) var identifiers: (rows: [MergeOwners.UUID], columns: [MergeOwners.UUID]) = ([], [])
     private(set) var hidden = NumbersHiddenStates.Hidden()
+    private(set) var hasRichText = false
 
     init(table: ProtobufMessage, archive: IWAArchive) throws {
         worksheet = Worksheet(name: table.string(8) ?? "")
@@ -422,6 +430,7 @@ private struct TableReader {
                     // either; guarding it like a formula keeps it as it is.
                     if parsed?.hasFormula ?? true { protectedCells.insert(address) }
                     if let key = parsed?.formulaKey, let nodes = formulaNodes[key] { formulas[address] = nodes }
+                    if parsed?.type == NumbersCellStorage.CellType.richText { hasRichText = true }
                     var cell = parsed.map { $0.cell(strings: strings, richText: richText) ?? Cell() }
                     if let parsed, let base = cell?.style {
                         cell?.style = formatting.style(
