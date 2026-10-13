@@ -432,3 +432,79 @@ struct NumbersMovingTests {
         #expect(NumbersEditPolicy.reconcile(appended, from: workbook, source: source).violation == nil)
     }
 }
+
+@Suite("Numbers hidden rows and columns")
+struct NumbersHidingTests {
+    private func document() throws -> (Workbook, NumbersSource) {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [
+            [.text("Item")], [.text("Rent")], [.text("Food")], [.text("Fuel")], [.text("Gas")],
+        ])
+        table.columnCount = 3
+        table.hasIdentifiers = true
+        table.hasHiddenStates = true
+        table.userHiddenRows = [1]
+        table.filteredRows = [3]
+        document.addSheet("Budget", tables: [table])
+        return try NumbersReader.document(from: document.singleFile())
+    }
+
+    private func save(_ workbook: Workbook, _ source: NumbersSource) throws -> Data {
+        try #require(NumbersWriter.fileWrapper(for: workbook, source: source, existing: nil).regularFileContents)
+    }
+
+    @Test("Rows and columns are hidden and shown by their UUIDs, leaving filtered ones be")
+    func hidesAndShows() throws {
+        let (workbook, source) = try document()
+        var edited = workbook
+        edited.sheets[0].setRows(1...1, hidden: false)
+        edited.sheets[0].setRows(2...2, hidden: true)
+        edited.sheets[0].setColumns(0...0, hidden: true)
+        #expect(NumbersEditPolicy.violation(in: edited, source: source) == nil)
+
+        let (reread, rereadSource) = try NumbersReader.document(from: save(edited, source))
+        let sheet = reread.sheets[0]
+        #expect(sheet.hiddenRows == [2, 3])
+        #expect(sheet.hiddenColumns == [0])
+        #expect(rereadSource.tables[sheet.id]?.hidden.lockedRows == [3])
+        #expect(sheet[CellAddress(a1: "A3")!].value == .text("Food"))
+    }
+
+    @Test("Hidden rows are listed in UUID order with nothing left for those shown again")
+    func listsStatesInOrder() throws {
+        let (workbook, source) = try document()
+        var edited = workbook
+        edited.sheets[0].hiddenRows = [0, 2, 3, 4]
+        let (_, rereadSource) = try NumbersReader.document(from: save(edited, source))
+        let table = try #require(rereadSource.tables.values.first)
+        let model = try #require(rereadSource.archive[table.modelIdentifier]?.message)
+        let states = try #require(model.message(70)?.messages(2).first?.message(3)?.messages(2))
+        let uids = states.compactMap { MergeOwners.UUID($0.message(1)) }
+        #expect(uids.count == 4)
+        #expect(uids == uids.sorted { ($0.upper, $0.lower) < ($1.upper, $1.lower) })
+        #expect(!uids.contains(table.rowIdentifiers[1]))
+    }
+
+    @Test("Rows hidden by a filter, new rows, and tables without hidden states can't be changed", arguments: [
+        "showFiltered", "hideNew", "noStates",
+    ])
+    func refuses(_ change: String) throws {
+        var (workbook, source) = try document()
+        if change == "noStates" {
+            var document = NumbersDocumentBuilder()
+            var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("Item")], [.text("Rent")]])
+            table.hasIdentifiers = true
+            document.addSheet("Budget", tables: [table])
+            (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        }
+        var edited = workbook
+        switch change {
+        case "showFiltered": edited.sheets[0].setRows(3...3, hidden: false)
+        case "hideNew":
+            edited.sheets[0].addRows(1)
+            edited.sheets[0].setRows(5...5, hidden: true)
+        default: edited.sheets[0].setRows(0...0, hidden: true)
+        }
+        #expect(NumbersEditPolicy.reconcile(edited, from: workbook, source: source).violation == .structure)
+    }
+}

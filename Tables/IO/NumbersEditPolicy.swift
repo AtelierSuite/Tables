@@ -137,9 +137,11 @@ enum NumbersEditPolicy {
             } else {
                 guard sheet.rowCount >= previous.rowCount, sheet.columnCount >= previous.columnCount else { return .structure }
             }
-            guard sheet.mergedRanges == previous.mergedRanges,
-                  sheet.hiddenRows == previous.hiddenRows, sheet.hiddenColumns == previous.hiddenColumns
-            else { return .structure }
+            guard sheet.mergedRanges == previous.mergedRanges else { return .structure }
+            if sheet.hiddenRows != previous.hiddenRows || sheet.hiddenColumns != previous.hiddenColumns {
+                if moved { return .movingCells }
+                if !canHide(sheet, table: table, imported: imported) { return .structure }
+            }
             if table.isPivot, sheet.rowCount != previous.rowCount || sheet.columnCount != previous.columnCount {
                 return .structure
             }
@@ -155,6 +157,19 @@ enum NumbersEditPolicy {
             && imported.mergedRanges.isEmpty && imported.hiddenRows.isEmpty && imported.hiddenColumns.isEmpty
             // A formula Tables can't read can't be told where its cells went.
             && source.tables.values.allSatisfy { $0.protectedCells.isEmpty }
+    }
+
+    /// Whether the rows and columns shown or hidden since the table was read
+    /// can be: those Numbers knows by a UUID, and hidden by hand rather than
+    /// by a filter or a pivot table.
+    private static func canHide(_ sheet: Worksheet, table: NumbersSource.Table, imported: Worksheet) -> Bool {
+        let rows = sheet.hiddenRows.symmetricDifference(imported.hiddenRows)
+        let columns = sheet.hiddenColumns.symmetricDifference(imported.hiddenColumns)
+        return table.hasHiddenStates && !table.isPivot
+            && rows.allSatisfy { $0 < min(table.rowCount, table.rowIdentifiers.count) && !table.hidden.lockedRows.contains($0) }
+            && columns.allSatisfy {
+                $0 < min(table.columnCount, table.columnIdentifiers.count) && !table.hidden.lockedColumns.contains($0)
+            }
     }
 
     /// Whether the header rows and columns and the footer rows are still the

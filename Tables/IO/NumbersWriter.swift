@@ -329,6 +329,14 @@ private struct TableWriter {
         model.set(4, message: store)
         if rowCount != table.rowCount { model.set(6, uint: UInt64(rowCount)) }
         if columnCount != table.columnCount { model.set(7, uint: UInt64(columnCount)) }
+        if sheet.hiddenRows != imported.hiddenRows || sheet.hiddenColumns != imported.hiddenColumns {
+            model = NumbersHiddenStates.model(
+                model,
+                hidingRows: sheet.hiddenRows.subtracting(table.hidden.lockedRows),
+                columns: sheet.hiddenColumns.subtracting(table.hidden.lockedColumns),
+                rowIdentifiers: table.rowIdentifiers, columnIdentifiers: table.columnIdentifiers
+            ) ?? model
+        }
         try patch.change(table.modelIdentifier, to: model)
     }
 
