@@ -177,11 +177,12 @@ enum NumbersStyles {
             return nil
         }
 
-        /// The cell style `base` with what a text style and a cell style say.
-        func style(text: UInt64?, cell: UInt64?, base: CellStyle = CellStyle()) -> CellStyle {
-            var style = base
-            if text != nil { readText(text, into: &style) }
-            if cell != nil { readCell(cell, into: &style) }
+        /// What a text style and a cell style say; where there is no style,
+        /// what Numbers draws without one.
+        func style(text: UInt64?, cell: UInt64?) -> CellStyle {
+            var style = CellStyle()
+            readText(text, into: &style)
+            readCell(cell, into: &style)
             return style
         }
 

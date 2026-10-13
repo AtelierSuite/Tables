@@ -947,11 +947,13 @@ private struct TableFormatting {
     }
 
     /// Gives a cell's storage the styles for the formatting it has now,
-    /// where that differs from what it had.
+    /// where that differs from what it had. A table without a list of
+    /// styles keeps the formatting it had, as editing it does.
     mutating func format(
         _ storage: inout NumbersCellStorage, as style: CellStyle, was original: CellStyle, at address: CellAddress,
         patch: inout Patch
     ) throws {
+        guard identifier != nil else { return }
         let part = regions.part(row: address.row, column: address.column, rowCount: rowCount)
         let resolver = resolver
         let oldText = NumbersStyles.TextFormat(original), newText = NumbersStyles.TextFormat(style)

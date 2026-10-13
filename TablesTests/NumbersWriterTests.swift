@@ -230,7 +230,7 @@ struct NumbersEditPolicyTests {
     func allowed() throws {
         let (workbook, source) = try document()
         var edited = workbook
-        edited.sheets[0][CellAddress(a1: "A1")!] = Cell(value: .text("Thing"))
+        edited.sheets[0][CellAddress(a1: "A1")!].value = .text("Thing")
         edited.sheets[0].addRows(5)
         edited.sheets[0].columnWidths[0] = 120
         let (result, violation) = NumbersEditPolicy.reconcile(edited, from: workbook, source: source)

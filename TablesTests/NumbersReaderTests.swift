@@ -162,6 +162,16 @@ struct NumbersReaderTests {
         #expect(!sheet[CellAddress(a1: "B2")!].style.isBold)
     }
 
+    @Test("A cell with no styles reads as Numbers draws it: wrapped, at the top")
+    func unstyledCell() throws {
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Sheet 1", tables: [.init(name: "Table 1", rows: [[.text("Rent")]])])
+        let style = try NumbersReader.workbook(from: document.singleFile()).sheets[0][CellAddress(row: 0, column: 0)].style
+        #expect(style.wrapsText)
+        #expect(style.verticalAlignment == .top)
+        #expect(!style.isBold)
+    }
+
     @Test("A document saved as a package reads the same as a single file")
     func package() throws {
         var document = NumbersDocumentBuilder()
