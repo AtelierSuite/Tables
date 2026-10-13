@@ -52,6 +52,9 @@ enum NumbersFormula {
         static let array = 24
         static let list = 25
         static let colon = 29
+        /// A colon between two ends as `colon` is, written where a formula
+        /// also keeps its references by row and column UUIDs.
+        static let colonWithUIDs = 45
         static let referenceError = 30
         static let appendWhitespace = 32
         static let prependWhitespace = 33
@@ -213,7 +216,7 @@ enum NumbersFormula {
                 push("(" + items.joined(separator: ",") + ")", Self.atom)
             case NodeType.cellReference:
                 return cellReference(node)
-            case NodeType.colon:
+            case NodeType.colon, NodeType.colonWithUIDs:
                 return colon()
             case NodeType.colonTract:
                 return colonTract(node)

@@ -145,6 +145,15 @@ struct NumbersFormulaTests {
         #expect(NumbersFormula.formula(from: nodes, context: context("H5")) == "SUM($H$1:H4)")
     }
 
+    @Test("A colon kept with UUIDs joins its two ends as a colon does")
+    func colonWithUIDs() {
+        let nodes = [
+            NumbersNodes.cell(column: -1, row: 0), NumbersNodes.cell(column: -1, row: 2),
+            NumbersNodes.node(NumbersFormula.NodeType.colonWithUIDs), NumbersNodes.function("SUM", arguments: 1),
+        ]
+        #expect(NumbersFormula.formula(from: nodes, context: context("B1")) == "SUM(A1:A3)")
+    }
+
     @Test("Thunks around IF's branches are passed over")
     func thunks() {
         let nodes = [
