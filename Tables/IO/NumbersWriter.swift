@@ -918,7 +918,6 @@ private extension TableWriter {
 private struct TableFormatting {
     private let regions: NumbersStyles.Regions
     private let rowCount: Int
-    private let resolver: NumbersStyles.Resolver
     private let identifier: UInt64?
     private var list: ProtobufMessage
     private var keys: [UInt64: UInt32] = [:]
@@ -926,12 +925,37 @@ private struct TableFormatting {
     private var nextKey: UInt32
     private var added: [UInt32: UInt64] = [:]
     private var newEntries: [ProtobufMessage] = []
+    private let roots: RootFormats
+
+    /// What each style that variations are made from comes to, worked out
+    /// once however many cells are restyled from it.
+    private final class RootFormats {
+        let resolver: NumbersStyles.Resolver
+        private var text: [UInt64: NumbersStyles.TextFormat] = [:]
+        private var cell: [UInt64: NumbersStyles.CellFormat] = [:]
+
+        init(resolver: NumbersStyles.Resolver) { self.resolver = resolver }
+
+        func text(_ root: UInt64) -> NumbersStyles.TextFormat {
+            if let format = text[root] { return format }
+            let format = NumbersStyles.TextFormat(resolver.style(text: root, cell: nil))
+            text[root] = format
+            return format
+        }
+
+        func cell(_ root: UInt64) -> NumbersStyles.CellFormat {
+            if let format = cell[root] { return format }
+            let format = NumbersStyles.CellFormat(resolver.style(text: nil, cell: root))
+            cell[root] = format
+            return format
+        }
+    }
 
     init(model: ProtobufMessage, rowCount: Int, patch: Patch) {
         regions = NumbersStyles.Regions(model: model)
         self.rowCount = rowCount
         let archive = patch.archive
-        resolver = NumbersStyles.Resolver { archive[$0]?.message }
+        roots = RootFormats(resolver: NumbersStyles.Resolver { archive[$0]?.message })
         identifier = model.message(4)?.message(5)?.uint(1)
         list = identifier.flatMap { patch[$0] } ?? ProtobufMessage()
         var largest: UInt32 = 0
@@ -955,21 +979,19 @@ private struct TableFormatting {
     ) throws {
         guard identifier != nil else { return }
         let part = regions.part(row: address.row, column: address.column, rowCount: rowCount)
-        let resolver = resolver
+        let roots = roots
         let oldText = NumbersStyles.TextFormat(original), newText = NumbersStyles.TextFormat(style)
         if oldText != newText, storage.type != NumbersCellStorage.CellType.richText {
             try restyle(&storage, field: NumbersStyles.Field.textStyle, partDefault: regions.text[part], patch: &patch) {
                 root, character, paragraph in
-                let rootFormat = NumbersStyles.TextFormat(resolver.style(text: root, cell: nil))
-                NumbersStyles.applyText(from: oldText, to: newText, root: rootFormat, character: &character, paragraph: &paragraph)
+                NumbersStyles.applyText(from: oldText, to: newText, root: roots.text(root), character: &character, paragraph: &paragraph)
             }
         }
         let oldCell = NumbersStyles.CellFormat(original), newCell = NumbersStyles.CellFormat(style)
         if oldCell != newCell {
             try restyle(&storage, field: NumbersStyles.Field.cellStyle, partDefault: regions.cell[part], patch: &patch) {
                 root, properties, _ in
-                let rootFormat = NumbersStyles.CellFormat(resolver.style(text: nil, cell: root))
-                NumbersStyles.applyCell(from: oldCell, to: newCell, root: rootFormat, properties: &properties)
+                NumbersStyles.applyCell(from: oldCell, to: newCell, root: roots.cell(root), properties: &properties)
             }
         }
     }
