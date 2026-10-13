@@ -152,6 +152,13 @@ let exampleFormulaAnswerCases: [FormulaAnswerCase] = [
     .init(function: "DATE", formula: "=DATE(1900,3,1)", expected: .number(61), absoluteTolerance: 0),
     .init(function: "DATE", formula: "=DATE(2024,14,1)", expected: .number(45689), absoluteTolerance: 0),
     .init(function: "DATE", formula: "=DATE(24,1,1)", expected: .number(8767), absoluteTolerance: 0),
+    // Numbers' DAYNAME, from Apple's examples.
+    .init(function: "DAYNAME", formula: "=DAYNAME(DATE(1979,8,2)+TIME(6,30,0))", expected: .text("Thursday"), absoluteTolerance: 0),
+    .init(function: "DAYNAME", formula: "=DAYNAME(6)", expected: .text("Friday"), absoluteTolerance: 0),
+    .init(function: "DAYNAME", formula: "=DAYNAME(\"12/29/1979\")", expected: .text("Saturday"), absoluteTolerance: 0),
+    .init(function: "DAYNAME", formula: "=DAYNAME(1)", expected: .text("Sunday"), absoluteTolerance: 0),
+    .init(function: "DAYNAME", formula: "=DAYNAME(7.9)", expected: .text("Saturday"), absoluteTolerance: 0),
+    .init(function: "DAYNAME", formula: "=DAYNAME(0)", expected: .error(.numberError), absoluteTolerance: 0),
     // Numbers' DURATION, from Apple's examples, in days.
     .init(function: "DURATION.TIME", formula: "=DURATION.TIME(1)", expected: .number(7), absoluteTolerance: 0),
     .init(function: "DURATION.TIME", formula: "=DURATION.TIME(,,1)", expected: .number(1.0 / 24), absoluteTolerance: 1e-15),

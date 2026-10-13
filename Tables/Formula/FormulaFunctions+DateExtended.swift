@@ -87,6 +87,15 @@ extension FormulaFunctions {
             guard (0...4).contains(basis) else { throw .numberError }
             return .number(FormulaDates.yearFraction(min(first, second), max(first, second), basis: basis))
         },
+        // Numbers' name of a day of the week: 1 is Sunday through 7 Saturday,
+        // the fraction dropped, and anything later a date.
+        "DAYNAME": FunctionSpec(1...1) { call throws(CellError) in
+            let value = try FormulaDates.serial(call, 0)
+            guard value >= 1 else { throw .numberError }
+            let weekday = value < 8 ? Int(value) : FormulaDates.weekday(ofSerial: value)
+            let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+            return .text(names[weekday - 1])
+        },
         // Numbers' `DURATION`, under a name of its own as Excel's `DURATION`
         // is a bond's: weeks, days, hours, minutes, seconds and milliseconds,
         // any left out, added up into a length of time in days.
