@@ -122,7 +122,11 @@ enum NumbersReader {
                     headerRows: model.message.int(9) ?? 0,
                     headerColumns: model.message.int(10) ?? 0,
                     footerRows: model.message.int(11) ?? 0,
-                    rowHeaderBuckets: model.message.message(4)?.message(1)?.messages(2).count ?? 0
+                    rowHeaderBuckets: model.message.message(4)?.message(1)?.messages(2).count ?? 0,
+                    rowIdentifiers: reader.identifiers.rows,
+                    columnIdentifiers: reader.identifiers.columns,
+                    hidden: reader.hidden,
+                    hasHiddenStates: model.message.message(70)?.messages(2).first?.has(3) ?? false
                 )
             }
         }
@@ -318,6 +322,12 @@ final class NumbersSource: @unchecked Sendable {
         var footerRows = 0
         /// How many pieces the table's row sizes are kept in.
         var rowHeaderBuckets = 0
+        /// The UUID of each row and column, by index.
+        var rowIdentifiers: [MergeOwners.UUID] = []
+        var columnIdentifiers: [MergeOwners.UUID] = []
+        var hidden = NumbersHiddenStates.Hidden()
+        /// Whether the table keeps a list of hidden rows and columns.
+        var hasHiddenStates = false
     }
 
     let layout: Layout
@@ -361,6 +371,8 @@ private struct TableReader {
     private(set) var formulas: [CellAddress: [ProtobufMessage]] = [:]
     /// What each formula came to when Numbers last worked it out.
     private(set) var results: [CellAddress: Cell] = [:]
+    private(set) var identifiers: (rows: [MergeOwners.UUID], columns: [MergeOwners.UUID]) = ([], [])
+    private(set) var hidden = NumbersHiddenStates.Hidden()
 
     init(table: ProtobufMessage, archive: IWAArchive) throws {
         worksheet = Worksheet(name: table.string(8) ?? "")
@@ -406,6 +418,22 @@ private struct TableReader {
 
         readHeaders(store, table: table, archive: archive)
         worksheet.mergedRanges = Self.mergedRanges(store, in: archive)
+        readHiddenStates(table, archive: archive)
+    }
+
+    /// The rows and columns hidden by hand, by a filter or by a pivot table.
+    /// Those the table's headers mark hidden, as older versions of Numbers
+    /// did, are left as they are along with the filtered ones.
+    private mutating func readHiddenStates(_ table: ProtobufMessage, archive: IWAArchive) {
+        identifiers = NumbersHiddenStates.identifiers(archive[table.message(46)]?.message)
+        var hidden = NumbersHiddenStates.hidden(in: table, rows: identifiers.rows, columns: identifiers.columns)
+        hidden.lockedRows.formUnion(worksheet.hiddenRows)
+        hidden.lockedColumns.formUnion(worksheet.hiddenColumns)
+        hidden.rows.subtract(hidden.lockedRows)
+        hidden.columns.subtract(hidden.lockedColumns)
+        worksheet.hiddenRows = hidden.rows.union(hidden.lockedRows).filter { $0 < worksheet.rowCount }
+        worksheet.hiddenColumns = hidden.columns.union(hidden.lockedColumns).filter { $0 < worksheet.columnCount }
+        self.hidden = hidden
     }
 
     // MARK: - Tables of shared values

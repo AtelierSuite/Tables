@@ -99,6 +99,25 @@ struct NumbersReaderTests {
         #expect(Set(sheet.mergedRanges.map(\.a1)) == ["A1:B1", "C2:C3"])
     }
 
+    @Test("Rows and columns hidden by hand or filtered out, which Numbers keeps by UUID")
+    func hiddenStates() throws {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("A")], [], [], [], []])
+        table.columnCount = 3
+        table.hasIdentifiers = true
+        table.hasHiddenStates = true
+        table.userHiddenRows = [1]
+        table.filteredRows = [3]
+        table.userHiddenColumns = [2]
+        document.addSheet("Sheet 1", tables: [table])
+        let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        let sheet = workbook.sheets[0]
+
+        #expect(sheet.hiddenRows == [1, 3])
+        #expect(sheet.hiddenColumns == [2])
+        #expect(source.tables[sheet.id]?.hidden.lockedRows == [3], "a filter would only hide it again")
+    }
+
     @Test("A document saved as a package reads the same as a single file")
     func package() throws {
         var document = NumbersDocumentBuilder()
@@ -224,6 +243,12 @@ struct NumbersDocumentBuilder {
         var leftBorders: [Int: Range<Int>] = [:]
         /// Borders along the top of rows, over columns, by row.
         var topBorders: [Int: Range<Int>] = [:]
+        /// Hidden rows and columns as recent versions of Numbers keep them,
+        /// by each one's UUID: hidden by hand, or filtered out.
+        var hasHiddenStates = false
+        var userHiddenRows: Set<Int> = []
+        var userHiddenColumns: Set<Int> = []
+        var filteredRows: Set<Int> = []
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -407,6 +432,7 @@ struct NumbersDocumentBuilder {
         if !table.leftBorders.isEmpty || !table.topBorders.isEmpty {
             model = model.message(49, Self.reference(addBorders(table, rows: table.rowCount ?? table.rows.count, columns: columnCount)))
         }
+        if table.hasHiddenStates { model = model.message(70, Self.hiddenStates(table)) }
         if !table.mergeOwnerRanges.isEmpty || table.uuid != nil {
             model = model.message(84, ProtobufWriter().message(1, addMergeOwner(table.mergeOwnerRanges, base: table.uuid)))
         }
@@ -421,6 +447,26 @@ struct NumbersDocumentBuilder {
     /// from the rows' and columns', as Numbers' random ones do.
     static func identifierUUID(_ index: Int, row: Bool) -> (lower: UInt64, upper: UInt64) {
         (UInt64(index) * 7 % 13, row ? UInt64(1000 - index) : UInt64(2000 - index))
+    }
+
+    private static func hiddenStates(_ table: Table) -> ProtobufWriter {
+        func uuid(_ uid: (lower: UInt64, upper: UInt64)) -> ProtobufWriter {
+            ProtobufWriter().varint(1, uid.lower).varint(2, uid.upper)
+        }
+        func extent(isRow: Bool, hidden: Set<Int>, filtered: Set<Int>) -> ProtobufWriter {
+            var extent = ProtobufWriter().message(1, uuid((isRow ? 2 : 3, 9)))
+            for index in hidden.union(filtered).sorted() {
+                var state = ProtobufWriter().message(1, uuid(identifierUUID(index, row: isRow)))
+                if hidden.contains(index) { state = state.bool(2, true) }
+                if filtered.contains(index) { state = state.bool(3, true) }
+                extent = extent.message(2, state)
+            }
+            return extent.varint(3, isRow ? 1 : 0)
+        }
+        let states = ProtobufWriter().message(1, uuid((1, 9)))
+            .message(2, extent(isRow: false, hidden: table.userHiddenColumns, filtered: []))
+            .message(3, extent(isRow: true, hidden: table.userHiddenRows, filtered: table.filteredRows))
+        return ProtobufWriter().message(1, uuid((1, 9))).message(2, states)
     }
 
     private mutating func addIdentifiers(rows: Int, columns: Int) -> UInt64 {
