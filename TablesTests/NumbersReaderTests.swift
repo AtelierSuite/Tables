@@ -189,8 +189,16 @@ struct NumbersReaderTests {
         var plain = NumbersDocumentBuilder()
         plain.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.text("Rent")]])])
         let (_, source) = try NumbersReader.document(from: plain.singleFile())
-        #expect(source.features.noticeMessage.contains(UnsupportedFeature.fontsAndBorders.label))
+        #expect(source.features.noticeMessage.contains(UnsupportedFeature.formatting.label), "a table with no styles can't be formatted")
         #expect(!source.features.noticeMessage.contains(UnsupportedFeature.unreadFormulas.label))
+
+        var styled = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("Rent")]])
+        table.hasStyles = true
+        styled.addSheet("Budget", tables: [table])
+        let (_, styledSource) = try NumbersReader.document(from: styled.singleFile())
+        #expect(styledSource.features.noticeMessage.contains(UnsupportedFeature.fontsAndBorders.label))
+        #expect(!styledSource.features.noticeMessage.contains(UnsupportedFeature.formatting.label))
 
         var withFormula = NumbersDocumentBuilder()
         withFormula.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.formula(3)]])])

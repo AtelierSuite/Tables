@@ -45,6 +45,9 @@ enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Comparable {
     case slicers
     case documentProperties
     case macros
+    /// A Numbers table's formatting, kept but not editable, where the table
+    /// has no list of styles for changes to go in.
+    case formatting
     /// A Numbers document's fonts, borders and the like, kept but not
     /// editable.
     case fontsAndBorders
@@ -71,6 +74,7 @@ enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Comparable {
         case .slicers: return String(localized: "UnsupportedFeature.Slicers")
         case .documentProperties: return String(localized: "UnsupportedFeature.DocumentProperties")
         case .macros: return String(localized: "UnsupportedFeature.Macros")
+        case .formatting: return String(localized: "UnsupportedFeature.Formatting")
         case .fontsAndBorders: return String(localized: "UnsupportedFeature.FontsAndBorders")
         case .categories: return String(localized: "UnsupportedFeature.Categories")
         case .unreadFormulas: return String(localized: "UnsupportedFeature.UnreadFormulas")

@@ -231,7 +231,9 @@ enum NumbersReader {
     /// edit, for the notice shown when it opens.
     private static func features(_ archive: IWAArchive, tables: [Worksheet.ID: NumbersSource.Table]) -> UnsupportedFeatureReport {
         var report = UnsupportedFeatureReport()
-        report.record(.fontsAndBorders, isPreserved: true)
+        // A table with no list of styles keeps all its formatting as it was.
+        let canFormatAll = tables.values.allSatisfy(\.canFormat)
+        report.record(canFormatAll ? .fontsAndBorders : .formatting, isPreserved: true)
         if !archive.identifiers(ofType: ObjectType.chartDrawable).isEmpty
             || !archive.identifiers(ofType: ObjectType.image).isEmpty
             || !archive.identifiers(ofType: ObjectType.movie).isEmpty {
