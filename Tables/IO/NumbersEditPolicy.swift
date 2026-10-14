@@ -72,9 +72,12 @@ enum NumbersEditPolicy {
                     result.sheets[index][address] = previous[address]
                     violation = violation ?? reason
                 } else {
+                    // The formatting a cell had where it was when the table
+                    // was read; none for one in a row or column inserted since.
+                    let origin = fileAddress(of: address, in: sheet)
                     let style = NumbersStyles.keepingWhatCanBeSaved(
-                        cell.style, imported: imported[address].style,
-                        canFormat: table.canFormat, isRichText: isRichText(address, in: table)
+                        cell.style, imported: origin.map { imported[$0].style } ?? Cell().style,
+                        canFormat: table.canFormat, isRichText: origin.map { isRichText($0, in: table) } ?? false
                     )
                     if style != cell.style {
                         var coerced = cell
@@ -122,6 +125,14 @@ enum NumbersEditPolicy {
             if NumbersFormula.nodes(for: formula, context: context) == nil { return .formula }
         }
         return nil
+    }
+
+    /// Where the cell at `address` was when its table was read, or nil for
+    /// one in a row or column inserted since.
+    private static func fileAddress(of address: CellAddress, in sheet: Worksheet) -> CellAddress? {
+        let origins = sheet.origins ?? SheetOrigins()
+        guard let row = origins.row(address.row), let column = origins.column(address.column) else { return nil }
+        return CellAddress(row: row, column: column)
     }
 
     private static func isRichText(_ address: CellAddress, in table: NumbersSource.Table) -> Bool {

@@ -547,6 +547,25 @@ struct NumbersMovingTests {
         #expect(result == workbook)
     }
 
+    @Test("Cells keep the formatting they had as rows move, not that of the cell once where they are")
+    func formattingMovesWithCells() throws {
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [
+            [.text("Item")], [.boldText("Rent")], [.richText("Note")],
+        ])
+        table.headerRows = 1
+        table.hasStyles = true
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [table])
+        let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        var edited = workbook
+        edited.sheets[0].insertRows(1, at: 1)
+        let (result, violation) = NumbersEditPolicy.reconcile(edited, from: workbook, source: source)
+        #expect(violation == nil)
+        // Rent lands where rich text was, whose text formatting can't change.
+        #expect(result.sheets[0][CellAddress(a1: "A3")!].style.isBold)
+        #expect(result.sheets[0] == edited.sheets[0])
+    }
+
     @Test("Deleting rows drops their cells and counts the formulas gone")
     func deleteRows() throws {
         var (workbook, source) = try NumbersReader.document(from: document())
