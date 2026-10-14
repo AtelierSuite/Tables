@@ -34,6 +34,28 @@ enum NumbersNodes {
         }
     }
 
+    /// A whole column `column` away from the formula's own, or at it when
+    /// absolute, as Numbers writes `B` or `Table 1::B`: a reference with a
+    /// column and no row.
+    static func wholeColumn(_ column: Int, absolute: Bool = false, table: MergeOwners.UUID? = nil) -> ProtobufMessage {
+        line(26, column, absolute: absolute, table: table)
+    }
+
+    /// A whole row, a reference with a row and no column.
+    static func wholeRow(_ row: Int, absolute: Bool = false, table: MergeOwners.UUID? = nil) -> ProtobufMessage {
+        line(27, row, absolute: absolute, table: table)
+    }
+
+    private static func line(_ field: Int, _ value: Int, absolute: Bool, table: MergeOwners.UUID?) -> ProtobufMessage {
+        var coordinate = ProtobufMessage()
+        coordinate.set(1, uint: UInt64(bitPattern: Int64(value) << 1 ^ Int64(value) >> 63))
+        coordinate.set(2, bool: absolute)
+        return node(NumbersFormula.NodeType.cellReference) {
+            $0.set(field, message: coordinate)
+            if let table { $0.set(28, message: crossTable(table)) }
+        }
+    }
+
     static func crossTable(_ table: MergeOwners.UUID) -> ProtobufMessage {
         var words = ProtobufMessage()
         words.set(2, uint: table.lower & 0xFFFF_FFFF)
@@ -177,14 +199,39 @@ struct NumbersFormulaTests {
         #expect(NumbersFormula.formula(from: nodes, context: context("A1")) == "'Rates – Table 1'!$A$2")
     }
 
+    @Test("A reference with only a column or a row reads as all of it, and is written back node for node")
+    func wholeLines() throws {
+        // Numbers' own `SUM(B)` in B9, `SUM($C)` and `SUM(Rates::B)`, and a
+        // whole row, `SUM(3)`.
+        let cases: [(nodes: [ProtobufMessage], formula: String)] = [
+            ([NumbersNodes.wholeColumn(0)], "SUM(B:B)"),
+            ([NumbersNodes.wholeColumn(2, absolute: true)], "SUM($C:$C)"),
+            ([NumbersNodes.wholeColumn(0, table: otherTable)], "SUM('Rates – Table 1'!B:B)"),
+            ([NumbersNodes.wholeRow(-6)], "SUM(3:3)"),
+            ([NumbersNodes.wholeColumn(-1), NumbersNodes.wholeColumn(1), NumbersNodes.node(NumbersFormula.NodeType.colon)],
+             "SUM(A:C)"),
+        ]
+        for (references, formula) in cases {
+            let nodes = references + [NumbersNodes.function("SUM", arguments: 1)]
+            #expect(NumbersFormula.formula(from: nodes, context: context("B9")) == formula)
+            let written = try #require(NumbersFormula.nodes(for: formula, context: context("B9")))
+            #expect(written.map { $0.encoded() } == nodes.map { $0.encoded() }, "\(formula)")
+        }
+    }
+
+    @Test("A whole column joined to a single cell isn't read")
+    func wholeColumnToCell() {
+        let nodes = [
+            NumbersNodes.wholeColumn(0), NumbersNodes.cell(column: 0, row: 0),
+            NumbersNodes.node(NumbersFormula.NodeType.colon), NumbersNodes.function("SUM", arguments: 1),
+        ]
+        #expect(NumbersFormula.formula(from: nodes, context: context("B9")) == nil)
+    }
+
     @Test("Formulas with anything Tables can't take on aren't read")
     func unreadable() {
-        let wholeColumn = NumbersNodes.node(NumbersFormula.NodeType.cellReference) {
-            var column = ProtobufMessage()
-            column.set(1, uint: 0)
-            $0.set(26, message: column)
-        }
-        #expect(NumbersFormula.formula(from: [wholeColumn, NumbersNodes.function("SUM", arguments: 1)], context: context("B1")) == nil)
+        let nowhere = NumbersNodes.node(NumbersFormula.NodeType.cellReference)
+        #expect(NumbersFormula.formula(from: [nowhere, NumbersNodes.function("SUM", arguments: 1)], context: context("B1")) == nil)
         let unknownFunction = NumbersNodes.function("DUR2WEEKS", arguments: 1)
         #expect(NumbersFormula.formula(from: [NumbersNodes.number(1), unknownFunction], context: context("B1")) == nil)
         let unknownTable = NumbersNodes.cell(column: 0, row: 0, table: MergeOwners.UUID(lower: 1, upper: 2))
@@ -203,6 +250,7 @@ struct NumbersFormulaTests {
         "A1+B1*2", "(A1+B1)*2", "-A1^2", "2^3^2", "(2^3)^2", "SUM($A$1:B$3,10%)", "IF(A1>=1,\"yes\",IFERROR(1/0,0))",
         "'Rates – Table 1'!B2*2", "SUM('Rates – Table 1'!A1:A9)", "AVERAGE({1,2;3,4})", "IFS(A1,1,TRUE,2)",
         "CHOOSE(2,A1,B1,C1)", "1.234E-09*A1", "0.1+1E+16", "SUM($A$1:B3)", "SUM(A1:$B$3)", "SUM($A1:B$3)", "SUM(A$1:$B3)", "A1&\" \"&B1", "A1<>B1", "COUNT(,1)", "SUM(A2:INDEX(A1:A9,3))", "DAYNAME(A1)",
+        "SUM(B:B)", "SUM($B:$B)", "SUM($B:D)", "SUM(2:4)", "SUM($7:$7)", "COUNTA('Rates – Table 1'!A:A)", "B:B*2",
     ])
     func roundTrip(_ formula: String) throws {
         let nodes = try #require(NumbersFormula.nodes(for: formula, context: context("D5")))
@@ -221,7 +269,7 @@ struct NumbersFormulaTests {
     }
 
     @Test("Formulas Numbers can't be given are turned away", arguments: [
-        "SUM(A:A)", "SUM(1:1)", "LET(x,1,x)", "DURATION(A1,B1,0.08,0.09,2)", "Missing!A1", "#N/A", "Sales[Amount]", "A1#",
+        "SUM(A5:A1048576)", "SUM(B1:XFD1)", "SUM(A:A 1:1)", "LET(x,1,x)", "DURATION(A1,B1,0.08,0.09,2)", "Missing!A1", "#N/A", "Sales[Amount]", "A1#",
     ])
     func unwritable(_ formula: String) {
         #expect(NumbersFormula.nodes(for: formula, context: context("B1")) == nil)
@@ -381,7 +429,7 @@ struct NumbersFormulaSavingTests {
     func policy() throws {
         let (workbook, source) = try NumbersReader.document(from: document())
         var edited = workbook
-        edited.sheets[0][CellAddress(a1: "B2")!] = { var cell = Cell(); cell.formula = "SUM(A:A)"; return cell }()
+        edited.sheets[0][CellAddress(a1: "B2")!] = { var cell = Cell(); cell.formula = "LET(x,1,x)"; return cell }()
         edited.sheets[0][CellAddress(a1: "C1")!] = { var cell = Cell(); cell.formula = "A1-B1"; return cell }()
         let (result, violation) = NumbersEditPolicy.reconcile(edited, from: workbook, source: source)
         #expect(violation == .formula)
@@ -391,5 +439,120 @@ struct NumbersFormulaSavingTests {
         var protected = workbook
         protected.sheets[0][CellAddress(a1: "C2")!] = Cell(value: .number(1))
         #expect(NumbersEditPolicy.reconcile(protected, from: workbook, source: source).violation == .protectedCell)
+    }
+}
+
+@Suite("Numbers whole columns and rows")
+struct NumbersWholeLineTests {
+    private let budgetTable = MergeOwners.UUID(lower: 0x5151, upper: 0x7272)
+
+    /// A budget under a header row holding a year, totalled in its footer row
+    /// by Numbers' own `SUM(B)`, and a summary on another sheet reading
+    /// `SUM(Table 1::$B)`. Numbers leaves the header and the footer out of
+    /// both: each comes to 1,500.
+    private func document() throws -> Data {
+        let sum = NumbersNodes.function("SUM", arguments: 1)
+        var budget = NumbersDocumentBuilder.Table(name: "Table 1", rows: [
+            [.text("Item"), .number(2_024, exponent: 0)],
+            [.text("Rent"), .number(1_200, exponent: 0)],
+            [.text("Food"), .number(300, exponent: 0)],
+            [.text("Total"), .formulaNodes(1_500, [NumbersNodes.wholeColumn(0), sum])],
+        ])
+        budget.headerRows = 1
+        budget.footerRows = 1
+        budget.hasIdentifiers = true
+        budget.uuid = budgetTable
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [budget])
+        document.addSheet("Summary", tables: [.init(name: "Table 1", rows: [
+            [.formulaNodes(1_500, [NumbersNodes.wholeColumn(1, absolute: true, table: budgetTable), sum])],
+        ])])
+        return try document.singleFile()
+    }
+
+    private func save(_ workbook: Workbook, _ source: NumbersSource) throws -> Data {
+        try #require(NumbersWriter.fileWrapper(for: workbook, source: source, existing: nil).regularFileContents)
+    }
+
+    /// The nodes Numbers keeps for a cell's formula.
+    private func nodes(at address: CellAddress, of sheet: Worksheet, in source: NumbersSource) throws -> [[UInt8]] {
+        let table = try #require(source.tables[sheet.id])
+        let key = try #require(table.storage[address].flatMap(NumbersCellStorage.init)?.formulaKey)
+        let model = try #require(source.archive[table.modelIdentifier]?.message)
+        let list = try #require(source.archive[model.message(4)?.message(6)]?.message)
+        let entry = try #require(list.messages(3).first { $0.uint(1) == UInt64(key) })
+        return (entry.message(5)?.message(1)?.messages(1) ?? []).map { $0.encoded() }
+    }
+
+    @Test("A whole column reads as one and covers the body alone, here as in Numbers")
+    func reads() throws {
+        let (workbook, source) = try NumbersReader.document(from: document())
+        let budget = workbook.sheets[0], summary = workbook.sheets[1]
+        let total = CellAddress(a1: "B4")!
+        #expect(budget.tableEdges == TableEdges(headerRows: 1, footerRows: 1, headerColumns: 0))
+        #expect(budget[total].formula == "SUM(B:B)")
+        #expect(budget[total].value == .number(1_500), "neither the year in the header nor the total itself")
+        #expect(summary[CellAddress(a1: "A1")!].formula == "SUM(Budget!$B:$B)")
+        #expect(summary[CellAddress(a1: "A1")!].value == .number(1_500))
+        #expect(source.tables.values.allSatisfy { $0.protectedCells.isEmpty })
+    }
+
+    @Test("A row inserted at the end of the body is counted, and the whole column is saved as Numbers wrote it")
+    func survivesInsertion() throws {
+        let (opened, openedSource) = try NumbersReader.document(from: document())
+        let before = try nodes(at: CellAddress(a1: "B4")!, of: opened.sheets[0], in: openedSource)
+        let summaryBefore = try nodes(at: CellAddress(a1: "A1")!, of: opened.sheets[1], in: openedSource)
+
+        var workbook = opened
+        // Just above the footer: past the end of any range written out.
+        workbook.sheets[0].insertRows(1, at: 3)
+        workbook.sheets[0][CellAddress(a1: "B4")!] = Cell(value: .number(50))
+        workbook.recalculate()
+        #expect(workbook.sheets[0][CellAddress(a1: "B5")!].formula == "SUM(B:B)")
+        #expect(workbook.sheets[0][CellAddress(a1: "B5")!].value == .number(1_550))
+        #expect(workbook.sheets[1][CellAddress(a1: "A1")!].value == .number(1_550))
+        #expect(NumbersEditPolicy.violation(in: workbook, source: openedSource) == nil)
+
+        let (reread, rereadSource) = try NumbersReader.document(from: save(workbook, openedSource))
+        #expect(reread.sheets[0].rowCount == 5)
+        #expect(reread.sheets[0][CellAddress(a1: "B5")!].formula == "SUM(B:B)")
+        #expect(reread.sheets[0][CellAddress(a1: "B5")!].value == .number(1_550))
+        #expect(reread.sheets[1][CellAddress(a1: "A1")!].value == .number(1_550))
+        #expect(try nodes(at: CellAddress(a1: "B5")!, of: reread.sheets[0], in: rereadSource) == before)
+        #expect(try nodes(at: CellAddress(a1: "A1")!, of: reread.sheets[1], in: rereadSource) == summaryBefore)
+    }
+
+    @Test("A whole column typed into a Numbers table is saved as one")
+    func writesNew() throws {
+        let (opened, source) = try NumbersReader.document(from: document())
+        var workbook = opened
+        workbook.sheets[0][CellAddress(a1: "A4")!] = Cell(formula: "COUNT(B:B)")
+        workbook.recalculate()
+        #expect(workbook.sheets[0][CellAddress(a1: "A4")!].value == .number(2))
+        #expect(NumbersEditPolicy.violation(in: workbook, source: source) == nil)
+        let reread = try NumbersReader.workbook(from: save(workbook, source))
+        #expect(reread.sheets[0][CellAddress(a1: "A4")!].formula == "COUNT(B:B)")
+        #expect(reread.sheets[0][CellAddress(a1: "A4")!].value == .number(2))
+    }
+
+    @Test("On a sheet with a table's edges, whole columns and rows leave out its headers and footers")
+    func evaluates() {
+        var workbook = Workbook()
+        var sheet = Worksheet(name: "Table")
+        sheet.rowCount = 4
+        sheet.columnCount = 3
+        for row in 0..<4 {
+            for column in 0..<3 {
+                sheet[CellAddress(row: row, column: column)] = Cell(value: .number(Double(row * 10 + column)))
+            }
+        }
+        sheet.tableEdges = TableEdges(headerRows: 1, footerRows: 1, headerColumns: 1)
+        workbook.sheets = [sheet]
+        let value = { (formula: String) in CalculationEngine.preview(formula: formula, in: workbook, sheetIndex: 0) }
+        #expect(value("SUM(B:B)") == .number(11 + 21))
+        #expect(value("ROWS(B:B)") == .number(2))
+        #expect(value("SUM(2:2)") == .number(11 + 12))
+        #expect(value("INDEX(C:C,1)") == .number(12))
+        #expect(value("SUM(B1:B4)") == .number(1 + 11 + 21 + 31), "a range written out is as written")
     }
 }

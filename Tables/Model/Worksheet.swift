@@ -42,6 +42,14 @@ struct ArrayExtent: Hashable, Sendable {
     var columns: Int
 }
 
+/// The rows and columns at a Numbers table's edges: its header rows at the
+/// top, its footer rows at the bottom and its header columns at the left.
+struct TableEdges: Hashable, Sendable {
+    var headerRows = 0
+    var footerRows = 0
+    var headerColumns = 0
+}
+
 /// A single sheet of a workbook. Row and column counts are explicit, Numbers-style:
 /// the grid never grows on its own, the user adds and removes rows and columns.
 struct Worksheet: Identifiable, Hashable, Sendable {
@@ -141,6 +149,10 @@ struct Worksheet: Identifiable, Hashable, Sendable {
     /// Where rows and columns were in the file, kept for a file saved by
     /// patching it; nil for every other.
     var origins: SheetOrigins?
+    /// For a table read from Numbers, its header and footer rows and its
+    /// header columns, which Numbers leaves out of a whole column or row:
+    /// `SUM(B:B)` there adds up the body alone. Nil for every other sheet.
+    var tableEdges: TableEdges?
     /// Where each array formula spilled at the last recalculation, by the
     /// address of the formula. Recalculation starts from this so that cells
     /// reading a spilled range see it on the first pass.

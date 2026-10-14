@@ -310,6 +310,8 @@ struct NumbersDocumentBuilder {
         /// Gives the table the UUID formulas in other tables refer to it by.
         var uuid: MergeOwners.UUID?
         var headerRows = 0
+        var headerColumns = 0
+        var footerRows = 0
         /// Gives every row and column a UUID, as Numbers does.
         var hasIdentifiers = false
         /// Borders down the left of columns, over rows, by column.
@@ -525,6 +527,8 @@ struct NumbersDocumentBuilder {
             .double(16, 20)
             .double(17, Self.defaultColumnWidth)
         if table.headerRows > 0 { model = model.varint(9, table.headerRows) }
+        if table.headerColumns > 0 { model = model.varint(10, table.headerColumns) }
+        if table.footerRows > 0 { model = model.varint(11, table.footerRows) }
         if table.hasIdentifiers {
             model = model.message(46, Self.reference(addIdentifiers(rows: table.rowCount ?? table.rows.count, columns: columnCount)))
         }

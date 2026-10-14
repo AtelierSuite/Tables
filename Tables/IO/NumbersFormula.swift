@@ -8,9 +8,15 @@ import Foundation
 /// absolute, and name another table by its UUID.
 ///
 /// Only what both apps mean the same way is translated. A formula with
-/// anything else — a function Tables doesn't have, a whole column, a header
-/// name, a duration — isn't read as a formula at all: the cell keeps the
-/// result Numbers calculated, and is left as Numbers wrote it.
+/// anything else — a function Tables doesn't have, a header name, a
+/// duration — isn't read as a formula at all: the cell keeps the result
+/// Numbers calculated, and is left as Numbers wrote it.
+///
+/// A whole column, `B` in Numbers, is `B:B` here, and a whole row `3:3`.
+/// Numbers means by one its table's body alone, leaving out the header and
+/// footer rows or the header columns; so does Tables on a sheet read from
+/// Numbers, which knows its table's edges. The reference stays whole as rows
+/// come and go, reaching every row of the body as Numbers' does.
 enum NumbersFormula {
     /// The tables a formula can refer to, by the UUID Numbers knows each by,
     /// and the one it is in.
@@ -147,8 +153,14 @@ enum NumbersFormula {
         struct Operand {
             var text: String
             var precedence: Int
-            /// The reference it is, for joining two into a range.
-            var reference: (table: MergeOwners.UUID?, cell: String)?
+            /// The reference it is, for joining two into a range: a cell, or
+            /// a whole column or row by its letters or number alone.
+            var reference: (table: MergeOwners.UUID?, cell: String, line: Line?)?
+        }
+
+        /// What a reference with only a column or only a row names.
+        enum Line {
+            case column, row
         }
 
         let context: Context
@@ -270,10 +282,24 @@ enum NumbersFormula {
         // MARK: References
 
         private mutating func cellReference(_ node: ProtobufMessage) -> Bool {
-            // A reference with only a row or a column names all of it, which
-            // Numbers takes to mean its body rows or columns alone.
-            guard let column = node.message(Field.column), let row = node.message(Field.row) else { return false }
             let table = MergeOwners.UUID(words: node.message(Field.crossTable)?.message(1))
+            // A reference with only a column or a row names all of it, which
+            // Numbers takes to mean its body rows or columns alone, as Tables
+            // does on a table read from Numbers.
+            let column = node.message(Field.column), row = node.message(Field.row)
+            if let column, row == nil {
+                let absolute = column.bool(2)
+                let index = absolute ? zigzag(column.uint(1)) : context.host.column + zigzag(column.uint(1))
+                guard index >= 0, index <= SheetLimits.maxColumn else { return false }
+                return pushReference((absolute ? "$" : "") + CellAddress.columnName(index), table: table, line: .column)
+            }
+            if let row, column == nil {
+                let absolute = row.bool(2)
+                let index = absolute ? zigzag(row.uint(1)) : context.host.row + zigzag(row.uint(1))
+                guard index >= 0, index <= SheetLimits.maxRow else { return false }
+                return pushReference((absolute ? "$" : "") + String(index + 1), table: table, line: .row)
+            }
+            guard let column, let row else { return false }
             let columnAbsolute = column.bool(2), rowAbsolute = row.bool(2)
             let address = CellAddress(
                 row: rowAbsolute ? zigzag(row.uint(1)) : context.host.row + zigzag(row.uint(1)),
@@ -284,9 +310,12 @@ enum NumbersFormula {
             return pushReference(cell, table: table)
         }
 
-        private mutating func pushReference(_ cell: String, table: MergeOwners.UUID?) -> Bool {
+        /// Pushes a reference: a cell or range, or a whole column or row,
+        /// written as the range of it alone.
+        private mutating func pushReference(_ cell: String, table: MergeOwners.UUID?, line: Line? = nil) -> Bool {
             guard let prefix = sheetPrefix(table) else { return false }
-            stack.append(Operand(text: prefix + cell, precedence: Self.atom, reference: (table, cell)))
+            let text = line == nil ? cell : cell + ":" + cell
+            stack.append(Operand(text: prefix + text, precedence: Self.atom, reference: (table, cell, line)))
             return true
         }
 
@@ -300,9 +329,12 @@ enum NumbersFormula {
 
         private mutating func colon() -> Bool {
             guard let right = stack.popLast(), let left = stack.popLast() else { return false }
-            if let start = left.reference, let end = right.reference, start.table == end.table {
+            if let start = left.reference, let end = right.reference, start.table == end.table, start.line == end.line {
                 return pushReference(start.cell + ":" + end.cell, table: start.table)
             }
+            // A whole column or row joined to anything but another of its
+            // kind has no way to be written.
+            if left.reference?.line != nil || right.reference?.line != nil { return false }
             push(parenthesized(left, below: Self.atom) + ":" + parenthesized(right, below: Self.atom), Self.atom)
             return true
         }
@@ -524,6 +556,15 @@ enum NumbersFormula {
         private mutating func writeCell(
             _ address: CellAddress, rowAbsolute: Bool, columnAbsolute: Bool, sheet: String?
         ) throws {
+            try writeReference(column: address.column, columnAbsolute: columnAbsolute,
+                               row: address.row, rowAbsolute: rowAbsolute, sheet: sheet)
+        }
+
+        /// A reference to a cell, or with only a column or a row, to all of
+        /// it.
+        private mutating func writeReference(
+            column: Int?, columnAbsolute: Bool, row: Int?, rowAbsolute: Bool, sheet: String?
+        ) throws {
             let table = try table(for: sheet)
             func coordinate(_ value: Int, absolute: Bool) -> ProtobufMessage {
                 var coordinate = ProtobufMessage()
@@ -532,23 +573,46 @@ enum NumbersFormula {
                 coordinate.set(2, bool: absolute)
                 return coordinate
             }
-            let column = coordinate(
-                columnAbsolute ? address.column : address.column - context.host.column, absolute: columnAbsolute)
-            let row = coordinate(rowAbsolute ? address.row : address.row - context.host.row, absolute: rowAbsolute)
+            let columnCoordinate = column.map {
+                coordinate(columnAbsolute ? $0 : $0 - context.host.column, absolute: columnAbsolute)
+            }
+            let rowCoordinate = row.map { coordinate(rowAbsolute ? $0 : $0 - context.host.row, absolute: rowAbsolute) }
             let crossTable = table.map(crossTable)
             append(NodeType.cellReference) {
-                $0.set(Field.column, message: column)
-                $0.set(Field.row, message: row)
+                if let columnCoordinate { $0.set(Field.column, message: columnCoordinate) }
+                if let rowCoordinate { $0.set(Field.row, message: rowCoordinate) }
                 if let crossTable { $0.set(Field.crossTable, message: crossTable) }
             }
+        }
+
+        /// Whole columns or rows, each end a reference with only its column
+        /// or row, joined into a range when there are several. Numbers takes
+        /// them to mean its table's body alone, as Tables does on a sheet
+        /// read from Numbers.
+        private mutating func writeLines(
+            _ start: CellAddress, _ end: CellAddress, anchors: [(column: Bool, row: Bool)], sheet: String?
+        ) throws {
+            let columns = start.row == 0 && end.row == SheetLimits.maxRow
+            let rows = start.column == 0 && end.column == SheetLimits.maxColumn
+            guard columns != rows else { throw Unwritable() }
+            // The `$` before a row number is the row's.
+            let first = anchors.first?.column ?? false
+            let last = anchors.count > 1 ? anchors[1].column : first
+            let ends = columns ? [start.column, end.column] : [start.row, end.row]
+            let single = ends[0] == ends[1]
+            for (index, absolute) in zip(single ? [ends[0]] : ends, [first, last]) {
+                try writeReference(column: columns ? index : nil, columnAbsolute: columns && absolute,
+                                   row: rows ? index : nil, rowAbsolute: rows && absolute, sheet: sheet)
+            }
+            if !single { append(NodeType.colon) }
         }
 
         private mutating func writeRange(
             _ start: CellAddress, _ end: CellAddress, anchors: [(column: Bool, row: Bool)], sheet: String?
         ) throws {
-            // Whole rows and columns mean a table's body in Numbers, not
-            // every cell as they do here.
-            guard end.row < SheetLimits.maxRow, end.column < SheetLimits.maxColumn else { throw Unwritable() }
+            if end.row >= SheetLimits.maxRow || end.column >= SheetLimits.maxColumn {
+                return try writeLines(start, end, anchors: anchors, sheet: sheet)
+            }
             let table = try table(for: sheet)
             let begin = anchors.first ?? (false, false)
             let finish = anchors.count > 1 ? anchors[1] : begin

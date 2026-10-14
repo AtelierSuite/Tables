@@ -125,6 +125,9 @@ protocol FormulaContext: AnyObject {
     /// The cells a structured reference names. A nil table means the table
     /// holding the formula's own cell.
     func structuredReference(table: String?, specifier: String, at address: CellAddress?) -> FormulaReference?
+    /// The header and footer rows and header columns a whole column or row
+    /// of the sheet leaves out, for a table read from Numbers.
+    func tableEdges(forSheetNamed name: String?) -> TableEdges?
 }
 
 extension FormulaContext {
@@ -142,6 +145,7 @@ extension FormulaContext {
     func spillRange(anchoredAt _: CellAddress, sheetName _: String?) -> CellRange? { nil }
     func columnWidth(_: Int, sheetName _: String?) -> Double? { nil }
     func structuredReference(table _: String?, specifier _: String, at _: CellAddress?) -> FormulaReference? { nil }
+    func tableEdges(forSheetNamed _: String?) -> TableEdges? { nil }
 }
 
 struct FormulaEvaluator {
@@ -186,7 +190,8 @@ struct FormulaEvaluator {
             return .scalar(context.value(at: address, sheetName: sheet))
 
         case .range(let sheet, let start, let end):
-            return matrix(sheet: sheet, start: start, end: end)
+            let range = bodyRange(sheet: sheet, CellRange(start: start, end: end))
+            return matrix(sheet: sheet, start: range.start, end: range.end)
 
         case .sheetSpan(let first, let last, let start, let end):
             guard let sheets = context.sheetNames(from: first, to: last) else { return .failure(.referenceError) }
@@ -301,7 +306,7 @@ struct FormulaEvaluator {
         case .reference(let sheet, let address):
             return FormulaReference(sheet: sheet, address: address)
         case .range(let sheet, let start, let end):
-            return FormulaReference(sheet: sheet, range: CellRange(start: start, end: end))
+            return FormulaReference(sheet: sheet, range: bodyRange(sheet: sheet, CellRange(start: start, end: end)))
         case .definedName(let sheet, let name):
             if sheet == nil, let binding = scope[name.lowercased()] { return binding.reference }
             if let named = context.definedNameReference(name, sheetName: sheet) { return named }
@@ -398,6 +403,26 @@ struct FormulaEvaluator {
             return .scalar(context.value(at: reference.range.start, sheetName: reference.sheet))
         }
         return matrix(sheet: reference.sheet, start: reference.range.start, end: reference.range.end)
+    }
+
+    /// A range as its sheet means it. On a table read from Numbers a whole
+    /// column covers the body rows alone, below the header rows and above
+    /// the footer rows, and a whole row the columns after the header
+    /// columns, as they do in Numbers; anywhere else a range is as written.
+    func bodyRange(sheet: String?, _ range: CellRange) -> CellRange {
+        let box = range.normalized
+        guard let edges = context.tableEdges(forSheetNamed: sheet),
+              let extent = context.bounds(forSheetNamed: sheet) else { return range }
+        var body = box
+        if box.start.row == 0, box.end.row == SheetLimits.maxRow {
+            body.start.row = edges.headerRows
+            body.end.row = max(edges.headerRows, extent.rows - 1 - edges.footerRows)
+        }
+        if box.start.column == 0, box.end.column == SheetLimits.maxColumn {
+            body.start.column = edges.headerColumns
+            body.end.column = max(edges.headerColumns, extent.columns - 1)
+        }
+        return body == box ? range : body
     }
 
     /// Materializes a range.

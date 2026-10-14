@@ -107,6 +107,10 @@ enum NumbersReader {
                 let name = models.count == 1 || tableName.isEmpty ? sheetName : "\(sheetName) – \(tableName)"
                 worksheet.name = workbook.uniqueSheetName(basedOn: name)
                 worksheet.origins = SheetOrigins()
+                worksheet.tableEdges = TableEdges(
+                    headerRows: model.message.int(9) ?? 0, footerRows: model.message.int(11) ?? 0,
+                    headerColumns: model.message.int(10) ?? 0
+                )
                 workbook.sheets.append(worksheet)
                 readers[worksheet.id] = reader
                 tables[worksheet.id] = NumbersSource.Table(

@@ -203,7 +203,7 @@ struct NumbersWriterTests {
         let (workbook, source) = try NumbersReader.document(from: budget())
 
         var formula = workbook
-        formula.sheets[0][CellAddress(a1: "C1")!] = Cell(value: .number(2), formula: "SUM(A:A)")
+        formula.sheets[0][CellAddress(a1: "C1")!] = Cell(value: .number(2), formula: "LET(x,1,x)")
         #expect(throws: NumbersEditPolicy.Violation.formula) { try save(formula, source) }
 
         var overwritten = workbook
@@ -243,7 +243,7 @@ struct NumbersEditPolicyTests {
         let (workbook, source) = try document()
         var edited = workbook
         edited.sheets[0][CellAddress(a1: "A1")!] = Cell(value: .text("Kept"))
-        edited.sheets[0][CellAddress(a1: "A2")!] = Cell(value: .number(2), formula: "SUM(A:A)")
+        edited.sheets[0][CellAddress(a1: "A2")!] = Cell(value: .number(2), formula: "LET(x,1,x)")
         edited.sheets[0][CellAddress(a1: "B1")!] = Cell(value: .number(9))
         let (result, violation) = NumbersEditPolicy.reconcile(edited, from: workbook, source: source)
         #expect(result.sheets[0][CellAddress(a1: "A1")!].value == .text("Kept"))

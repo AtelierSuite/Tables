@@ -291,6 +291,10 @@ final class CalculationEngine: FormulaContext {
         return (rows, columns)
     }
 
+    func tableEdges(forSheetNamed name: String?) -> TableEdges? {
+        resolveSheetIndex(name).flatMap { workbook.sheets[$0].tableEdges }
+    }
+
     func spillRange(anchoredAt address: CellAddress, sheetName: String?) -> CellRange? {
         guard let index = resolveSheetIndex(sheetName),
               workbook.sheets[index].cells[address]?.formula != nil else { return nil }
