@@ -62,6 +62,19 @@ struct WorksheetStructureTests {
         #expect(sheet[CellAddress(a1: "D1")!].formula == "#REF!+A4")
     }
 
+    @Test("References follow the sheet they name, from any sheet")
+    func referencesAcrossSheets() {
+        var workbook = Workbook()
+        workbook.sheets = [grid(), Worksheet(name: "Q1 Sales")]
+        workbook.sheets[0][CellAddress(a1: "D1")!] = Cell(value: .empty, formula: "A3+'Q1 Sales'!A3+'Sheet 1'!A4:A5")
+        workbook.sheets[1][CellAddress(a1: "A1")!] = Cell(value: .empty, formula: "'Sheet 1'!A3:B4+SUM('sheet 1'!2:3)+A3+'It''s'!A3")
+        let snapshot = workbook
+        workbook.sheets[0].insertRows(1, at: 1)
+        workbook.chartsFollow(.insert(index: 1, count: 1), axis: .row, on: workbook.sheets[0].id, before: snapshot)
+        #expect(workbook.sheets[0][CellAddress(a1: "D1")!].formula == "A4+'Q1 Sales'!A3+'Sheet 1'!A5:A6")
+        #expect(workbook.sheets[1][CellAddress(a1: "A1")!].formula == "'Sheet 1'!A4:B5+SUM('sheet 1'!3:4)+A3+'It''s'!A3")
+    }
+
     @Test("Column insert and delete shift the other axis")
     func columns() {
         var sheet = grid()

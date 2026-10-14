@@ -34,11 +34,25 @@ enum FormulaReferenceShifter {
         return result
     }
 
-    /// Applies an operation to every formula in a cell table.
-    static func apply(_ operation: Operation, axis: Axis, to cells: inout [CellAddress: Cell]) {
+    /// The sheet whose rows or columns moved, so only references into it
+    /// follow: those naming it, and, in formulas on it, those naming no
+    /// sheet.
+    struct Scope {
+        var sheet: String
+        /// The sheet the formulas are on.
+        var host: String
+
+        func covers(_ name: String?) -> Bool {
+            (name ?? host).caseInsensitiveCompare(sheet) == .orderedSame
+        }
+    }
+
+    /// Applies an operation to every formula in a cell table, or to the
+    /// references `scope` covers.
+    static func apply(_ operation: Operation, axis: Axis, to cells: inout [CellAddress: Cell], scope: Scope? = nil) {
         for (address, cell) in cells {
             guard let formula = cell.formula else { continue }
-            let rewritten = rewrite(formula, operation: operation, axis: axis)
+            let rewritten = rewrite(formula, operation: operation, axis: axis, scope: scope)
             guard rewritten != formula else { continue }
             var updated = cell
             updated.formula = rewritten
@@ -46,11 +60,19 @@ enum FormulaReferenceShifter {
         }
     }
 
-    static func rewrite(_ formula: String, operation: Operation, axis: Axis) -> String {
+    static func rewrite(_ formula: String, operation: Operation, axis: Axis, scope: Scope? = nil) -> String {
         let characters = Array(formula)
         var result = ""
         var index = 0
         var quote: Character?
+        /// Where the last reference ended and the sheet it named.
+        var last: (end: Int, sheet: String?)?
+        func sheet(at start: Int) -> String? {
+            if let name = sheetName(before: start, in: characters) { return name }
+            // A range's far end is on the sheet its near end names.
+            if start > 0, characters[start - 1] == ":", let last, last.end == start - 1 { return last.sheet }
+            return nil
+        }
 
         while index < characters.count {
             let character = characters[index]
@@ -90,7 +112,10 @@ enum FormulaReferenceShifter {
             }
 
             if let span = scanLineSpan(characters, from: index) {
-                result += transform(span, operation: operation, axis: axis)
+                let name = sheet(at: index)
+                result += scope?.covers(name) ?? true
+                    ? transform(span, operation: operation, axis: axis) : String(characters[index..<span.endIndex])
+                last = (span.endIndex, name)
                 index = span.endIndex
                 continue
             }
@@ -105,7 +130,10 @@ enum FormulaReferenceShifter {
                 let isSuffixOfWord = previous.isLetter || previous.isNumber || previous == "_"
 
                 if !isFunctionName, !isSuffixOfWord {
-                    result += transform(token, operation: operation, axis: axis)
+                    let name = sheet(at: index)
+                    result += scope?.covers(name) ?? true
+                        ? transform(token, operation: operation, axis: axis) : String(characters[index..<token.end])
+                    last = (token.end, name)
                     index = token.end
                     continue
                 }
@@ -121,6 +149,32 @@ enum FormulaReferenceShifter {
     }
 
     // MARK: - Reference scanning
+
+    /// The sheet named in front of a reference starting at `start`, as in
+    /// `Sheet1!A1` or `'Q1 Sales'!A1`.
+    private static func sheetName(before start: Int, in characters: [Character]) -> String? {
+        guard start > 1, characters[start - 1] == "!" else { return nil }
+        var index = start - 2
+        var name: [Character] = []
+        if characters[index] == "'" {
+            index -= 1
+            while index >= 0 {
+                if characters[index] == "'" {
+                    // A quote inside the name is written twice.
+                    guard index > 0, characters[index - 1] == "'" else { return String(name.reversed()) }
+                    index -= 1
+                }
+                name.append(characters[index])
+                index -= 1
+            }
+            return nil
+        }
+        while index >= 0, characters[index].isLetter || characters[index].isNumber || "_.".contains(characters[index]) {
+            name.append(characters[index])
+            index -= 1
+        }
+        return name.isEmpty ? nil : String(name.reversed())
+    }
 
     private struct ReferenceToken {
         var columnAnchored: Bool

@@ -470,13 +470,20 @@ extension PreservedDrawingAnchor {
 }
 
 extension Workbook {
-    /// Lets every chart and form control in the workbook follow rows or
-    /// columns inserted into or removed from one sheet. The sheet's own
-    /// structure must already have changed; this only touches what reads it.
+    /// Lets every chart, form control and formula on another sheet in the
+    /// workbook follow rows or columns inserted into or removed from one
+    /// sheet. The sheet's own structure must already have changed; this only
+    /// touches what reads it.
     mutating func chartsFollow(
         _ operation: FormulaReferenceShifter.Operation, axis: FormulaReferenceShifter.Axis,
         on sheetID: Worksheet.ID, before snapshot: Workbook
     ) {
+        if let name = sheets.first(where: { $0.id == sheetID })?.name {
+            for sheetIndex in sheets.indices where sheets[sheetIndex].id != sheetID {
+                let scope = FormulaReferenceShifter.Scope(sheet: name, host: sheets[sheetIndex].name)
+                FormulaReferenceShifter.apply(operation, axis: axis, to: &sheets[sheetIndex].cells, scope: scope)
+            }
+        }
         for sheetIndex in sheets.indices {
             for chartIndex in sheets[sheetIndex].charts.indices {
                 sheets[sheetIndex].charts[chartIndex].follow(operation, axis: axis, on: sheetID, in: snapshot)

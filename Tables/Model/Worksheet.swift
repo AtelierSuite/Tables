@@ -311,10 +311,17 @@ struct Worksheet: Identifiable, Hashable, Sendable {
         columnCount += added
     }
 
+    /// The sheet's own references, which follow its rows and columns: those
+    /// naming no sheet or this one. Other sheets' follow through the
+    /// workbook.
+    private var ownScope: FormulaReferenceShifter.Scope {
+        FormulaReferenceShifter.Scope(sheet: name, host: name)
+    }
+
     mutating func insertRows(_ count: Int, at index: Int) {
         let count = max(1, count)
         guard rowCount + count <= Self.maximumRowCount else { return }
-        FormulaReferenceShifter.apply(.insert(index: index, count: count), axis: .row, to: &cells)
+        FormulaReferenceShifter.apply(.insert(index: index, count: count), axis: .row, to: &cells, scope: ownScope)
         remapCells { $0.row >= index ? CellAddress(row: $0.row + count, column: $0.column) : $0 }
         rowHeights = Self.shift(rowHeights, from: index, by: count)
         fittedRows = Self.shift(fittedRows, from: index, by: count)
@@ -328,7 +335,7 @@ struct Worksheet: Identifiable, Hashable, Sendable {
     mutating func insertColumns(_ count: Int, at index: Int) {
         let count = max(1, count)
         guard columnCount + count <= Self.maximumColumnCount else { return }
-        FormulaReferenceShifter.apply(.insert(index: index, count: count), axis: .column, to: &cells)
+        FormulaReferenceShifter.apply(.insert(index: index, count: count), axis: .column, to: &cells, scope: ownScope)
         remapCells { $0.column >= index ? CellAddress(row: $0.row, column: $0.column + count) : $0 }
         columnWidths = Self.shift(columnWidths, from: index, by: count)
         hiddenColumns = Self.shift(hiddenColumns, from: index, by: count)
@@ -341,7 +348,7 @@ struct Worksheet: Identifiable, Hashable, Sendable {
     mutating func removeRows(_ range: ClosedRange<Int>) {
         let count = range.count
         guard rowCount - count >= 1 else { return }
-        FormulaReferenceShifter.apply(.remove(range: range), axis: .row, to: &cells)
+        FormulaReferenceShifter.apply(.remove(range: range), axis: .row, to: &cells, scope: ownScope)
         cells = cells.filter { !range.contains($0.key.row) }
         comments = comments.filter { !range.contains($0.key.row) }
         remapCells { $0.row > range.upperBound ? CellAddress(row: $0.row - count, column: $0.column) : $0 }
@@ -357,7 +364,7 @@ struct Worksheet: Identifiable, Hashable, Sendable {
     mutating func removeColumns(_ range: ClosedRange<Int>) {
         let count = range.count
         guard columnCount - count >= 1 else { return }
-        FormulaReferenceShifter.apply(.remove(range: range), axis: .column, to: &cells)
+        FormulaReferenceShifter.apply(.remove(range: range), axis: .column, to: &cells, scope: ownScope)
         cells = cells.filter { !range.contains($0.key.column) }
         comments = comments.filter { !range.contains($0.key.column) }
         remapCells { $0.column > range.upperBound ? CellAddress(row: $0.row, column: $0.column - count) : $0 }
