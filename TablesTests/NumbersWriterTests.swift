@@ -801,13 +801,27 @@ struct NumbersFormattingTests {
         #expect(style.borders.isEmpty)
     }
 
+    @Test("Only the formatting a table can keep is offered for it")
+    func offeredFormatting() throws {
+        var table = try #require(document().1.tables.values.first)
+        #expect(NumbersEditPolicy.formatting(in: table) == [.numberFormats, .styles])
+        table.canFormat = false
+        #expect(NumbersEditPolicy.formatting(in: table) == .numberFormats)
+        table.hasUnmergedChanges = true
+        #expect(NumbersEditPolicy.formatting(in: table).isEmpty)
+        table.hasUnmergedChanges = false
+        table.isPivot = true
+        #expect(NumbersEditPolicy.formatting(in: table).isEmpty)
+    }
+
     @Test("Formatting made through the editor is saved where it's offered, and not made where it isn't")
     @MainActor
     func formattingThroughTheEditor() throws {
         let (workbook, source) = try document()
+        let table = try #require(source.tables.values.first)
         let state = EditorState()
         state.activeSheetID = workbook.sheets[0].id
-        state.formatting = [.numberFormats, .styles]
+        state.formatting = NumbersEditPolicy.formatting(in: table)
         state.select(CellAddress(a1: "B2")!, in: workbook.sheets[0])
         var edited = workbook
         state.toggleBold(in: &edited)

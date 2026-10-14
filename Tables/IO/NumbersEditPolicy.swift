@@ -200,6 +200,15 @@ enum NumbersEditPolicy {
         return table.uuid.map(references.contains) ?? true
     }
 
+    /// The formatting a table keeps: number formats, and the styles
+    /// `NumbersStyles` can write where the table has a list of styles to keep
+    /// them in. A pivot table is Numbers' own to format, and one
+    /// collaboration left unmerged takes no changes at all.
+    static func formatting(in table: NumbersSource.Table) -> FormattingKinds {
+        if table.isPivot || table.hasUnmergedChanges { return [] }
+        return table.canFormat ? [.numberFormats, .styles] : .numberFormats
+    }
+
     /// Whether the rows and columns shown or hidden since the table was read
     /// can be: those Numbers knows by a UUID, and hidden by hand rather than
     /// by a filter or a pivot table.

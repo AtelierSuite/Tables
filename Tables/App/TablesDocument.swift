@@ -58,10 +58,12 @@ struct TablesDocument: FileDocument {
     }
 
     /// The formatting a sheet keeps: none in delimited text, and in a Numbers
-    /// document only what `NumbersStyles` can save.
+    /// document only what `NumbersEditPolicy` can save.
     func formatting(in sheetID: Worksheet.ID?) -> FormattingKinds {
         if isPlainText { return [] }
-        return isNumbers ? [.numberFormats, .styles] : .all
+        guard let source = numbersSource else { return .all }
+        guard let sheetID, let table = source.tables[sheetID] else { return [] }
+        return NumbersEditPolicy.formatting(in: table)
     }
 
     /// What the opened file used that Tables cannot edit. Empty for anything we
