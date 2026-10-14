@@ -48,7 +48,7 @@ struct CellMenuBuilder {
                 state.paste(in: &workbook.wrappedValue)
             },
         ]
-        if state.allowsFormatting {
+        if state.allowsComments {
             actions.append(.separator)
             if activeSheet.comments[address] != nil {
                 actions += [
@@ -71,7 +71,11 @@ struct CellMenuBuilder {
                     },
                 ]
             }
+        }
+        if state.formatting.contains(.merging) {
             actions += mergeActions()
+        }
+        if !state.formatting.isEmpty {
             actions += [
                 .separator,
                 HeaderMenuAction(

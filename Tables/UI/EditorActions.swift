@@ -97,7 +97,7 @@ extension EditorState {
     }
 
     func clearFormatting(in workbook: inout Workbook) {
-        guard allowsFormatting else { return }
+        guard !formatting.isEmpty else { return }
         let index = activeIndex(in: workbook)
         for address in selectedStoredAddresses(in: workbook.sheets[index]) {
             var cell = workbook.sheets[index][address]
@@ -149,7 +149,7 @@ extension EditorState {
     }
 
     func applyStyle(in workbook: inout Workbook, _ transform: (inout CellStyle) -> Void) {
-        guard allowsFormatting else { return }
+        guard !formatting.isEmpty else { return }
         let index = activeIndex(in: workbook)
 
         // A cell the sheet never stored has the default style, so a change that
@@ -176,21 +176,25 @@ extension EditorState {
     }
 
     func toggleBold(in workbook: inout Workbook) {
+        guard formatting.contains(.styles) else { return }
         let target = !representativeStyle(in: workbook).isBold
         applyStyle(in: &workbook) { $0.isBold = target }
     }
 
     func toggleItalic(in workbook: inout Workbook) {
+        guard formatting.contains(.styles) else { return }
         let target = !representativeStyle(in: workbook).isItalic
         applyStyle(in: &workbook) { $0.isItalic = target }
     }
 
     func toggleUnderline(in workbook: inout Workbook) {
+        guard formatting.contains(.styles) else { return }
         let target = !representativeStyle(in: workbook).isUnderlined
         applyStyle(in: &workbook) { $0.isUnderlined = target }
     }
 
     func toggleStrikethrough(in workbook: inout Workbook) {
+        guard formatting.contains(.styles) else { return }
         let target = !representativeStyle(in: workbook).isStruckThrough
         applyStyle(in: &workbook) { $0.isStruckThrough = target }
     }

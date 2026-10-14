@@ -26,6 +26,23 @@ enum EditorPanel: String, Identifiable, Hashable {
     }
 }
 
+/// The kinds of formatting a document keeps, each offered only where it can
+/// be saved.
+struct FormattingKinds: OptionSet, Hashable, Sendable {
+    let rawValue: Int
+
+    static let numberFormats = FormattingKinds(rawValue: 1 << 0)
+    /// Bold, italic, underline, strikethrough, text sizes and colours, fills,
+    /// alignment and wrapping.
+    static let styles = FormattingKinds(rawValue: 1 << 1)
+    static let borders = FormattingKinds(rawValue: 1 << 2)
+    static let indents = FormattingKinds(rawValue: 1 << 3)
+    static let rotation = FormattingKinds(rawValue: 1 << 4)
+    static let merging = FormattingKinds(rawValue: 1 << 5)
+
+    static let all: FormattingKinds = [.numberFormats, .styles, .borders, .indents, .rotation, .merging]
+}
+
 /// Everything about the editing session that isn't part of the document itself.
 @MainActor
 @Observable
@@ -68,8 +85,13 @@ final class EditorState {
     var presentedPanel: EditorPanel?
     /// The kind of comment the comment panel starts when a cell has none.
     var newCommentKind: CellComment.Kind = .thread
-    /// False for delimited text, which has nowhere to keep styling.
-    var allowsFormatting = true
+    /// What formatting the active sheet keeps: none for delimited text, which
+    /// has nowhere to keep styling, and in a Numbers document only what can be
+    /// saved back into it.
+    var formatting = FormattingKinds.all
+    /// False for delimited text and Numbers documents, which have nowhere to
+    /// keep comments and notes.
+    var allowsComments = true
     /// False for a Numbers table that something Tables can't move along with
     /// its cells depends on — a chart, a filter, a merged cell: inserting or
     /// deleting rows and columns would leave it behind.

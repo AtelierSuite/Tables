@@ -57,6 +57,13 @@ struct TablesDocument: FileDocument {
         return NumbersEditPolicy.canMoveCells(in: table, imported: imported, source: source)
     }
 
+    /// The formatting a sheet keeps: none in delimited text, and in a Numbers
+    /// document only what `NumbersStyles` can save.
+    func formatting(in sheetID: Worksheet.ID?) -> FormattingKinds {
+        if isPlainText { return [] }
+        return isNumbers ? [.numberFormats, .styles] : .all
+    }
+
     /// What the opened file used that Tables cannot edit. Empty for anything we
     /// authored ourselves and for CSV, which has no such features to begin with.
     var unsupportedFeatures: UnsupportedFeatureReport { numbersSource?.features ?? workbook.unsupportedFeatures }

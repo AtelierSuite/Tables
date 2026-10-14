@@ -97,12 +97,13 @@ struct WorkbookView: View {
             Text("Convert.DropMacros.Message")
         }
         .onAppear {
-            state.allowsFormatting = !document.isPlainText && !document.isNumbers
+            state.allowsComments = !document.isPlainText && !document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.sheets.first?.id
                 state.refreshMetrics(in: document.workbook)
             }
             state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)
+            state.formatting = document.formatting(in: state.activeSheetID)
             attachHistory()
         }
         .onChange(of: undoManager) { _, _ in attachHistory() }
@@ -111,6 +112,11 @@ struct WorkbookView: View {
             // CSV holds one sheet; export whichever one the user is looking at.
             document.csvExport.sheetIndex = state.activeIndex(in: document.workbook)
             state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)
+            state.formatting = document.formatting(in: state.activeSheetID)
+            if state.presentedPanel == .format && !state.formatting.contains(.styles)
+                || state.presentedPanel == .numberFormat && !state.formatting.contains(.numberFormats) {
+                state.presentedPanel = nil
+            }
         }
         #if os(iOS)
         .toolbar { editorToolbar }
@@ -253,7 +259,8 @@ struct WorkbookView: View {
             }
             document.isPlainText = false
             document.isMacroEnabled = target == .macroEnabledWorkbook
-            state.allowsFormatting = true
+            state.formatting = document.formatting(in: state.activeSheetID)
+            state.allowsComments = true
         }
     }
 
@@ -449,7 +456,7 @@ struct WorkbookView: View {
     @ToolbarContentBuilder
     private var macToolbar: some ToolbarContent {
         // Delimited text keeps no styling, so there is nothing to format.
-        if state.allowsFormatting {
+        if !state.formatting.isEmpty {
             formattingToolbar
         }
 
@@ -751,9 +758,9 @@ struct WorkbookView: View {
 
         if press.modifiers.contains(.command) {
             switch press.characters.lowercased() {
-            case "b" where state.allowsFormatting: state.toggleBold(in: &document.workbook); return .handled
-            case "i" where state.allowsFormatting: state.toggleItalic(in: &document.workbook); return .handled
-            case "u" where state.allowsFormatting: state.toggleUnderline(in: &document.workbook); return .handled
+            case "b" where state.formatting.contains(.styles): state.toggleBold(in: &document.workbook); return .handled
+            case "i" where state.formatting.contains(.styles): state.toggleItalic(in: &document.workbook); return .handled
+            case "u" where state.formatting.contains(.styles): state.toggleUnderline(in: &document.workbook); return .handled
             case "c": state.copySelection(in: document.workbook); return .handled
             case "x": state.cutSelection(in: &document.workbook); return .handled
             case "v": state.paste(in: &document.workbook); return .handled

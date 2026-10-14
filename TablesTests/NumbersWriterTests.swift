@@ -800,4 +800,41 @@ struct NumbersFormattingTests {
         #expect(style.fontName == workbook.sheets[0][CellAddress(a1: "B2")!].style.fontName)
         #expect(style.borders.isEmpty)
     }
+
+    @Test("Formatting made through the editor is saved where it's offered, and not made where it isn't")
+    @MainActor
+    func formattingThroughTheEditor() throws {
+        let (workbook, source) = try document()
+        let state = EditorState()
+        state.activeSheetID = workbook.sheets[0].id
+        state.formatting = [.numberFormats, .styles]
+        state.select(CellAddress(a1: "B2")!, in: workbook.sheets[0])
+        var edited = workbook
+        state.toggleBold(in: &edited)
+        state.applyStyle(in: &edited) { $0.fillColorHex = "FFFF0000" }
+        edited = NumbersEditPolicy.reconcile(edited, from: workbook, source: source).workbook
+        let style = try NumbersReader.document(from: save(edited, source)).0.sheets[0][CellAddress(a1: "B2")!].style
+        #expect(style.isBold && style.fillColorHex == "FFFF0000")
+
+        state.formatting = .numberFormats
+        var unformattable = workbook
+        state.toggleBold(in: &unformattable)
+        #expect(unformattable == workbook)
+        state.applyStyle(in: &unformattable) { $0.numberFormat = NumberFormatPreset.percent.code }
+        #expect(unformattable.sheets[0][CellAddress(a1: "B2")!].style.numberFormat == NumberFormatPreset.percent.code)
+
+        state.formatting = []
+        var plain = workbook
+        state.applyStyle(in: &plain) { $0.numberFormat = NumberFormatPreset.percent.code }
+        #expect(plain == workbook)
+    }
+
+    @Test("Delimited text offers no formatting, and other workbooks all of it")
+    func documentFormatting() {
+        var document = TablesDocument(workbook: Workbook(sheets: [Worksheet(name: "Sheet1")]))
+        let sheet = document.workbook.sheets[0].id
+        #expect(document.formatting(in: sheet) == .all)
+        document.isPlainText = true
+        #expect(document.formatting(in: sheet).isEmpty)
+    }
 }

@@ -51,19 +51,23 @@ struct FloatingActionBar: View {
         GlassEffectContainer(spacing: 10) {
             HStack(spacing: 10) {
                 // Delimited text keeps no styling, so there is nothing to format.
-                if state.allowsFormatting {
+                if !state.formatting.isEmpty {
                     group {
-                        action("bold", isOn: style.isBold, label: "Toolbar.Bold") {
-                            state.toggleBold(in: &workbook)
+                        if state.formatting.contains(.styles) {
+                            action("bold", isOn: style.isBold, label: "Toolbar.Bold") {
+                                state.toggleBold(in: &workbook)
+                            }
+                            action("italic", isOn: style.isItalic, label: "Toolbar.Italic") {
+                                state.toggleItalic(in: &workbook)
+                            }
+                            action(alignmentSymbol, isOn: false, label: "ActionBar.Alignment") {
+                                cycleAlignment()
+                            }
+                            panelAction("paintpalette", label: "ActionBar.Format", panel: .format)
                         }
-                        action("italic", isOn: style.isItalic, label: "Toolbar.Italic") {
-                            state.toggleItalic(in: &workbook)
+                        if state.formatting.contains(.numberFormats) {
+                            panelAction("number", label: "Toolbar.NumberFormat", panel: .numberFormat)
                         }
-                        action(alignmentSymbol, isOn: false, label: "ActionBar.Alignment") {
-                            cycleAlignment()
-                        }
-                        panelAction("paintpalette", label: "ActionBar.Format", panel: .format)
-                        panelAction("number", label: "Toolbar.NumberFormat", panel: .numberFormat)
                     }
                 }
 

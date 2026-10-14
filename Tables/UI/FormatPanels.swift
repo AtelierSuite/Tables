@@ -118,89 +118,27 @@ struct FormatPanel: View {
                     set: { value in state.applyStyle(in: &workbook) { $0.wrapsText = value } }
                 ))
 
-                LabeledContent("Format.Alignment.Indent") {
-                    HStack(spacing: 12) {
-                        Button {
-                            state.applyStyle(in: &workbook) { $0.indent = max(0, $0.indent - 1) }
-                        } label: {
-                            Image(systemName: "decrease.indent")
-                        }
-                        Text(String(style.indent))
-                            .font(.system(size: 13, weight: .medium))
-                            .frame(minWidth: 26)
-                        Button {
-                            state.applyStyle(in: &workbook) { $0.indent = min(250, $0.indent + 1) }
-                        } label: {
-                            Image(systemName: "increase.indent")
-                        }
-                    }
-                    .buttonStyle(.borderless)
+                // Offered only where they can be saved: a Numbers document
+                // keeps its own indents, rotation, borders and merges.
+                if state.formatting.contains(.indents) {
+                    indentControl
                 }
-
-                Picker("Format.Alignment.Rotation", selection: Binding(
-                    get: { style.textRotation },
-                    set: { value in state.applyStyle(in: &workbook) { $0.textRotation = value } }
-                )) {
-                    // OOXML stores clockwise angles as 90 + the angle.
-                    Text("Format.Rotation.None").tag(0)
-                    Text("Format.Rotation.Up45").tag(45)
-                    Text("Format.Rotation.Up90").tag(90)
-                    Text("Format.Rotation.Down45").tag(135)
-                    Text("Format.Rotation.Down90").tag(180)
-                    Text("Format.Rotation.Stacked").tag(CellStyle.stackedTextRotation)
+                if state.formatting.contains(.rotation) {
+                    rotationPicker
                 }
             }
 
-            Section("Format.Section.Borders") {
-                BorderBoxPicker(style: style) { target in toggle(target) }
-                    .frame(maxWidth: .infinity)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    CarouselCaption(key: "Format.Border.ApplyTo")
-                    BorderScopePicker(scope: $borderScope)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                }
-                .listRowInsets(EdgeInsets())
-
-                VStack(alignment: .leading, spacing: 0) {
-                    BorderLineStylePicker(selection: style.lineStyle(in: borderScope)) { value in
-                        state.applyStyle(in: &workbook) { $0.setLineStyle(value, in: borderScope) }
-                    }
-                    .padding(.top, 8)
-                }
-                .listRowInsets(EdgeInsets())
-
-                VStack(alignment: .leading, spacing: 0) {
-                    SystemColorSwatches(
-                        role: .border,
-                        selectedHex: style.colorHex(in: borderScope),
-                        customColor: Binding(
-                            get: { Color(argbHex: style.colorHex(in: borderScope)) ?? .primary },
-                            set: { newValue in
-                                state.applyStyle(in: &workbook) {
-                                    $0.setColorHex(newValue.argbHex, in: borderScope)
-                                }
-                            }
-                        ),
-                        onSelect: { swatch in
-                            state.applyStyle(in: &workbook) {
-                                $0.setColorHex(swatch.argbHex, in: borderScope)
-                            }
-                        },
-                        onClear: {
-                            state.applyStyle(in: &workbook) { $0.setColorHex(nil, in: borderScope) }
-                        }
-                    )
-                }
-                .listRowInsets(EdgeInsets())
+            if state.formatting.contains(.borders) {
+                bordersSection
             }
 
-            Section("Format.Section.Merge") {
-                Button("Format.Merge.Merge") { state.mergeSelection(in: &workbook) }
-                    .disabled(!state.canMergeSelection(in: workbook))
-                Button("Format.Merge.Unmerge") { state.unmergeSelection(in: &workbook) }
-                    .disabled(!state.canUnmergeSelection(in: workbook))
+            if state.formatting.contains(.merging) {
+                Section("Format.Section.Merge") {
+                    Button("Format.Merge.Merge") { state.mergeSelection(in: &workbook) }
+                        .disabled(!state.canMergeSelection(in: workbook))
+                    Button("Format.Merge.Unmerge") { state.unmergeSelection(in: &workbook) }
+                        .disabled(!state.canUnmergeSelection(in: workbook))
+                }
             }
 
             Section {
@@ -210,6 +148,89 @@ struct FormatPanel: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var indentControl: some View {
+        LabeledContent("Format.Alignment.Indent") {
+            HStack(spacing: 12) {
+                Button {
+                    state.applyStyle(in: &workbook) { $0.indent = max(0, $0.indent - 1) }
+                } label: {
+                    Image(systemName: "decrease.indent")
+                }
+                Text(String(style.indent))
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(minWidth: 26)
+                Button {
+                    state.applyStyle(in: &workbook) { $0.indent = min(250, $0.indent + 1) }
+                } label: {
+                    Image(systemName: "increase.indent")
+                }
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private var rotationPicker: some View {
+        Picker("Format.Alignment.Rotation", selection: Binding(
+            get: { style.textRotation },
+            set: { value in state.applyStyle(in: &workbook) { $0.textRotation = value } }
+        )) {
+            // OOXML stores clockwise angles as 90 + the angle.
+            Text("Format.Rotation.None").tag(0)
+            Text("Format.Rotation.Up45").tag(45)
+            Text("Format.Rotation.Up90").tag(90)
+            Text("Format.Rotation.Down45").tag(135)
+            Text("Format.Rotation.Down90").tag(180)
+            Text("Format.Rotation.Stacked").tag(CellStyle.stackedTextRotation)
+        }
+    }
+
+    private var bordersSection: some View {
+        Section("Format.Section.Borders") {
+            BorderBoxPicker(style: style) { target in toggle(target) }
+                .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 0) {
+                CarouselCaption(key: "Format.Border.ApplyTo")
+                BorderScopePicker(scope: $borderScope)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+            }
+            .listRowInsets(EdgeInsets())
+
+            VStack(alignment: .leading, spacing: 0) {
+                BorderLineStylePicker(selection: style.lineStyle(in: borderScope)) { value in
+                    state.applyStyle(in: &workbook) { $0.setLineStyle(value, in: borderScope) }
+                }
+                .padding(.top, 8)
+            }
+            .listRowInsets(EdgeInsets())
+
+            VStack(alignment: .leading, spacing: 0) {
+                SystemColorSwatches(
+                    role: .border,
+                    selectedHex: style.colorHex(in: borderScope),
+                    customColor: Binding(
+                        get: { Color(argbHex: style.colorHex(in: borderScope)) ?? .primary },
+                        set: { newValue in
+                            state.applyStyle(in: &workbook) {
+                                $0.setColorHex(newValue.argbHex, in: borderScope)
+                            }
+                        }
+                    ),
+                    onSelect: { swatch in
+                        state.applyStyle(in: &workbook) {
+                            $0.setColorHex(swatch.argbHex, in: borderScope)
+                        }
+                    },
+                    onClear: {
+                        state.applyStyle(in: &workbook) { $0.setColorHex(nil, in: borderScope) }
+                    }
+                )
+            }
+            .listRowInsets(EdgeInsets())
+        }
     }
 
     private func styleToggle(
