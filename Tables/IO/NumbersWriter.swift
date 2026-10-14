@@ -94,8 +94,8 @@ enum NumbersWriter {
             try TableWriter(sheet: sheet, imported: imported, table: table, sheetNames: sheetNames).write(into: &patch)
         }
         guard !patch.isEmpty else { return source.entries }
-        patch.countFormulas()
-        if patch.changedValues { patch.markFormulasForRecalculation() }
+        try patch.countFormulas()
+        if patch.changedValues { try patch.markFormulasForRecalculation() }
         try patch.updateMetadata()
         return patch.entries(from: source.entries)
     }
@@ -188,13 +188,13 @@ private struct Patch {
     }
 
     /// Keeps the calculation engine's count of formulas up to date.
-    mutating func countFormulas() {
+    mutating func countFormulas() throws {
         guard formulaCountChange != 0, let engine = calculationEngine, var message = self[engine],
               var tracker = message.message(2) else { return }
         let count = Int(tracker.uint(5) ?? 0) + formulaCountChange
         tracker.set(5, uint: UInt64(max(0, count)))
         message.set(2, message: tracker)
-        try? change(engine, to: message)
+        try change(engine, to: message)
     }
 
     /// Asks Numbers to recalculate every table's formulas when it next opens
@@ -202,7 +202,7 @@ private struct Patch {
     ///
     /// The calculation engine keeps a list of owners — tables, mostly — whose
     /// cells are out of date; every table goes on it.
-    mutating func markFormulasForRecalculation() {
+    mutating func markFormulasForRecalculation() throws {
         guard let engine = calculationEngine,
               let engineMessage = self[engine],
               (engineMessage.message(2)?.uint(5) ?? 0) > 0,
@@ -227,7 +227,7 @@ private struct Patch {
             set.append(1, message: entry)
         }
         list.set(1, message: set)
-        try? change(listIdentifier, to: list)
+        try change(listIdentifier, to: list)
     }
 
     // MARK: - Metadata
@@ -271,7 +271,7 @@ private struct Patch {
         }
         addExternalReferences(to: &components)
         metadata.set(3, messages: components)
-        changes[identifier] = metadata
+        try change(identifier, to: metadata)
     }
 
     /// Lists each reference between objects in different components with

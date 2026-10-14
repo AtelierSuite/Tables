@@ -284,6 +284,47 @@ struct NumbersEditPolicyTests {
         #expect(result == workbook)
         #expect(violation == .structure)
     }
+
+    @Test("Changes to a table collaboration left unmerged are refused as they're made, others kept and saved")
+    func unmergedChanges() throws {
+        var document = NumbersDocumentBuilder()
+        var patched = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("Item"), .number(1, exponent: 0)]])
+        patched.isPatched = true
+        document.addSheet("Shared", tables: [patched])
+        document.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.text("Item"), .number(2, exponent: 0)]])])
+        let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        let address = CellAddress(a1: "B1")!
+
+        var shared = workbook
+        shared.sheets[0][address] = Cell(value: .number(5))
+        let (result, violation) = NumbersEditPolicy.reconcile(shared, from: workbook, source: source)
+        #expect(result == workbook)
+        #expect(violation == .unmergedChanges)
+        var renamed = workbook
+        renamed.sheets[0].name = "Mine"
+        #expect(NumbersEditPolicy.reconcile(renamed, from: workbook, source: source).violation == .unmergedChanges)
+
+        var budget = workbook
+        budget.sheets[1][address] = Cell(value: .number(5))
+        #expect(NumbersEditPolicy.reconcile(budget, from: workbook, source: source).violation == nil)
+        let saved = try NumbersWriter.fileWrapper(for: budget, source: source, existing: nil)
+        let reread = try NumbersReader.workbook(from: try #require(saved.regularFileContents))
+        #expect(reread.sheets[1][address].value == .number(5))
+    }
+
+    @Test("Every change is refused while the calculation engine, which hears of each one, is unmerged")
+    func unmergedEngine() throws {
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [.init(name: "Table 1", rows: [[.text("Item"), .formula(3)]])])
+        document.patchedTypes = [4000]
+        let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        var edited = workbook
+        edited.sheets[0][CellAddress(a1: "A1")!] = Cell(value: .text("Thing"))
+        #expect(NumbersEditPolicy.reconcile(edited, from: workbook, source: source).violation == .unmergedChanges)
+        #expect(throws: NumbersEditPolicy.Violation.unmergedChanges) {
+            try NumbersWriter.fileWrapper(for: edited, source: source, existing: nil)
+        }
+    }
 }
 
 @Suite("Numbers cell storage")

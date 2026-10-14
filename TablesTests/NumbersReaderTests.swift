@@ -307,6 +307,9 @@ struct NumbersDocumentBuilder {
         /// Merges as newer versions record them, with the calculation engine.
         var mergeOwnerRanges: [CellRange] = []
         var isPreBNC = false
+        /// Stores the table's model as collaboration leaves an object it
+        /// hasn't merged: a base and a patch over it.
+        var isPatched = false
         /// Gives the table the UUID formulas in other tables refer to it by.
         var uuid: MergeOwners.UUID?
         var headerRows = 0
@@ -344,6 +347,10 @@ struct NumbersDocumentBuilder {
     private var ownerMapEntries: [ProtobufWriter] = []
     private var formulaCount = 0
     private var tableOwnerCount = 0
+    /// Objects stored as a base and a patch over it.
+    private var patched: Set<UInt64> = []
+    /// Types of object stored that way, wherever they are.
+    var patchedTypes: Set<Int> = []
     private var stylesheet: Styles?
 
     /// The document's styles, made by the first table that has them.
@@ -382,6 +389,7 @@ struct NumbersDocumentBuilder {
 
         // Split across archives, as Numbers splits a document, each listed
         // as a component in the package's metadata.
+        let patched = patched.union(objects.filter { patchedTypes.contains($0.type) }.map(\.identifier))
         let tables = objects.filter { [6002, 6005, 6006, 6144].contains($0.type) }
         let rest = objects.filter { ![6002, 6005, 6006, 6144].contains($0.type) }
         let metadata = ProtobufWriter()
@@ -390,8 +398,8 @@ struct NumbersDocumentBuilder {
             .message(3, ProtobufWriter().varint(1, 10).string(2, "Tables/DataList").varint(12, 5))
             .varint(8, Self.saveToken)
         return try ZipArchive.archive(entries: [
-            ("Index/Document.iwa", Self.archive(rest)),
-            ("Index/Tables/DataList.iwa", Self.archive(tables)),
+            ("Index/Document.iwa", Self.archive(rest, patched: patched)),
+            ("Index/Tables/DataList.iwa", Self.archive(tables, patched: patched)),
             ("Index/Metadata.iwa", Self.archive([(2, 11006, metadata)])),
             ("Data/picture.png", Data([0x89, 0x50, 0x4E, 0x47])),
         ], compressing: false)
@@ -546,6 +554,7 @@ struct NumbersDocumentBuilder {
             model = model.message(84, ProtobufWriter().message(1, addMergeOwner(table.mergeOwnerRanges, base: table.uuid)))
         }
         let modelIdentifier = add(type: 6001, model)
+        if table.isPatched { patched.insert(modelIdentifier) }
         // The table's own formula owner, which the engine knows by number.
         add(type: 4008, ProtobufWriter().varint(2, 100 + tableOwnerCount).varint(3, 1))
         tableOwnerCount += 1
@@ -707,14 +716,20 @@ struct NumbersDocumentBuilder {
 
     /// An `.iwa`: each object behind its `ArchiveInfo`, the lot compressed as
     /// one Snappy block made of a single literal.
-    private static func archive(_ objects: [(identifier: UInt64, type: Int, message: ProtobufWriter)]) -> Data {
+    private static func archive(
+        _ objects: [(identifier: UInt64, type: Int, message: ProtobufWriter)], patched: Set<UInt64> = []
+    ) -> Data {
         var stream = ProtobufWriter()
         for object in objects {
-            let info = ProtobufWriter()
-                .varint(1, object.identifier)
-                .message(2, ProtobufWriter().varint(1, object.type).varint(3, object.message.bytes.count))
-            stream.appendVarint(UInt64(info.bytes.count))
-            stream = ProtobufWriter(bytes: stream.bytes + info.bytes + object.message.bytes)
+            // A patched object is followed by its patch, marked to be merged.
+            for isPatch in patched.contains(object.identifier) ? [false, true] : [false] {
+                var info = ProtobufWriter()
+                    .varint(1, object.identifier)
+                    .message(2, ProtobufWriter().varint(1, object.type).varint(3, object.message.bytes.count))
+                if isPatch { info = info.bool(3, true) }
+                stream.appendVarint(UInt64(info.bytes.count))
+                stream = ProtobufWriter(bytes: stream.bytes + info.bytes + object.message.bytes)
+            }
         }
 
         var block = ProtobufWriter()

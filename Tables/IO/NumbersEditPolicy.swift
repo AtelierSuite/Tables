@@ -22,6 +22,9 @@ enum NumbersEditPolicy {
         /// Rows or columns inserted or deleted where something Tables can't
         /// move would be left behind.
         case movingCells
+        /// A change to a table, or a sheet's name, stored as a base and
+        /// collaboration's patches over it, which saving can't put together.
+        case unmergedChanges
 
         var errorDescription: String? {
             switch self {
@@ -29,6 +32,7 @@ enum NumbersEditPolicy {
             case .protectedCell: return String(localized: "Numbers.Restriction.ProtectedCell")
             case .structure: return String(localized: "Numbers.Restriction.Structure")
             case .movingCells: return String(localized: "Numbers.Restriction.MovingCells")
+            case .unmergedChanges: return String(localized: "Numbers.Restriction.UnmergedChanges")
             }
         }
     }
@@ -137,6 +141,7 @@ enum NumbersEditPolicy {
                   sheet.formControls == previous.formControls else { return .structure }
             if sheet.columnCount > previous.columnCount, sheet.columnCount > maximumColumnCount { return .structure }
             guard let table = source.tables[sheet.id], let imported = source.imported[sheet.id] else { continue }
+            if let violation = unmergedViolation(sheet, from: previous, table: table, source: source) { return violation }
 
             let moved = sheet.origins?.hasMoved ?? false
             if moved || previous.origins?.hasMoved ?? false {
@@ -155,6 +160,22 @@ enum NumbersEditPolicy {
             }
         }
         return nil
+    }
+
+    /// Why a change to a table can't be saved for collaboration's changes
+    /// to what saving it rewrites, if it can't: the table's own objects, or
+    /// for a new name, the sheet's.
+    private static func unmergedViolation(
+        _ sheet: Worksheet, from previous: Worksheet, table: NumbersSource.Table, source: NumbersSource
+    ) -> Violation? {
+        if sheet.name != previous.name,
+           table.hasUnmergedChanges || table.sheetIdentifier.map(source.archive.patchedObjects.contains) ?? false {
+            return .unmergedChanges
+        }
+        guard table.hasUnmergedChanges else { return nil }
+        var renamedBack = sheet
+        renamedBack.name = previous.name
+        return renamedBack == previous ? nil : .unmergedChanges
     }
 
     /// Whether rows and columns can be inserted into and deleted from a

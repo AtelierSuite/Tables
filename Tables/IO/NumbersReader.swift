@@ -85,6 +85,7 @@ enum NumbersReader {
         workbook.sheets = []
         var tables: [Worksheet.ID: NumbersSource.Table] = [:]
         var readers: [Worksheet.ID: TableReader] = [:]
+        let rewrittenByAnySave = objectsRewrittenByAnySave(archive)
         for sheetReference in document.message.messages(1) {
             guard let sheet = archive[sheetReference]?.message else { continue }
             let sheetName = sheet.string(1) ?? ""
@@ -135,7 +136,9 @@ enum NumbersReader {
                     hasHiddenStates: model.message.message(70)?.messages(2).first?.has(3) ?? false,
                     canFormat: model.message.message(4)?.has(5) ?? false
                         && NumbersStyles.Regions(model: model.message).hasBodyStyles,
-                    hasRichText: reader.hasRichText
+                    hasRichText: reader.hasRichText,
+                    hasUnmergedChanges: !objects(rewrittenWith: model.identifier, archive)
+                        .union(rewrittenByAnySave).isDisjoint(with: archive.patchedObjects)
                 )
             }
         }
@@ -234,6 +237,40 @@ enum NumbersReader {
         default:
             return tables == numbers
         }
+    }
+
+    /// The objects saving a change to a table can rewrite: its model, its
+    /// tiles, its lists of strings, styles and formulas, its row and column
+    /// headers, identifiers and borders, and the stylesheet styles made for
+    /// its cells go in.
+    private static func objects(rewrittenWith table: UInt64, _ archive: IWAArchive) -> Set<UInt64> {
+        var objects: Set<UInt64> = [table]
+        guard let model = archive[table]?.message else { return objects }
+        let store = model.message(4)
+        objects.formUnion((store?.message(3)?.messages(1) ?? []).compactMap { $0.message(2)?.uint(1) })
+        objects.formUnion((store?.message(1)?.messages(2) ?? []).compactMap { $0.uint(1) })
+        objects.formUnion([2, 4, 5, 6].compactMap { store?.message($0)?.uint(1) })
+        objects.formUnion([46, 49].compactMap { model.message($0)?.uint(1) })
+        if let borders = archive[model.message(49)]?.message {
+            objects.formUnion((4...7).flatMap { borders.messages($0) }.compactMap { $0.uint(1) })
+        }
+        for field in 18...27 {
+            let style = archive[model.message(field)]?.message.message(NumbersStyles.Number.base)
+            if let stylesheet = style?.message(NumbersStyles.Number.stylesheet)?.uint(1) { objects.insert(stylesheet) }
+        }
+        return objects
+    }
+
+    /// The objects any save may rewrite: the package's metadata, and the
+    /// calculation engine with its list of formulas to work out again, which
+    /// hear of every changed value.
+    private static func objectsRewrittenByAnySave(_ archive: IWAArchive) -> Set<UInt64> {
+        var objects = Set(archive.identifiers(ofType: ObjectType.packageMetadata))
+        for engine in archive.identifiers(ofType: ObjectType.calculationEngine) {
+            objects.insert(engine)
+            if let list = archive[engine]?.message.message(15)?.uint(1) { objects.insert(list) }
+        }
+        return objects
     }
 
     /// What the document has that Tables keeps exactly as it is but can't
@@ -358,6 +395,10 @@ final class NumbersSource: @unchecked Sendable {
         /// Whether any cell holds rich text, whose runs keep their own text
         /// formatting.
         var hasRichText = false
+        /// Whether anything saving a change to the table rewrites is stored
+        /// as a base and collaboration's patches over it, which saving can't
+        /// put back together. Tables reads only the base, too.
+        var hasUnmergedChanges = false
     }
 
     let layout: Layout
