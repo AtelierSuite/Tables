@@ -36,7 +36,8 @@ struct FormulaPlan {
             var sheetForms: [CellAddress: Form] = [:]
             let tables = workbook.tables.filter { $0.sheetID == sheet.id }
             for (address, cell) in sheet.cells {
-                guard let formula = cell.formula else { continue }
+                guard let original = cell.formula else { continue }
+                let formula = Self.writingOutTableBodies(original, on: sheet, in: workbook)
                 let tableName = tables.first { $0.range.contains(address) }?.name
                 func toFile(_ text: String) -> String { FormulaDialect.toFile(text, tableName: tableName) }
                 if let extent = cell.arrayExtent {
@@ -53,6 +54,63 @@ struct FormulaPlan {
             }
             forms[sheet.id] = sheetForms
         }
+    }
+
+    /// A formula with each whole column or row of a table read from Numbers
+    /// written out as the body it covers there: Excel reads a whole column
+    /// as every cell in it, header and footer rows included, and a total in
+    /// the footer would read itself.
+    static func writingOutTableBodies(_ formula: String, on sheet: Worksheet, in workbook: Workbook) -> String {
+        guard workbook.sheets.contains(where: { $0.tableEdges != nil }),
+              let syntax = try? FormulaParser.parseSyntax(formula) else { return formula }
+        let source = Array(formula)
+        var replacements: [(range: Range<Int>, text: String)] = []
+        func visit(_ syntax: FormulaSyntax) {
+            if !syntax.isGroup, case .range(let name, let start, let end) = syntax.node {
+                let target = name.map { name in
+                    workbook.sheets.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+                } ?? sheet
+                if let target, let edges = target.tableEdges,
+                   let text = body(String(source[syntax.range.clamped(to: 0..<source.count)]),
+                                   start: start, end: end, of: target, edges: edges) {
+                    replacements.append((syntax.range, text))
+                }
+            }
+            syntax.children.forEach(visit)
+        }
+        visit(syntax)
+        var result = source
+        for replacement in replacements.sorted(by: { $0.range.lowerBound > $1.range.lowerBound }) {
+            result.replaceSubrange(replacement.range, with: Array(replacement.text))
+        }
+        return String(result)
+    }
+
+    /// The body rows of whole columns, or the body columns of whole rows, as
+    /// a range keeping the sheet and `$` anchors `text` had; nil for any
+    /// other range, or a table without a body.
+    private static func body(
+        _ text: String, start: CellAddress, end: CellAddress, of sheet: Worksheet, edges: TableEdges
+    ) -> String? {
+        let columns = start.row == 0 && end.row == SheetLimits.maxRow
+        let rows = start.column == 0 && end.column == SheetLimits.maxColumn
+        guard columns != rows else { return nil }
+        // A sheet name goes before the last "!".
+        let bang = text.lastIndex(of: "!")
+        let prefix = bang.map { String(text[...$0]) } ?? ""
+        let reference = bang.map { String(text[text.index(after: $0)...]) } ?? text
+        let anchors = reference.split(separator: ":").map { $0.hasPrefix("$") ? "$" : "" }
+        guard anchors.count == 2 else { return nil }
+        if columns {
+            let first = edges.headerRows, last = sheet.rowCount - 1 - edges.footerRows
+            guard first <= last else { return nil }
+            return prefix + anchors[0] + CellAddress.columnName(start.column) + "$\(first + 1):"
+                + anchors[1] + CellAddress.columnName(end.column) + "$\(last + 1)"
+        }
+        let first = edges.headerColumns, last = sheet.columnCount - 1
+        guard first <= last else { return nil }
+        return prefix + "$" + CellAddress.columnName(first) + anchors[0] + "\(start.row + 1):"
+            + "$" + CellAddress.columnName(last) + anchors[1] + "\(end.row + 1)"
     }
 }
 

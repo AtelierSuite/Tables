@@ -535,6 +535,22 @@ struct NumbersWholeLineTests {
         #expect(reread.sheets[0][CellAddress(a1: "A4")!].value == .number(2))
     }
 
+    @Test("Saved as an Excel workbook, a whole column is written out as the body it covers")
+    func exportsBodies() throws {
+        let (workbook, _) = try NumbersReader.document(from: document())
+        let budget = workbook.sheets[0], summary = workbook.sheets[1]
+        #expect(FormulaPlan.writingOutTableBodies("SUM(B:B)", on: budget, in: workbook) == "SUM(B$2:B$3)")
+        #expect(FormulaPlan.writingOutTableBodies("SUM(2:3)*2", on: budget, in: workbook) == "SUM($A2:$B3)*2")
+        #expect(FormulaPlan.writingOutTableBodies("SUM(Budget!$B:$B)+(A:A)", on: summary, in: workbook)
+            == "SUM(Budget!$B$2:$B$3)+(A$1:A$1)")
+        #expect(FormulaPlan.writingOutTableBodies("SUM(B2:B3)", on: budget, in: workbook) == "SUM(B2:B3)")
+
+        let copy = try XLSXReader.workbook(from: XLSXWriter.data(from: workbook))
+        #expect(copy.sheets[0][CellAddress(a1: "B4")!].formula == "SUM(B$2:B$3)")
+        #expect(copy.sheets[0][CellAddress(a1: "B4")!].value == .number(1_500))
+        #expect(copy.sheets[1][CellAddress(a1: "A1")!].value == .number(1_500))
+    }
+
     @Test("On a sheet with a table's edges, whole columns and rows leave out its headers and footers")
     func evaluates() {
         var workbook = Workbook()
