@@ -94,10 +94,10 @@ enum NumbersReader {
             let models = sheet.messages(2)
                 .compactMap { archive[$0] }
                 .filter { $0.type == ObjectType.tableInfo }
-                .compactMap { info -> (identifier: UInt64, message: ProtobufMessage, isPivot: Bool)? in
+                .compactMap { info -> (identifier: UInt64, message: ProtobufMessage, info: ProtobufMessage, isPivot: Bool)? in
                     guard let identifier = info.message.message(2)?.uint(1),
                           let model = archive[identifier]?.message else { return nil }
-                    return (identifier, model, info.message.bool(16))
+                    return (identifier, model, info.message, info.message.bool(16))
                 }
 
             for model in models {
@@ -140,7 +140,10 @@ enum NumbersReader {
                         && NumbersStyles.Regions(model: model.message).hasBodyStyles,
                     hasRichText: reader.hasRichText,
                     hasUnmergedChanges: !objects(rewrittenWith: model.identifier, archive)
-                        .union(rewrittenByAnySave).isDisjoint(with: archive.patchedObjects)
+                        .union(rewrittenByAnySave).isDisjoint(with: archive.patchedObjects),
+                    canvasOrigin: Self.canvasOrigin(of: model.info),
+                    showsName: model.message.bool(TableField.nameShown),
+                    defaultRowHeight: model.message.double(TableField.defaultRowHeight) ?? NumbersSource.defaultRowHeight
                 )
             }
         }
@@ -323,7 +326,21 @@ enum NumbersReader {
         return false
     }
 
+    /// Where a table's top-left corner sits on its sheet, from the geometry
+    /// of the `TST.TableInfoArchive` drawable that places it.
+    private static func canvasOrigin(of info: ProtobufMessage) -> CGPoint? {
+        guard let position = info.message(1)?.message(1)?.message(1),
+              let x = position.float(1), let y = position.float(2) else { return nil }
+        return CGPoint(x: Double(x), y: Double(y))
+    }
+
     // MARK: - Format constants
+
+    /// Fields of a `TST.TableModelArchive` read only for drawing previews.
+    enum TableField {
+        static let nameShown = 22
+        static let defaultRowHeight = 16
+    }
 
     /// The document object always has this identifier.
     static let documentIdentifier: UInt64 = 1
@@ -402,6 +419,12 @@ final class NumbersSource: @unchecked Sendable {
         /// as a base and collaboration's patches over it, which saving can't
         /// put back together. Tables reads only the base, too.
         var hasUnmergedChanges = false
+        /// Where the table sits on its sheet, whether Numbers shows its name
+        /// above it, and how tall its rows are that record no height: what
+        /// drawing the document's previews needs.
+        var canvasOrigin: CGPoint?
+        var showsName = false
+        var defaultRowHeight = NumbersSource.defaultRowHeight
     }
 
     let layout: Layout
@@ -662,6 +685,8 @@ private struct TableReader {
 extension NumbersSource {
     /// Rows per tile when a table doesn't say.
     static let defaultTileSize = 256
+    /// Rows' height when neither they nor their table say, in points.
+    static let defaultRowHeight = 20.0
 
     /// The name of the worksheet each table became, by the UUID formulas
     /// know the table by.

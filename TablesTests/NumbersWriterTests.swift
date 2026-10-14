@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Testing
 @testable import Tables
 
@@ -170,6 +171,69 @@ struct NumbersWriterTests {
         let archive = IWAArchive(entries: Dictionary(entries, uniquingKeysWith: { $1 }))
         let stale = try #require(archive[NumbersDocumentBuilder.staleOwnerListIdentifier]?.message)
         #expect(stale.message(1)?.messages(1).map { $0.uint(1) } == [100])
+    }
+
+    /// A blank JPEG of the given size, standing in for one Numbers drew.
+    private func jpeg(width: Int, height: Int, color: UIColor = .white) throws -> Data {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        }
+        return try #require(image.jpegData(compressionQuality: 0.8))
+    }
+
+    private func pixelSize(_ data: Data?) -> CGSize? {
+        (data.flatMap(UIImage.init(data:))?.cgImage).map { CGSize(width: $0.width, height: $0.height) }
+    }
+
+    @Test("Saving a change draws the previews again, each at its size, keeping any that can't be drawn")
+    func previews() throws {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("Item"), .text("Amount")], [.text("Rent")]])
+        table.columnCount = 2
+        table.headerRows = 1
+        table.hasStyles = true
+        document.addSheet("Budget", tables: [table])
+        let originals = [
+            "preview.jpg": try jpeg(width: 720, height: 552),
+            "preview-web.jpg": try jpeg(width: 173, height: 225, color: .black),
+            "preview-micro.jpg": Data([0xFF, 0xD8]),
+        ]
+        let original = try ZipArchive.archive(
+            entries: ZipArchive.orderedEntries(in: document.singleFile()) + originals.sorted { $0.key < $1.key }.map { ($0.key, $0.value) },
+            compressing: false
+        )
+
+        var (workbook, source) = try NumbersReader.document(from: original)
+        workbook.sheets[0][CellAddress(a1: "B2")!] = Cell(value: .number(1_200))
+        let entries = Dictionary(try ZipArchive.orderedEntries(in: save(workbook, source)), uniquingKeysWith: { $1 })
+
+        for name in ["preview.jpg", "preview-web.jpg"] {
+            #expect(entries[name] != originals[name], "\(name) is drawn again")
+            #expect(entries[name]?.starts(with: [0xFF, 0xD8]) == true, "as a JPEG")
+            #expect(pixelSize(entries[name]) == pixelSize(originals[name]))
+        }
+        #expect(entries["preview-micro.jpg"] == originals["preview-micro.jpg"], "one that can't be read is kept")
+
+        // Drawn in the appearance the original was: a dark canvas stays dark.
+        let web = try #require(entries["preview-web.jpg"].flatMap(UIImage.init(data:))?.cgImage?.cropping(to: CGRect(x: 0, y: 0, width: 1, height: 1)))
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try #require(CGContext(
+            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ))
+        context.draw(web, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        #expect(pixel[0] < 40)
+    }
+
+    @Test("A document without previews is saved without any")
+    func noPreviews() throws {
+        var (workbook, source) = try NumbersReader.document(from: budget())
+        workbook.sheets[0][CellAddress(a1: "B2")!] = Cell(value: .number(7))
+        let paths = try ZipArchive.orderedEntries(in: save(workbook, source)).map(\.path)
+        #expect(!paths.contains { $0.hasPrefix("preview") })
     }
 
     @Test("A package is written back as a package, its other files kept")

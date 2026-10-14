@@ -28,18 +28,38 @@ enum NumbersWriter {
     /// `existing` is the package on disk, when the document is one: its files
     /// other than the index are carried over from it.
     static func fileWrapper(for workbook: Workbook, source: NumbersSource, existing: FileWrapper?) throws -> FileWrapper {
-        guard let entries = try patchedEntries(for: workbook, source: source) else {
+        guard var entries = try patchedEntries(for: workbook, source: source) else {
             return try unchanged(source, existing: existing)
         }
         switch source.layout {
         case .singleFile:
+            // The previews are entries of the archive, like everything else.
+            let originals = Dictionary(
+                entries.filter { NumbersPreview.names.contains($0.path) }, uniquingKeysWith: { first, _ in first }
+            )
+            let previews = NumbersPreview.previews(replacing: originals, workbook: workbook, source: source)
+            entries = entries.map { (path: $0.path, data: previews[$0.path] ?? $0.data) }
             return FileWrapper(regularFileWithContents: try ZipArchive.archive(entries: entries, compressing: false))
         case .packageWithIndexArchive:
             let index = try ZipArchive.archive(entries: entries, compressing: false)
-            return package(from: existing ?? source.package, replacing: ["Index.zip": index])
+            let original = existing ?? source.package
+            return package(from: original, replacing: packagePreviews(of: original, workbook: workbook, source: source)
+                .merging(["Index.zip": index], uniquingKeysWith: { $1 }))
         case .packageWithIndexFolder:
-            return package(from: existing ?? source.package, replacing: Dictionary(entries, uniquingKeysWith: { $1 }))
+            let original = existing ?? source.package
+            return package(from: original, replacing: packagePreviews(of: original, workbook: workbook, source: source)
+                .merging(entries, uniquingKeysWith: { $1 }))
         }
+    }
+
+    /// New previews for those a package keeps at its root.
+    private static func packagePreviews(of package: FileWrapper?, workbook: Workbook, source: NumbersSource) -> [String: Data] {
+        let children = package?.isDirectory == true ? package?.fileWrappers ?? [:] : [:]
+        var originals: [String: Data] = [:]
+        for name in NumbersPreview.names {
+            if let child = children[name], child.isRegularFile, let data = child.regularFileContents { originals[name] = data }
+        }
+        return NumbersPreview.previews(replacing: originals, workbook: workbook, source: source)
     }
 
     /// The document as it was read. Numbers' own archive is written back as
