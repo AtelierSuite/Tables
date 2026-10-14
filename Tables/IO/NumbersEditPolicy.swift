@@ -163,8 +163,20 @@ enum NumbersEditPolicy {
     static func canMoveCells(in table: NumbersSource.Table, imported: Worksheet, source: NumbersSource) -> Bool {
         !source.hasLinkedContent && !table.isPivot && table.rowHeaderBuckets <= 1
             && imported.mergedRanges.isEmpty && imported.hiddenRows.isEmpty && imported.hiddenColumns.isEmpty
-            // A formula Tables can't read can't be told where its cells went.
-            && source.tables.values.allSatisfy { $0.protectedCells.isEmpty }
+            // A formula Tables can't read can't be told where its cells went:
+            // neither the cells it refers to nor its own.
+            && source.tables.values.allSatisfy { other in
+                other.protectedCells.isEmpty
+                    || other.modelIdentifier != table.modelIdentifier && !refers(to: table, from: other)
+            }
+    }
+
+    /// Whether the formulas Tables can't read in `other` may refer to
+    /// `table`'s cells.
+    private static func refers(to table: NumbersSource.Table, from other: NumbersSource.Table) -> Bool {
+        guard let references = other.protectedReferences else { return true }
+        guard !references.isEmpty else { return false }
+        return table.uuid.map(references.contains) ?? true
     }
 
     /// Whether the rows and columns shown or hidden since the table was read

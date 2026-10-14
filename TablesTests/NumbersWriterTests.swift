@@ -431,6 +431,42 @@ struct NumbersMovingTests {
         appended.sheets[0].insertColumns(1, at: 1)
         #expect(NumbersEditPolicy.reconcile(appended, from: workbook, source: source).violation == nil)
     }
+
+    @Test("A formula Tables can't read keeps cells from moving only in its own table and those it refers to")
+    func unreadFormulasHoldTheirTables() throws {
+        let rates = MergeOwners.UUID(lower: 0x51, upper: 0x52)
+        let budget = MergeOwners.UUID(lower: 0x61, upper: 0x62)
+        let other = MergeOwners.UUID(lower: 0x71, upper: 0x72)
+        func movable(_ nodes: [ProtobufMessage]?) throws -> [String: Bool] {
+            func table(_ uuid: MergeOwners.UUID, _ cell: NumbersDocumentBuilder.Cell = .empty) -> NumbersDocumentBuilder.Table {
+                var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.number(1, exponent: 0), cell]])
+                table.uuid = uuid
+                return table
+            }
+            var document = NumbersDocumentBuilder()
+            document.addSheet("Rates", tables: [table(rates)])
+            document.addSheet("Budget", tables: [table(budget, nodes.map { .formulaNodes(2, $0) } ?? .formula(2))])
+            document.addSheet("Other", tables: [table(other)])
+            let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+            #expect(source.tables.values.contains { !$0.protectedCells.isEmpty })
+            return Dictionary(uniqueKeysWithValues: try workbook.sheets.map { sheet in
+                let table = try #require(source.tables[sheet.id]), imported = try #require(source.imported[sheet.id])
+                return (sheet.name, NumbersEditPolicy.canMoveCells(in: table, imported: imported, source: source))
+            })
+        }
+        // Tables has no `DUR2DAYS`, so can't read it.
+        let unread = NumbersNodes.function("DUR2DAYS", arguments: 1)
+        let rateCell = NumbersNodes.cell(column: 0, row: 0, columnAbsolute: true, rowAbsolute: true, table: rates)
+        #expect(try movable([rateCell, unread]) == ["Rates": false, "Budget": false, "Other": true])
+        #expect(try movable([NumbersNodes.cell(column: -1, row: 0), unread]) == ["Rates": true, "Budget": false, "Other": true])
+
+        // Text naming cells, or a formula with nothing to go on, could refer
+        // to any table.
+        let text = NumbersNodes.node(NumbersFormula.NodeType.string) { $0.set(6, bytes: Array("A1".utf8)) }
+        let indirect = [text, NumbersNodes.function("INDIRECT", arguments: 1), unread]
+        #expect(try movable(indirect) == ["Rates": false, "Budget": false, "Other": false])
+        #expect(try movable(nil) == ["Rates": false, "Budget": false, "Other": false])
+    }
 }
 
 @Suite("Numbers hidden rows and columns")

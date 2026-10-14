@@ -162,6 +162,10 @@ enum NumbersReader {
         }
         workbook.recalculate()
         keepNumbersResults(in: &workbook, tables: &tables, readers: readers)
+        for (id, reader) in readers {
+            guard let cells = tables[id]?.protectedCells, !cells.isEmpty else { continue }
+            tables[id]?.protectedReferences = NumbersFormula.tables(referencedBy: cells.map { reader.formulas[$0] })
+        }
         let source = NumbersSource(
             layout: layout, entries: entries, package: package, archive: archive, tables: tables, imported: workbook,
             hasLinkedContent: hasLinkedContent(archive), features: features(archive, tables: tables)
@@ -330,6 +334,9 @@ final class NumbersSource: @unchecked Sendable {
         /// Cells holding Numbers formulas Tables can't read, and any it
         /// couldn't take apart: both are left exactly as they are.
         var protectedCells: Set<CellAddress>
+        /// The other tables those cells' formulas refer to, by UUID, or nil
+        /// when there's no telling which.
+        var protectedReferences: Set<MergeOwners.UUID>? = []
         /// Pivot tables are built from other tables by Numbers itself.
         var isPivot: Bool
         var rowCount: Int

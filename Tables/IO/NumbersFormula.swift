@@ -381,6 +381,45 @@ enum NumbersFormula {
         }
     }
 
+    // MARK: - What formulas refer to
+
+    /// Node types that refer to no cells.
+    private static let nonReferences: Set<Int> = Set(1...15).union([
+        NodeType.number, NodeType.boolean, NodeType.string, NodeType.date, NodeType.emptyArgument, NodeType.token,
+        NodeType.array, NodeType.list, NodeType.colon, NodeType.colonWithUIDs, NodeType.referenceError,
+        NodeType.appendWhitespace, NodeType.prependWhitespace, NodeType.beginThunk, NodeType.endThunk,
+        NodeType.referenceErrorWithUIDs,
+    ])
+
+    /// Functions that find cells from text, which can name any table.
+    private static let referencesByText: Set<String> = ["INDIRECT"]
+
+    /// The other tables formulas of these nodes refer to, by UUID, or nil
+    /// when any could refer to one it doesn't name: by a kind of reference or
+    /// function Tables doesn't know, by text, or with no nodes to look at.
+    static func tables(referencedBy formulas: [[ProtobufMessage]?]) -> Set<MergeOwners.UUID>? {
+        var tables: Set<MergeOwners.UUID> = []
+        for nodes in formulas {
+            guard let nodes else { return nil }
+            for node in nodes {
+                let type = node.int(Field.type) ?? 0
+                switch type {
+                case NodeType.cellReference, NodeType.colonTract:
+                    // References in the formula's own table name none.
+                    guard node.has(Field.crossTable) else { continue }
+                    guard let table = MergeOwners.UUID(words: node.message(Field.crossTable)?.message(1)) else { return nil }
+                    tables.insert(table)
+                case NodeType.function:
+                    guard let name = node.int(Field.functionIndex).flatMap({ NumbersFunctionIndex.names[$0] }),
+                          !referencesByText.contains(name) else { return nil }
+                default:
+                    guard nonReferences.contains(type) else { return nil }
+                }
+            }
+        }
+        return tables
+    }
+
     private static func a1(_ address: CellAddress, rowAbsolute: Bool, columnAbsolute: Bool) -> String {
         (columnAbsolute ? "$" : "") + CellAddress.columnName(address.column) + (rowAbsolute ? "$" : "") + String(address.row + 1)
     }
