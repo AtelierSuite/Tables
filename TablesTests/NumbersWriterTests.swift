@@ -26,10 +26,24 @@ struct NumbersWriterTests {
 
     @Test("A document saved without changes is written back exactly as it was")
     func unchanged() throws {
-        let original = try budget()
+        let original = try commented(budget())
         let (workbook, source) = try NumbersReader.document(from: original)
-        let saved = try save(workbook, source)
-        #expect(try ZipArchive.orderedEntries(in: saved).map(\.data) == ZipArchive.orderedEntries(in: original).map(\.data))
+        #expect(try save(workbook, source) == original)
+
+        let package = FileWrapper(directoryWithFileWrappers: ["Index.zip": FileWrapper(regularFileWithContents: original)])
+        let (packaged, packageSource) = try NumbersReader.document(from: package)
+        let saved = try NumbersWriter.fileWrapper(for: packaged, source: packageSource, existing: package)
+        #expect(saved.fileWrappers?["Index.zip"]?.regularFileContents == original)
+    }
+
+    /// An archive that archiving its entries again wouldn't reproduce, as
+    /// Numbers' own aren't: this one with a comment at its end.
+    private func commented(_ archive: Data) -> Data {
+        var data = archive
+        let comment = Data("Numbers".utf8)
+        data[data.count - 2] = UInt8(comment.count)
+        data.append(comment)
+        return data
     }
 
     @Test("Edited values read back, and archives the edit didn't touch stay byte for byte")

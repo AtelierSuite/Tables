@@ -44,14 +44,15 @@ enum NumbersReader {
     }
 
     static func document(from data: Data) throws -> (workbook: Workbook, source: NumbersSource) {
-        try document(entries: ZipArchive.orderedEntries(in: data), layout: .singleFile)
+        try document(entries: ZipArchive.orderedEntries(in: data), layout: .singleFile, container: data)
     }
 
     static func document(from package: FileWrapper) throws -> (workbook: Workbook, source: NumbersSource) {
         guard package.isDirectory, let children = package.fileWrappers else { throw Failure.notANumbersDocument }
         if let index = children["Index.zip"], index.isRegularFile, let index = index.regularFileContents {
             return try document(
-                entries: ZipArchive.orderedEntries(in: index), layout: .packageWithIndexArchive, package: package
+                entries: ZipArchive.orderedEntries(in: index), layout: .packageWithIndexArchive, package: package,
+                container: index
             )
         }
         guard let folder = children["Index"] else { throw Failure.notANumbersDocument }
@@ -73,7 +74,8 @@ enum NumbersReader {
     }
 
     static func document(
-        entries: [(path: String, data: Data)], layout: NumbersSource.Layout, package: FileWrapper? = nil
+        entries: [(path: String, data: Data)], layout: NumbersSource.Layout, package: FileWrapper? = nil,
+        container: Data? = nil
     ) throws -> (workbook: Workbook, source: NumbersSource) {
         let archive = IWAArchive(entries: Dictionary(entries, uniquingKeysWith: { _, last in last }))
         guard let document = archive[documentIdentifier], document.type == ObjectType.document else {
@@ -170,7 +172,8 @@ enum NumbersReader {
             tables[id]?.protectedReferences = NumbersFormula.tables(referencedBy: cells.map { reader.formulas[$0] })
         }
         let source = NumbersSource(
-            layout: layout, entries: entries, package: package, archive: archive, tables: tables, imported: workbook,
+            layout: layout, entries: entries, container: container, package: package, archive: archive,
+            tables: tables, imported: workbook,
             hasLinkedContent: hasLinkedContent(archive), features: features(archive, tables: tables)
         )
         return (workbook, source)
@@ -404,6 +407,10 @@ final class NumbersSource: @unchecked Sendable {
     let layout: Layout
     /// The entries of the single file, or of the package's index, in order.
     let entries: [(path: String, data: Data)]
+    /// The ZIP archive those entries came from — the single file, or the
+    /// package's `Index.zip` — exactly as read, so a save that changes
+    /// nothing writes it back byte for byte rather than as a new archive.
+    let container: Data?
     /// The package as read, for its files outside the index.
     let package: FileWrapper?
     let archive: IWAArchive
@@ -418,14 +425,15 @@ final class NumbersSource: @unchecked Sendable {
     let features: UnsupportedFeatureReport
 
     init(
-        layout: Layout, entries: [(path: String, data: Data)], package: FileWrapper?, archive: IWAArchive,
-        tables: [Worksheet.ID: Table], imported: Workbook, hasLinkedContent: Bool = false,
+        layout: Layout, entries: [(path: String, data: Data)], container: Data? = nil, package: FileWrapper?,
+        archive: IWAArchive, tables: [Worksheet.ID: Table], imported: Workbook, hasLinkedContent: Bool = false,
         features: UnsupportedFeatureReport = UnsupportedFeatureReport()
     ) {
         self.hasLinkedContent = hasLinkedContent
         self.features = features
         self.layout = layout
         self.entries = entries
+        self.container = container
         self.package = package
         self.archive = archive
         self.tables = tables

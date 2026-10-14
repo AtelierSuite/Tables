@@ -28,7 +28,9 @@ enum NumbersWriter {
     /// `existing` is the package on disk, when the document is one: its files
     /// other than the index are carried over from it.
     static func fileWrapper(for workbook: Workbook, source: NumbersSource, existing: FileWrapper?) throws -> FileWrapper {
-        let entries = try patchedEntries(for: workbook, source: source)
+        guard let entries = try patchedEntries(for: workbook, source: source) else {
+            return try unchanged(source, existing: existing)
+        }
         switch source.layout {
         case .singleFile:
             return FileWrapper(regularFileWithContents: try ZipArchive.archive(entries: entries, compressing: false))
@@ -37,6 +39,22 @@ enum NumbersWriter {
             return package(from: existing ?? source.package, replacing: ["Index.zip": index])
         case .packageWithIndexFolder:
             return package(from: existing ?? source.package, replacing: Dictionary(entries, uniquingKeysWith: { $1 }))
+        }
+    }
+
+    /// The document as it was read. Numbers' own archive is written back as
+    /// it was, rather than archived again: an archive of the same entries
+    /// is still not the same file, without the times and extra fields
+    /// Numbers wrote for each entry.
+    private static func unchanged(_ source: NumbersSource, existing: FileWrapper?) throws -> FileWrapper {
+        let container = try source.container ?? ZipArchive.archive(entries: source.entries, compressing: false)
+        switch source.layout {
+        case .singleFile:
+            return FileWrapper(regularFileWithContents: container)
+        case .packageWithIndexArchive:
+            return package(from: existing ?? source.package, replacing: ["Index.zip": container])
+        case .packageWithIndexFolder:
+            return package(from: existing ?? source.package, replacing: Dictionary(source.entries, uniquingKeysWith: { $1 }))
         }
     }
 
@@ -76,8 +94,9 @@ enum NumbersWriter {
     }
 
     /// The document's entries, in their original order, with the archives a
-    /// change touched rewritten and any new ones after them.
-    static func patchedEntries(for workbook: Workbook, source: NumbersSource) throws -> [(path: String, data: Data)] {
+    /// change touched rewritten and any new ones after them. Nil when
+    /// nothing has changed.
+    static func patchedEntries(for workbook: Workbook, source: NumbersSource) throws -> [(path: String, data: Data)]? {
         if let violation = NumbersEditPolicy.violation(in: workbook, source: source) { throw violation }
 
         var patch = Patch(archive: source.archive)
@@ -93,7 +112,7 @@ enum NumbersWriter {
             guard renamedBack != imported else { continue }
             try TableWriter(sheet: sheet, imported: imported, table: table, sheetNames: sheetNames).write(into: &patch)
         }
-        guard !patch.isEmpty else { return source.entries }
+        guard !patch.isEmpty else { return nil }
         try patch.countFormulas()
         if patch.changedValues { try patch.markFormulasForRecalculation() }
         try patch.updateMetadata()
