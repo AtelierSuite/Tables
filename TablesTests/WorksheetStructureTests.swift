@@ -75,6 +75,18 @@ struct WorksheetStructureTests {
         #expect(workbook.sheets[1][CellAddress(a1: "A1")!].formula == "'Sheet 1'!A4:B5+SUM('sheet 1'!3:4)+A3+'It''s'!A3")
     }
 
+    @Test("Deleting lines inside a range shrinks it, breaking it only once every one has gone")
+    func deleteShrinksRanges() {
+        func removing(_ range: ClosedRange<Int>, axis: FormulaReferenceShifter.Axis = .row, from formula: String) -> String {
+            FormulaReferenceShifter.rewrite(formula, operation: .remove(range: range), axis: axis)
+        }
+        #expect(removing(1...1, from: "SUM(A2:A5)+A2") == "SUM(A2:A4)+#REF!")
+        #expect(removing(4...5, from: "SUM($A$2:$B5)") == "SUM($A$2:$B4)")
+        #expect(removing(1...4, from: "SUM(A2:A5)") == "SUM(#REF!)")
+        #expect(removing(0...0, axis: .column, from: "SUM(A2:B5)") == "SUM(A2:A5)")
+        #expect(removing(2...3, from: "SUM(2:5)") == "SUM(2:3)")
+    }
+
     @Test("Column insert and delete shift the other axis")
     func columns() {
         var sheet = grid()

@@ -57,6 +57,9 @@ enum NumbersEditPolicy {
         var result = new
         var violation: Violation?
         let sheetNames = NumbersSource.sheetNames(of: new, tables: source.tables)
+        // Rows and columns moving rewrite the formulas reading them, and
+        // the cells left where moved ones were aren't theirs to go back to.
+        let moved = zip(new.sheets, old.sheets).contains { $0.origins != $1.origins }
         for (index, sheet) in new.sheets.enumerated() {
             let previous = old.sheets[index]
             guard sheet != previous, let table = source.tables[sheet.id],
@@ -65,6 +68,7 @@ enum NumbersEditPolicy {
                 let cell = sheet[address]
                 guard cell != previous[address] else { continue }
                 if let reason = problem(with: cell, was: previous[address], at: address, in: table, sheetNames: sheetNames) {
+                    if moved { return (old, reason) }
                     result.sheets[index][address] = previous[address]
                     violation = violation ?? reason
                 } else {

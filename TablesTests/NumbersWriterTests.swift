@@ -523,6 +523,30 @@ struct NumbersMovingTests {
         #expect(map.messages(1).count == 2)
     }
 
+    @Test("Deleting rows a formula reads shrinks its ranges, and is refused whole where a reference would break")
+    func deletingWhatFormulasRead() throws {
+        let (imported, source) = try NumbersReader.document(from: document())
+        var workbook = imported
+        workbook.sheets[0][CellAddress(a1: "C3")!] = Cell(value: .empty, formula: "B2*2")
+        workbook.recalculate()
+        #expect(NumbersEditPolicy.reconcile(workbook, from: imported, source: source).violation == nil)
+
+        var shrunk = workbook
+        shrunk.sheets[0].removeRows(2...2)
+        shrunk.recalculate()
+        let (kept, violation) = NumbersEditPolicy.reconcile(shrunk, from: workbook, source: source)
+        #expect(violation == nil)
+        #expect(kept.sheets[0][CellAddress(a1: "B3")!].formula == "SUM(B2:B2)")
+
+        // Rent goes, and C3's reference to it with it.
+        var broken = workbook
+        broken.sheets[0].removeRows(1...1)
+        broken.recalculate()
+        let (result, refusal) = NumbersEditPolicy.reconcile(broken, from: workbook, source: source)
+        #expect(refusal == .formula)
+        #expect(result == workbook)
+    }
+
     @Test("Deleting rows drops their cells and counts the formulas gone")
     func deleteRows() throws {
         var (workbook, source) = try NumbersReader.document(from: document())

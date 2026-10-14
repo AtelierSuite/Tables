@@ -131,6 +131,16 @@ enum FormulaReferenceShifter {
 
                 if !isFunctionName, !isSuffixOfWord {
                     let name = sheet(at: index)
+                    // A range loses the lines removed from it, as Excel's
+                    // does, breaking only once every one has gone.
+                    if case .remove(let removed) = operation, scope?.covers(name) ?? true,
+                       token.end < characters.count, characters[token.end] == ":",
+                       let end = scanReference(characters, from: token.end + 1) {
+                        result += transform(token, end, removing: removed, axis: axis)
+                        last = (end.end, name)
+                        index = end.end
+                        continue
+                    }
                     result += scope?.covers(name) ?? true
                         ? transform(token, operation: operation, axis: axis) : String(characters[index..<token.end])
                     last = (token.end, name)
@@ -296,9 +306,38 @@ enum FormulaReferenceShifter {
             case .moved(let updated): return render(anchored, name(updated))
             }
         }
+        if case .remove(let removed) = operation, let start = line(token.start), let end = line(token.end), start <= end {
+            guard let span = Worksheet.span(start...end, removing: removed) else { return CellError.referenceError.rawValue }
+            return render(token.startAnchored, name(span.lowerBound)) + ":" + render(token.endAnchored, name(span.upperBound))
+        }
         guard let first = moved(token.startAnchored, token.start),
               let last = moved(token.endAnchored, token.end) else { return CellError.referenceError.rawValue }
         return first + ":" + last
+    }
+
+    /// A range of cells once lines are removed: shrunk by those inside it,
+    /// and broken only when it loses every one.
+    private static func transform(
+        _ start: ReferenceToken, _ end: ReferenceToken, removing removed: ClosedRange<Int>, axis: Axis
+    ) -> String {
+        func line(_ token: ReferenceToken) -> Int? {
+            axis == .row ? Int(token.rowDigits).map { $0 - 1 } : CellAddress.columnIndex(token.columnLetters)
+        }
+        func placed(_ token: ReferenceToken, at line: Int) -> String {
+            var token = token
+            if axis == .row {
+                token.rowDigits = String(line + 1)
+            } else {
+                token.columnLetters = CellAddress.columnName(line)
+            }
+            return render(token)
+        }
+        guard let first = line(start), let last = line(end), first <= last else {
+            let operation = Operation.remove(range: removed)
+            return transform(start, operation: operation, axis: axis) + ":" + transform(end, operation: operation, axis: axis)
+        }
+        guard let span = Worksheet.span(first...last, removing: removed) else { return CellError.referenceError.rawValue }
+        return placed(start, at: span.lowerBound) + ":" + placed(end, at: span.upperBound)
     }
 
     private static func transform(_ token: ReferenceToken, operation: Operation, axis: Axis) -> String {
