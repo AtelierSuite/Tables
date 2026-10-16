@@ -408,7 +408,7 @@ struct WorkbookView: View {
                     }
                     .accessibilityIdentifier("unsupportedFeatures")
                 }
-                Link(destination: URL(string: "https://github.com/katagaki/Tables")!) {
+                Link(destination: URL(string: "https://github.com/AtelierSuite/Tables")!) {
                     Label("Toolbar.SourceCode", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
             }
