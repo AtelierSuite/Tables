@@ -132,6 +132,9 @@ private struct PreviewCanvas {
         let sheet = table.sheet
         let ink: UIColor = scheme == .dark ? .white : .black
         let gridLine = UIColor(white: scheme == .dark ? 0.45 : 0.75, alpha: 1)
+        // The canvas follows the original preview; the cells' own colours
+        // follow the table, which may have been made dark already.
+        let palette = sheet.colorScheme(for: scheme)
 
         if let name = table.name, !name.isEmpty {
             let font = UIFont(name: "HelveticaNeue", size: Self.nameFontSize) ?? .systemFont(ofSize: Self.nameFontSize)
@@ -190,7 +193,7 @@ private struct PreviewCanvas {
         }
 
         for box in boxes {
-            if let fill = sheet[box.address].style.fillColor(for: scheme) {
+            if let fill = sheet[box.address].style.fillColor(for: palette) {
                 context.setFillColor(UIColor(fill).cgColor)
                 context.fill(box.frame)
             }
@@ -204,8 +207,8 @@ private struct PreviewCanvas {
 
         for box in boxes {
             let cell = sheet[box.address]
-            drawText(of: cell, in: box.frame, ink: ink, scheme: scheme, context: context)
-            drawBorders(of: cell.style, in: box.frame, ink: ink, scheme: scheme, context: context)
+            drawText(of: cell, in: box.frame, ink: ink, scheme: palette, context: context)
+            drawBorders(of: cell.style, in: box.frame, ink: ink, scheme: palette, context: context)
         }
     }
 

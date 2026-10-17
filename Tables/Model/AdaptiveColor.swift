@@ -11,6 +11,10 @@ import SwiftUI
 ///   dark paper and black ink becomes light ink.
 /// - Saturated colours keep their identity and are nudged only far enough to
 ///   stay legible against the current background.
+///
+/// A sheet that was already made dark — dark fills under light text — is left
+/// as it is: flipping it would turn it back into the light sheet its author
+/// chose not to make.
 enum AdaptiveColor {
     /// Below this saturation a colour counts as "whitish or blackish".
     private static let achromaticThreshold = 0.14
@@ -39,6 +43,16 @@ enum AdaptiveColor {
         return Color(contrast(alternative, background) > contrast(adapted, background)
             ? alternative : adapted)
     }
+
+    /// Whether a fill reads as dark paper: deep enough that light text is what
+    /// goes on it. A fill that is mostly transparent isn't paper at all.
+    static func isDarkFill(hex: String?) -> Bool? {
+        guard let fill = HSL(argbHex: hex), fill.alpha >= 0.5 else { return nil }
+        return fill.luminance < darkFillLuminance
+    }
+
+    /// About mid-grey; a deep navy or a charcoal is well under it.
+    private static let darkFillLuminance = 0.18
 
     private static func contrast(_ first: HSL, _ second: HSL) -> Double {
         let bright = max(first.luminance, second.luminance)
@@ -141,6 +155,34 @@ private extension Color {
             return p
         }
         return (channel(1.0 / 3), channel(0), channel(-1.0 / 3))
+    }
+}
+
+extension Worksheet {
+    /// Enough cells to tell a dark sheet from a light one without walking
+    /// every cell of a large sheet each time the grid is drawn.
+    private static let appearanceSample = 5_000
+
+    /// Whether the sheet's author already made it dark: most of the cells
+    /// that show anything sit on a dark fill. A cell with content and no fill
+    /// counts as light, since that is the white paper it was written on.
+    var isAuthoredDark: Bool {
+        var dark = 0
+        var light = 0
+        for cell in cells.values.prefix(Self.appearanceSample) {
+            if let isDark = AdaptiveColor.isDarkFill(hex: cell.style.fillColorHex) {
+                if isDark { dark += 1 } else { light += 1 }
+            } else if !cell.isBlank {
+                light += 1
+            }
+        }
+        return dark > light
+    }
+
+    /// The appearance to adapt this sheet's colours for: the viewer's, unless
+    /// the sheet is dark already, when its colours are drawn as authored.
+    func colorScheme(for viewer: ColorScheme) -> ColorScheme {
+        viewer == .dark && isAuthoredDark ? .light : viewer
     }
 }
 

@@ -230,6 +230,7 @@ struct SheetGridView: View {
         // the window had scrolled onto it would leave the tile's cached drawing
         // showing the cells underneath instead of the merge.
         let merges = visibleMerges(in: sheet, coveredBy: plans)
+        let scheme = sheet.colorScheme(for: colorScheme)
 
         return ZStack(alignment: .topLeading) {
             ForEach(plans) { plan in
@@ -243,7 +244,7 @@ struct SheetGridView: View {
                     hiddenColumns: sheet.hiddenColumns,
                     contents: contents(of: plan, in: sheet, merges: merges),
                     metrics: metrics,
-                    scheme: colorScheme
+                    scheme: scheme
                 )
                 .equatable()
             }
