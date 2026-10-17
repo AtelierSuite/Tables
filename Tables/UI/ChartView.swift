@@ -54,9 +54,15 @@ struct ChartView: View, Equatable {
     private var background: Color {
         if let hex = chart.backgroundColorHex {
             if hex.hasPrefix("00") { return .clear }
-            return AdaptiveColor.resolve(hex: hex, for: colorScheme, isText: false) ?? .sheetBackground
+            return AdaptiveColor.resolve(hex: hex, for: palette, isText: false) ?? .sheetBackground
         }
         return .sheetBackground
+    }
+
+    /// The appearance to adapt the chart's colours for. A chart drawn on a
+    /// dark background of its own is dark already, so it is left as authored.
+    fileprivate var palette: ColorScheme {
+        AdaptiveColor.isDarkFill(hex: chart.backgroundColorHex) == true ? .light : colorScheme
     }
 
     // MARK: - Plot
@@ -381,7 +387,7 @@ struct ChartView: View, Equatable {
     }
 
     fileprivate func textColor(_ style: ChartTextStyle) -> Color {
-        AdaptiveColor.resolve(hex: style.colorHex, for: colorScheme, isText: true) ?? .secondary
+        AdaptiveColor.resolve(hex: style.colorHex, for: palette, isText: true) ?? .secondary
     }
 }
 
