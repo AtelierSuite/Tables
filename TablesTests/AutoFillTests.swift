@@ -52,12 +52,13 @@ struct AutoFillTests {
         #expect(sheet[address("B5")].value == .number(7))
     }
 
-    @Test("A trend that isn't even continues its best-fitting line")
-    func trend() {
-        var sheet = sheet(["A1": .number(1), "A2": .number(2), "A3": .number(4)])
-        sheet.autoFill(from: range("A1:A3"), to: range("A1:A4"))
-        guard case .number(let next) = sheet[address("A4")].value else { Issue.record("not a number"); return }
-        #expect(abs(next - 16.0 / 3.0) < 1e-9)
+    @Test("Numbers with no even step repeat as a pattern")
+    func unevenNumbersRepeat() {
+        let values: [CellValue] = [1, 1, 2, 3, 5, 8].map { .number($0) }
+        var sheet = sheet(Dictionary(uniqueKeysWithValues: values.enumerated().map { ("A\($0.offset + 1)", $0.element) }))
+        sheet.autoFill(from: range("A1:A6"), to: range("A1:A9"))
+        #expect(sheet[address("A7")].value == .number(1))
+        #expect(sheet[address("A9")].value == .number(2))
     }
 
     @Test("Decimal steps carry on without floating-point noise")

@@ -4,11 +4,12 @@ import Foundation
 /// selected cells are carried on into the cells dragged over, continuing
 /// whatever series they make.
 ///
-/// Each row or column along the drag is filled on its own. Two or more
-/// numbers continue their trend; a day or month name, or text ending in a
-/// number, counts on; a lone date steps a day at a time. Everything else —
-/// text, a lone number, formulas — repeats, with a formula's relative
-/// references moving as it goes, as a paste would move them.
+/// Each row or column along the drag is filled on its own. Numbers that go
+/// up or down by one even step carry on by it; a day or month name, or text
+/// ending in a number, counts on; a lone date steps a day at a time.
+/// Everything else — text, a lone number, numbers with no even step,
+/// formulas — repeats as a pattern, as Numbers does, with a formula's
+/// relative references moving as it goes, as a paste would move them.
 public enum AutoFill {
     /// The way the handle was dragged, away from the source cells.
     public enum Direction: Sendable {
@@ -88,8 +89,8 @@ public enum AutoFill {
 
     /// What a lane of source cells counts in, when it counts at all.
     enum Series {
-        /// A straight-line trend through two or more numbers.
-        case trend(intercept: Double, slope: Double)
+        /// Two or more numbers an even step apart.
+        case arithmetic(first: Double, step: Double)
         /// One date, stepping a day at a time.
         case days(start: Double)
         /// Names from a list that wraps, such as the days of the week.
@@ -110,7 +111,11 @@ public enum AutoFill {
                     self = .days(start: numbers[0])
                     return
                 }
-                self = Self.fitted(numbers)
+                // Numbers with no even step between them — 1, 1, 2, 3, 5, 8 —
+                // repeat. Excel would continue a fitted straight line, which
+                // is a guess nobody asked for.
+                guard let step = Self.evenStep(numbers) else { return nil }
+                self = .arithmetic(first: numbers[0], step: step)
                 return
             }
 
@@ -138,8 +143,8 @@ public enum AutoFill {
 
         func value(at offset: Int) -> CellValue {
             switch self {
-            case .trend(let intercept, let slope):
-                return .number(Self.tidied(intercept + slope * Double(offset)))
+            case .arithmetic(let first, let step):
+                return .number(Self.tidied(first + step * Double(offset)))
             case .days(let start):
                 return .number(start + Double(offset))
             case .list(let names, let first, let step):
@@ -155,24 +160,18 @@ public enum AutoFill {
             }
         }
 
-        /// The least-squares line through the numbers at 0, 1, 2…, which is
-        /// what Excel continues — exact for an even series, a trend otherwise.
-        private static func fitted(_ numbers: [Double]) -> Series {
-            let count = Double(numbers.count)
-            let meanX = (count - 1) / 2
-            let meanY = numbers.reduce(0, +) / count
-            var covariance = 0.0
-            var variance = 0.0
-            for (index, number) in numbers.enumerated() {
-                let dx = Double(index) - meanX
-                covariance += dx * (number - meanY)
-                variance += dx * dx
+        /// The one difference between each number and the next, allowing for
+        /// the rounding decimals pick up on the way.
+        private static func evenStep(_ numbers: [Double]) -> Double? {
+            let step = numbers[1] - numbers[0]
+            let scale = max(1, numbers.map(abs).max() ?? 1)
+            for index in 1..<numbers.count where abs(numbers[index] - numbers[index - 1] - step) > scale * 1e-9 {
+                return nil
             }
-            let slope = covariance / variance
-            return .trend(intercept: meanY - slope * meanX, slope: slope)
+            return step
         }
 
-        /// Rounds off the noise a fitted line leaves, so 0.1, 0.2 goes on to
+        /// Rounds off the noise adding steps leaves, so 0.1, 0.2 goes on to
         /// 0.3 and not 0.30000000000000004.
         private static func tidied(_ value: Double) -> Double {
             let rounded = (value * 1e10).rounded() / 1e10
