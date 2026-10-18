@@ -9,43 +9,43 @@ import TablesEngine
 /// Files a macro opens are read whole and written back when closed: macro
 /// data files are small, and it keeps a half-finished run from leaving a
 /// half-written file behind.
-final class VBAFileSystem {
+public final class VBAFileSystem {
     /// The working folder, with links resolved, as every check compares it.
-    let root: URL
-    private(set) var currentDirectory: URL
+    public let root: URL
+    public private(set) var currentDirectory: URL
 
     /// What `Open` gave back, by file number.
-    final class OpenFile {
-        let url: URL
-        let mode: VBAFileMode
-        let recordLength: Int
-        var bytes: [UInt8]
+    public final class OpenFile {
+        public let url: URL
+        public let mode: VBAFileMode
+        public let recordLength: Int
+        public var bytes: [UInt8]
         /// Zero-based byte offset of the next read or write.
-        var position = 0
+        public var position = 0
         /// Characters written since the last line break, for `Tab` and `,`.
-        var column = 0
-        var width = 0
+        public var column = 0
+        public var width = 0
         /// Set when a `Get` ran out of file, which is when `EOF` turns true
         /// for binary and random access.
-        var readPastEnd = false
-        var isDirty = false
+        public var readPastEnd = false
+        public var isDirty = false
 
-        init(url: URL, mode: VBAFileMode, recordLength: Int, bytes: [UInt8]) {
+        public init(url: URL, mode: VBAFileMode, recordLength: Int, bytes: [UInt8]) {
             self.url = url
             self.mode = mode
             self.recordLength = recordLength
             self.bytes = bytes
         }
 
-        var isWritable: Bool { mode != .input }
+        public var isWritable: Bool { mode != .input }
     }
 
-    private(set) var openFiles: [Int: OpenFile] = [:]
+    public private(set) var openFiles: [Int: OpenFile] = [:]
     /// The listing `Dir()` without arguments continues.
     private var pendingListing: [String] = []
 
     /// Created if it does not exist yet.
-    init(root folder: URL) throws {
+    public init(root folder: URL) throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         root = folder.standardizedFileURL.resolvingSymlinksInPath()
         currentDirectory = root
@@ -53,22 +53,22 @@ final class VBAFileSystem {
 
     // MARK: - Errors
 
-    static let badFileNumber = VBAError(number: 52, "Bad file name or number")
-    static let fileNotFound = VBAError(number: 53, "File not found")
-    static let badFileMode = VBAError(number: 54, "Bad file mode")
-    static let fileAlreadyOpen = VBAError(number: 55, "File already open")
-    static let fileExists = VBAError(number: 58, "File already exists")
-    static let pastEndOfFile = VBAError(number: 62, "Input past end of file")
-    static let tooManyFiles = VBAError(number: 67, "Too many files")
-    static let permissionDenied = VBAError(number: 70, "Permission denied")
-    static let accessError = VBAError(number: 75, "Path/File access error")
-    static let pathNotFound = VBAError(number: 76, "Path not found")
+    public static let badFileNumber = VBAError(number: 52, "Bad file name or number")
+    public static let fileNotFound = VBAError(number: 53, "File not found")
+    public static let badFileMode = VBAError(number: 54, "Bad file mode")
+    public static let fileAlreadyOpen = VBAError(number: 55, "File already open")
+    public static let fileExists = VBAError(number: 58, "File already exists")
+    public static let pastEndOfFile = VBAError(number: 62, "Input past end of file")
+    public static let tooManyFiles = VBAError(number: 67, "Too many files")
+    public static let permissionDenied = VBAError(number: 70, "Permission denied")
+    public static let accessError = VBAError(number: 75, "Path/File access error")
+    public static let pathNotFound = VBAError(number: 76, "Path not found")
 
     // MARK: - Paths
 
     /// The real location of a path a macro gave, which is always inside the
     /// working folder; anything else throws.
-    func resolve(_ path: String) throws -> URL {
+    public func resolve(_ path: String) throws -> URL {
         let text = path.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty, !text.contains("\u{0}") else { throw Self.badFileNumber }
         var normalized = text.replacingOccurrences(of: "\\", with: "/")
@@ -105,7 +105,7 @@ final class VBAFileSystem {
 
     /// A path for a macro to see: the real one, so it can be built on and
     /// handed back.
-    static func displayPath(_ url: URL) -> String { url.path }
+    public static func displayPath(_ url: URL) -> String { url.path }
 
     private func exists(_ url: URL, isDirectory: Bool? = nil) -> Bool {
         var directory: ObjCBool = false
@@ -119,20 +119,20 @@ final class VBAFileSystem {
 
     // MARK: - Folders and files
 
-    func changeDirectory(_ path: String) throws {
+    public func changeDirectory(_ path: String) throws {
         let url = try resolve(path)
         guard exists(url, isDirectory: true) else { throw Self.pathNotFound }
         currentDirectory = url
     }
 
-    func makeDirectory(_ path: String) throws {
+    public func makeDirectory(_ path: String) throws {
         let url = try resolve(path)
         guard !exists(url) else { throw Self.accessError }
         guard exists(url.deletingLastPathComponent(), isDirectory: true) else { throw Self.pathNotFound }
         try mapErrors { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false) }
     }
 
-    func removeDirectory(_ path: String) throws {
+    public func removeDirectory(_ path: String) throws {
         let url = try resolve(path)
         guard exists(url, isDirectory: true) else { throw Self.pathNotFound }
         // The working folder itself stays, and so does anything not empty.
@@ -145,7 +145,7 @@ final class VBAFileSystem {
     }
 
     /// `Kill`, which takes wildcards in its last part.
-    func delete(_ pattern: String) throws {
+    public func delete(_ pattern: String) throws {
         let matches = try files(matching: pattern, includeDirectories: false)
         guard !matches.isEmpty else { throw Self.fileNotFound }
         for url in matches {
@@ -154,7 +154,7 @@ final class VBAFileSystem {
         }
     }
 
-    func copy(_ source: String, to destination: String) throws {
+    public func copy(_ source: String, to destination: String) throws {
         let from = try resolve(source)
         let to = try resolve(destination)
         guard exists(from, isDirectory: false) else { throw Self.fileNotFound }
@@ -168,7 +168,7 @@ final class VBAFileSystem {
         }
     }
 
-    func rename(_ source: String, to destination: String) throws {
+    public func rename(_ source: String, to destination: String) throws {
         let from = try resolve(source)
         let to = try resolve(destination)
         guard exists(from) else { throw Self.fileNotFound }
@@ -178,20 +178,20 @@ final class VBAFileSystem {
         try mapErrors { try FileManager.default.moveItem(at: from, to: to) }
     }
 
-    func length(of path: String) throws -> Int {
+    public func length(of path: String) throws -> Int {
         let url = try resolve(path)
         guard exists(url, isDirectory: false) else { throw Self.fileNotFound }
         return (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
     }
 
-    func modificationDate(of path: String) throws -> Date {
+    public func modificationDate(of path: String) throws -> Date {
         let url = try resolve(path)
         guard exists(url) else { throw Self.fileNotFound }
         return (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? Date()
     }
 
     /// `GetAttr`'s bits: 1 read-only, 2 hidden, 16 directory, 32 archive.
-    func attributes(of path: String) throws -> Int {
+    public func attributes(of path: String) throws -> Int {
         let url = try resolve(path)
         guard exists(url) else { throw Self.fileNotFound }
         var bits = exists(url, isDirectory: true) ? 16 : 32
@@ -201,7 +201,7 @@ final class VBAFileSystem {
     }
 
     /// `SetAttr`: only read-only means anything here.
-    func setAttributes(of path: String, to bits: Int) throws {
+    public func setAttributes(of path: String, to bits: Int) throws {
         let url = try resolve(path)
         guard exists(url) else { throw Self.fileNotFound }
         let permissions = bits & 1 != 0 ? 0o444 : 0o644
@@ -212,7 +212,7 @@ final class VBAFileSystem {
 
     /// `Dir(pattern, attributes)`: the first name matching, remembering the
     /// rest for `Dir()` to hand out one at a time.
-    func firstMatch(_ pattern: String, attributes: Int) throws -> String {
+    public func firstMatch(_ pattern: String, attributes: Int) throws -> String {
         // Attribute 8 asks for the volume label, which there is none of.
         if attributes & 8 != 0 { return "" }
         let includeDirectories = attributes & 16 != 0
@@ -222,14 +222,14 @@ final class VBAFileSystem {
         return nextMatch()
     }
 
-    func nextMatch() -> String {
+    public func nextMatch() -> String {
         guard !pendingListing.isEmpty else { return "" }
         return pendingListing.removeFirst()
     }
 
     /// Files in a folder whose names match the last part of `pattern`,
     /// sorted. A pattern naming a folder (`"data\"`) lists that folder.
-    func files(matching pattern: String, includeDirectories: Bool) throws -> [URL] {
+    public func files(matching pattern: String, includeDirectories: Bool) throws -> [URL] {
         var text = pattern.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\\", with: "/")
         if text.isEmpty || text.hasSuffix("/") { text += "*" }
         let slash = text.lastIndex(of: "/")
@@ -251,7 +251,7 @@ final class VBAFileSystem {
 
     /// `*` and `?`, case-insensitively, with `*.*` matching names without a
     /// dot too, as Windows does.
-    static func wildcardMatches(_ name: String, _ pattern: String) -> Bool {
+    public static func wildcardMatches(_ name: String, _ pattern: String) -> Bool {
         if pattern == "*.*" || pattern == "*" { return true }
         let escaped = pattern.lowercased().map { character -> String in
             switch character {
@@ -266,9 +266,9 @@ final class VBAFileSystem {
 
     // MARK: - Open files
 
-    static let maximumFileSize = 64 * 1024 * 1024
+    public static let maximumFileSize = 64 * 1024 * 1024
 
-    func open(_ path: String, mode: VBAFileMode, number: Int, recordLength: Int?) throws {
+    public func open(_ path: String, mode: VBAFileMode, number: Int, recordLength: Int?) throws {
         guard (1...511).contains(number) else { throw Self.badFileNumber }
         guard openFiles[number] == nil else { throw Self.fileAlreadyOpen }
         let url = try resolve(path)
@@ -307,19 +307,19 @@ final class VBAFileSystem {
         }
     }
 
-    func file(_ number: Int) throws -> OpenFile {
+    public func file(_ number: Int) throws -> OpenFile {
         guard let file = openFiles[number] else { throw Self.badFileNumber }
         return file
     }
 
-    func close(_ number: Int) throws {
+    public func close(_ number: Int) throws {
         guard let file = openFiles.removeValue(forKey: number) else { throw Self.badFileNumber }
         try flush(file)
     }
 
     /// `Reset`, and the end of every run: nothing a macro wrote is lost
     /// because it forgot to close a file.
-    func closeAll() {
+    public func closeAll() {
         for number in openFiles.keys.sorted() { try? close(number) }
     }
 
@@ -334,7 +334,7 @@ final class VBAFileSystem {
     }
 
     /// `FreeFile`: the lowest number free, from 1–255 or, given 1, 256–511.
-    func freeNumber(upperRange: Bool) throws -> Int {
+    public func freeNumber(upperRange: Bool) throws -> Int {
         let range = upperRange ? 256...511 : 1...255
         guard let number = range.first(where: { openFiles[$0] == nil }) else { throw Self.tooManyFiles }
         return number
@@ -352,7 +352,7 @@ final class VBAFileSystem {
 
     // MARK: - Reading and writing open files
 
-    func write(_ bytes: [UInt8], to file: OpenFile) throws {
+    public func write(_ bytes: [UInt8], to file: OpenFile) throws {
         guard file.isWritable else { throw Self.badFileMode }
         let end = file.position + bytes.count
         if end > file.bytes.count { file.bytes += [UInt8](repeating: 0, count: end - file.bytes.count) }
@@ -363,7 +363,7 @@ final class VBAFileSystem {
 
     /// Text goes out as UTF-8, with Windows line breaks so files written here
     /// read back the same in Excel on Windows.
-    func writeText(_ text: String, to file: OpenFile) throws {
+    public func writeText(_ text: String, to file: OpenFile) throws {
         guard file.mode == .output || file.mode == .append else { throw Self.badFileMode }
         try write([UInt8](text.utf8), to: file)
         // "\r\n" is one Character to Swift, so all three line endings are looked for.
@@ -374,7 +374,7 @@ final class VBAFileSystem {
         }
     }
 
-    func readBytes(_ count: Int, from file: OpenFile) -> [UInt8] {
+    public func readBytes(_ count: Int, from file: OpenFile) -> [UInt8] {
         let available = max(0, min(count, file.bytes.count - file.position))
         let slice = Array(file.bytes[file.position..<(file.position + available)])
         file.position += available
@@ -383,7 +383,7 @@ final class VBAFileSystem {
     }
 
     /// One line, without its CR, LF or CR LF.
-    func readLine(from file: OpenFile) throws -> String {
+    public func readLine(from file: OpenFile) throws -> String {
         guard file.mode == .input || file.mode == .binary else { throw Self.badFileMode }
         guard file.position < file.bytes.count else { throw Self.pastEndOfFile }
         var end = file.position
@@ -397,7 +397,7 @@ final class VBAFileSystem {
 
     /// One `Input #` field: quoted text up to its closing quote, or anything
     /// up to the next comma or line break. Nil for an unquoted field.
-    func readField(from file: OpenFile) throws -> (text: String, wasQuoted: Bool) {
+    public func readField(from file: OpenFile) throws -> (text: String, wasQuoted: Bool) {
         guard file.mode == .input || file.mode == .binary else { throw Self.badFileMode }
         let bytes = file.bytes
         var index = file.position
@@ -434,7 +434,7 @@ final class VBAFileSystem {
 
     /// UTF-8 where the bytes are valid UTF-8, Windows Latin otherwise — which
     /// is what a text file written by Excel on Windows most likely is.
-    static func decode(_ bytes: [UInt8]) -> String {
+    public static func decode(_ bytes: [UInt8]) -> String {
         if let text = String(bytes: bytes, encoding: .utf8) { return text }
         return String(bytes: bytes, encoding: .windowsCP1252) ?? String(decoding: bytes, as: UTF8.self)
     }

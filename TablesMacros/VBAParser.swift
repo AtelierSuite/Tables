@@ -2,17 +2,17 @@ import Foundation
 import TablesEngine
 
 /// Turns the source of one module into its syntax tree.
-struct VBAParser {
+public struct VBAParser: Sendable {
     private var tokens: [VBASourceToken]
     private var index = 0
 
-    static func parse(module name: String, source: String) throws -> VBAModuleSyntax {
+    public static func parse(module name: String, source: String) throws -> VBAModuleSyntax {
         var parser = VBAParser(tokens: try VBALexer.tokenize(VBAPreprocessor.process(source)))
         return try parser.parseModule(named: name)
     }
 
     /// Parses statements on their own, as the immediate window would.
-    static func parseStatements(_ source: String) throws -> [VBAStatement] {
+    public static func parseStatements(_ source: String) throws -> [VBAStatement] {
         var parser = VBAParser(tokens: try VBALexer.tokenize(source))
         let body = try parser.parseBlock(until: [])
         guard parser.current == .end else { throw parser.error(VBASyntaxError.text("Macro.Syntax.Unexpected", parser.describe(parser.current))) }
@@ -44,8 +44,8 @@ struct VBAParser {
         case .string(let text): return "\"\(text)\""
         case .date: return "#date#"
         case .symbol(let symbol): return symbol
-        case .newline: return String(localized: "Macro.EndOfLine")
-        case .end: return String(localized: "Macro.EndOfModule")
+        case .newline: return String(localized: "Macro.EndOfLine", bundle: #bundle)
+        case .end: return String(localized: "Macro.EndOfModule", bundle: #bundle)
         }
     }
 
@@ -601,7 +601,7 @@ struct VBAParser {
         case "load", "unload":
             advance()
             while !atEndOfStatement { advance() }
-            return .unsupported(String(localized: "Macro.Unavailable.UserForms"))
+            return .unsupported(String(localized: "Macro.Unavailable.UserForms", bundle: #bundle))
         default:
             return nil
         }
@@ -1001,14 +1001,14 @@ struct VBAParser {
 /// Handles `#If … #Else … #End If`, the conditional compilation most often
 /// seen choosing between 32- and 64-bit `Declare` statements. Lines in a
 /// branch not taken become blank, so line numbers stay true.
-enum VBAPreprocessor {
+public enum VBAPreprocessor {
     /// Constants as a 64-bit Office for Windows would define them: that is
     /// what most code is written and tested against.
     private static let constants: [String: Bool] = [
         "vba7": true, "vba6": true, "win64": true, "win32": true, "win16": false, "mac": false,
     ]
 
-    static func process(_ source: String) -> String {
+    public static func process(_ source: String) -> String {
         var output: [String] = []
         /// For each open `#If`: whether the current branch is live, and
         /// whether any branch has been taken yet.

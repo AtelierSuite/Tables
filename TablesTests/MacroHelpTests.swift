@@ -2,13 +2,18 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// The help book makes promises; these hold the interpreter to them.
 @Suite("Macro help")
 struct MacroHelpTests {
     @Test("Every piece of prose in the book is in the string catalog")
     func prose() {
-        var keys: [String] = ["Help.Title", "Help.Footer", "Help.Unavailable"]
+        // The book's title and footer belong to the app's view of it.
+        for key in ["Help.Title", "Help.Footer"] {
+            #expect(String(localized: String.LocalizationValue(key)) != key, "Missing \(key)")
+        }
+        var keys: [String] = ["Help.Unavailable"]
         for topic in MacroHelp.topics {
             keys.append("Help.\(topic.id).Title")
             keys += topic.paragraphs
@@ -18,7 +23,7 @@ struct MacroHelpTests {
             }
         }
         for key in keys {
-            #expect(String(localized: String.LocalizationValue(key)) != key, "Missing \(key)")
+            #expect(String(localized: String.LocalizationValue(key), bundle: .macros) != key, "Missing \(key)")
         }
         // And through the properties the view reads, not just the keys.
         for topic in MacroHelp.topics {
@@ -125,4 +130,9 @@ struct MacroHelpTests {
         #expect(MacroHelp.search("DateAdd").first?.topic.id == "Functions")
         #expect(MacroHelp.search("   ").isEmpty)
     }
+}
+
+extension Bundle {
+    /// The macro framework's bundle, whose string catalog its messages come from.
+    static let macros = Bundle(for: MacroRunner.self)
 }

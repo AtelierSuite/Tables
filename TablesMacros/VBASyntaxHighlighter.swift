@@ -4,17 +4,17 @@ import TablesEngine
 /// Finds what to colour in VBA source: keywords, comments, strings and
 /// numbers. Deliberately forgiving — it runs on every keystroke, over code
 /// that is usually half-typed, so it never fails, it only colours less.
-enum VBASyntaxHighlighter {
-    enum Kind: Hashable, Sendable {
+public enum VBASyntaxHighlighter {
+    public enum Kind: Hashable, Sendable {
         case keyword, comment, string, number
     }
 
-    struct Span: Hashable, Sendable {
-        var range: NSRange
-        var kind: Kind
+    public struct Span: Hashable, Sendable {
+        public var range: NSRange
+        public var kind: Kind
     }
 
-    static let keywords: Set<String> = [
+    public static let keywords: Set<String> = [
         "and", "as", "boolean", "byref", "byte", "byval", "call", "case", "const", "currency", "date", "declare",
         "dim", "do", "double", "each", "else", "elseif", "empty", "end", "enum", "eqv", "erase", "error", "event",
         "exit", "explicit", "false", "for", "friend", "function", "get", "global", "gosub", "goto", "if", "imp",
@@ -25,7 +25,7 @@ enum VBASyntaxHighlighter {
         "wend", "while", "with", "withevents", "xor", "compare",
     ]
 
-    static func spans(in text: String) -> [Span] {
+    public static func spans(in text: String) -> [Span] {
         let units = Array(text.utf16)
         var spans: [Span] = []
         var index = 0

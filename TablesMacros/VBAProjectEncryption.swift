@@ -8,9 +8,9 @@ import TablesEngine
 /// It is keyed on the project's id and protects nothing; it is here only so
 /// a new project can say "unlocked, no password, visible" the way Office
 /// expects to read it.
-enum VBAProjectEncryption {
+public enum VBAProjectEncryption {
     /// `projectID` is the `{…}` id from the `PROJECT` stream.
-    static func encrypt(_ data: [UInt8], projectID: String, seed: UInt8 = .random(in: 0...255)) -> [UInt8] {
+    public static func encrypt(_ data: [UInt8], projectID: String, seed: UInt8 = .random(in: 0...255)) -> [UInt8] {
         let version: UInt8 = 2
         let projectKey = key(for: projectID)
         var output: [UInt8] = [seed, seed ^ version, seed ^ projectKey]
@@ -34,7 +34,7 @@ enum VBAProjectEncryption {
     }
 
     /// The data back out, or nil when the bytes are not this scheme's.
-    static func decrypt(_ bytes: [UInt8]) -> (data: [UInt8], projectKey: UInt8)? {
+    public static func decrypt(_ bytes: [UInt8]) -> (data: [UInt8], projectKey: UInt8)? {
         guard bytes.count >= 3 else { return nil }
         let seed = bytes[0]
         guard seed ^ bytes[1] == 2 else { return nil }
@@ -70,15 +70,15 @@ enum VBAProjectEncryption {
     }
 
     /// The key is the low byte of the sum of the id's characters.
-    static func key(for projectID: String) -> UInt8 {
+    public static func key(for projectID: String) -> UInt8 {
         UInt8(truncatingIfNeeded: projectID.utf8.reduce(0) { $0 + Int($1) })
     }
 
-    static func hex(_ bytes: [UInt8]) -> String {
+    public static func hex(_ bytes: [UInt8]) -> String {
         bytes.map { String(format: "%02X", $0) }.joined()
     }
 
-    static func bytes(fromHex hex: String) -> [UInt8] {
+    public static func bytes(fromHex hex: String) -> [UInt8] {
         var bytes: [UInt8] = []
         var index = hex.startIndex
         while let next = hex.index(index, offsetBy: 2, limitedBy: hex.endIndex), index < hex.endIndex {

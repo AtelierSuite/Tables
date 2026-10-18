@@ -7,9 +7,9 @@ import TablesEngine
 /// to p-code for the Office build that last saved it, but Office recompiles
 /// from source whenever that cache does not match, so the source is the
 /// authority — and the only part documented well enough to rely on.
-struct VBAProject: Hashable, Sendable {
-    struct Module: Hashable, Sendable, Identifiable {
-        enum Kind: Hashable, Sendable {
+public struct VBAProject: Hashable, Sendable {
+    public struct Module: Hashable, Sendable, Identifiable {
+        public enum Kind: Hashable, Sendable {
             /// A standard module: `Module1`, public procedures anyone can call.
             case standard
             /// A class module, instantiated with `New`.
@@ -21,52 +21,52 @@ struct VBAProject: Hashable, Sendable {
             case designer
         }
 
-        var name: String
-        var kind: Kind
+        public var name: String
+        public var kind: Kind
         /// The text as the editor shows it, without the `Attribute` lines
         /// that precede it in the stored source.
-        var source: String
+        public var source: String
         /// The `Attribute VB_…` header exactly as stored, kept apart because
         /// the editor never shows it and saving has to put it back.
-        var attributes: String
+        public var attributes: String
         /// The stream under `VBA/` that holds the module.
-        var streamName: String
+        public var streamName: String
         /// The name the project file knows the module by, which differs from
         /// `name` once it is renamed, and is nil for a module not yet saved.
-        var storedName: String?
+        public var storedName: String?
 
-        var id: String { storedName ?? name }
+        public var id: String { storedName ?? name }
     }
 
-    var name: String
-    var modules: [Module]
+    public var name: String
+    public var modules: [Module]
     /// The Windows code page the project's text is stored in.
-    var codePage: UInt32
+    public var codePage: UInt32
     /// The container the project was read from. Saving an edit writes the
     /// changed modules back into it, keeping everything else it held —
     /// references, UserForm designers, protection — as it was.
-    var file: CompoundFile?
+    public var file: CompoundFile?
 
-    func module(named name: String) -> Module? {
+    public func module(named name: String) -> Module? {
         modules.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
     }
 
-    struct FormatError: LocalizedError {
-        var message: String
-        var errorDescription: String? { message }
+    public struct FormatError: LocalizedError, Sendable {
+        public var message: String
+        public var errorDescription: String? { message }
     }
 
-    init(name: String, modules: [Module], codePage: UInt32 = 1252) {
+    public init(name: String, modules: [Module], codePage: UInt32 = 1252) {
         self.name = name
         self.modules = modules
         self.codePage = codePage
     }
 
-    init(data: Data) throws {
+    public init(data: Data) throws {
         try self.init(compoundFile: CompoundFile(data: data))
     }
 
-    init(compoundFile file: CompoundFile) throws {
+    public init(compoundFile file: CompoundFile) throws {
         guard let vba = file.root.storage(named: "VBA"), let compressedDirectory = vba.stream(named: "dir") else {
             throw FormatError(message: "The macro project has no VBA storage.")
         }
@@ -96,20 +96,20 @@ struct VBAProject: Hashable, Sendable {
 
     // MARK: - Text
 
-    static func encoding(forCodePage codePage: UInt32) -> String.Encoding {
+    public static func encoding(forCodePage codePage: UInt32) -> String.Encoding {
         let encoding = CFStringConvertWindowsCodepageToEncoding(codePage)
         guard encoding != kCFStringEncodingInvalidId else { return .windowsCP1252 }
         return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))
     }
 
-    static func decode(_ bytes: [UInt8], codePage: UInt32) -> String {
+    public static func decode(_ bytes: [UInt8], codePage: UInt32) -> String {
         String(data: Data(bytes), encoding: encoding(forCodePage: codePage))
             ?? String(decoding: bytes, as: UTF8.self)
     }
 
     /// Stored source opens with `Attribute VB_Name = "Module1"` and friends;
     /// everything from the first other line on is what the user wrote.
-    static func splitAttributes(_ text: String) -> (attributes: String, source: String) {
+    public static func splitAttributes(_ text: String) -> (attributes: String, source: String) {
         let lines = text.components(separatedBy: "\r\n")
         let headerCount = lines.prefix { $0.hasPrefix("Attribute ") }.count
         let attributes = lines.prefix(headerCount).map { $0 + "\r\n" }.joined()
@@ -120,7 +120,7 @@ struct VBAProject: Hashable, Sendable {
     /// The `PROJECT` stream lists each module by kind — `Module=`, `Class=`,
     /// `Document=`, `BaseClass=` — which the `dir` stream alone cannot tell
     /// apart for anything but standard modules.
-    static func moduleKinds(in stream: Data?, codePage: UInt32) -> [String: Module.Kind] {
+    public static func moduleKinds(in stream: Data?, codePage: UInt32) -> [String: Module.Kind] {
         guard let stream else { return [:] }
         var kinds: [String: Module.Kind] = [:]
         for line in decode([UInt8](stream), codePage: codePage).components(separatedBy: .newlines) {

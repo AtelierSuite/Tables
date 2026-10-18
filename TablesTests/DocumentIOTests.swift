@@ -3,6 +3,7 @@ import Testing
 import UniformTypeIdentifiers
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 @Suite("ZIP container")
 struct ZipArchiveTests {

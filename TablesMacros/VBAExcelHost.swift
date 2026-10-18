@@ -3,42 +3,56 @@ import TablesEngine
 
 /// How a running macro reaches the user. Each closure is called on the
 /// macro's own thread and may block it while the user answers.
-struct VBAInteraction: Sendable {
-    var messageBox: @Sendable (_ prompt: String, _ buttons: Int, _ title: String?) -> Int = { _, _, _ in 1 }
-    var inputBox: @Sendable (_ prompt: String, _ title: String?, _ defaultText: String) -> String? = { _, _, text in text }
-    var debugPrint: @Sendable (_ text: String) -> Void = { _ in /* No Immediate window to print to. */ }
+public struct VBAInteraction: Sendable {
+    public var messageBox: @Sendable (_ prompt: String, _ buttons: Int, _ title: String?) -> Int = { _, _, _ in 1 }
+    public var inputBox: @Sendable (_ prompt: String, _ title: String?, _ defaultText: String) -> String? = { _, _, text in text }
+    public var debugPrint: @Sendable (_ text: String) -> Void = { _ in /* No Immediate window to print to. */ }
     /// Asks before opening a link from `Shell` or `FollowHyperlink`; true if opened.
-    var openURL: @Sendable (_ url: URL) -> Bool = { _ in false }
-    var showSendKeys: @Sendable (_ keys: String) -> Void = { _ in /* Nowhere to show the keys. */ }
+    public var openURL: @Sendable (_ url: URL) -> Bool = { _ in false }
+    public var showSendKeys: @Sendable (_ keys: String) -> Void = { _ in /* Nowhere to show the keys. */ }
+
+    public init(
+        messageBox: @escaping @Sendable (_ prompt: String, _ buttons: Int, _ title: String?) -> Int = { _, _, _ in 1 },
+        inputBox: @escaping @Sendable (_ prompt: String, _ title: String?, _ defaultText: String) -> String? = { _, _, text in text },
+        debugPrint: @escaping @Sendable (_ text: String) -> Void = { _ in /* No Immediate window to print to. */ },
+        openURL: @escaping @Sendable (_ url: URL) -> Bool = { _ in false },
+        showSendKeys: @escaping @Sendable (_ keys: String) -> Void = { _ in /* Nowhere to show the keys. */ }
+    ) {
+        self.messageBox = messageBox
+        self.inputBox = inputBox
+        self.debugPrint = debugPrint
+        self.openURL = openURL
+        self.showSendKeys = showSendKeys
+    }
 }
 
 /// The Excel object model over a Tables workbook: `Range`, `Cells`,
 /// `Worksheets` and the rest, reading and writing a private copy of the
 /// workbook that the caller takes back, whole, when the macro finishes.
-final class VBAExcelHost: VBAHost {
-    private(set) var workbook: Workbook
-    private(set) var activeSheetID: Worksheet.ID
+public final class VBAExcelHost: VBAHost {
+    public private(set) var workbook: Workbook
+    public private(set) var activeSheetID: Worksheet.ID
     /// The selection on the active sheet, and the active cell inside it.
-    private(set) var selection: CellRange
-    private(set) var activeCell: CellAddress
-    let interaction: VBAInteraction
-    let workbookName: String
+    public private(set) var selection: CellRange
+    public private(set) var activeCell: CellAddress
+    public let interaction: VBAInteraction
+    public let workbookName: String
 
     /// Formula results are refreshed lazily: writes only mark the workbook
     /// stale, and the next read that could see a formula recalculates.
     private var isStale = false
     private var hasFormulas: Bool
-    var clipboard: (sheet: Worksheet.ID, range: CellRange)?
+    public var clipboard: (sheet: Worksheet.ID, range: CellRange)?
     /// Application settings macros toggle and Tables has no use for, kept so
     /// reading one back gives what was written.
-    var applicationSettings: [String: VBAValue] = [
+    public var applicationSettings: [String: VBAValue] = [
         "screenupdating": .boolean(true), "displayalerts": .boolean(true), "enableevents": .boolean(true),
         "calculation": .integer(-4105), "statusbar": .boolean(false), "cutcopymode": .boolean(false),
         "displaystatusbar": .boolean(true), "asktoupdatelinks": .boolean(true), "interactive": .boolean(true),
         "cursor": .integer(-4143),
     ]
 
-    init(workbook: Workbook, name: String, activeSheet: Worksheet.ID? = nil, selection: CellRange? = nil,
+    public init(workbook: Workbook, name: String, activeSheet: Worksheet.ID? = nil, selection: CellRange? = nil,
          interaction: VBAInteraction = VBAInteraction()) {
         self.workbook = workbook
         workbookName = name
@@ -53,24 +67,24 @@ final class VBAExcelHost: VBAHost {
     }
 
     /// The workbook as the macro left it, with every formula up to date.
-    var finishedWorkbook: Workbook {
+    public var finishedWorkbook: Workbook {
         refreshIfStale()
         return workbook
     }
 
     // MARK: - Workbook access
 
-    func sheetIndex(_ id: Worksheet.ID) throws -> Int {
+    public func sheetIndex(_ id: Worksheet.ID) throws -> Int {
         guard let index = workbook.index(of: id) else { throw VBAError(number: 424, "The sheet no longer exists") }
         return index
     }
 
-    func sheet(_ id: Worksheet.ID) throws -> Worksheet {
+    public func sheet(_ id: Worksheet.ID) throws -> Worksheet {
         refreshIfStale()
         return workbook.sheets[try sheetIndex(id)]
     }
 
-    func refreshIfStale() {
+    public func refreshIfStale() {
         guard isStale else { return }
         isStale = false
         guard hasFormulas else { return }
@@ -78,7 +92,7 @@ final class VBAExcelHost: VBAHost {
     }
 
     /// Edits one sheet's cells, keeping the grid big enough for them.
-    func modifySheet(_ id: Worksheet.ID, extent: CellRange? = nil, _ change: (inout Worksheet) throws -> Void) throws {
+    public func modifySheet(_ id: Worksheet.ID, extent: CellRange? = nil, _ change: (inout Worksheet) throws -> Void) throws {
         let index = try sheetIndex(id)
         try change(&workbook.sheets[index])
         if let extent {
@@ -91,14 +105,14 @@ final class VBAExcelHost: VBAHost {
         isStale = true
     }
 
-    func noteFormulaWritten() { hasFormulas = true }
+    public func noteFormulaWritten() { hasFormulas = true }
 
-    func modifyWorkbook(_ change: (inout Workbook) throws -> Void) rethrows {
+    public func modifyWorkbook(_ change: (inout Workbook) throws -> Void) rethrows {
         try change(&workbook)
         isStale = true
     }
 
-    func activate(sheet id: Worksheet.ID, selecting range: CellRange? = nil) throws {
+    public func activate(sheet id: Worksheet.ID, selecting range: CellRange? = nil) throws {
         let index = try sheetIndex(id)
         if workbook.sheets[index].isHidden { throw VBAError(number: 1004, "Activate method of Worksheet class failed") }
         if id != activeSheetID {
@@ -112,27 +126,27 @@ final class VBAExcelHost: VBAHost {
         }
     }
 
-    func setActiveCell(_ address: CellAddress) {
+    public func setActiveCell(_ address: CellAddress) {
         activeCell = address
         if !selection.contains(address) { selection = CellRange(address) }
     }
 
     // MARK: - Objects
 
-    lazy var application = VBAApplicationObject(host: self)
-    lazy var workbookObject = VBAWorkbookObject(host: self)
+    public lazy var application = VBAApplicationObject(host: self)
+    public lazy var workbookObject = VBAWorkbookObject(host: self)
 
-    func worksheetObject(_ id: Worksheet.ID) -> VBAWorksheetObject { VBAWorksheetObject(host: self, sheetID: id) }
+    public func worksheetObject(_ id: Worksheet.ID) -> VBAWorksheetObject { VBAWorksheetObject(host: self, sheetID: id) }
 
-    func range(_ id: Worksheet.ID, _ range: CellRange) -> VBARangeObject {
+    public func range(_ id: Worksheet.ID, _ range: CellRange) -> VBARangeObject {
         VBARangeObject(host: self, sheetID: id, range: range.normalized)
     }
 
-    var activeWorksheet: VBAWorksheetObject { worksheetObject(activeSheetID) }
+    public var activeWorksheet: VBAWorksheetObject { worksheetObject(activeSheetID) }
 
     // MARK: - VBAHost
 
-    func globalMember(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue? {
+    public func globalMember(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue? {
         switch name.lowercased() {
         case "application": return .object(application)
         case "thisworkbook", "activeworkbook": return .object(workbookObject)
@@ -142,7 +156,7 @@ final class VBAExcelHost: VBAHost {
         return try application.globalMember(name, arguments, in: interpreter)
     }
 
-    func setGlobalMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
+    public func setGlobalMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
                          in interpreter: VBAInterpreter) throws -> Bool {
         // `ActiveCell = 5`: the only globals a bare assignment can reach.
         guard ["activecell", "selection"].contains(name.lowercased()) else { return false }
@@ -150,7 +164,7 @@ final class VBAExcelHost: VBAHost {
         return true
     }
 
-    func documentObject(codeName: String, in _: VBAInterpreter) -> (any VBAObject)? {
+    public func documentObject(codeName: String, in _: VBAInterpreter) -> (any VBAObject)? {
         if let workbookCodeName = workbook.codeName, workbookCodeName.caseInsensitiveCompare(codeName) == .orderedSame {
             return workbookObject
         }
@@ -163,35 +177,35 @@ final class VBAExcelHost: VBAHost {
         return worksheetObject(sheet.id)
     }
 
-    func constant(named name: String) -> VBAValue? {
+    public func constant(named name: String) -> VBAValue? {
         VBAExcelConstants.values[name.lowercased()].map(VBAValue.integer)
     }
 
-    func createObject(_: String, in _: VBAInterpreter) -> (any VBAObject)? { nil }
+    public func createObject(_: String, in _: VBAInterpreter) -> (any VBAObject)? { nil }
 
-    func messageBox(prompt: String, buttons: Int, title: String?) -> Int {
+    public func messageBox(prompt: String, buttons: Int, title: String?) -> Int {
         interaction.messageBox(prompt, buttons, title)
     }
 
-    func inputBox(prompt: String, title: String?, defaultText: String) -> String? {
+    public func inputBox(prompt: String, title: String?, defaultText: String) -> String? {
         interaction.inputBox(prompt, title, defaultText)
     }
 
-    func debugPrint(_ text: String) {
+    public func debugPrint(_ text: String) {
         interaction.debugPrint(text)
     }
 
-    func openURL(_ url: URL) -> Bool {
+    public func openURL(_ url: URL) -> Bool {
         interaction.openURL(url)
     }
 
-    func showSendKeys(_ keys: String) {
+    public func showSendKeys(_ keys: String) {
         interaction.showSendKeys(keys)
     }
 
     // MARK: - Values
 
-    static func errorCode(_ error: CellError) -> Int {
+    public static func errorCode(_ error: CellError) -> Int {
         switch error {
         case .nullError: return 2000
         case .divideByZero: return 2007
@@ -206,7 +220,7 @@ final class VBAExcelHost: VBAHost {
         }
     }
 
-    static func cellError(_ code: Int) -> CellError {
+    public static func cellError(_ code: Int) -> CellError {
         switch code {
         case 2000: return .nullError
         case 2007: return .divideByZero
@@ -221,7 +235,7 @@ final class VBAExcelHost: VBAHost {
     }
 
     /// What `.Value` reads: numbers in a date format come back as dates.
-    static func value(of cell: Cell) -> VBAValue {
+    public static func value(of cell: Cell) -> VBAValue {
         switch cell.value {
         case .empty: return .empty
         case .number(let number):
@@ -234,7 +248,7 @@ final class VBAExcelHost: VBAHost {
 
     /// Writes a value into a cell as `.Value` does: text is read the way
     /// typing it would be, so `"=A1*2"` is a formula and `"12"` a number.
-    func write(_ value: VBAValue, to address: CellAddress, in sheet: inout Worksheet,
+    public func write(_ value: VBAValue, to address: CellAddress, in sheet: inout Worksheet,
                interpreter: VBAInterpreter) throws {
         var cell = sheet[address]
         switch try interpreter.letValue(value) {
@@ -272,7 +286,7 @@ final class VBAExcelHost: VBAHost {
 
     /// Resolves `"A1"`, `"A1:C3"`, `"B:B"`, `"2:4"`, `"Sheet2!A1"` or a
     /// defined name. `defaultSheet` is where an unqualified reference lands.
-    func resolveRange(_ text: String, defaultSheet: Worksheet.ID) throws -> (Worksheet.ID, CellRange) {
+    public func resolveRange(_ text: String, defaultSheet: Worksheet.ID) throws -> (Worksheet.ID, CellRange) {
         var reference = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
         var sheetID = defaultSheet
         if let bang = reference.lastIndex(of: "!") {
@@ -315,10 +329,10 @@ final class VBAExcelHost: VBAHost {
         throw Self.rangeFailed
     }
 
-    static let rangeFailed = VBAError(number: 1004, "Method 'Range' of object '_Global' failed")
+    public static let rangeFailed = VBAError(number: 1004, "Method 'Range' of object '_Global' failed")
 
     /// Formats a range reference for `Address`.
-    static func address(_ range: CellRange, rowAbsolute: Bool = true, columnAbsolute: Bool = true) -> String {
+    public static func address(_ range: CellRange, rowAbsolute: Bool = true, columnAbsolute: Bool = true) -> String {
         func cell(_ address: CellAddress) -> String {
             (columnAbsolute ? "$" : "") + CellAddress.columnName(address.column)
                 + (rowAbsolute ? "$" : "") + String(address.row + 1)
@@ -337,7 +351,7 @@ final class VBAExcelHost: VBAHost {
     }
 
     /// A reference to a range as formula text, for handing to the formula engine.
-    func formulaReference(_ id: Worksheet.ID, _ range: CellRange) throws -> String {
+    public func formulaReference(_ id: Worksheet.ID, _ range: CellRange) throws -> String {
         let name = workbook.sheets[try sheetIndex(id)].name.replacingOccurrences(of: "'", with: "''")
         return "'\(name)'!" + Self.address(range, rowAbsolute: false, columnAbsolute: false)
     }
@@ -345,7 +359,7 @@ final class VBAExcelHost: VBAHost {
     // MARK: - Colours
 
     /// VBA colours are BGR integers; Tables keeps AARRGGBB hex.
-    static func colorValue(_ hex: String?) -> Int? {
+    public static func colorValue(_ hex: String?) -> Int? {
         guard let hex, let value = UInt32(hex.suffix(6), radix: 16) else { return nil }
         let red = Int(value >> 16 & 0xFF)
         let green = Int(value >> 8 & 0xFF)
@@ -353,7 +367,7 @@ final class VBAExcelHost: VBAHost {
         return red | green << 8 | blue << 16
     }
 
-    static func colorHex(_ value: Int) -> String {
+    public static func colorHex(_ value: Int) -> String {
         let red = value & 0xFF
         let green = value >> 8 & 0xFF
         let blue = value >> 16 & 0xFF
@@ -363,8 +377,8 @@ final class VBAExcelHost: VBAHost {
 
 // MARK: - Constants
 
-enum VBAExcelConstants {
-    static let values: [String: Int] = [
+public enum VBAExcelConstants {
+    public static let values: [String: Int] = [
         "xlup": -4162, "xldown": -4121, "xltoleft": -4159, "xltoright": -4161,
         "xlvalues": -4163, "xlformulas": -4123, "xlcomments": -4144,
         "xlcalculationmanual": -4135, "xlcalculationautomatic": -4105, "xlcalculationsemiautomatic": 2,

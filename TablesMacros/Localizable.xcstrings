@@ -1,0 +1,3121 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Help.Differences.Areas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A range has to be a single rectangle. Ranges of several areas, such as \"A1:B2,D1\", and R1C1-style references aren’t supported."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範囲は 1 つの長方形である必要があります。\"A1:B2,D1\" のような複数の領域からなる範囲や、R1C1 形式の参照はサポートしていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "범위는 하나의 직사각형이어야 합니다. \"A1:B2,D1\"처럼 여러 영역으로 된 범위와 R1C1 형식 참조는 지원되지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "区域必须是单个矩形。不支持由多个区域组成的区域（如 \"A1:B2,D1\"）以及 R1C1 样式的引用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範圍必須是單一矩形。不支援由多個區域組成的範圍（如 \"A1:B2,D1\"）以及 R1C1 樣式的參照。"
+          }
+        }
+      }
+    },
+    "Help.Differences.Compile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you edit macros here, Excel recompiles them the next time it opens the workbook. A digital signature on the macros is removed when you edit them, because it would no longer match."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここでマクロを編集すると、次に Excel でブックを開いたときにマクロが再コンパイルされます。マクロのデジタル署名は、内容と一致しなくなるため、編集すると削除されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여기서 매크로를 편집하면 다음에 Excel에서 통합 문서를 열 때 매크로가 다시 컴파일됩니다. 매크로의 디지털 서명은 더 이상 내용과 일치하지 않으므로 편집하면 제거됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在这里编辑宏后，Excel 下次打开工作簿时会重新编译这些宏。宏的数字签名在编辑后会被移除，因为它将不再匹配。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在這裡編輯巨集後，Excel 下次打開活頁簿時會重新編譯這些巨集。巨集的數位簽章在編輯後會被移除，因為它將不再相符。"
+          }
+        }
+      }
+    },
+    "Help.Differences.Events" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Event procedures such as Workbook_Open and Worksheet_Change don’t run automatically."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workbook_Open や Worksheet_Change などのイベントプロシージャは自動では実行されません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workbook_Open이나 Worksheet_Change 같은 이벤트 프로시저는 자동으로 실행되지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workbook_Open、Worksheet_Change 等事件过程不会自动运行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workbook_Open、Worksheet_Change 等事件程序不會自動執行。"
+          }
+        }
+      }
+    },
+    "Help.Differences.Messages" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error messages from running code, such as “Type mismatch”, use VBA’s English wording, so code that checks Err.Description sees what it would in English Excel."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行時のエラーメッセージ（「Type mismatch」など）は VBA の英語の文言を使います。Err.Description を確認するコードは、英語版 Excel と同じ内容を受け取ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Type mismatch” 같은 실행 오류 메시지는 VBA의 영어 문구를 사용하므로, Err.Description을 확인하는 코드는 영어판 Excel과 같은 내용을 받습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行代码时的错误信息（如“Type mismatch”）使用 VBA 的英文措辞，因此检查 Err.Description 的代码得到的内容与英文版 Excel 相同。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行程式碼時的錯誤訊息（如「Type mismatch」）使用 VBA 的英文措辭，因此檢查 Err.Description 的程式碼得到的內容與英文版 Excel 相同。"
+          }
+        }
+      }
+    },
+    "Help.Differences.Rows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Tables sheet has up to 100,000 rows and 4,096 columns, so Rows.Count is 100,000 rather than Excel’s 1,048,576. Finding the last row with Cells(Rows.Count, 1).End(xlUp) works the same."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables のシートは最大 100,000 行、4,096 列のため、Rows.Count は Excel の 1,048,576 ではなく 100,000 になります。Cells(Rows.Count, 1).End(xlUp) で最終行を求める方法はそのまま使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 시트는 최대 100,000행, 4,096열이므로 Rows.Count는 Excel의 1,048,576이 아니라 100,000입니다. Cells(Rows.Count, 1).End(xlUp)로 마지막 행을 찾는 방법은 그대로 작동합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 工作表最多有 100,000 行和 4,096 列，因此 Rows.Count 为 100,000，而不是 Excel 的 1,048,576。用 Cells(Rows.Count, 1).End(xlUp) 查找最后一行的方法照样有效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 工作表最多有 100,000 列和 4,096 欄，因此 Rows.Count 為 100,000，而不是 Excel 的 1,048,576。用 Cells(Rows.Count, 1).End(xlUp) 尋找最後一列的方法照樣有效。"
+          }
+        }
+      }
+    },
+    "Help.Differences.Structure" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete and Insert work on whole rows and columns. Shifting part of a sheet up or across isn’t supported, because formulas pointing at the moved cells wouldn’t follow them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete と Insert は行全体・列全体に対してのみ使えます。シートの一部だけを上や横にずらす操作は、移動したセルを参照する数式が追従しないため、サポートしていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete와 Insert는 행 전체와 열 전체에서만 작동합니다. 시트의 일부만 위나 옆으로 이동하는 작업은 이동한 셀을 가리키는 수식이 따라가지 않으므로 지원되지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete 和 Insert 只适用于整行和整列。不支持将工作表的一部分上移或横移，因为指向被移动单元格的公式不会随之更新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete 和 Insert 只適用於整列和整欄。不支援將工作表的一部分上移或橫移，因為指向被移動儲存格的公式不會隨之更新。"
+          }
+        }
+      }
+    },
+    "Help.Differences.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Differences from Excel"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excel との違い"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excel과의 차이점"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "与 Excel 的区别"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與 Excel 的差異"
+          }
+        }
+      }
+    },
+    "Help.Editor.Checking" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code is checked as you type. If something can’t be read, a banner above the code says what, and on which line."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コードは入力中に検証されます。読み取れない部分があると、コードの上のバナーに内容と行番号が表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드는 입력하는 동안 확인됩니다. 읽을 수 없는 부분이 있으면 코드 위의 배너에 내용과 줄 번호가 표시됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代码会在输入时检查。如有无法识别的内容，代码上方的横幅会说明问题及所在行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式碼會在輸入時檢查。如有無法識別的內容，程式碼上方的橫幅會說明問題及所在行。"
+          }
+        }
+      }
+    },
+    "Help.Editor.Indent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return starts the next line indented for the block you’re in, and lines such as End Sub, Next and Else move back to line up with the line that opened the block. Long lines scroll sideways; turn on Wrap Lines to fit them to the screen instead."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return キーを押すと、次の行がブロックに合わせてインデントされます。End Sub、Next、Else などの行は、ブロックを開始した行の位置に戻ります。長い行は横にスクロールします。画面に収めたい場合は「行を折り返す」をオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return 키를 누르면 다음 줄이 현재 블록에 맞게 들여쓰기됩니다. End Sub, Next, Else 같은 줄은 블록을 시작한 줄에 맞춰 내어쓰기됩니다. 긴 줄은 옆으로 스크롤됩니다. 화면에 맞추려면 줄 바꿈을 켜십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 Return 键后，下一行会按所在代码块缩进；End Sub、Next、Else 等行会退回到与开始该代码块的行对齐。长行可以横向滚动；如需让其适应屏幕，请打开“自动换行”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 Return 鍵後，下一行會依所在程式碼區塊縮排；End Sub、Next、Else 等行會退回到與開始該區塊的行對齊。長行可以橫向捲動；如需讓其符合螢幕寬度，請打開「自動換行」。"
+          }
+        }
+      }
+    },
+    "Help.Editor.Modules" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use + next to Code to add a standard module or a class module. Touch and hold a module, or swipe it, to rename or remove it. The workbook’s and sheets’ own modules belong to them and can’t be renamed or removed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「コード」の横の＋で標準モジュールまたはクラスモジュールを追加できます。モジュールを長押しするかスワイプすると、名前の変更や削除ができます。ブックやシート自身のモジュールは、名前の変更も削除もできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드 옆의 +를 사용해 표준 모듈이나 클래스 모듈을 추가할 수 있습니다. 모듈을 길게 누르거나 쓸어넘기면 이름을 변경하거나 제거할 수 있습니다. 통합 문서와 시트 자체의 모듈은 이름을 변경하거나 제거할 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用“代码”旁的 + 添加标准模块或类模块。按住或轻扫模块即可重命名或移除。工作簿和工作表自带的模块不能重命名或移除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用「程式碼」旁的 + 加入標準模組或類別模組。按住或滑動模組即可重新命名或移除。活頁簿和工作表本身的模組不能重新命名或移除。"
+          }
+        }
+      }
+    },
+    "Help.Editor.Output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whatever a macro prints with Debug.Print appears under Output in the Macros list after it runs."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マクロが Debug.Print で出力した内容は、実行後にマクロ一覧の「出力」に表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매크로가 Debug.Print로 출력한 내용은 실행 후 매크로 목록의 출력 아래에 표시됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宏用 Debug.Print 输出的内容会在运行后显示在宏列表的“输出”下。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巨集用 Debug.Print 輸出的內容會在執行後顯示在巨集列表的「輸出」下。"
+          }
+        }
+      }
+    },
+    "Help.Editor.Saving" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a module under Code to edit it. Changes go into the workbook when you press Save or go back, and each save can be undone."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「コード」の下のモジュールをタップすると編集できます。「保存」を押すか前の画面に戻ると変更がブックに反映され、保存ごとに取り消すことができます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드 아래의 모듈을 탭하면 편집할 수 있습니다. 저장을 누르거나 뒤로 돌아가면 변경 사항이 통합 문서에 반영되며, 저장할 때마다 실행 취소할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻点“代码”下的模块即可编辑。按“保存”或返回时，更改会写入工作簿，每次保存都可以撤销。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下「程式碼」下的模組即可編輯。按「儲存」或返回時，更改會寫入活頁簿，每次儲存都可以還原。"
+          }
+        }
+      }
+    },
+    "Help.Editor.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コードの作成"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드 작성"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编写代码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撰寫程式碼"
+          }
+        }
+      }
+    },
+    "Help.Excel.Intro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Macros see the workbook through the same objects as in Excel. Range, Cells, Rows, Columns, ActiveSheet, ActiveCell and Selection without a sheet in front refer to the sheet that is showing, and a sheet’s code name, such as Sheet1, works too."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マクロは Excel と同じオブジェクトを通じてブックを扱います。シートを指定しない Range、Cells、Rows、Columns、ActiveSheet、ActiveCell、Selection は表示中のシートを指し、Sheet1 のようなシートのコード名も使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매크로는 Excel과 같은 개체를 통해 통합 문서를 다룹니다. 시트를 지정하지 않은 Range, Cells, Rows, Columns, ActiveSheet, ActiveCell, Selection은 표시 중인 시트를 가리키며, Sheet1 같은 시트 코드 이름도 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宏通过与 Excel 相同的对象访问工作簿。不带工作表前缀的 Range、Cells、Rows、Columns、ActiveSheet、ActiveCell 和 Selection 指向当前显示的工作表，也可以使用 Sheet1 这样的工作表代码名称。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巨集透過與 Excel 相同的物件存取活頁簿。不帶工作表前綴的 Range、Cells、Rows、Columns、ActiveSheet、ActiveCell 和 Selection 指向目前顯示的工作表，也可以使用 Sheet1 這樣的工作表程式碼名稱。"
+          }
+        }
+      }
+    },
+    "Help.Excel.RangeNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value reads and writes whole blocks as two-dimensional arrays. Delete and Insert work on whole rows and columns."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value では範囲全体を 2 次元配列として読み書きできます。Delete と Insert は行全体・列全体に対して使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value는 범위 전체를 2차원 배열로 읽고 씁니다. Delete와 Insert는 행 전체와 열 전체에서 작동합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value 以二维数组读写整个区域。Delete 和 Insert 适用于整行和整列。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value 以二維陣列讀寫整個範圍。Delete 和 Insert 適用於整列和整欄。"
+          }
+        }
+      }
+    },
+    "Help.Excel.Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings such as Application.ScreenUpdating, DisplayAlerts and Calculation are accepted so that existing macros run, but they have no effect: Tables always updates the sheet once, when the macro finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application.ScreenUpdating、DisplayAlerts、Calculation などの設定は、既存のマクロが動くように受け付けますが、効果はありません。Tables はマクロの終了時に一度だけシートを更新します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application.ScreenUpdating, DisplayAlerts, Calculation 같은 설정은 기존 매크로가 작동하도록 허용되지만 효과는 없습니다. Tables는 매크로가 끝날 때 한 번만 시트를 업데이트합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application.ScreenUpdating、DisplayAlerts、Calculation 等设置会被接受，以便现有宏能够运行，但不会生效：Tables 始终在宏结束时更新一次工作表。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application.ScreenUpdating、DisplayAlerts、Calculation 等設定會被接受，以便現有巨集能夠執行，但不會生效：Tables 一律在巨集結束時更新一次工作表。"
+          }
+        }
+      }
+    },
+    "Help.Excel.SheetsNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sheets includes chart sheets; Worksheets doesn’t. Both can be walked with For Each."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sheets にはグラフシートも含まれますが、Worksheets には含まれません。どちらも For Each で順に処理できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sheets에는 차트 시트가 포함되지만 Worksheets에는 포함되지 않습니다. 둘 다 For Each로 순회할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sheets 包含图表工作表，Worksheets 不包含。两者都可以用 For Each 遍历。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sheets 包含圖表工作表，Worksheets 不包含。兩者都可以用 For Each 逐一處理。"
+          }
+        }
+      }
+    },
+    "Help.Excel.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excel Objects"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excel のオブジェクト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excel 개체"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excel 对象"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excel 物件"
+          }
+        }
+      }
+    },
+    "Help.Excel.WorksheetFunctionNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every function the formula bar knows can be called this way, worked out by the same engine as your cells."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数式バーで使えるすべての関数をこの方法で呼び出せます。計算はセルと同じエンジンで行われます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수식 입력줄에서 사용할 수 있는 모든 함수를 이 방법으로 호출할 수 있으며, 셀과 같은 엔진으로 계산됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公式栏支持的所有函数都可以这样调用，并由与单元格相同的引擎计算。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公式列支援的所有函數都可以這樣呼叫，並由與儲存格相同的引擎計算。"
+          }
+        }
+      }
+    },
+    "Help.Files.Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each workbook’s macros have a folder of their own, in Macro Files in the app’s documents, named after the workbook. It is created the first time a macro runs. Open Files in the Macros list to see what is in it, share or delete files, or open it in the Files app to add some."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マクロには、ブックごとに専用のフォルダがあります。App の書類内の「Macro Files」にあり、ブックの名前が付いています。マクロを初めて実行したときに作成されます。マクロ一覧の「ファイル」を開くと、中身の確認、ファイルの共有や削除ができ、「ファイル」App で開いてファイルを追加することもできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "각 통합 문서의 매크로에는 전용 폴더가 있습니다. 앱 도큐멘트의 Macro Files 안에 통합 문서 이름으로 있으며, 매크로를 처음 실행할 때 만들어집니다. 매크로 목록에서 파일을 열면 내용을 확인하고, 파일을 공유하거나 삭제하거나, 파일 앱에서 열어 파일을 추가할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每个工作簿的宏都有自己的文件夹，位于应用文稿中的 Macro Files 内，以工作簿命名，在第一次运行宏时创建。在宏列表中打开“文件”可查看其中内容、共享或删除文件，也可以在“文件”App 中打开以添加文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個活頁簿的巨集都有自己的資料夾，位於 App 文件中的 Macro Files 內，以活頁簿命名，在第一次執行巨集時建立。在巨集列表中打開「檔案」可查看其中內容、分享或刪除檔案，也可以在「檔案」App 中打開以加入檔案。"
+          }
+        }
+      }
+    },
+    "Help.Files.Keys" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SendKeys can’t type into other apps, so it shows you the keys instead, ready to copy. AppActivate does nothing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SendKeys は他のアプリに入力できないため、代わりに送ろうとしたキーをコピーできる形で表示します。AppActivate は何もしません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SendKeys는 다른 앱에 입력할 수 없으므로 대신 보내려던 키를 복사할 수 있게 보여 줍니다. AppActivate는 아무것도 하지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SendKeys 无法在其他应用中输入，因此会改为显示这些按键，方便拷贝。AppActivate 不执行任何操作。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SendKeys 無法在其他 App 中輸入，因此會改為顯示這些按鍵，方便拷貝。AppActivate 不執行任何動作。"
+          }
+        }
+      }
+    },
+    "Help.Files.Links" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell and FollowHyperlink open web and app links, such as https:// and mailto: addresses, after you agree to each one. They can’t start programs or open files."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell と FollowHyperlink は、https:// や mailto: のアドレスなどの Web やアプリのリンクを、そのつどあなたの許可を得てから開きます。プログラムの起動やファイルを開くことはできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell과 FollowHyperlink는 https:// 및 mailto: 주소 같은 웹 및 앱 링크를 매번 사용자의 허락을 받은 후에 엽니다. 프로그램을 시작하거나 파일을 열 수는 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell 和 FollowHyperlink 会在你每次同意后打开网页和应用链接，例如 https:// 和 mailto: 地址。它们不能启动程序或打开文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell 和 FollowHyperlink 會在你每次同意後打開網頁和 App 連結，例如 https:// 和 mailto: 位址。它們不能啟動程式或打開檔案。"
+          }
+        }
+      }
+    },
+    "Help.Files.Paths" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paths in code are relative to that folder. Backslashes work as well as slashes, so paths written for Windows still do, and ThisWorkbook.Path and CurDir return the folder. A path that leads outside it — with .., a drive letter, or a link — stops the macro with a Path/File access error."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コード内のパスはこのフォルダを基準とします。スラッシュだけでなく円記号（\\）も使えるため、Windows 向けに書かれたパスもそのまま使え、ThisWorkbook.Path と CurDir はこのフォルダを返します。..、ドライブ文字、リンクなどでフォルダの外を指すパスを使うと、「ファイル/パス アクセス エラー」でマクロが停止します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드의 경로는 이 폴더를 기준으로 합니다. 슬래시뿐 아니라 백슬래시도 사용할 수 있어 Windows용으로 작성한 경로도 그대로 작동하며, ThisWorkbook.Path와 CurDir는 이 폴더를 반환합니다. .., 드라이브 문자, 링크 등으로 폴더 밖을 가리키는 경로를 사용하면 경로/파일 액세스 오류와 함께 매크로가 중지됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代码中的路径以此文件夹为准。反斜杠和斜杠都可以使用，因此为 Windows 编写的路径照样有效，ThisWorkbook.Path 和 CurDir 返回此文件夹。用 ..、驱动器号或链接指向文件夹以外的路径会使宏停止，并报告“路径/文件访问错误”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式碼中的路徑以此資料夾為準。反斜線和斜線都可以使用，因此為 Windows 撰寫的路徑照樣有效，ThisWorkbook.Path 和 CurDir 會傳回此資料夾。用 ..、磁碟機代號或連結指向資料夾以外的路徑會使巨集停止，並報告「路徑/檔案存取錯誤」。"
+          }
+        }
+      }
+    },
+    "Help.Files.Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text is written as UTF-8 with Windows line breaks, so files read back the same in Excel. Files written by Excel on Windows are read too."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストは Windows の改行コードを使った UTF-8 で書き込まれるため、Excel でも同じように読み込めます。Windows 版 Excel が書き込んだファイルも読み込めます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트는 Windows 줄 바꿈을 사용하는 UTF-8로 기록되므로 Excel에서도 똑같이 읽힙니다. Windows용 Excel이 기록한 파일도 읽을 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文本以 UTF-8 编码和 Windows 换行符写入，因此在 Excel 中读取的结果相同。也可以读取 Windows 版 Excel 写入的文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字以 UTF-8 編碼和 Windows 換行字元寫入，因此在 Excel 中讀取的結果相同。也可以讀取 Windows 版 Excel 寫入的檔案。"
+          }
+        }
+      }
+    },
+    "Help.Files.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Working with Files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルの操作"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일 작업"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "处理文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "處理檔案"
+          }
+        }
+      }
+    },
+    "Help.Functions.Conversion" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conversion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "型変換"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "변환"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "类型转换"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類型轉換"
+          }
+        }
+      }
+    },
+    "Help.Functions.Dates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dates and times"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日付と時刻"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "날짜와 시간"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日期与时间"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日期與時間"
+          }
+        }
+      }
+    },
+    "Help.Functions.Files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files and folders"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルとフォルダ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일과 폴더"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件与文件夹"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案與資料夾"
+          }
+        }
+      }
+    },
+    "Help.Functions.FilesNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All within the workbook’s own folder of files; see Working with Files."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてブック専用のファイルフォルダ内で動作します。「ファイルの操作」を参照してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모두 통합 문서 전용 파일 폴더 안에서 작동합니다. 파일 작업을 참조하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部在工作簿的专属文件夹内进行，请参阅“处理文件”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部在活頁簿的專屬資料夾內進行，請參閱「處理檔案」。"
+          }
+        }
+      }
+    },
+    "Help.Functions.FormatNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format takes the same codes as cell number formats, such as \"#,##0.00\" or \"yyyy-mm-dd\", and named formats such as \"Currency\" and \"Short Date\"."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format には、\"#,##0.00\" や \"yyyy-mm-dd\" のようなセルの表示形式と同じコードや、\"Currency\"、\"Short Date\" などの名前付き書式を指定できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format에는 \"#,##0.00\"이나 \"yyyy-mm-dd\" 같은 셀 표시 형식과 같은 코드와 \"Currency\", \"Short Date\" 같은 이름 있는 형식을 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format 使用与单元格数字格式相同的代码，如 \"#,##0.00\" 或 \"yyyy-mm-dd\"，也支持 \"Currency\"、\"Short Date\" 等命名格式。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format 使用與儲存格數字格式相同的代碼，如 \"#,##0.00\" 或 \"yyyy-mm-dd\"，也支援 \"Currency\"、\"Short Date\" 等具名格式。"
+          }
+        }
+      }
+    },
+    "Help.Functions.Information" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Information"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情報"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "정보"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資訊"
+          }
+        }
+      }
+    },
+    "Help.Functions.Interaction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interaction"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対話"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "상호 작용"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交互"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "互動"
+          }
+        }
+      }
+    },
+    "Help.Functions.InteractionNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell opens web and app links once you agree; SendKeys shows its keys instead of typing them; AppActivate does nothing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell はあなたが許可すると Web やアプリのリンクを開きます。SendKeys はキーを入力する代わりに表示し、AppActivate は何もしません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell은 사용자가 허용하면 웹 및 앱 링크를 엽니다. SendKeys는 키를 입력하는 대신 보여 주며, AppActivate는 아무것도 하지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell 在你同意后打开网页和应用链接；SendKeys 会显示按键而不是输入；AppActivate 不执行任何操作。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell 在你同意後打開網頁和 App 連結；SendKeys 會顯示按鍵而不是輸入；AppActivate 不執行任何動作。"
+          }
+        }
+      }
+    },
+    "Help.Functions.Intro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These functions from the VBA library can be used in every module."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VBA ライブラリの次の関数は、どのモジュールでも使用できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VBA 라이브러리의 다음 함수는 모든 모듈에서 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VBA 库中的以下函数可在任何模块中使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VBA 程式庫中的以下函數可在任何模組中使用。"
+          }
+        }
+      }
+    },
+    "Help.Functions.Math" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maths"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数学"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수학"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数学"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "數學"
+          }
+        }
+      }
+    },
+    "Help.Functions.Objects" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Objects to create with New or CreateObject"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New または CreateObject で作成できるオブジェクト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New 또는 CreateObject로 만들 수 있는 개체"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可用 New 或 CreateObject 创建的对象"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可用 New 或 CreateObject 建立的物件"
+          }
+        }
+      }
+    },
+    "Help.Functions.Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字列"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字"
+          }
+        }
+      }
+    },
+    "Help.Functions.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in Functions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "組み込み関数"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 제공 함수"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内置函数"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內建函數"
+          }
+        }
+      }
+    },
+    "Help.Functions.UnavailableNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GetObject connects to other applications and Scripting.FileSystemObject reaches the whole file system; neither exists for macros here. Use the file statements, which work in the workbook’s own folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GetObject は他のアプリケーションに接続し、Scripting.FileSystemObject はファイルシステム全体にアクセスしますが、どちらもここではマクロから使用できません。ブック専用のフォルダで動作するファイルステートメントを使ってください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GetObject는 다른 응용 프로그램에 연결하고 Scripting.FileSystemObject는 전체 파일 시스템에 접근하지만, 둘 다 여기서는 매크로가 사용할 수 없습니다. 통합 문서 전용 폴더에서 작동하는 파일 문을 사용하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GetObject 用于连接其他应用程序，Scripting.FileSystemObject 可访问整个文件系统；在这里，宏两者都无法使用。请使用在工作簿专属文件夹中工作的文件语句。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GetObject 用於連接其他應用程式，Scripting.FileSystemObject 可存取整個檔案系統；在這裡，巨集兩者都無法使用。請使用在活頁簿專屬資料夾中運作的檔案陳述式。"
+          }
+        }
+      }
+    },
+    "Help.Language.Errors" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error handling"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エラー処理"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오류 처리"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误处理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤處理"
+          }
+        }
+      }
+    },
+    "Help.Language.Files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
+          }
+        }
+      }
+    },
+    "Help.Language.FilesNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the workbook’s own folder of files; see Working with Files."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブック専用のファイルフォルダ内で動作します。「ファイルの操作」を参照してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "통합 문서 전용 파일 폴더 안에서 작동합니다. 파일 작업을 참조하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在工作簿的专属文件夹内进行，请参阅“处理文件”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在活頁簿的專屬資料夾內進行，請參閱「處理檔案」。"
+          }
+        }
+      }
+    },
+    "Help.Language.Flow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control flow"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "制御構造"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제어 흐름"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "流程控制"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "流程控制"
+          }
+        }
+      }
+    },
+    "Help.Language.Intro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables runs the parts of VBA that spreadsheet macros use. Statements that can’t run are still accepted in the code, so the rest of a module works; they stop the macro only if they are reached."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables は、スプレッドシートのマクロで使われる VBA の機能を実行します。実行できないステートメントもコードとしては受け付けるので、モジュールの他の部分は動作します。そのステートメントに到達したときにだけマクロが停止します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables는 스프레드시트 매크로에서 사용하는 VBA 기능을 실행합니다. 실행할 수 없는 문도 코드로는 허용되므로 모듈의 나머지 부분은 작동하며, 해당 문에 도달할 때만 매크로가 중지됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 可运行电子表格宏所用的 VBA 功能。无法运行的语句仍可写在代码中，模块的其余部分照常工作；只有运行到这些语句时，宏才会停止。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 可執行試算表巨集所用的 VBA 功能。無法執行的陳述式仍可寫在程式碼中，模組的其餘部分照常運作；只有執行到這些陳述式時，巨集才會停止。"
+          }
+        }
+      }
+    },
+    "Help.Language.Objects" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classes and objects"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラスとオブジェクト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클래스와 개체"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "类与对象"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類別與物件"
+          }
+        }
+      }
+    },
+    "Help.Language.Other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also available"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기타"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他"
+          }
+        }
+      }
+    },
+    "Help.Language.Procedures" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Procedures and arguments"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロシージャと引数"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로시저와 인수"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过程与参数"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程序與引數"
+          }
+        }
+      }
+    },
+    "Help.Language.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The VBA Language"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VBA 言語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VBA 언어"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VBA 语言"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VBA 語言"
+          }
+        }
+      }
+    },
+    "Help.Language.UnavailableNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UserForms and Windows functions don’t exist on Apple devices. Excel’s own events, such as Workbook_Open, can be written and kept but don’t run by themselves; events your classes raise do."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ユーザーフォームと Windows の関数は Apple 製デバイスにはありません。Workbook_Open などの Excel 自体のイベントは記述して保存できますが、自動では実行されません。独自のクラスが発生させるイベントは動作します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용자 정의 폼과 Windows 함수는 Apple 기기에 없습니다. Workbook_Open 같은 Excel 자체 이벤트는 작성하고 저장할 수 있지만 자동으로 실행되지 않습니다. 직접 만든 클래스가 발생시키는 이벤트는 작동합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 设备上没有用户窗体和 Windows 函数。Workbook_Open 等 Excel 自身的事件可以编写和保存，但不会自动运行；你的类引发的事件可以正常工作。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 裝置上沒有使用者表單和 Windows 函數。Workbook_Open 等 Excel 本身的事件可以撰寫和保存，但不會自動執行；你的類別引發的事件可以正常運作。"
+          }
+        }
+      }
+    },
+    "Help.Language.Variables" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Variables and declarations"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変数と宣言"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "변수와 선언"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "变量与声明"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變數與宣告"
+          }
+        }
+      }
+    },
+    "Help.Running.Ask" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first time you run a macro in a window, Tables asks you to confirm. Only run macros from people you trust."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ウインドウで初めてマクロを実行するときは、確認が表示されます。信頼できる相手のマクロだけを実行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "윈도우에서 처음 매크로를 실행할 때 확인을 요청합니다. 신뢰할 수 있는 사람의 매크로만 실행하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在一个窗口中第一次运行宏时，Tables 会请你确认。请只运行来自你信任的人的宏。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在一個視窗中第一次執行巨集時，Tables 會請你確認。請只執行來自你信任的人的巨集。"
+          }
+        }
+      }
+    },
+    "Help.Running.Choose" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the Macros list from the toolbar and tap a macro to run it. Every public Sub without parameters in a standard module, or in the workbook’s or a sheet’s module, is listed. While it runs, a bar at the bottom of the window shows its name and a Stop button."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツールバーからマクロの一覧を開き、マクロをタップすると実行されます。標準モジュール、またはブックやシートのモジュールにある、引数のない Public な Sub がすべて一覧に表示されます。実行中はウインドウ下部のバーにマクロ名と「停止」ボタンが表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 막대에서 매크로 목록을 열고 매크로를 탭하면 실행됩니다. 표준 모듈이나 통합 문서 또는 시트 모듈에 있는, 매개변수가 없는 모든 Public Sub가 목록에 표시됩니다. 실행 중에는 윈도우 아래쪽 막대에 매크로 이름과 중지 버튼이 표시됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从工具栏打开宏列表，轻点一个宏即可运行。标准模块、工作簿模块或工作表模块中所有不带参数的 Public Sub 都会列出。运行时，窗口底部的栏会显示宏的名称和“停止”按钮。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從工具列打開巨集列表，點一下巨集即可執行。標準模組、活頁簿模組或工作表模組中所有不帶參數的 Public Sub 都會列出。執行時，視窗底部的列會顯示巨集名稱和「停止」按鈕。"
+          }
+        }
+      }
+    },
+    "Help.Running.Files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only macro-enabled workbooks (.xlsm) keep macros when they are saved. In an .xlsx file you can still write and run macros, but to keep them, share or save a copy as .xlsm."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存時にマクロが残るのはマクロ有効ブック（.xlsm）だけです。.xlsx ファイルでもマクロを書いて実行できますが、残すには .xlsm として共有するか、コピーを保存してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장할 때 매크로가 유지되는 것은 매크로 사용 통합 문서(.xlsm)뿐입니다. .xlsx 파일에서도 매크로를 작성하고 실행할 수 있지만, 유지하려면 .xlsm으로 공유하거나 사본을 저장하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有启用宏的工作簿（.xlsm）在保存时会保留宏。在 .xlsx 文件中仍可编写和运行宏，但要保留它们，请共享或另存一份 .xlsm 副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有啟用巨集的活頁簿（.xlsm）在儲存時會保留巨集。在 .xlsx 檔案中仍可撰寫和執行巨集，但若要保留，請分享或另存一份 .xlsm 副本。"
+          }
+        }
+      }
+    },
+    "Help.Running.Sandbox" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Macros run inside this workbook and its own folder of files. They can’t reach your other files, start other apps or use the internet; they can open web links only with your permission each time."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マクロはこのブックと専用のファイルフォルダの中で実行されます。他のファイルへのアクセス、他のアプリの起動、インターネットの使用はできず、Web リンクを開くのもそのつどあなたが許可したときだけです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매크로는 이 통합 문서와 전용 파일 폴더 안에서 실행됩니다. 다른 파일에 접근하거나 다른 앱을 시작하거나 인터넷을 사용할 수 없으며, 웹 링크도 매번 사용자가 허용할 때만 열 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宏在此工作簿及其专属文件夹内运行。它们无法访问你的其他文件、启动其他应用或使用互联网；只有在你每次允许时才能打开网页链接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巨集在此活頁簿及其專屬資料夾內執行。它們無法存取你的其他檔案、啟動其他 App 或使用網際網路；只有在你每次允許時才能打開網頁連結。"
+          }
+        }
+      }
+    },
+    "Help.Running.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running Macros"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マクロの実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매크로 실행"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行宏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行巨集"
+          }
+        }
+      }
+    },
+    "Help.Running.Undo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A macro works on a copy of the workbook. When it finishes, everything it did is put back in one step, so a single Undo takes the whole run back. If it stops with an error, what it had done until then is kept, and can be undone the same way."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マクロはブックのコピーに対して実行されます。終了すると、行われた変更がまとめて 1 回で反映されるので、1 回の取り消しで実行全体を元に戻せます。エラーで停止した場合も、それまでの変更は残り、同じように取り消せます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매크로는 통합 문서의 사본에서 실행됩니다. 실행이 끝나면 모든 변경 사항이 한 번에 반영되므로, 한 번의 실행 취소로 전체 실행을 되돌릴 수 있습니다. 오류로 중지된 경우에도 그때까지의 변경 사항은 유지되며 같은 방법으로 실행 취소할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宏在工作簿的副本上运行。运行结束时，所有更改会一次性写回，因此只需撤销一次就能撤回整次运行。如果因错误而停止，之前所做的更改会保留，也可以用同样的方式撤销。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巨集在活頁簿的副本上執行。執行結束時，所有更改會一次寫回，因此只需還原一次就能撤回整次執行。如果因錯誤而停止，之前所做的更改會保留，也可以用同樣方式還原。"
+          }
+        }
+      }
+    },
+    "Macro.EndOfLine" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "end of line"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "行末"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "줄 끝"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "行尾"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "行尾"
+          }
+        }
+      }
+    },
+    "Macro.EndOfModule" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "end of module"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モジュールの終わり"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모듈 끝"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模块末尾"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模組結尾"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.CannotExit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Exit %@” isn’t a statement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「Exit %@」というステートメントはありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Exit %@”는 올바른 문이 아닙니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Exit %@”不是有效的语句"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「Exit %@」不是有效的陳述式"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.DeclarationsOnly" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only declarations can appear outside a procedure, found “%@”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロシージャの外には宣言しか書けませんが、「%@」があります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로시저 밖에는 선언만 올 수 있지만 “%@”이(가) 있습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过程之外只能有声明，但找到了“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程序之外只能有宣告，但找到了「%@」"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.ExpectedBeforeEnd" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected %@ before the end of the module"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モジュールの終わりまでに %@ が必要です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모듈이 끝나기 전에 %@이(가) 필요합니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模块结束前应有 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模組結束前應有 %@"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.ExpectedCaseComparison" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected a comparison after Case Is"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Case Is の後には比較演算子が必要です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Case Is 뒤에는 비교 연산자가 필요합니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Case Is 之后应为比较运算"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Case Is 之後應為比較運算"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.ExpectedFound" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected %1$@, found “%2$@”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ が必要ですが、「%2$@」があります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@이(가) 필요하지만 “%2$@”이(가) 있습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此处应为 %1$@，但找到了“%2$@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此處應為 %1$@，但找到了「%2$@」"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.ExpectedMember" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected a member name, found “%@”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メンバー名が必要ですが、「%@」があります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멤버 이름이 필요하지만 “%@”이(가) 있습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此处应为成员名称，但找到了“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此處應為成員名稱，但找到了「%@」"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.ExpectedName" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected a name, found “%@”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前が必要ですが、「%@」があります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이름이 필요하지만 “%@”이(가) 있습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此处应为名称，但找到了“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此處應為名稱，但找到了「%@」"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.ExpectedSubOrFunction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected Sub or Function"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sub または Function が必要です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sub 또는 Function이 필요합니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此处应为 Sub 或 Function"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此處應為 Sub 或 Function"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.MalformedNumber" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This number isn’t written correctly"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数値の書き方が正しくありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숫자 형식이 올바르지 않습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数字的写法不正确"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此數字的寫法不正確"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.MissingEnd" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no matching %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」に対応する %2$@ がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@”에 대응하는 %2$@이(가) 없습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@”缺少对应的 %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」缺少對應的 %2$@"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.OptionBase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Option Base has to be 0 or 1"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Option Base には 0 か 1 を指定してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Option Base는 0 또는 1이어야 합니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Option Base 必须为 0 或 1"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Option Base 必須為 0 或 1"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.Unexpected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unexpected “%@”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予期しない「%@」があります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "예상치 못한 “%@”"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意外的“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意外的「%@」"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.UnexpectedCharacter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unexpected character “%@”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予期しない文字「%@」があります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "예상치 못한 문자 “%@”"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意外的字符“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意外的字元「%@」"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.UnterminatedBracket" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This [ has no closing ]"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[ に対応する ] がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[에 대응하는 ]가 없습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 [ 缺少对应的 ]"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 [ 缺少對應的 ]"
+          }
+        }
+      }
+    },
+    "Macro.Syntax.UnterminatedString" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This string has no closing quotation mark"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字列の閉じる引用符がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "문자열에 닫는 따옴표가 없습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此字符串缺少右引号"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此字串缺少右引號"
+          }
+        }
+      }
+    },
+    "Macro.SyntaxError" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Line %1$ld: %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$ld行目: %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$ld번째 줄: %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %1$ld 行：%2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %1$ld 行：%2$@"
+          }
+        }
+      }
+    },
+    "Macro.SyntaxError.InModule" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, line %2$ld: %3$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ の %2$ld行目: %3$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$ld번째 줄: %3$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 第 %2$ld 行：%3$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 第 %2$ld 行：%3$@"
+          }
+        }
+      }
+    },
+    "Macro.Unavailable.AddressOf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AddressOf isn’t available in Tables. It is only used with Windows functions, which can’t be called here."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables では AddressOf を使用できません。AddressOf は Windows の関数と組み合わせてのみ使われますが、ここでは Windows の関数を呼び出せません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables에서는 AddressOf를 사용할 수 없습니다. AddressOf는 Windows 함수와 함께만 사용되며, 여기서는 Windows 함수를 호출할 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 不支持 AddressOf。它只与 Windows 函数一起使用，而这里无法调用 Windows 函数。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 不支援 AddressOf。它只與 Windows 函數一起使用，而這裡無法呼叫 Windows 函數。"
+          }
+        }
+      }
+    },
+    "Macro.Unavailable.Declare" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is a Windows function, which Tables can’t call."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ は Windows の関数のため、Tables から呼び出すことはできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@은(는) Windows 함수이므로 Tables에서 호출할 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 是 Windows 函数，Tables 无法调用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 是 Windows 函數，Tables 無法呼叫。"
+          }
+        }
+      }
+    },
+    "Macro.Unavailable.Files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files aren’t available to this macro here."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここではこのマクロからファイルを使用できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여기서는 이 매크로가 파일을 사용할 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此宏在这里无法使用文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此巨集在這裡無法使用檔案。"
+          }
+        }
+      }
+    },
+    "Macro.Unavailable.GetObject" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GetObject isn’t available in Tables. There are no other applications or their files for a macro to connect to."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables では GetObject を使用できません。マクロから接続できる他のアプリケーションやそのファイルはありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables에서는 GetObject를 사용할 수 없습니다. 매크로가 연결할 다른 응용 프로그램이나 그 파일이 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 不支持 GetObject。没有可供宏连接的其他应用程序或其文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 不支援 GetObject。沒有可供巨集連接的其他應用程式或其檔案。"
+          }
+        }
+      }
+    },
+    "Macro.Unavailable.Shell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Tables, Shell can only open web and app links, such as https:// addresses. It can’t start programs or open files."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables の Shell で開けるのは、https:// で始まるアドレスなどの Web やアプリのリンクだけです。プログラムの起動やファイルを開くことはできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables에서 Shell은 https:// 주소 같은 웹 및 앱 링크만 열 수 있습니다. 프로그램을 시작하거나 파일을 열 수는 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Tables 中，Shell 只能打开网页和应用链接（例如 https:// 地址），不能启动程序或打开文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Tables 中，Shell 只能打開網頁和 App 連結（例如 https:// 位址），不能啟動程式或打開檔案。"
+          }
+        }
+      }
+    },
+    "Macro.Unavailable.UserForms" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UserForms aren’t available in Tables, so Load and Unload can’t run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables ではユーザーフォームを使用できないため、Load と Unload は実行できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables에서는 사용자 정의 폼을 사용할 수 없으므로 Load와 Unload를 실행할 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 不支持用户窗体，因此无法运行 Load 和 Unload。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables 不支援使用者表單，因此無法執行 Load 和 Unload。"
+          }
+        }
+      }
+    },
+    "Macros.Failed.Location" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (%2$@, line %3$ld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（%2$@ の %3$ld行目）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (%2$@, %3$ld번째 줄)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（%2$@，第 %3$ld 行）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（%2$@，第 %3$ld 行）"
+          }
+        }
+      }
+    },
+    "Macros.ModuleName.InvalidCharacters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A module name can only contain letters A to Z, digits and underscores."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モジュール名に使えるのは A〜Z の英字、数字、アンダースコアだけです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모듈 이름에는 A부터 Z까지의 영문자, 숫자, 밑줄만 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模块名称只能包含 A 到 Z 的字母、数字和下划线。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模組名稱只能包含 A 到 Z 的字母、數字和底線。"
+          }
+        }
+      }
+    },
+    "Macros.ModuleName.MustStartWithLetter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A module name has to start with a letter from A to Z."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モジュール名は A〜Z の英字で始める必要があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모듈 이름은 A부터 Z까지의 영문자로 시작해야 합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模块名称必须以 A 到 Z 的字母开头。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模組名稱必須以 A 到 Z 的字母開頭。"
+          }
+        }
+      }
+    },
+    "Macros.ModuleName.Taken" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That name is already used in this project."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この名前はすでにこのプロジェクトで使われています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 이름은 이미 이 프로젝트에서 사용 중입니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此项目中已使用该名称。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此專案中已使用該名稱。"
+          }
+        }
+      }
+    },
+    "Macros.ModuleName.TooLong" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A module name can be at most 31 characters long."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モジュール名は 31 文字以内にしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모듈 이름은 최대 31자까지 입력할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模块名称最多只能有 31 个字符。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模組名稱最多只能有 31 個字元。"
+          }
+        }
+      }
+    },
+    "Macros.Save.Unencodable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ contains characters this workbook's macros cannot store. Excel keeps macro code in the workbook's original language encoding."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に、このブックのマクロに保存できない文字が含まれています。Excel はマクロのコードをブック作成時の言語の文字コードで保存します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 이 통합 문서의 매크로에 저장할 수 없는 문자가 있습니다. Excel은 매크로 코드를 통합 문서의 원래 언어 인코딩으로 저장합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 包含此工作簿的宏无法存储的字符。Excel 会以工作簿原始语言的编码存储宏代码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 包含此活頁簿的巨集無法儲存的字元。Excel 會以活頁簿原始語言的編碼儲存巨集程式碼。"
+          }
+        }
+      }
+    },
+    "Macros.Stopped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It was stopped before it finished."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了する前に停止されました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료되기 전에 중지되었습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它在完成前被停止。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它在完成前被停止。"
+          }
+        }
+      }
+    },
+    "Help.Unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available in Tables"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables では使用できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tables에서 사용할 수 없음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Tables 中不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Tables 中無法使用"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.1"
+}

@@ -6,22 +6,22 @@ import TablesEngine
 /// `Next` under `For`, `Else` under `If` — and the new line starts one step
 /// in from a line that opens a block, level with anything else. Opening a
 /// block that has nothing to close it also writes its `End` line beneath.
-enum VBAIndenter {
-    static let step = "    "
+public enum VBAIndenter {
+    public static let step = "    "
 
-    struct Edit: Hashable, Sendable {
+    public struct Edit: Hashable, Sendable {
         /// The range to replace, in UTF-16 offsets.
-        var range: NSRange
-        var replacement: String
+        public var range: NSRange
+        public var replacement: String
         /// Where the cursor goes afterwards.
-        var cursor: Int
+        public var cursor: Int
     }
 
-    enum LineKind: Hashable, Sendable {
+    public enum LineKind: Hashable, Sendable {
         case opener, middle, closer, other
     }
 
-    static func returnEdit(in text: String, selection: NSRange) -> Edit {
+    public static func returnEdit(in text: String, selection: NSRange) -> Edit {
         let source = text as NSString
         let lineStart = source.lineRange(for: NSRange(location: selection.location, length: 0)).location
         let head = source.substring(with: NSRange(location: lineStart, length: selection.location - lineStart))
@@ -57,7 +57,7 @@ enum VBAIndenter {
     }
 
     /// The statement that ends the block a line opens, as it should be written.
-    static func closingStatement(for line: String) -> String? {
+    public static func closingStatement(for line: String) -> String? {
         guard classify(line) == .opener else { return nil }
         let words = stripComment(line).lowercased()
             .split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "(" || $0 == ":" })
@@ -132,7 +132,7 @@ enum VBAIndenter {
         return nil
     }
 
-    static func classify(_ line: String) -> LineKind {
+    public static func classify(_ line: String) -> LineKind {
         let code = stripComment(line).trimmingCharacters(in: .whitespaces).lowercased()
         guard !code.isEmpty else { return .other }
         let words = code.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "(" || $0 == ":" }).map(String.init)

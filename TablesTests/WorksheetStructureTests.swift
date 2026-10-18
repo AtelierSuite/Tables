@@ -1,6 +1,7 @@
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 @Suite("Sheet structure")
 struct WorksheetStructureTests {

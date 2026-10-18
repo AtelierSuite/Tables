@@ -9,10 +9,10 @@ import TablesEngine
 /// whole when it finishes, to be applied as one change — and so undone as one.
 @MainActor
 @Observable
-final class MacroRunner {
+public final class MacroRunner {
     /// A question a running macro is waiting on.
-    struct Prompt: Identifiable {
-        enum Kind {
+    public struct Prompt: Identifiable, Sendable {
+        public enum Kind: Sendable {
             /// `MsgBox`, with VBA's button-set code: 0 OK, 1 OK/Cancel, 3
             /// Yes/No/Cancel, 4 Yes/No, and so on.
             case message(buttons: Int)
@@ -23,35 +23,37 @@ final class MacroRunner {
             case sendKeys(String)
         }
 
-        let id = UUID()
-        var kind: Kind
-        var title: String?
-        var text: String
+        public let id = UUID()
+        public var kind: Kind
+        public var title: String?
+        public var text: String
     }
 
     /// What a finished run hands back.
-    struct Outcome: Sendable {
-        var workbook: Workbook
-        var activeSheetID: Worksheet.ID
-        var selection: CellRange
+    public struct Outcome: Sendable {
+        public var workbook: Workbook
+        public var activeSheetID: Worksheet.ID
+        public var selection: CellRange
         /// Why it stopped early, when it did. The workbook still carries
         /// whatever it had done by then.
-        var failure: String?
+        public var failure: String?
     }
 
-    private(set) var runningMacro: String?
-    var prompt: Prompt?
+    public private(set) var runningMacro: String?
+    public var prompt: Prompt?
     /// What the last run printed with `Debug.Print`.
-    private(set) var output: [String] = []
+    public private(set) var output: [String] = []
 
-    var isRunning: Bool { runningMacro != nil }
+    public var isRunning: Bool { runningMacro != nil }
 
     @ObservationIgnored private var cancellation = MacroCancellation()
     @ObservationIgnored private var promptChannel: MacroPromptChannel?
 
+    public init() {}
+
     /// Runs `procedure` from `module`. Returns when the macro has finished,
     /// failed, or been stopped.
-    func run(
+    public func run(
         _ procedure: String, in module: String, project: VBAProject, workbook: Workbook, workbookName: String,
         activeSheet: Worksheet.ID?, selection: CellRange, workingFolder: URL? = nil
     ) async -> Outcome {
@@ -103,13 +105,13 @@ final class MacroRunner {
     }
 
     /// Asks a running macro to stop at its next statement.
-    func stop() {
+    public func stop() {
         cancellation.cancel()
         promptChannel?.answer(MacroPromptAnswer())
     }
 
     /// Hands the user's answer to the waiting macro.
-    func answer(button: Int? = nil, text: String? = nil) {
+    public func answer(button: Int? = nil, text: String? = nil) {
         prompt = nil
         promptChannel?.answer(MacroPromptAnswer(button: button, text: text))
     }
@@ -138,7 +140,7 @@ final class MacroRunner {
                 } catch let error as VBAError {
                     failure = Self.describe(error)
                 } catch VBAControl.cancelled {
-                    failure = String(localized: "Macros.Stopped")
+                    failure = String(localized: "Macros.Stopped", bundle: #bundle)
                 } catch VBAControl.end {
                     failure = nil
                 } catch {
@@ -158,32 +160,32 @@ final class MacroRunner {
         }
     }
 
-    nonisolated static func describe(_ error: VBAError) -> String {
+    public nonisolated static func describe(_ error: VBAError) -> String {
         let message = error.number == 0 ? error.description : "\(error.description) (\(error.number))"
         guard let module = error.module, let line = error.line else { return message }
-        return String(format: String(localized: "Macros.Failed.Location"), message, module, line)
+        return String(format: String(localized: "Macros.Failed.Location", bundle: #bundle), message, module, line)
     }
 }
 
 /// The flag a running macro checks between statements.
-final class MacroCancellation: Sendable {
+public final class MacroCancellation: Sendable {
     private let flag = Mutex(false)
 
-    var isCancelled: Bool { flag.withLock { $0 } }
+    public var isCancelled: Bool { flag.withLock { $0 } }
 
-    func cancel() { flag.withLock { $0 = true } }
+    public func cancel() { flag.withLock { $0 = true } }
 }
 
-struct MacroPromptAnswer: Sendable {
-    var button: Int?
-    var text: String?
+public struct MacroPromptAnswer: Sendable {
+    public var button: Int?
+    public var text: String?
 }
 
 /// Where a macro's thread waits for the user. The macro blocks in `ask`
 /// until the main thread calls `answer`; an answer with nobody waiting —
 /// Stop pressed between questions — is dropped rather than left to answer
 /// the next one.
-final class MacroPromptChannel: Sendable {
+public final class MacroPromptChannel: Sendable {
     private struct State {
         var isWaiting = false
         var answer: MacroPromptAnswer?
@@ -191,13 +193,13 @@ final class MacroPromptChannel: Sendable {
 
     private let state = Mutex(State())
     private let semaphore = DispatchSemaphore(value: 0)
-    let cancellation: MacroCancellation
+    public let cancellation: MacroCancellation
 
-    init(cancellation: MacroCancellation) {
+    public init(cancellation: MacroCancellation) {
         self.cancellation = cancellation
     }
 
-    func ask(presenting present: @Sendable () -> Void) -> MacroPromptAnswer {
+    public func ask(presenting present: @Sendable () -> Void) -> MacroPromptAnswer {
         guard !cancellation.isCancelled else { return MacroPromptAnswer() }
         state.withLock { $0 = State(isWaiting: true) }
         present()
@@ -208,7 +210,7 @@ final class MacroPromptChannel: Sendable {
         }
     }
 
-    func answer(_ answer: MacroPromptAnswer) {
+    public func answer(_ answer: MacroPromptAnswer) {
         let delivered = state.withLock { state -> Bool in
             guard state.isWaiting, state.answer == nil else { return false }
             state.answer = answer

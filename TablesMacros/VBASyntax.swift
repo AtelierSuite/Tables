@@ -3,7 +3,7 @@ import TablesEngine
 
 // The parsed form of a VBA module.
 
-enum VBALiteral: Hashable, Sendable {
+public enum VBALiteral: Hashable, Sendable {
     case integer(Int)
     case double(Double)
     case string(String)
@@ -14,7 +14,7 @@ enum VBALiteral: Hashable, Sendable {
     case null
 }
 
-indirect enum VBAExpression: Hashable, Sendable {
+public indirect enum VBAExpression: Hashable, Sendable {
     case literal(VBALiteral)
     case identifier(String)
     /// `base.name`; a missing base is the object of the enclosing `With`.
@@ -35,70 +35,70 @@ indirect enum VBAExpression: Hashable, Sendable {
     case addressOf(String)
 }
 
-struct VBAArgument: Hashable, Sendable {
+public struct VBAArgument: Hashable, Sendable {
     /// The name of a `name:=value` argument.
-    var name: String?
+    public var name: String?
     /// Nothing for an omitted argument, as in `Foo 1, , 3`.
-    var value: VBAExpression?
+    public var value: VBAExpression?
 }
 
 /// A type as declared: `Long`, `String`, `Range`, `Excel.Worksheet`.
-struct VBATypeName: Hashable, Sendable {
-    var name: String
+public struct VBATypeName: Hashable, Sendable {
+    public var name: String
     /// `As New Collection`: created on first use.
-    var isNew = false
+    public var isNew = false
 
-    static let variant = VBATypeName(name: "Variant")
+    public static let variant = VBATypeName(name: "Variant")
 }
 
-struct VBAVariableDeclaration: Hashable, Sendable {
-    var name: String
-    var type: VBATypeName?
+public struct VBAVariableDeclaration: Hashable, Sendable {
+    public var name: String
+    public var type: VBATypeName?
     /// `Dim a()` declares an array with no bounds yet; `Dim a(1 To 3)` one
     /// with them. Nil for a scalar.
-    var bounds: [VBABound]?
-    var isArray: Bool { bounds != nil }
+    public var bounds: [VBABound]?
+    public var isArray: Bool { bounds != nil }
     /// `Dim WithEvents x As Class`: its object's events reach this module's
     /// `x_EventName` procedures.
-    var isWithEvents = false
+    public var isWithEvents = false
 }
 
-struct VBABound: Hashable, Sendable {
-    var lower: VBAExpression?
-    var upper: VBAExpression
+public struct VBABound: Hashable, Sendable {
+    public var lower: VBAExpression?
+    public var upper: VBAExpression
 }
 
-enum VBACaseCondition: Hashable, Sendable {
+public enum VBACaseCondition: Hashable, Sendable {
     case value(VBAExpression)
     case range(VBAExpression, VBAExpression)
     /// `Case Is > 5`.
     case comparison(String, VBAExpression)
 }
 
-struct VBACaseClause: Sendable {
-    var conditions: [VBACaseCondition]
-    var body: [VBAStatement]
+public struct VBACaseClause: Sendable {
+    public var conditions: [VBACaseCondition]
+    public var body: [VBAStatement]
 }
 
-enum VBAExitKind: String, CaseIterable, Hashable, Sendable {
+public enum VBAExitKind: String, CaseIterable, Hashable, Sendable {
     case sub = "Sub", function = "Function", property = "Property", forLoop = "For", doLoop = "Do"
 }
 
-enum VBAErrorHandling: Hashable, Sendable {
+public enum VBAErrorHandling: Hashable, Sendable {
     case resumeNext
     case goTo(String)
     /// `On Error GoTo 0`: errors stop the macro again.
     case disabled
 }
 
-enum VBAResumeTarget: Hashable, Sendable {
+public enum VBAResumeTarget: Hashable, Sendable {
     case same
     case next
     case label(String)
 }
 
-struct VBAStatement: Sendable {
-    indirect enum Kind: Sendable {
+public struct VBAStatement: Sendable {
+    public indirect enum Kind: Sendable {
         case declare([VBAVariableDeclaration], isStatic: Bool)
         case constant(String, VBAExpression)
         case redim(preserve: Bool, [(VBAExpression, [VBABound])])
@@ -135,64 +135,64 @@ struct VBAStatement: Sendable {
         case unsupported(String)
     }
 
-    var kind: Kind
-    var line: Int
+    public var kind: Kind
+    public var line: Int
 }
 
-struct VBAParameter: Hashable, Sendable {
-    var name: String
-    var type: VBATypeName?
-    var isByVal: Bool
-    var isOptional: Bool
-    var isParamArray: Bool
-    var isArray: Bool
-    var defaultValue: VBAExpression?
+public struct VBAParameter: Hashable, Sendable {
+    public var name: String
+    public var type: VBATypeName?
+    public var isByVal: Bool
+    public var isOptional: Bool
+    public var isParamArray: Bool
+    public var isArray: Bool
+    public var defaultValue: VBAExpression?
 }
 
-struct VBAProcedure: Sendable {
-    enum Kind: Hashable, Sendable {
+public struct VBAProcedure: Sendable {
+    public enum Kind: Hashable, Sendable {
         case sub, function, propertyGet, propertyLet, propertySet
     }
 
-    var name: String
-    var kind: Kind
-    var isPrivate: Bool
-    var isStatic: Bool
-    var parameters: [VBAParameter]
-    var returnType: VBATypeName?
-    var body: [VBAStatement]
-    var line: Int
+    public var name: String
+    public var kind: Kind
+    public var isPrivate: Bool
+    public var isStatic: Bool
+    public var parameters: [VBAParameter]
+    public var returnType: VBATypeName?
+    public var body: [VBAStatement]
+    public var line: Int
 
     /// Whether the macro list should offer it: a public `Sub` with no
     /// parameters, which is what Excel's Macros dialog lists.
-    var isRunnableMacro: Bool { kind == .sub && !isPrivate && parameters.isEmpty }
+    public var isRunnableMacro: Bool { kind == .sub && !isPrivate && parameters.isEmpty }
 }
 
-struct VBAUserType: Hashable, Sendable {
-    var name: String
-    var fields: [VBAVariableDeclaration]
+public struct VBAUserType: Hashable, Sendable {
+    public var name: String
+    public var fields: [VBAVariableDeclaration]
 }
 
 /// A module as parsed, before anything runs.
-struct VBAModuleSyntax: Sendable {
-    var name: String
-    var optionExplicit = false
-    var optionBase = 0
-    var optionCompareText = false
-    var variables: [(declaration: VBAVariableDeclaration, isPrivate: Bool)] = []
-    var constants: [(name: String, value: VBAExpression, isPrivate: Bool)] = []
-    var procedures: [VBAProcedure] = []
-    var types: [VBAUserType] = []
-    var enums: [(name: String, members: [(String, VBAExpression?)])] = []
+public struct VBAModuleSyntax: Sendable {
+    public var name: String
+    public var optionExplicit = false
+    public var optionBase = 0
+    public var optionCompareText = false
+    public var variables: [(declaration: VBAVariableDeclaration, isPrivate: Bool)] = []
+    public var constants: [(name: String, value: VBAExpression, isPrivate: Bool)] = []
+    public var procedures: [VBAProcedure] = []
+    public var types: [VBAUserType] = []
+    public var enums: [(name: String, members: [(String, VBAExpression?)])] = []
     /// Names declared with `Declare`: calls into Windows libraries, which
     /// cannot run here. Remembered so calling one says so plainly.
-    var externalProcedures: Set<String> = []
+    public var externalProcedures: Set<String> = []
     /// Events a class module declares with `Event`.
-    var events: Set<String> = []
+    public var events: Set<String> = []
 }
 
 /// One part of a `Print` or `Debug.Print` list.
-enum VBAPrintItem: Sendable {
+public enum VBAPrintItem: Sendable {
     case value(VBAExpression)
     /// `Spc(n)`: that many spaces.
     case spaces(VBAExpression)
@@ -202,12 +202,12 @@ enum VBAPrintItem: Sendable {
     case separator(String)
 }
 
-enum VBAFileMode: String, Sendable {
+public enum VBAFileMode: String, Sendable {
     case input, output, append, binary, random
 }
 
 /// VBA's file statements, which take a `#` file number.
-enum VBAFileStatement: Sendable {
+public enum VBAFileStatement: Sendable {
     case open(path: VBAExpression, mode: VBAFileMode, number: VBAExpression, recordLength: VBAExpression?)
     /// No numbers closes every file.
     case close([VBAExpression])

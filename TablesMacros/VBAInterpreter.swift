@@ -3,23 +3,23 @@ import TablesEngine
 
 /// A storage location: a variable, a parameter, a function's return value.
 /// Passing one `ByRef` hands the callee this same box.
-final class VBAVariable {
-    var value: VBAValue
-    let type: VBAType
+public final class VBAVariable {
+    public var value: VBAValue
+    public let type: VBAType
 
-    init(type: VBAType, value: VBAValue? = nil) {
+    public init(type: VBAType, value: VBAValue? = nil) {
         self.type = type
         self.value = value ?? type.defaultValue
     }
 
-    func assign(_ newValue: VBAValue) throws {
+    public func assign(_ newValue: VBAValue) throws {
         value = try type.coerce(VBAInterpreter.copyingRecords(newValue))
     }
 }
 
 /// What the interpreter needs from whoever runs it: the application's
 /// object model, and a way to talk to the user.
-protocol VBAHost: AnyObject {
+public protocol VBAHost: AnyObject {
     /// A member of the global namespace — `Range`, `Cells`, `ActiveSheet`,
     /// `Application` — or nil when the host has no such name.
     func globalMember(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue?
@@ -43,12 +43,12 @@ protocol VBAHost: AnyObject {
 }
 
 extension VBAHost {
-    func openURL(_: URL) -> Bool { false }
-    func showSendKeys(_: String) { /* Hosts with nowhere to show keys drop them. */ }
+    public func openURL(_: URL) -> Bool { false }
+    public func showSendKeys(_: String) { /* Hosts with nowhere to show keys drop them. */ }
 }
 
 /// Control flow that unwinds through Swift's error propagation.
-enum VBAControl: Error {
+public enum VBAControl: Error, Sendable {
     case exitProcedure
     case exitFor
     case exitDo
@@ -62,23 +62,23 @@ enum VBAControl: Error {
 }
 
 /// Runs the macros of one project against a host.
-final class VBAInterpreter {
+public final class VBAInterpreter {
     // MARK: - Program
 
-    final class Module {
-        let syntax: VBAModuleSyntax
-        let kind: VBAProject.Module.Kind
-        var name: String { syntax.name }
+    public final class Module {
+        public let syntax: VBAModuleSyntax
+        public let kind: VBAProject.Module.Kind
+        public var name: String { syntax.name }
         /// Module-level variables. A class module's are a template, copied
         /// fresh into each instance.
-        var variables: [String: VBAVariable] = [:]
-        var constants: [String: VBAValue] = [:]
-        var procedures: [String: [VBAProcedure]] = [:]
-        var types: [String: VBAUserType] = [:]
-        var staticLocals: [String: [String: VBAVariable]] = [:]
-        var isInitialized = false
+        public var variables: [String: VBAVariable] = [:]
+        public var constants: [String: VBAValue] = [:]
+        public var procedures: [String: [VBAProcedure]] = [:]
+        public var types: [String: VBAUserType] = [:]
+        public var staticLocals: [String: [String: VBAVariable]] = [:]
+        public var isInitialized = false
 
-        init(syntax: VBAModuleSyntax, kind: VBAProject.Module.Kind) {
+        public init(syntax: VBAModuleSyntax, kind: VBAProject.Module.Kind) {
             self.syntax = syntax
             self.kind = kind
             for procedure in syntax.procedures {
@@ -87,39 +87,39 @@ final class VBAInterpreter {
             for type in syntax.types { types[type.name.lowercased()] = type }
         }
 
-        func procedure(_ name: String, kinds: Set<VBAProcedure.Kind>) -> VBAProcedure? {
+        public func procedure(_ name: String, kinds: Set<VBAProcedure.Kind>) -> VBAProcedure? {
             procedures[name.lowercased()]?.first { kinds.contains($0.kind) }
         }
 
-        func isPublicVariable(_ name: String) -> Bool {
+        public func isPublicVariable(_ name: String) -> Bool {
             syntax.variables.contains { !$0.isPrivate && $0.declaration.name.caseInsensitiveCompare(name) == .orderedSame }
         }
     }
 
     /// One activation of a procedure.
-    final class Frame {
-        let module: Module
-        let instance: VBAClassInstance?
-        let procedure: VBAProcedure
-        var locals: [String: VBAVariable] = [:]
-        var withStack: [VBAValue] = []
-        var errorHandling: VBAErrorHandling = .disabled
-        var inHandler = false
+    public final class Frame {
+        public let module: Module
+        public let instance: VBAClassInstance?
+        public let procedure: VBAProcedure
+        public var locals: [String: VBAVariable] = [:]
+        public var withStack: [VBAValue] = []
+        public var errorHandling: VBAErrorHandling = .disabled
+        public var inHandler = false
         /// How many `GoSub`s deep this activation is, for `Return` to check.
-        var goSubDepth = 0
+        public var goSubDepth = 0
 
-        init(module: Module, instance: VBAClassInstance?, procedure: VBAProcedure) {
+        public init(module: Module, instance: VBAClassInstance?, procedure: VBAProcedure) {
             self.module = module
             self.instance = instance
             self.procedure = procedure
         }
     }
 
-    private(set) var modules: [Module] = []
-    weak var host: (any VBAHost)?
+    public private(set) var modules: [Module] = []
+    public weak var host: (any VBAHost)?
     /// The workbook's working folder, where file statements read and write.
     /// Without one they report that files are unavailable.
-    var fileSystem: VBAFileSystem?
+    public var fileSystem: VBAFileSystem?
     /// Instances alive somewhere, weakly: the ones `RaiseEvent` may need to
     /// tell through their `WithEvents` variables.
     private var liveInstances: [WeakInstance] = []
@@ -128,20 +128,20 @@ final class VBAInterpreter {
         weak var instance: VBAClassInstance?
     }
     /// Checked between statements; returning true stops the macro.
-    var isCancelled: () -> Bool = { false }
+    public var isCancelled: () -> Bool = { false }
 
     /// The state behind the `Err` object.
-    var lastError: VBAError?
+    public var lastError: VBAError?
     private var errorObject: VBAErrObject?
     private var callDepth = 0
     private var statementCount = 0
     private static let maximumCallDepth = 400
 
-    convenience init(project: VBAProject, host: (any VBAHost)?) throws {
+    public convenience init(project: VBAProject, host: (any VBAHost)?) throws {
         try self.init(modules: project.modules.map { ($0.name, $0.kind, $0.source) }, host: host)
     }
 
-    init(modules sources: [(name: String, kind: VBAProject.Module.Kind, source: String)], host: (any VBAHost)?) throws {
+    public init(modules sources: [(name: String, kind: VBAProject.Module.Kind, source: String)], host: (any VBAHost)?) throws {
         self.host = host
         for source in sources {
             do {
@@ -154,13 +154,13 @@ final class VBAInterpreter {
         }
     }
 
-    func module(named name: String) -> Module? {
+    public func module(named name: String) -> Module? {
         modules.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
     }
 
     /// The macros a user can run: public parameterless `Sub`s in standard
     /// and document modules, by module.
-    var runnableMacros: [(module: String, procedure: String)] {
+    public var runnableMacros: [(module: String, procedure: String)] {
         modules.filter { $0.kind == .standard || $0.kind == .document }.flatMap { module in
             module.syntax.procedures.filter(\.isRunnableMacro).map { (module.name, $0.name) }
         }
@@ -169,7 +169,7 @@ final class VBAInterpreter {
     // MARK: - Running
 
     /// Runs a procedure from the outside, as the Macros dialog would.
-    func run(_ procedureName: String, in moduleName: String? = nil, arguments: [VBAValue] = []) throws -> VBAValue {
+    public func run(_ procedureName: String, in moduleName: String? = nil, arguments: [VBAValue] = []) throws -> VBAValue {
         let candidates = moduleName.flatMap(module(named:)).map { [$0] } ?? modules
         for module in candidates {
             guard let procedure = module.procedure(procedureName, kinds: [.sub, .function]) else { continue }
@@ -220,7 +220,7 @@ final class VBAInterpreter {
 
     // MARK: - Variables
 
-    func type(of name: VBATypeName?, in module: Module) -> VBAType {
+    public func type(of name: VBATypeName?, in module: Module) -> VBAType {
         guard let name else { return .variant }
         let resolved = VBAType.named(name.name)
         if case .object(let className) = resolved, userType(named: className, from: module) != nil {
@@ -233,7 +233,7 @@ final class VBAInterpreter {
         module.types[name.lowercased()] ?? modules.lazy.compactMap { $0.types[name.lowercased()] }.first
     }
 
-    func makeVariable(_ declaration: VBAVariableDeclaration, _ frame: Frame) throws -> VBAVariable {
+    public func makeVariable(_ declaration: VBAVariableDeclaration, _ frame: Frame) throws -> VBAVariable {
         let elementType = type(of: declaration.type, in: frame.module)
         if let bounds = declaration.bounds {
             guard !bounds.isEmpty else { return VBAVariable(type: .array(elementType)) }
@@ -277,7 +277,7 @@ final class VBAInterpreter {
     }
 
     /// User-defined types copy on assignment, unlike objects.
-    static func copyingRecords(_ value: VBAValue) -> VBAValue {
+    public static func copyingRecords(_ value: VBAValue) -> VBAValue {
         if case .object(let object) = value, let record = object as? VBARecord { return .object(record.copy()) }
         return value
     }
@@ -286,12 +286,12 @@ final class VBAInterpreter {
 
     /// An argument on its way into a procedure: a value, or a variable
     /// passed by reference.
-    enum Argument {
+    public enum Argument {
         case value(VBAValue)
         case reference(VBAVariable)
         case missing
 
-        var value: VBAValue {
+        public var value: VBAValue {
             switch self {
             case .value(let value): return value
             case .reference(let variable): return variable.value
@@ -300,7 +300,7 @@ final class VBAInterpreter {
         }
     }
 
-    func invoke(
+    public func invoke(
         _ procedure: VBAProcedure, in module: Module, instance: VBAClassInstance?,
         arguments: [Argument], named: [(String, Argument)], propertyValue: VBAValue? = nil
     ) throws -> VBAValue {
@@ -398,7 +398,7 @@ final class VBAInterpreter {
         block.firstIndex { if case .label(let name) = $0.kind { return name == label } else { return false } }
     }
 
-    func run(_ block: [VBAStatement], from start: Int, _ frame: Frame) throws {
+    public func run(_ block: [VBAStatement], from start: Int, _ frame: Frame) throws {
         var position = start
         while position < block.count {
             let statement = block[position]
@@ -452,11 +452,11 @@ final class VBAInterpreter {
         throw VBAControl.exitProcedure
     }
 
-    func setError(_ error: VBAError) {
+    public func setError(_ error: VBAError) {
         lastError = error
     }
 
-    func clearError() {
+    public func clearError() {
         lastError = nil
     }
 
@@ -700,7 +700,7 @@ final class VBAInterpreter {
         }
     }
 
-    func isTrue(_ value: VBAValue) throws -> Bool {
+    public func isTrue(_ value: VBAValue) throws -> Bool {
         if case .null = value { return false }
         return try letValue(value).asBoolean()
     }
@@ -720,7 +720,7 @@ final class VBAInterpreter {
 
     // MARK: - Assignment
 
-    func variableForAssignment(_ name: String, _ frame: Frame, creating: Bool) throws -> VBAVariable {
+    public func variableForAssignment(_ name: String, _ frame: Frame, creating: Bool) throws -> VBAVariable {
         let key = name.lowercased()
         if let local = frame.locals[key] { return local }
         if let instance = frame.instance, let field = instance.variables[key] { return field }
@@ -737,7 +737,7 @@ final class VBAInterpreter {
     }
 
     /// The variable a name refers to, when it refers to one.
-    func existingVariable(_ name: String, _ frame: Frame) -> VBAVariable? {
+    public func existingVariable(_ name: String, _ frame: Frame) -> VBAVariable? {
         let key = name.lowercased()
         if let local = frame.locals[key] { return local }
         if let instance = frame.instance, let field = instance.variables[key] { return field }
@@ -749,7 +749,7 @@ final class VBAInterpreter {
         return nil
     }
 
-    func assignValue(_ value: VBAValue, to target: VBAExpression, isSet: Bool, _ frame: Frame) throws {
+    public func assignValue(_ value: VBAValue, to target: VBAExpression, isSet: Bool, _ frame: Frame) throws {
         switch target {
         case .identifier(let name):
             if let variable = existingVariable(name, frame) {
@@ -841,7 +841,7 @@ final class VBAInterpreter {
 
     /// The value an object stands for when used as a plain value: its
     /// default property, followed until it is not an object.
-    func letValue(_ value: VBAValue) throws -> VBAValue {
+    public func letValue(_ value: VBAValue) throws -> VBAValue {
         var current = value
         var hops = 0
         while case .object(let object) = current, !(object is VBARecord) {
@@ -862,7 +862,7 @@ final class VBAInterpreter {
         return try evaluate(expression, frame)
     }
 
-    func evaluateArguments(_ expressions: [VBAArgument], _ frame: Frame) throws -> VBAArguments {
+    public func evaluateArguments(_ expressions: [VBAArgument], _ frame: Frame) throws -> VBAArguments {
         var arguments = VBAArguments()
         for argument in expressions {
             let value = try argument.value.map { try evaluate($0, frame) }
@@ -875,7 +875,7 @@ final class VBAInterpreter {
         return arguments
     }
 
-    func evaluate(_ expression: VBAExpression, _ frame: Frame) throws -> VBAValue {
+    public func evaluate(_ expression: VBAExpression, _ frame: Frame) throws -> VBAValue {
         switch expression {
         case .literal(let literal):
             switch literal {
@@ -915,7 +915,7 @@ final class VBAInterpreter {
             }
             return .object(instance)
         case .addressOf:
-            throw VBAError(number: 445, String(localized: "Macro.Unavailable.AddressOf"))
+            throw VBAError(number: 445, String(localized: "Macro.Unavailable.AddressOf", bundle: #bundle))
         case .typeOfIs(let subject, let className):
             let value = try evaluate(subject, frame)
             guard case .object(let object) = value else { return .boolean(false) }
@@ -926,7 +926,7 @@ final class VBAInterpreter {
 
     // MARK: - Name resolution and calls
 
-    func findProcedure(_ name: String, kinds: Set<VBAProcedure.Kind>, _ frame: Frame) -> (VBAProcedure, Module)? {
+    public func findProcedure(_ name: String, kinds: Set<VBAProcedure.Kind>, _ frame: Frame) -> (VBAProcedure, Module)? {
         if let procedure = frame.module.procedure(name, kinds: kinds) { return (procedure, frame.module) }
         for module in modules where module.kind == .standard {
             if let procedure = module.procedure(name, kinds: kinds), !procedure.isPrivate { return (procedure, module) }
@@ -1093,7 +1093,7 @@ final class VBAInterpreter {
         let arguments = try evaluateArguments(argumentExpressions, frame)
         if frame.module.syntax.externalProcedures.contains(key)
             || modules.contains(where: { $0.syntax.externalProcedures.contains(key) }) {
-            throw VBAError(number: 445, String(format: String(localized: "Macro.Unavailable.Declare"), name))
+            throw VBAError(number: 445, String(format: String(localized: "Macro.Unavailable.Declare", bundle: #bundle), name))
         }
         if let value = try VBALibrary.call(name, arguments, interpreter: self, frame: frame) { return value }
         if let host, let value = try host.globalMember(name, arguments, in: self) { return value }
@@ -1146,7 +1146,7 @@ final class VBAInterpreter {
 
     // MARK: - Objects
 
-    func instantiate(_ className: String) throws -> any VBAObject {
+    public func instantiate(_ className: String) throws -> any VBAObject {
         if let module = module(named: className), module.kind == .classModule {
             try ensureInitialized()
             let instance = VBAClassInstance(module: module)
@@ -1171,23 +1171,23 @@ final class VBAInterpreter {
 // MARK: - Runtime objects
 
 /// An instance of one of the project's class modules.
-final class VBAClassInstance: VBAObject {
-    let module: VBAInterpreter.Module
-    var variables: [String: VBAVariable] = [:]
+public final class VBAClassInstance: VBAObject {
+    public let module: VBAInterpreter.Module
+    public var variables: [String: VBAVariable] = [:]
 
-    init(module: VBAInterpreter.Module) {
+    public init(module: VBAInterpreter.Module) {
         self.module = module
     }
 
-    var typeName: String { module.name }
+    public var typeName: String { module.name }
 
-    func call(_ name: String, _ argumentExpressions: [VBAArgument], _ frame: VBAInterpreter.Frame,
+    public func call(_ name: String, _ argumentExpressions: [VBAArgument], _ frame: VBAInterpreter.Frame,
               interpreter: VBAInterpreter) throws -> VBAValue {
         let arguments = try interpreter.evaluateArguments(argumentExpressions, frame)
         return try member(name, arguments, in: interpreter)
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         let lookup = name.isEmpty ? defaultMemberName : name
         if let procedure = module.procedure(lookup, kinds: [.function, .propertyGet, .sub]), !procedure.isPrivate {
             return try interpreter.invoke(
@@ -1205,7 +1205,7 @@ final class VBAClassInstance: VBAObject {
         throw VBAError.unsupportedMember(name)
     }
 
-    func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         let lookup = name.isEmpty ? defaultMemberName : name
         let kinds: Set<VBAProcedure.Kind> = value.isObjectLike ? [.propertySet, .propertyLet] : [.propertyLet, .propertySet]
@@ -1239,7 +1239,7 @@ final class VBAClassInstance: VBAObject {
         return "Item"
     }
 
-    func elements(in interpreter: VBAInterpreter) throws -> [VBAValue] {
+    public func elements(in interpreter: VBAInterpreter) throws -> [VBAValue] {
         // A class wrapping a collection exposes it through NewEnum.
         if module.procedure("NewEnum", kinds: [.function, .propertyGet]) != nil,
            case .object(let inner) = try member("NewEnum", .none, in: interpreter) {
@@ -1250,16 +1250,16 @@ final class VBAClassInstance: VBAObject {
 }
 
 /// A value of a user-defined `Type`: fields by name, copied on assignment.
-final class VBARecord: VBAObject {
-    let typeName: String
-    var fields: [String: VBAVariable] = [:]
-    var order: [String] = []
+public final class VBARecord: VBAObject {
+    public let typeName: String
+    public var fields: [String: VBAVariable] = [:]
+    public var order: [String] = []
 
-    init(typeName: String) {
+    public init(typeName: String) {
         self.typeName = typeName
     }
 
-    func copy() -> VBARecord {
+    public func copy() -> VBARecord {
         let copy = VBARecord(typeName: typeName)
         copy.order = order
         for (name, field) in fields {
@@ -1268,12 +1268,12 @@ final class VBARecord: VBAObject {
         return copy
     }
 
-    func member(_ name: String, _: VBAArguments, in _: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _: VBAArguments, in _: VBAInterpreter) throws -> VBAValue {
         guard let field = fields[name.lowercased()] else { throw VBAError.unsupportedMember(name) }
         return field.value
     }
 
-    func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
                    in _: VBAInterpreter) throws {
         guard let field = fields[name.lowercased()] else { throw VBAError.unsupportedMember(name) }
         if arguments.isEmpty {
@@ -1288,18 +1288,18 @@ final class VBARecord: VBAObject {
 
 /// `Sheet1` or `ThisWorkbook` used as an object: the module's own public
 /// procedures and variables first, then the sheet or workbook behind it.
-final class VBADocumentModuleObject: VBAObject {
-    let module: VBAInterpreter.Module
-    let base: (any VBAObject)?
+public final class VBADocumentModuleObject: VBAObject {
+    public let module: VBAInterpreter.Module
+    public let base: (any VBAObject)?
 
-    init(module: VBAInterpreter.Module, base: (any VBAObject)?) {
+    public init(module: VBAInterpreter.Module, base: (any VBAObject)?) {
         self.module = module
         self.base = base
     }
 
-    var typeName: String { base?.typeName ?? module.name }
+    public var typeName: String { base?.typeName ?? module.name }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         if !name.isEmpty, let procedure = module.procedure(name, kinds: [.sub, .function, .propertyGet]),
            !procedure.isPrivate {
             return try interpreter.invoke(
@@ -1315,7 +1315,7 @@ final class VBADocumentModuleObject: VBAObject {
         return try base.member(name, arguments, in: interpreter)
     }
 
-    func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         if let variable = module.variables[name.lowercased()], module.isPublicVariable(name) {
             try variable.assign(value)
@@ -1325,17 +1325,17 @@ final class VBADocumentModuleObject: VBAObject {
         try base.setMember(name, arguments, to: value, in: interpreter)
     }
 
-    func elements(in interpreter: VBAInterpreter) throws -> [VBAValue] {
+    public func elements(in interpreter: VBAInterpreter) throws -> [VBAValue] {
         guard let base else { throw VBAError(number: 438, "Object doesn't support this property or method") }
         return try base.elements(in: interpreter)
     }
 }
 
 /// The `Err` object.
-final class VBAErrObject: VBAObject {
-    var typeName: String { "ErrObject" }
+public final class VBAErrObject: VBAObject {
+    public var typeName: String { "ErrObject" }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         let error = interpreter.lastError
         switch name.lowercased() {
         case "", "number": return .integer(error?.number ?? 0)
@@ -1359,7 +1359,7 @@ final class VBAErrObject: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         var error = interpreter.lastError ?? VBAError(number: 0, "")
         switch name.lowercased() {

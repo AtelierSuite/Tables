@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// A host with no application behind it, recording what the macro said.
 private final class RecordingHost: VBAHost {
@@ -416,7 +417,7 @@ struct VBAInterpreterTests {
         // device uses, with the offending token filled in.
         let message = try #require(error?.message)
         #expect(!message.hasPrefix("Macro."))
-        #expect(message.contains(String(localized: "Macro.EndOfLine")))
+        #expect(message.contains(String(localized: "Macro.EndOfLine", bundle: .macros)))
     }
 
     @Test("File I/O parses, and fails only when it runs")

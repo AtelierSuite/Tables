@@ -6,7 +6,7 @@ import TablesEngine
 ///
 /// Every object is confined to the interpreter that made it, which runs on
 /// one thread from start to finish.
-protocol VBAObject: AnyObject {
+public protocol VBAObject: AnyObject {
     /// What `TypeName` reports.
     var typeName: String { get }
     /// Reads a property or calls a method. The empty name is the default
@@ -21,34 +21,34 @@ protocol VBAObject: AnyObject {
 }
 
 extension VBAObject {
-    func setMember(_ name: String, _: VBAArguments, to _: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to _: VBAValue,
                    in _: VBAInterpreter) throws {
         throw VBAError.unsupportedMember(name.isEmpty ? typeName : name)
     }
 
-    func elements(in _: VBAInterpreter) throws -> [VBAValue] {
+    public func elements(in _: VBAInterpreter) throws -> [VBAValue] {
         throw VBAError(number: 438, "Object doesn't support this property or method")
     }
 }
 
 /// The arguments of a call, positional and named, as values.
-struct VBAArguments {
+public struct VBAArguments {
     /// Nil for an argument left out, as in `Foo 1, , 3`.
-    var positional: [VBAValue?] = []
-    var named: [(name: String, value: VBAValue)] = []
+    public var positional: [VBAValue?] = []
+    public var named: [(name: String, value: VBAValue)] = []
 
-    static var none: VBAArguments { VBAArguments() }
+    public static var none: VBAArguments { VBAArguments() }
 
-    init(_ positional: [VBAValue?] = [], named: [(name: String, value: VBAValue)] = []) {
+    public init(_ positional: [VBAValue?] = [], named: [(name: String, value: VBAValue)] = []) {
         self.positional = positional
         self.named = named
     }
 
-    var count: Int { positional.count + named.count }
-    var isEmpty: Bool { positional.isEmpty && named.isEmpty }
+    public var count: Int { positional.count + named.count }
+    public var isEmpty: Bool { positional.isEmpty && named.isEmpty }
 
     /// The argument at `position`, or the one passed by `name`.
-    func value(_ position: Int, _ name: String? = nil) -> VBAValue? {
+    public func value(_ position: Int, _ name: String? = nil) -> VBAValue? {
         if let name, let match = named.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
             return match.value
         }
@@ -57,7 +57,7 @@ struct VBAArguments {
         return value
     }
 
-    func required(_ position: Int, _ name: String? = nil) throws -> VBAValue {
+    public func required(_ position: Int, _ name: String? = nil) throws -> VBAValue {
         guard let value = value(position, name) else {
             throw VBAError(number: 449, "Argument not optional")
         }
@@ -67,53 +67,53 @@ struct VBAArguments {
 
 /// A runtime error, numbered as VBA numbers them so `Err.Number` checks in
 /// the macro work as written.
-struct VBAError: Error, Hashable, Sendable {
-    var number: Int
-    var description: String
+public struct VBAError: Error, Hashable, Sendable {
+    public var number: Int
+    public var description: String
     /// The module and line it was raised on, once known.
-    var module: String?
-    var line: Int?
+    public var module: String?
+    public var line: Int?
 
-    init(number: Int, _ description: String) {
+    public init(number: Int, _ description: String) {
         self.number = number
         self.description = description
     }
 
-    static let typeMismatch = VBAError(number: 13, "Type mismatch")
-    static let overflow = VBAError(number: 6, "Overflow")
-    static let divisionByZero = VBAError(number: 11, "Division by zero")
-    static let subscriptOutOfRange = VBAError(number: 9, "Subscript out of range")
-    static let objectRequired = VBAError(number: 424, "Object required")
-    static let objectNotSet = VBAError(number: 91, "Object variable or With block variable not set")
-    static let invalidUseOfNull = VBAError(number: 94, "Invalid use of Null")
-    static let invalidCall = VBAError(number: 5, "Invalid procedure call or argument")
-    static let wrongArgumentCount = VBAError(number: 450, "Wrong number of arguments or invalid property assignment")
+    public static let typeMismatch = VBAError(number: 13, "Type mismatch")
+    public static let overflow = VBAError(number: 6, "Overflow")
+    public static let divisionByZero = VBAError(number: 11, "Division by zero")
+    public static let subscriptOutOfRange = VBAError(number: 9, "Subscript out of range")
+    public static let objectRequired = VBAError(number: 424, "Object required")
+    public static let objectNotSet = VBAError(number: 91, "Object variable or With block variable not set")
+    public static let invalidUseOfNull = VBAError(number: 94, "Invalid use of Null")
+    public static let invalidCall = VBAError(number: 5, "Invalid procedure call or argument")
+    public static let wrongArgumentCount = VBAError(number: 450, "Wrong number of arguments or invalid property assignment")
 
-    static func unsupportedMember(_ name: String) -> VBAError {
+    public static func unsupportedMember(_ name: String) -> VBAError {
         VBAError(number: 438, "Object doesn't support this property or method (\(name))")
     }
 
-    static func notDefined(_ name: String) -> VBAError {
+    public static func notDefined(_ name: String) -> VBAError {
         VBAError(number: 35, "Sub or Function not defined (\(name))")
     }
 
-    static func notSupported(_ what: String) -> VBAError {
+    public static func notSupported(_ what: String) -> VBAError {
         VBAError(number: 445, "\(what) is not supported in Tables")
     }
 }
 
 /// A multi-dimensional array with arbitrary lower bounds, stored with the
 /// first index varying fastest — the order `For Each` visits it in.
-struct VBAArray {
-    var lowerBounds: [Int]
-    var lengths: [Int]
-    var elements: [VBAValue]
+public struct VBAArray {
+    public var lowerBounds: [Int]
+    public var lengths: [Int]
+    public var elements: [VBAValue]
     /// What each element is declared as, so assignments coerce.
-    var elementType: VBAType
+    public var elementType: VBAType
     /// `Dim a(1 To 3)` cannot be resized; `Dim a()` and `ReDim` can.
-    var isFixed: Bool
+    public var isFixed: Bool
 
-    init(lowerBounds: [Int], upperBounds: [Int], elementType: VBAType = .variant, isFixed: Bool = false) {
+    public init(lowerBounds: [Int], upperBounds: [Int], elementType: VBAType = .variant, isFixed: Bool = false) {
         self.lowerBounds = lowerBounds
         lengths = zip(lowerBounds, upperBounds).map { max(0, $1 - $0 + 1) }
         self.elementType = elementType
@@ -122,7 +122,7 @@ struct VBAArray {
     }
 
     /// A one-dimensional array of the given values from `lowerBound`.
-    init(_ values: [VBAValue], lowerBound: Int = 0) {
+    public init(_ values: [VBAValue], lowerBound: Int = 0) {
         lowerBounds = [lowerBound]
         lengths = [values.count]
         elements = values
@@ -131,18 +131,18 @@ struct VBAArray {
     }
 
     /// An uninitialised dynamic array: `Dim a() As String` before `ReDim`.
-    static func unallocated(_ type: VBAType) -> VBAArray {
+    public static func unallocated(_ type: VBAType) -> VBAArray {
         var array = VBAArray(lowerBounds: [], upperBounds: [], elementType: type)
         array.elements = []
         return array
     }
 
-    var dimensions: Int { lengths.count }
-    var isAllocated: Bool { !lengths.isEmpty }
+    public var dimensions: Int { lengths.count }
+    public var isAllocated: Bool { !lengths.isEmpty }
 
-    func upperBound(_ dimension: Int) -> Int { lowerBounds[dimension] + lengths[dimension] - 1 }
+    public func upperBound(_ dimension: Int) -> Int { lowerBounds[dimension] + lengths[dimension] - 1 }
 
-    func offset(_ indices: [Int]) throws -> Int {
+    public func offset(_ indices: [Int]) throws -> Int {
         guard indices.count == lengths.count else { throw VBAError.subscriptOutOfRange }
         var offset = 0
         var stride = 1
@@ -155,17 +155,17 @@ struct VBAArray {
         return offset
     }
 
-    subscript(indices: [Int]) -> VBAValue {
+    public subscript(indices: [Int]) -> VBAValue {
         get throws { elements[try offset(indices)] }
     }
 
-    mutating func set(_ indices: [Int], _ value: VBAValue) throws {
+    public mutating func set(_ indices: [Int], _ value: VBAValue) throws {
         elements[try offset(indices)] = try elementType.coerce(value)
     }
 
     /// `ReDim Preserve` may only change the last dimension, keeping whatever
     /// still fits.
-    func resizedPreserving(lowerBounds newLower: [Int], upperBounds newUpper: [Int]) throws -> VBAArray {
+    public func resizedPreserving(lowerBounds newLower: [Int], upperBounds newUpper: [Int]) throws -> VBAArray {
         var resized = VBAArray(lowerBounds: newLower, upperBounds: newUpper, elementType: elementType)
         guard isAllocated else { return resized }
         guard newLower.count == dimensions,
@@ -182,14 +182,14 @@ struct VBAArray {
 }
 
 /// A declared type, which decides how assignments to a variable coerce.
-indirect enum VBAType: Hashable, Sendable {
+public indirect enum VBAType: Hashable, Sendable {
     case variant, boolean, byte, integer, long, longLong, single, double, currency, date, string
     /// `As Object`, `As Range`, `As Collection` and any class.
     case object(String)
     case userType(String)
     case array(VBAType)
 
-    static func named(_ name: String) -> VBAType {
+    public static func named(_ name: String) -> VBAType {
         switch name.lowercased() {
         case "variant", "any": return .variant
         case "boolean": return .boolean
@@ -206,7 +206,7 @@ indirect enum VBAType: Hashable, Sendable {
         }
     }
 
-    var defaultValue: VBAValue {
+    public var defaultValue: VBAValue {
         switch self {
         case .variant: return .empty
         case .boolean: return .boolean(false)
@@ -220,14 +220,14 @@ indirect enum VBAType: Hashable, Sendable {
         }
     }
 
-    var isObject: Bool {
+    public var isObject: Bool {
         if case .object = self { return true }
         return false
     }
 
     /// The value as it would be stored in a variable of this type: rounded
     /// and range-checked for the integer types, converted for the rest.
-    func coerce(_ value: VBAValue) throws -> VBAValue {
+    public func coerce(_ value: VBAValue) throws -> VBAValue {
         switch self {
         case .variant, .userType:
             return value
@@ -263,7 +263,7 @@ indirect enum VBAType: Hashable, Sendable {
 }
 
 /// A Variant: what every value in a running macro is.
-enum VBAValue {
+public enum VBAValue {
     case empty
     case null
     /// An object reference that refers to nothing.
@@ -280,14 +280,14 @@ enum VBAValue {
     /// A worksheet error value, `CVErr(xlErrNA)` and friends.
     case error(Int)
 
-    var isObjectLike: Bool {
+    public var isObjectLike: Bool {
         switch self {
         case .object, .nothing: return true
         default: return false
         }
     }
 
-    var isNumeric: Bool {
+    public var isNumeric: Bool {
         switch self {
         case .integer, .double, .boolean, .date, .empty: return true
         default: return false
@@ -298,7 +298,7 @@ enum VBAValue {
 
     /// Strings convert the way `Val` would not: wholly or not at all, with
     /// `&H` prefixes and surrounding spaces allowed.
-    static func parseNumber(_ text: String) -> Double? {
+    public static func parseNumber(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
         let upper = trimmed.uppercased()
@@ -317,7 +317,7 @@ enum VBAValue {
         return value * scale
     }
 
-    func asDouble() throws -> Double {
+    public func asDouble() throws -> Double {
         switch self {
         case .empty, .missing: return 0
         case .boolean(let flag): return flag ? -1 : 0
@@ -334,7 +334,7 @@ enum VBAValue {
     }
 
     /// Rounds half to even, as `CLng` and every integer assignment do.
-    func asInteger(range: ClosedRange<Int> = Int.min...Int.max) throws -> Int {
+    public func asInteger(range: ClosedRange<Int> = Int.min...Int.max) throws -> Int {
         if case .integer(let value) = self {
             guard range.contains(value) else { throw VBAError.overflow }
             return value
@@ -346,7 +346,7 @@ enum VBAValue {
         return Int(rounded)
     }
 
-    func asBoolean() throws -> Bool {
+    public func asBoolean() throws -> Bool {
         switch self {
         case .boolean(let flag): return flag
         case .string(let text):
@@ -360,7 +360,7 @@ enum VBAValue {
         }
     }
 
-    func asDate() throws -> Double {
+    public func asDate() throws -> Double {
         switch self {
         case .date(let serial): return serial
         case .string(let text):
@@ -372,7 +372,7 @@ enum VBAValue {
         }
     }
 
-    func asString() throws -> String {
+    public func asString() throws -> String {
         switch self {
         case .empty, .missing: return ""
         case .boolean(let flag): return flag ? "True" : "False"
@@ -389,7 +389,7 @@ enum VBAValue {
 
     /// Doubles print with up to fifteen significant digits, in scientific
     /// notation only when that is shorter to read, as `CStr` does.
-    static func format(_ value: Double) -> String {
+    public static func format(_ value: Double) -> String {
         if value.isNaN { return "NaN" }
         guard value.isFinite else { return value > 0 ? "inf" : "-inf" }
         if value == value.rounded(), abs(value) < 1e15 { return String(Int64(value)) }
@@ -418,7 +418,7 @@ enum VBAValue {
 
     /// `m/d/yyyy`, with the time after it when there is one, and only the
     /// time for a date on day zero — what VBA shows under US settings.
-    static func formatDate(_ serial: Double) -> String {
+    public static func formatDate(_ serial: Double) -> String {
         let parts = VBADate.components(serial)
         let hasTime = serial != serial.rounded(.down)
         let datePart = "\(parts.month!)/\(parts.day!)/\(parts.year!)"
@@ -430,7 +430,7 @@ enum VBAValue {
     }
 
     /// The name `TypeName` reports.
-    var typeName: String {
+    public var typeName: String {
         switch self {
         case .empty, .missing: return "Empty"
         case .null: return "Null"
@@ -451,7 +451,7 @@ enum VBAValue {
         }
     }
 
-    static func typeName(of type: VBAType) -> String {
+    public static func typeName(of type: VBAType) -> String {
         switch type {
         case .variant: return "Variant"
         case .boolean: return "Boolean"
@@ -471,7 +471,7 @@ enum VBAValue {
     }
 
     /// `VarType`'s numbering.
-    var varType: Int {
+    public var varType: Int {
         switch self {
         case .empty, .missing: return 0
         case .null: return 1
@@ -489,7 +489,7 @@ enum VBAValue {
 
 // MARK: - Operators
 
-enum VBAOperators {
+public enum VBAOperators {
     /// Arithmetic stays in whole numbers while both sides are whole, and
     /// moves to doubles as soon as either is not.
     private enum NumericPair {
@@ -520,7 +520,7 @@ enum VBAOperators {
         return false
     }
 
-    static func binary(_ op: String, _ lhs: VBAValue, _ rhs: VBAValue, textCompare: Bool) throws -> VBAValue {
+    public static func binary(_ op: String, _ lhs: VBAValue, _ rhs: VBAValue, textCompare: Bool) throws -> VBAValue {
         switch op.lowercased() {
         case "&":
             let left = isNull(lhs) ? "" : try lhs.asString()
@@ -598,7 +598,7 @@ enum VBAOperators {
         }
     }
 
-    static func negate(_ value: VBAValue) throws -> VBAValue {
+    public static func negate(_ value: VBAValue) throws -> VBAValue {
         switch value {
         case .null: return .null
         case .integer(let number): return .integer(-number)
@@ -609,7 +609,7 @@ enum VBAOperators {
         }
     }
 
-    static func not(_ value: VBAValue) throws -> VBAValue {
+    public static func not(_ value: VBAValue) throws -> VBAValue {
         switch value {
         case .null: return .null
         case .boolean(let flag): return .boolean(!flag)
@@ -647,7 +647,7 @@ enum VBAOperators {
         }
     }
 
-    static func identical(_ lhs: VBAValue, _ rhs: VBAValue) throws -> Bool {
+    public static func identical(_ lhs: VBAValue, _ rhs: VBAValue) throws -> Bool {
         switch (lhs, rhs) {
         case (.nothing, .nothing): return true
         case (.object(let left), .object(let right)): return left === right
@@ -659,7 +659,7 @@ enum VBAOperators {
     /// Variants compare numerically when both sides are numbers, as text when
     /// both are strings, and a number always sorts before text it cannot be
     /// read as.
-    static func compare(_ lhs: VBAValue, _ rhs: VBAValue, textCompare: Bool) throws -> ComparisonResult {
+    public static func compare(_ lhs: VBAValue, _ rhs: VBAValue, textCompare: Bool) throws -> ComparisonResult {
         func order<T: Comparable>(_ a: T, _ b: T) -> ComparisonResult {
             if a < b { .orderedAscending } else if a > b { .orderedDescending } else { .orderedSame }
         }
@@ -683,7 +683,7 @@ enum VBAOperators {
         }
     }
 
-    static func compareText(_ lhs: String, _ rhs: String, textCompare: Bool) -> ComparisonResult {
+    public static func compareText(_ lhs: String, _ rhs: String, textCompare: Bool) -> ComparisonResult {
         if textCompare { return lhs.compare(rhs, options: [.caseInsensitive]) }
         // Binary comparison orders by code unit, as VBA's does.
         if lhs.utf16.lexicographicallyPrecedes(rhs.utf16) { return .orderedAscending }
@@ -692,7 +692,7 @@ enum VBAOperators {
 
     /// `Like` patterns: `?` any one character, `*` any run, `#` a digit,
     /// `[a-z]` and `[!a-z]` a character in or out of a set.
-    static func like(_ text: String, _ pattern: String, textCompare: Bool) -> Bool {
+    public static func like(_ text: String, _ pattern: String, textCompare: Bool) -> Bool {
         let subject = Array(textCompare ? text.lowercased() : text)
         let pattern = Array(textCompare ? pattern.lowercased() : pattern)
         var memo: [Int: Bool] = [:]

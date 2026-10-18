@@ -7,20 +7,20 @@ import TablesEngine
 /// Data is cut into chunks of 4096 bytes, each compressed on its own: a flag
 /// byte says which of the next eight tokens are literal bytes and which are
 /// copies of something earlier in the same chunk.
-enum VBACompression {
-    struct FormatError: LocalizedError {
-        var errorDescription: String? { "The macro project holds malformed compressed data." }
+public enum VBACompression {
+    public struct FormatError: LocalizedError, Sendable {
+        public var errorDescription: String? { "The macro project holds malformed compressed data." }
     }
 
     private static let chunkSize = 4096
 
     // MARK: - Decompression
 
-    static func decompress(_ data: Data) throws -> Data {
+    public static func decompress(_ data: Data) throws -> Data {
         try decompress([UInt8](data)[...])
     }
 
-    static func decompress(_ input: ArraySlice<UInt8>) throws -> Data {
+    public static func decompress(_ input: ArraySlice<UInt8>) throws -> Data {
         guard input.first == 0x01 else { throw FormatError() }
         var output: [UInt8] = []
         output.reserveCapacity(input.count * 2)
@@ -80,7 +80,7 @@ enum VBACompression {
 
     // MARK: - Compression
 
-    static func compress(_ data: Data) -> Data {
+    public static func compress(_ data: Data) -> Data {
         let input = [UInt8](data)
         var output: [UInt8] = [0x01]
         var start = 0

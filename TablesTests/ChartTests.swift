@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// Charts: reading what Excel writes, writing what Excel reads, and keeping
 /// everything else on a drawing — pictures, chart types we do not model —

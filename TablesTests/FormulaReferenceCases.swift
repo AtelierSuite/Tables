@@ -3,6 +3,7 @@
 import Foundation
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 let independentFormulaAnswerCases: [FormulaAnswerCase] = [
     .init(function: "SUM", formula: "=SUM({1,2,3})", expected: .number(6.0), relativeTolerance: 2e-11),

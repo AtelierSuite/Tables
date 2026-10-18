@@ -4,16 +4,16 @@ import TablesEngine
 /// Lays out a `Print` list the way VBA does: numbers padded with a space for
 /// the sign and one after, `,` jumping to the next 14-column print zone,
 /// `Tab` and `Spc` moving the column, `Width` wrapping long lines.
-struct VBAPrintFormatter {
-    static let zoneWidth = 14
+public struct VBAPrintFormatter: Sendable {
+    public static let zoneWidth = 14
 
     /// Characters on the current line before this output.
-    var column: Int
-    var width = 0
+    public var column: Int
+    public var width = 0
 
     /// The text, and whether the list asked for a line break at its end —
     /// it does unless it ends with `;` or `,`.
-    mutating func format(_ items: [VBAPrintItem], evaluate: (VBAExpression) throws -> VBAValue) throws
+    public mutating func format(_ items: [VBAPrintItem], evaluate: (VBAExpression) throws -> VBAValue) throws
         -> (text: String, endsLine: Bool) {
         var text = ""
         func emit(_ piece: String) {
@@ -54,7 +54,7 @@ struct VBAPrintFormatter {
         return (text, true)
     }
 
-    static func text(for value: VBAValue) throws -> String {
+    public static func text(for value: VBAValue) throws -> String {
         switch value {
         case .integer, .double:
             let number = try value.asString()
@@ -70,7 +70,7 @@ struct VBAPrintFormatter {
 extension VBAInterpreter {
     private var files: VBAFileSystem {
         get throws {
-            guard let fileSystem else { throw VBAError.notSupported(String(localized: "Macro.Unavailable.Files")) }
+            guard let fileSystem else { throw VBAError.notSupported(String(localized: "Macro.Unavailable.Files", bundle: #bundle)) }
             return fileSystem
         }
     }
@@ -79,7 +79,7 @@ extension VBAInterpreter {
         try letValue(evaluate(expression, frame)).asInteger()
     }
 
-    func execute(_ statement: VBAFileStatement, _ frame: Frame) throws {
+    public func execute(_ statement: VBAFileStatement, _ frame: Frame) throws {
         let files = try files
         switch statement {
         case .open(let path, let mode, let number, let recordLength):
@@ -158,7 +158,7 @@ extension VBAInterpreter {
 
     /// A value as `Write #` puts it: text quoted, logic and dates between
     /// `#` marks, numbers with a full stop whatever the locale.
-    static func writeField(_ value: VBAValue) throws -> String {
+    public static func writeField(_ value: VBAValue) throws -> String {
         switch value {
         case .empty, .missing: return ""
         case .null: return "#NULL#"
@@ -178,7 +178,7 @@ extension VBAInterpreter {
     }
 
     /// What an `Input #` field reads as before the target's type converts it.
-    static func inputValue(_ text: String, wasQuoted: Bool) -> VBAValue {
+    public static func inputValue(_ text: String, wasQuoted: Bool) -> VBAValue {
         if wasQuoted { return .string(text) }
         let upper = text.uppercased()
         switch upper {
@@ -288,7 +288,7 @@ extension VBAInterpreter {
         [UInt8](text.data(using: .windowsCP1252, allowLossyConversion: true) ?? Data(text.utf8))
     }
 
-    static func encode(_ value: VBAValue, as type: VBAType, randomAccess: Bool) throws -> [UInt8] {
+    public static func encode(_ value: VBAValue, as type: VBAType, randomAccess: Bool) throws -> [UInt8] {
         switch type {
         case .byte: return [UInt8(truncatingIfNeeded: try value.asInteger(range: 0...255))]
         case .boolean: return little(Int16(try value.asBoolean() ? -1 : 0))

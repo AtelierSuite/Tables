@@ -3,9 +3,9 @@ import TablesEngine
 
 /// The functions and constants of the VBA library itself — `Len`, `Mid`,
 /// `DateAdd`, `vbCrLf` — which every host has, spreadsheet or not.
-enum VBALibrary {
+public enum VBALibrary {
     /// Calls a built-in function, or returns nil when there is none by that name.
-    static func call(_ name: String, _ arguments: VBAArguments, interpreter: VBAInterpreter,
+    public static func call(_ name: String, _ arguments: VBAArguments, interpreter: VBAInterpreter,
                      frame: VBAInterpreter.Frame) throws -> VBAValue? {
         let call = LibraryCall(arguments: arguments, interpreter: interpreter)
         switch name.lowercased() {
@@ -357,7 +357,7 @@ enum VBALibrary {
             // line names a program, and there are none to start.
             let target = try call.string(0, "PathName").trimmingCharacters(in: .whitespaces)
             guard let url = openableURL(target) else {
-                throw VBAError(number: 445, String(localized: "Macro.Unavailable.Shell"))
+                throw VBAError(number: 445, String(localized: "Macro.Unavailable.Shell", bundle: #bundle))
             }
             guard interpreter.host?.openURL(url) == true else { throw VBAFileSystem.permissionDenied }
             return .double(1)
@@ -367,7 +367,7 @@ enum VBALibrary {
             interpreter.host?.showSendKeys(try call.string(0, "String"))
             return .empty
         case "getobject":
-            throw VBAError(number: 445, String(localized: "Macro.Unavailable.GetObject"))
+            throw VBAError(number: 445, String(localized: "Macro.Unavailable.GetObject", bundle: #bundle))
         case "callbyname":
             return try callByName(call, arguments, interpreter: interpreter)
 
@@ -450,7 +450,7 @@ enum VBALibrary {
 
     // MARK: - Constants
 
-    static func constant(named name: String) -> VBAValue? {
+    public static func constant(named name: String) -> VBAValue? {
         switch name.lowercased() {
         case "vbcrlf", "vbnewline": return .string("\r\n")
         case "vbcr": return .string("\r")
@@ -543,7 +543,7 @@ enum VBALibrary {
         }
     }
 
-    static func standardErrorDescription(_ number: Int) -> String {
+    public static func standardErrorDescription(_ number: Int) -> String {
         switch number {
         case 5: return "Invalid procedure call or argument"
         case 6: return "Overflow"
@@ -560,7 +560,7 @@ enum VBALibrary {
         }
     }
 
-    static func createObject(_ className: String) -> (any VBAObject)? {
+    public static func createObject(_ className: String) -> (any VBAObject)? {
         switch className.lowercased() {
         case "collection", "vba.collection": return VBACollection()
         case "scripting.dictionary", "dictionary": return VBADictionary()
@@ -573,7 +573,7 @@ enum VBALibrary {
 
     private static func fileSystem(_ interpreter: VBAInterpreter) throws -> VBAFileSystem {
         guard let files = interpreter.fileSystem else {
-            throw VBAError.notSupported(String(localized: "Macro.Unavailable.Files"))
+            throw VBAError.notSupported(String(localized: "Macro.Unavailable.Files", bundle: #bundle))
         }
         return files
     }
@@ -582,7 +582,7 @@ enum VBALibrary {
     /// its own, `https://…`, `mailto:…`, `shortcuts://…`. Local files and
     /// scripts are not links for this purpose, and a one-letter scheme is
     /// a Windows drive.
-    static func openableURL(_ text: String) -> URL? {
+    public static func openableURL(_ text: String) -> URL? {
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased(), scheme.count > 1,
               scheme.allSatisfy({ $0.isLetter || $0.isNumber || "+-.".contains($0) }),
               !["file", "javascript", "vbscript", "data"].contains(scheme) else { return nil }
@@ -624,7 +624,7 @@ enum VBALibrary {
         return UInt64.max
     }
 
-    static func instr(_ haystack: String, _ needle: String, start: Int, textCompare: Bool) -> Int {
+    public static func instr(_ haystack: String, _ needle: String, start: Int, textCompare: Bool) -> Int {
         let characters = Array(haystack)
         guard start <= characters.count + 1 else { return 0 }
         if needle.isEmpty { return start }
@@ -684,7 +684,7 @@ enum VBALibrary {
     /// `Format`, by way of the spreadsheet's own number formatter: VBA's
     /// format codes are Excel's, apart from `n` for minutes and the named
     /// formats, which are translated first.
-    static func format(_ value: VBAValue, _ code: String) throws -> String {
+    public static func format(_ value: VBAValue, _ code: String) throws -> String {
         let named: [String: String] = [
             "general number": "General", "currency": "$#,##0.00", "fixed": "0.00", "standard": "#,##0.00",
             "percent": "0.00%", "scientific": "0.00E+00", "general date": "", "long date": "dddd, mmmm d, yyyy",
@@ -807,7 +807,7 @@ private struct LibraryCall {
 extension VBAArray {
     /// An array with no elements whose `UBound` is -1, which is what `Split`
     /// returns for an empty string.
-    static func empty(of type: VBAType) -> VBAArray {
+    public static func empty(of type: VBAType) -> VBAArray {
         VBAArray(lowerBounds: [0], upperBounds: [-1], elementType: type)
     }
 }
@@ -815,9 +815,9 @@ extension VBAArray {
 // MARK: - Collection
 
 /// VBA's `Collection`: one-based, optionally keyed, case-insensitive keys.
-final class VBACollection: VBAObject {
-    private(set) var items: [(key: String?, value: VBAValue)] = []
-    var typeName: String { "Collection" }
+public final class VBACollection: VBAObject {
+    public private(set) var items: [(key: String?, value: VBAValue)] = []
+    public var typeName: String { "Collection" }
 
     private func index(of selector: VBAValue, in interpreter: VBAInterpreter) throws -> Int {
         let selector = try interpreter.letValue(selector)
@@ -832,7 +832,7 @@ final class VBACollection: VBAObject {
         return position - 1
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "", "item":
             return items[try index(of: arguments.required(0, "Index"), in: interpreter)].value
@@ -857,18 +857,18 @@ final class VBACollection: VBAObject {
         }
     }
 
-    func elements(in _: VBAInterpreter) throws -> [VBAValue] { items.map(\.value) }
+    public func elements(in _: VBAInterpreter) throws -> [VBAValue] { items.map(\.value) }
 }
 
 // MARK: - Dictionary
 
 /// `Scripting.Dictionary`, the other workhorse of real-world macros.
-final class VBADictionary: VBAObject {
+public final class VBADictionary: VBAObject {
     private var keys: [VBAValue] = []
     private var values: [VBAValue] = []
     private var index: [String: Int] = [:]
     private var textCompare = false
-    var typeName: String { "Dictionary" }
+    public var typeName: String { "Dictionary" }
 
     /// Keys compare by type and value: the string "1" and the number 1 are
     /// different keys, as they are in Scripting.
@@ -903,7 +903,7 @@ final class VBADictionary: VBAObject {
         return try interpreter.letValue(value)
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "", "item":
             let key = try key(arguments.required(0, "Key"), interpreter)
@@ -945,7 +945,7 @@ final class VBADictionary: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         switch name.lowercased() {
         case "", "item":
@@ -963,19 +963,19 @@ final class VBADictionary: VBAObject {
         }
     }
 
-    func elements(in _: VBAInterpreter) throws -> [VBAValue] { keys }
+    public func elements(in _: VBAInterpreter) throws -> [VBAValue] { keys }
 }
 
 // MARK: - RegExp
 
 /// `VBScript.RegExp`, mapped onto `NSRegularExpression`, whose syntax is a
 /// superset of what VBScript patterns use.
-final class VBARegExp: VBAObject {
-    var pattern = ""
-    var isGlobal = false
-    var ignoreCase = false
-    var multiLine = false
-    var typeName: String { "IRegExp2" }
+public final class VBARegExp: VBAObject {
+    public var pattern = ""
+    public var isGlobal = false
+    public var ignoreCase = false
+    public var multiLine = false
+    public var typeName: String { "IRegExp2" }
 
     private func expression() throws -> NSRegularExpression {
         var options: NSRegularExpression.Options = []
@@ -988,7 +988,7 @@ final class VBARegExp: VBAObject {
         }
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "pattern": return .string(pattern)
         case "global": return .boolean(isGlobal)
@@ -1030,7 +1030,7 @@ final class VBARegExp: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         let value = try interpreter.letValue(value)
         switch name.lowercased() {
@@ -1043,19 +1043,19 @@ final class VBARegExp: VBAObject {
     }
 }
 
-final class VBARegExpMatch: VBAObject {
-    let value: String
-    let firstIndex: Int
-    let subMatches: [VBAValue]
-    var typeName: String { "IMatch2" }
+public final class VBARegExpMatch: VBAObject {
+    public let value: String
+    public let firstIndex: Int
+    public let subMatches: [VBAValue]
+    public var typeName: String { "IMatch2" }
 
-    init(value: String, firstIndex: Int, subMatches: [VBAValue]) {
+    public init(value: String, firstIndex: Int, subMatches: [VBAValue]) {
         self.value = value
         self.firstIndex = firstIndex
         self.subMatches = subMatches
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "", "value": return .string(value)
         case "firstindex": return .integer(firstIndex)
@@ -1071,18 +1071,18 @@ final class VBARegExpMatch: VBAObject {
 
 /// A read-only list with `Count` and `Item`, for collections the library
 /// hands out: regex matches and their groups.
-final class VBAListObject: VBAObject {
-    let typeName: String
-    let items: [VBAValue]
-    let isZeroBased: Bool
+public final class VBAListObject: VBAObject {
+    public let typeName: String
+    public let items: [VBAValue]
+    public let isZeroBased: Bool
 
-    init(typeName: String, items: [VBAValue], isZeroBased: Bool = true) {
+    public init(typeName: String, items: [VBAValue], isZeroBased: Bool = true) {
         self.typeName = typeName
         self.items = items
         self.isZeroBased = isZeroBased
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "", "item":
             let position = try interpreter.letValue(arguments.required(0)).asInteger() - (isZeroBased ? 0 : 1)
@@ -1095,5 +1095,5 @@ final class VBAListObject: VBAObject {
         }
     }
 
-    func elements(in _: VBAInterpreter) throws -> [VBAValue] { items }
+    public func elements(in _: VBAInterpreter) throws -> [VBAValue] { items }
 }

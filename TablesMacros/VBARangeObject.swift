@@ -4,20 +4,20 @@ import TablesEngine
 /// A rectangle of cells on one sheet — `Range("A1:B2")`, `Cells(1, 1)`,
 /// `Rows(3)`. Holds only the sheet and the coordinates; every read and
 /// write goes through to the host's workbook.
-final class VBARangeObject: VBAObject {
+public final class VBARangeObject: VBAObject {
     /// `Rows` and `Columns` are the same cells counted and walked a line at
     /// a time.
-    enum Mode {
+    public enum Mode: Sendable {
         case cells, rows, columns
     }
 
-    unowned let host: VBAExcelHost
-    let sheetID: Worksheet.ID
-    let range: CellRange
-    let mode: Mode
-    var typeName: String { "Range" }
+    public unowned let host: VBAExcelHost
+    public let sheetID: Worksheet.ID
+    public let range: CellRange
+    public let mode: Mode
+    public var typeName: String { "Range" }
 
-    init(host: VBAExcelHost, sheetID: Worksheet.ID, range: CellRange, mode: Mode = .cells) {
+    public init(host: VBAExcelHost, sheetID: Worksheet.ID, range: CellRange, mode: Mode = .cells) {
         self.host = host
         self.sheetID = sheetID
         self.range = range.normalized
@@ -56,7 +56,7 @@ final class VBARangeObject: VBAObject {
         CellRange(start: try checked(range.start), end: try checked(range.end))
     }
 
-    static func usedRange(of sheet: Worksheet) -> CellRange {
+    public static func usedRange(of sheet: Worksheet) -> CellRange {
         let addresses = sheet.cells.filter { !$0.value.isEmptyEntirely }.keys
         guard let first = addresses.first else { return CellRange(CellAddress(row: 0, column: 0)) }
         var top = first.row
@@ -181,7 +181,7 @@ final class VBARangeObject: VBAObject {
 
     // MARK: - Styles
 
-    func style(_ read: (CellStyle) -> VBAValue) throws -> VBAValue {
+    public func style(_ read: (CellStyle) -> VBAValue) throws -> VBAValue {
         let sheet = try host.sheet(sheetID)
         let first = read(sheet[range.start].style)
         // A property that differs across the range reads as Null.
@@ -200,7 +200,7 @@ final class VBARangeObject: VBAObject {
         }
     }
 
-    func modifyStyles(_ change: (inout CellStyle) throws -> Void) throws {
+    public func modifyStyles(_ change: (inout CellStyle) throws -> Void) throws {
         let area = covered(in: try host.sheet(sheetID))
         try host.modifySheet(sheetID, extent: area) { sheet in
             for address in area.addresses {
@@ -218,7 +218,7 @@ final class VBARangeObject: VBAObject {
 
     // MARK: - Members
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "":
             if !arguments.isEmpty { return .object(try item(arguments, in: interpreter)) }
@@ -424,7 +424,7 @@ final class VBARangeObject: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _ arguments: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         if !arguments.isEmpty {
             // `rng(2, 1) = x`, or `rng.Cells(2, 1) = x`.
@@ -490,7 +490,7 @@ final class VBARangeObject: VBAObject {
         }
     }
 
-    func elements(in _: VBAInterpreter) throws -> [VBAValue] {
+    public func elements(in _: VBAInterpreter) throws -> [VBAValue] {
         let area = covered(in: try host.sheet(sheetID))
         switch mode {
         case .cells:
@@ -626,7 +626,7 @@ final class VBARangeObject: VBAObject {
 
     /// Copies cells onto `target`'s top-left corner: formulas move their
     /// relative references with them, as pasting does.
-    func copy(to target: VBARangeObject, values: Bool, formats: Bool, valuesOnly: Bool = false) throws {
+    public func copy(to target: VBARangeObject, values: Bool, formats: Bool, valuesOnly: Bool = false) throws {
         let source = try host.sheet(sheetID)
         let area = covered(in: source)
         let rowDelta = target.range.start.row - area.start.row
@@ -800,15 +800,15 @@ final class VBARangeObject: VBAObject {
 
 // MARK: - Formatting objects
 
-final class VBAFontObject: VBAObject {
-    let range: VBARangeObject
-    var typeName: String { "Font" }
+public final class VBAFontObject: VBAObject {
+    public let range: VBARangeObject
+    public var typeName: String { "Font" }
 
-    init(range: VBARangeObject) {
+    public init(range: VBARangeObject) {
         self.range = range
     }
 
-    func member(_ name: String, _: VBAArguments, in _: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _: VBAArguments, in _: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "bold": return try range.style { .boolean($0.isBold) }
         case "italic": return try range.style { .boolean($0.isItalic) }
@@ -822,7 +822,7 @@ final class VBAFontObject: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         let value = try interpreter.letValue(value)
         switch name.lowercased() {
@@ -859,15 +859,15 @@ final class VBAFontObject: VBAObject {
     }
 }
 
-final class VBAInteriorObject: VBAObject {
-    let range: VBARangeObject
-    var typeName: String { "Interior" }
+public final class VBAInteriorObject: VBAObject {
+    public let range: VBARangeObject
+    public var typeName: String { "Interior" }
 
-    init(range: VBARangeObject) {
+    public init(range: VBARangeObject) {
         self.range = range
     }
 
-    func member(_ name: String, _: VBAArguments, in _: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _: VBAArguments, in _: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "", "color": return try range.style { .integer(VBAExcelHost.colorValue($0.fillColorHex) ?? 0xFFFFFF) }
         case "colorindex", "pattern":
@@ -876,7 +876,7 @@ final class VBAInteriorObject: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         let value = try interpreter.letValue(value)
         switch name.lowercased() {
@@ -898,17 +898,17 @@ final class VBAInteriorObject: VBAObject {
 
 /// `Borders` and `Borders(xlEdgeBottom)`: line style, weight and colour on
 /// one or more edges of every cell along the range's outline or inside it.
-final class VBABordersObject: VBAObject {
-    let range: VBARangeObject
-    let edges: [Int]
-    var typeName: String { edges.count == 1 ? "Border" : "Borders" }
+public final class VBABordersObject: VBAObject {
+    public let range: VBARangeObject
+    public let edges: [Int]
+    public var typeName: String { edges.count == 1 ? "Border" : "Borders" }
 
-    init(range: VBARangeObject, edges: [Int]) {
+    public init(range: VBARangeObject, edges: [Int]) {
         self.range = range
         self.edges = edges
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "", "item":
             return .object(VBABordersObject(range: range, edges: [try interpreter.letValue(arguments.required(0)).asInteger()]))
@@ -927,7 +927,7 @@ final class VBABordersObject: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         let value = try interpreter.letValue(value)
         let outline = range.range
@@ -997,7 +997,7 @@ final class VBABordersObject: VBAObject {
 }
 
 extension VBARangeObject {
-    func modifyStylesAt(_ change: (CellAddress, inout CellStyle) throws -> Void) throws {
+    public func modifyStylesAt(_ change: (CellAddress, inout CellStyle) throws -> Void) throws {
         let area = covered(in: try host.sheet(sheetID))
         try host.modifySheet(sheetID, extent: area) { sheet in
             for address in area.addresses {
@@ -1010,7 +1010,7 @@ extension VBARangeObject {
 }
 
 /// The 56-colour palette `ColorIndex` numbers into.
-enum VBAColorIndex {
+public enum VBAColorIndex {
     private static let palette: [Int] = [
         0x000000, 0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF,
         0x800000, 0x008000, 0x000080, 0x808000, 0x800080, 0x008080, 0xC0C0C0, 0x808080,
@@ -1022,7 +1022,7 @@ enum VBAColorIndex {
     ]
 
     /// AARRGGBB for a palette index, or nil for `xlNone` and automatic.
-    static func hex(_ index: Int) -> String? {
+    public static func hex(_ index: Int) -> String? {
         guard index >= 1, index <= palette.count else { return nil }
         return String(format: "FF%06X", palette[index - 1])
     }

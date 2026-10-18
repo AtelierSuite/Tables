@@ -1,6 +1,7 @@
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// Builds a one-sheet workbook from an A1-keyed table of raw entries.
 private func makeWorkbook(_ entries: [String: String], name: String = "Sheet 1") -> Workbook {

@@ -8,47 +8,47 @@ import TablesEngine
 /// The lists here are checked against the interpreter by tests, so a
 /// function or member listed as available really is, and one listed as
 /// unavailable really says so when a macro uses it.
-enum MacroHelp {
-    struct Topic: Identifiable, Hashable, Sendable {
-        var id: String
-        var symbol: String
+public enum MacroHelp {
+    public struct Topic: Identifiable, Hashable, Sendable {
+        public var id: String
+        public var symbol: String
         /// Catalog keys of the paragraphs that open the topic.
-        var paragraphs: [String]
-        var groups: [Group] = []
+        public var paragraphs: [String]
+        public var groups: [Group] = []
 
-        var title: String {
+        public var title: String {
             // Built first: written inline, the interpolation would become part
             // of the catalog key as a placeholder.
             let key = "Help.\(id).Title"
-            return String(localized: String.LocalizationValue(key))
+            return String(localized: String.LocalizationValue(key), bundle: #bundle)
         }
     }
 
-    struct Group: Identifiable, Hashable, Sendable {
+    public struct Group: Identifiable, Hashable, Sendable {
         /// A catalog key, or a name as VBA spells it (`Range`) when `isCode`.
-        var title: String
-        var isCode = false
-        var items: [String]
-        var isAvailable = true
+        public var title: String
+        public var isCode = false
+        public var items: [String]
+        public var isAvailable = true
         /// A catalog key for a note under the group.
-        var note: String?
+        public var note: String?
 
-        var id: String { title + (isAvailable ? "" : "-") }
+        public var id: String { title + (isAvailable ? "" : "-") }
 
-        var displayTitle: String {
-            isCode ? title : String(localized: String.LocalizationValue(title))
+        public var displayTitle: String {
+            isCode ? title : String(localized: String.LocalizationValue(title), bundle: #bundle)
         }
     }
 
     /// One searchable entry: a name, where it is described, and whether it works.
-    struct Entry: Identifiable, Hashable, Sendable {
-        var name: String
-        var topic: Topic
-        var group: Group
-        var id: String { topic.id + "." + group.id + "." + name }
+    public struct Entry: Identifiable, Hashable, Sendable {
+        public var name: String
+        public var topic: Topic
+        public var group: Group
+        public var id: String { topic.id + "." + group.id + "." + name }
     }
 
-    static var entries: [Entry] {
+    public static var entries: [Entry] {
         var entries: [Entry] = []
         for topic in topics {
             for group in topic.groups {
@@ -58,7 +58,7 @@ enum MacroHelp {
         return entries
     }
 
-    static func search(_ query: String) -> [Entry] {
+    public static func search(_ query: String) -> [Entry] {
         let needle = query.trimmingCharacters(in: .whitespaces)
         guard !needle.isEmpty else { return [] }
         return entries.filter { entry in
@@ -69,52 +69,52 @@ enum MacroHelp {
 
     // MARK: - Lists checked against the interpreter
 
-    static let textFunctions = [
+    public static let textFunctions = [
         "Asc", "AscW", "Chr", "ChrW", "Format", "FormatCurrency", "FormatDateTime", "FormatNumber", "FormatPercent",
         "Hex", "InStr", "InStrRev", "Join", "LCase", "Left", "Len", "LTrim", "Mid", "Oct", "Replace", "Right",
         "RTrim", "Space", "Split", "Str", "StrComp", "StrConv", "String", "StrReverse", "Trim", "UCase", "Val",
     ]
-    static let mathFunctions = ["Abs", "Atn", "Cos", "Exp", "Fix", "Int", "Log", "Rnd", "Round", "Sgn", "Sin", "Sqr", "Tan"]
-    static let conversionFunctions = [
+    public static let mathFunctions = ["Abs", "Atn", "Cos", "Exp", "Fix", "Int", "Log", "Rnd", "Round", "Sgn", "Sin", "Sqr", "Tan"]
+    public static let conversionFunctions = [
         "CBool", "CByte", "CCur", "CDate", "CDbl", "CDec", "CInt", "CLng", "CLngLng", "CLngPtr", "CSng", "CStr",
         "CVar", "CVErr",
     ]
-    static let dateFunctions = [
+    public static let dateFunctions = [
         "Date", "DateAdd", "DateDiff", "DatePart", "DateSerial", "DateValue", "Day", "Hour", "Minute", "Month",
         "MonthName", "Now", "Second", "Time", "Timer", "TimeSerial", "TimeValue", "Weekday", "WeekdayName", "Year",
     ]
-    static let informationFunctions = [
+    public static let informationFunctions = [
         "Array", "IsArray", "IsDate", "IsEmpty", "IsError", "IsMissing", "IsNull", "IsNumeric", "IsObject",
         "LBound", "QBColor", "RGB", "TypeName", "UBound", "VarType",
     ]
-    static let interactionFunctions = [
+    public static let interactionFunctions = [
         "AppActivate", "Beep", "CallByName", "Choose", "CreateObject", "DoEvents", "Environ", "IIf", "InputBox",
         "MsgBox", "SendKeys", "Shell", "Switch",
     ]
-    static let fileFunctions = [
+    public static let fileFunctions = [
         "ChDir", "ChDrive", "CurDir", "Dir", "EOF", "FileAttr", "FileCopy", "FileDateTime", "FileLen", "FreeFile",
         "GetAttr", "Input", "Kill", "Loc", "LOF", "MkDir", "Reset", "RmDir", "Seek", "SetAttr",
     ]
-    static let unavailableFunctions = ["GetObject"]
+    public static let unavailableFunctions = ["GetObject"]
 
-    static let applicationMembers = [
+    public static let applicationMembers = [
         "ActiveCell", "ActiveSheet", "ActiveWorkbook", "Calculate", "Calculation", "Cells", "Columns", "CutCopyMode",
         "DefaultFilePath",
         "DisplayAlerts", "EnableEvents", "Evaluate", "InputBox", "Intersect", "Range", "Rows", "Run", "ScreenUpdating",
         "Selection", "Sheets", "StatusBar", "ThisWorkbook", "Union", "Version", "Wait", "Workbooks", "Worksheets",
         "WorksheetFunction",
     ]
-    static let unavailableApplicationMembers = ["FileDialog", "GetOpenFilename", "GetSaveAsFilename", "OnTime", "Quit", "SendKeys"]
-    static let workbookMembers = [
+    public static let unavailableApplicationMembers = ["FileDialog", "GetOpenFilename", "GetSaveAsFilename", "OnTime", "Quit", "SendKeys"]
+    public static let workbookMembers = [
         "ActiveSheet", "CodeName", "FollowHyperlink", "FullName", "Name", "Path", "Save", "Sheets", "Worksheets",
     ]
-    static let unavailableWorkbookMembers = ["Close", "PrintOut", "Protect", "SaveAs", "SaveCopyAs"]
-    static let sheetsMembers = ["Add", "Count", "Item"]
-    static let worksheetMembers = [
+    public static let unavailableWorkbookMembers = ["Close", "PrintOut", "Protect", "SaveAs", "SaveCopyAs"]
+    public static let sheetsMembers = ["Add", "Count", "Item"]
+    public static let worksheetMembers = [
         "Activate", "Calculate", "Cells", "CodeName", "Columns", "Copy", "Delete", "Evaluate", "Index", "Move", "Name",
         "Next", "Parent", "Paste", "Previous", "Protect", "Range", "Rows", "Select", "Unprotect", "UsedRange", "Visible",
     ]
-    static let rangeMembers = [
+    public static let rangeMembers = [
         "Activate", "Address", "Areas", "AutoFit", "Borders", "Cells", "Clear", "ClearContents", "ClearFormats", "Column",
         "ColumnWidth", "Columns", "Copy", "Count", "CurrentRegion", "Cut", "Delete", "End", "EntireColumn", "EntireRow",
         "Find", "Font", "Formula", "HasFormula", "Height", "Hidden", "HorizontalAlignment", "IndentLevel", "Insert",
@@ -122,17 +122,17 @@ enum MacroHelp {
         "Resize", "Row", "RowHeight", "Rows", "Select", "Sort", "SpecialCells", "Text", "UnMerge", "Value", "Value2",
         "VerticalAlignment", "Width", "Worksheet", "WrapText",
     ]
-    static let unavailableRangeMembers = [
+    public static let unavailableRangeMembers = [
         "AddComment", "AdvancedFilter", "AutoFill", "AutoFilter", "FillDown", "FillRight", "FormatConditions",
         "FormulaArray", "FormulaR1C1", "Hyperlinks", "Name", "RemoveDuplicates", "TextToColumns", "Validation",
     ]
-    static let fontMembers = ["Bold", "Color", "ColorIndex", "Italic", "Name", "Size", "Strikethrough", "Underline"]
-    static let interiorMembers = ["Color", "ColorIndex", "Pattern"]
-    static let bordersMembers = ["Color", "ColorIndex", "LineStyle", "Weight"]
+    public static let fontMembers = ["Bold", "Color", "ColorIndex", "Italic", "Name", "Size", "Strikethrough", "Underline"]
+    public static let interiorMembers = ["Color", "ColorIndex", "Pattern"]
+    public static let bordersMembers = ["Color", "ColorIndex", "LineStyle", "Weight"]
 
     // MARK: - Topics
 
-    static let topics: [Topic] = [
+    public static let topics: [Topic] = [
         Topic(id: "Running", symbol: "play.circle", paragraphs: [
             "Help.Running.Choose", "Help.Running.Undo", "Help.Running.Sandbox", "Help.Running.Files", "Help.Running.Ask",
         ]),

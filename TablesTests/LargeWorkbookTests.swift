@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// Guards the paths that only misbehave once a workbook gets big: anything that
 /// would walk the whole grid, or the whole cell table, once per line.

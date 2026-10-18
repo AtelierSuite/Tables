@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// A hand-rolled ZIP writer for the shapes `ZipArchive.archive` never produces:
 /// ZIP64 records, encrypted flags and deliberately damaged payloads.

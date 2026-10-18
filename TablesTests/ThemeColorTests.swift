@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// Covers the indirect colour references real workbooks use: theme slots with
 /// their tints, the legacy indexed palette, and the references that mean

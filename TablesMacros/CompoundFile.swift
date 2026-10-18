@@ -7,31 +7,31 @@ import TablesEngine
 ///
 /// Read whole on open: a macro project runs to tens of kilobytes, and holding
 /// it as a tree of values is what lets an edited one be written back out.
-struct CompoundFile: Hashable, Sendable {
-    struct FormatError: LocalizedError {
-        var message: String
-        var errorDescription: String? { message }
+public struct CompoundFile: Hashable, Sendable {
+    public struct FormatError: LocalizedError, Sendable {
+        public var message: String
+        public var errorDescription: String? { message }
     }
 
     /// A storage: a named directory of streams and storages. Names compare
     /// without regard to case, as the format specifies.
-    struct Storage: Hashable, Sendable {
-        var name: String
-        var streams: [Stream] = []
-        var storages: [Storage] = []
+    public struct Storage: Hashable, Sendable {
+        public var name: String
+        public var streams: [Stream] = []
+        public var storages: [Storage] = []
         /// The class id the file gave the storage. Office reads it on some
         /// storages, so it is kept rather than regenerated.
-        var classID = Data(count: 16)
+        public var classID = Data(count: 16)
 
-        func stream(named name: String) -> Data? {
+        public func stream(named name: String) -> Data? {
             streams.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }?.data
         }
 
-        func storage(named name: String) -> Storage? {
+        public func storage(named name: String) -> Storage? {
             storages.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
         }
 
-        mutating func setStream(named name: String, to data: Data) {
+        public mutating func setStream(named name: String, to data: Data) {
             if let index = streams.firstIndex(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
                 streams[index].data = data
             } else {
@@ -39,26 +39,26 @@ struct CompoundFile: Hashable, Sendable {
             }
         }
 
-        mutating func modifyStorage(named name: String, _ change: (inout Storage) -> Void) {
+        public mutating func modifyStorage(named name: String, _ change: (inout Storage) -> Void) {
             guard let index = storages.firstIndex(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame })
             else { return }
             change(&storages[index])
         }
     }
 
-    struct Stream: Hashable, Sendable {
-        var name: String
-        var data: Data
+    public struct Stream: Hashable, Sendable {
+        public var name: String
+        public var data: Data
     }
 
-    var root: Storage
+    public var root: Storage
 
-    init(root: Storage) {
+    public init(root: Storage) {
         self.root = root
     }
 
     /// The stream at a path of storage names ending in a stream name.
-    func stream(at path: [String]) -> Data? {
+    public func stream(at path: [String]) -> Data? {
         guard let name = path.last else { return nil }
         var storage = root
         for component in path.dropLast() {
@@ -70,7 +70,7 @@ struct CompoundFile: Hashable, Sendable {
 
     // MARK: - Layout constants
 
-    static let signature: [UInt8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]
+    public static let signature: [UInt8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]
     fileprivate static let freeSector: UInt32 = 0xFFFF_FFFF
     fileprivate static let endOfChain: UInt32 = 0xFFFF_FFFE
     fileprivate static let fatSectorMarker: UInt32 = 0xFFFF_FFFD
@@ -89,7 +89,7 @@ struct CompoundFile: Hashable, Sendable {
 
     // MARK: - Reading
 
-    init(data: Data) throws {
+    public init(data: Data) throws {
         root = try Parser(bytes: [UInt8](data)).root()
     }
 }
@@ -125,13 +125,13 @@ private struct DirectoryEntry {
     }
 }
 
-enum ByteReader {
-    static func uint16(_ bytes: [UInt8], _ offset: Int) -> UInt16 {
+public enum ByteReader {
+    public static func uint16(_ bytes: [UInt8], _ offset: Int) -> UInt16 {
         guard offset >= 0, offset + 2 <= bytes.count else { return 0 }
         return UInt16(bytes[offset]) | UInt16(bytes[offset + 1]) << 8
     }
 
-    static func uint32(_ bytes: [UInt8], _ offset: Int) -> UInt32 {
+    public static func uint32(_ bytes: [UInt8], _ offset: Int) -> UInt32 {
         guard offset >= 0, offset + 4 <= bytes.count else { return 0 }
         return UInt32(bytes[offset]) | UInt32(bytes[offset + 1]) << 8
             | UInt32(bytes[offset + 2]) << 16 | UInt32(bytes[offset + 3]) << 24
@@ -295,7 +295,7 @@ private struct Parser {
 extension CompoundFile {
     /// Serializes the tree as a version 3 file with 512-byte sectors, the
     /// layout Office itself writes for macro projects.
-    func data() throws -> Data {
+    public func data() throws -> Data {
         var builder = Builder(root: root)
         return try builder.build()
     }

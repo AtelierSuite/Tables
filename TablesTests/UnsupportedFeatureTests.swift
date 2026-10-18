@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// Guards what happens to the parts of a workbook Tables cannot edit. A file
 /// opened here and saved again must come back with them intact, or without

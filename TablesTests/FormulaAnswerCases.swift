@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// Frozen answer vectors, evaluated through the workbook engine. Expected answers
 /// are constants from the existing documented examples and elementary closed forms;

@@ -2,7 +2,7 @@ import Foundation
 import TablesEngine
 
 /// A lexical unit of VBA source.
-enum VBAToken: Hashable, Sendable {
+public enum VBAToken: Hashable, Sendable {
     /// A name or keyword, without any type-declaration suffix (`x$`, `n&`).
     /// Keywords are recognised by the parser, case-insensitively, since VBA
     /// lets many of them double as ordinary names.
@@ -18,34 +18,34 @@ enum VBAToken: Hashable, Sendable {
     case end
 }
 
-struct VBASourceToken: Hashable, Sendable {
-    var token: VBAToken
+public struct VBASourceToken: Hashable, Sendable {
+    public var token: VBAToken
     /// One-based line in the module source, for error messages.
-    var line: Int
+    public var line: Int
     /// Whether whitespace came immediately before, which is how VBA tells
     /// `.Value` inside a `With` block apart from `x.Value`.
-    var followsSpace: Bool
+    public var followsSpace: Bool
 }
 
-struct VBASyntaxError: LocalizedError, Hashable, Sendable {
-    var message: String
-    var line: Int
+public struct VBASyntaxError: LocalizedError, Hashable, Sendable {
+    public var message: String
+    public var line: Int
     /// The module the line is in, once known.
-    var module: String?
+    public var module: String?
 
     /// A message from the string catalog, with its arguments filled in.
-    static func text(_ key: String, _ arguments: CVarArg...) -> String {
-        String(format: String(localized: String.LocalizationValue(key)), arguments: arguments)
+    public static func text(_ key: String, _ arguments: CVarArg...) -> String {
+        String(format: String(localized: String.LocalizationValue(key), bundle: #bundle), arguments: arguments)
     }
 
-    var errorDescription: String? {
-        guard let module else { return String(format: String(localized: "Macro.SyntaxError"), line, message) }
-        return String(format: String(localized: "Macro.SyntaxError.InModule"), module, line, message)
+    public var errorDescription: String? {
+        guard let module else { return String(format: String(localized: "Macro.SyntaxError", bundle: #bundle), line, message) }
+        return String(format: String(localized: "Macro.SyntaxError.InModule", bundle: #bundle), module, line, message)
     }
 }
 
-enum VBALexer {
-    static func tokenize(_ source: String) throws -> [VBASourceToken] {
+public enum VBALexer {
+    public static func tokenize(_ source: String) throws -> [VBASourceToken] {
         var tokens: [VBASourceToken] = []
         let characters = Array(source.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n"))
         var index = 0
@@ -282,8 +282,8 @@ enum VBALexer {
 /// Dates as VBA keeps them: OLE Automation serials, whole days since
 /// 30 December 1899 plus the time as a fraction — which for any date after
 /// February 1900 is the same number a spreadsheet cell holds.
-enum VBADate {
-    static let calendar: Calendar = {
+public enum VBADate {
+    public static let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         return calendar
@@ -291,7 +291,7 @@ enum VBADate {
 
     private static let epoch = DateComponents(calendar: calendar, year: 1899, month: 12, day: 30).date!
 
-    static func serial(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0, second: Int = 0) -> Double? {
+    public static func serial(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0, second: Int = 0) -> Double? {
         // DateSerial rolls months and days over, so normalise through the calendar.
         guard let start = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
               let withMonth = calendar.date(byAdding: .month, value: month - 1, to: start),
@@ -300,24 +300,24 @@ enum VBADate {
         return days + Double(hour * 3600 + minute * 60 + second) / 86_400
     }
 
-    static func components(_ serial: Double) -> DateComponents {
+    public static func components(_ serial: Double) -> DateComponents {
         // Round to the second so 0.1 days does not come out as 2:23:59.
         let seconds = (serial * 86_400).rounded()
         let date = epoch.addingTimeInterval(seconds)
         return calendar.dateComponents([.year, .month, .day, .hour, .minute, .second, .weekday], from: date)
     }
 
-    static func date(_ serial: Double) -> Date {
+    public static func date(_ serial: Double) -> Date {
         epoch.addingTimeInterval((serial * 86_400).rounded())
     }
 
-    static func serial(_ date: Date) -> Double {
+    public static func serial(_ date: Date) -> Double {
         date.timeIntervalSince(epoch) / 86_400
     }
 
     /// The forms VBA accepts in a literal and in `CDate`: ISO dates, US-style
     /// month/day/year, and an optional time with AM/PM.
-    static func parse(_ text: String) -> Double? {
+    public static func parse(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
         var datePart = trimmed

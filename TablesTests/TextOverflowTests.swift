@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// Text running past its cell into empty neighbours, the way Excel draws a
 /// long title over the blank cells beside it.

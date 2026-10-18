@@ -11,13 +11,13 @@ import TablesEngine
 // module from its source when it opens a project so marked.
 
 extension VBAProject {
-    struct EditError: LocalizedError, Hashable {
-        var message: String
-        var errorDescription: String? { message }
+    public struct EditError: LocalizedError, Hashable, Sendable {
+        public var message: String
+        public var errorDescription: String? { message }
     }
 
     /// Replaces a module's code.
-    mutating func setSource(_ source: String, ofModule name: String) {
+    public mutating func setSource(_ source: String, ofModule name: String) {
         guard let index = modules.firstIndex(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) else {
             return
         }
@@ -25,17 +25,17 @@ extension VBAProject {
     }
 
     /// Why `name` cannot name a new module, or nil when it can.
-    func problem(withModuleName name: String) -> String? {
+    public func problem(withModuleName name: String) -> String? {
         guard let first = name.first, first.isLetter, first.isASCII else {
-            return String(localized: "Macros.ModuleName.MustStartWithLetter")
+            return String(localized: "Macros.ModuleName.MustStartWithLetter", bundle: #bundle)
         }
         guard name.allSatisfy({ ($0.isLetter || $0.isNumber || $0 == "_") && $0.isASCII }) else {
-            return String(localized: "Macros.ModuleName.InvalidCharacters")
+            return String(localized: "Macros.ModuleName.InvalidCharacters", bundle: #bundle)
         }
-        guard name.count <= 31 else { return String(localized: "Macros.ModuleName.TooLong") }
+        guard name.count <= 31 else { return String(localized: "Macros.ModuleName.TooLong", bundle: #bundle) }
         guard module(named: name) == nil, name.caseInsensitiveCompare(self.name) != .orderedSame,
               !Self.reservedNames.contains(name.lowercased()) else {
-            return String(localized: "Macros.ModuleName.Taken")
+            return String(localized: "Macros.ModuleName.Taken", bundle: #bundle)
         }
         return nil
     }
@@ -46,14 +46,14 @@ extension VBAProject {
     ]
 
     /// A name not yet taken: `Module1`, `Module2`, …
-    func nextModuleName(_ stem: String = "Module") -> String {
+    public func nextModuleName(_ stem: String = "Module") -> String {
         var number = 1
         while module(named: "\(stem)\(number)") != nil { number += 1 }
         return "\(stem)\(number)"
     }
 
     /// Adds an empty standard or class module.
-    mutating func addModule(named name: String, kind: Module.Kind = .standard) throws {
+    public mutating func addModule(named name: String, kind: Module.Kind = .standard) throws {
         if let problem = problem(withModuleName: name) { throw EditError(message: problem) }
         let isClass = kind == .classModule
         modules.append(Module(
@@ -65,7 +65,7 @@ extension VBAProject {
 
     /// Renames a standard or class module. A document module's name is its
     /// sheet's code name, and is changed with the sheet.
-    mutating func renameModule(_ name: String, to newName: String) throws {
+    public mutating func renameModule(_ name: String, to newName: String) throws {
         guard let index = modules.firstIndex(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }),
               modules[index].kind == .standard || modules[index].kind == .classModule else { return }
         guard newName != modules[index].name else { return }
@@ -82,14 +82,14 @@ extension VBAProject {
 
     /// Removes a standard or class module. The workbook's and sheets' own
     /// modules belong to them and stay.
-    mutating func removeModule(named name: String) {
+    public mutating func removeModule(named name: String) {
         modules.removeAll {
             $0.name.caseInsensitiveCompare(name) == .orderedSame && ($0.kind == .standard || $0.kind == .classModule)
         }
     }
 
     /// The project as a `vbaProject.bin`.
-    func data() throws -> Data {
+    public func data() throws -> Data {
         guard var file else { throw EditError(message: "The macro project has no container to write into.") }
         let encoding = Self.encoding(forCodePage: codePage)
         guard let compressedDirectory = file.root.storage(named: "VBA")?.stream(named: "dir") else {
@@ -105,7 +105,7 @@ extension VBAProject {
             var text = module.source.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\n", with: "\r\n")
             if !text.isEmpty, !text.hasSuffix("\r\n") { text += "\r\n" }
             guard let encoded = (module.attributes + text).data(using: encoding) else {
-                throw EditError(message: String(format: String(localized: "Macros.Save.Unencodable"), module.name))
+                throw EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: #bundle), module.name))
             }
             moduleStreams.append((module.streamName, VBACompression.compress(encoded)))
         }
@@ -151,7 +151,7 @@ extension VBAProject {
 
     /// The `PROJECT` stream lists modules as `Module=Name` and `Class=Name`
     /// lines, and the editor's window positions under `[Workspace]` as `Name=…`.
-    static func rewrittenProjectStream(
+    public static func rewrittenProjectStream(
         _ stream: Data, adding added: [(name: String, kind: Module.Kind)], removing removed: Set<String>,
         renaming renamed: [String: String] = [:], encoding: String.Encoding
     ) -> Data {
@@ -187,7 +187,7 @@ extension VBAProject {
 
     /// `PROJECTwm` pairs each module name in the code page with its UTF-16
     /// spelling, both NUL-terminated, the whole list ended by two zero bytes.
-    static func rewrittenNameMap(modules: [String], encoding: String.Encoding) -> Data {
+    public static func rewrittenNameMap(modules: [String], encoding: String.Encoding) -> Data {
         var out: [UInt8] = []
         for name in modules {
             out += [UInt8](name.data(using: encoding) ?? Data(name.utf8)) + [0]
@@ -200,7 +200,7 @@ extension VBAProject {
 /// The decompressed `dir` stream as raw records, so it can be written back
 /// with only what an edit changes: the module list, and each module's
 /// offset to its source, which is zero once the p-code before it is gone.
-struct VBADirectoryRecords {
+public struct VBADirectoryRecords: Sendable {
     private struct Record {
         var id: UInt16
         var bytes: [UInt8]
@@ -213,10 +213,10 @@ struct VBADirectoryRecords {
     private let codePage: UInt32
 
     /// Lowercased module name to stream name.
-    private(set) var streamNames: [String: String] = [:]
-    var moduleNames: [String] { groups.map(\.name) }
+    public private(set) var streamNames: [String: String] = [:]
+    public var moduleNames: [String] { groups.map(\.name) }
 
-    init(_ data: Data) throws {
+    public init(_ data: Data) throws {
         let bytes = [UInt8](data)
         var position = 0
         var codePage: UInt32 = 1252
@@ -268,7 +268,7 @@ struct VBADirectoryRecords {
         self.codePage = codePage
     }
 
-    func rewritten(modules: [VBAProject.Module], encoding: String.Encoding) throws -> Data {
+    public func rewritten(modules: [VBAProject.Module], encoding: String.Encoding) throws -> Data {
         var out: [UInt8] = []
         for record in header {
             if record.id == 0x000F {
@@ -282,7 +282,7 @@ struct VBADirectoryRecords {
                let group = groups.first(where: { $0.name.caseInsensitiveCompare(stored) == .orderedSame }) {
                 let isRenamed = stored != module.name
                 guard let name = module.name.data(using: encoding) else {
-                    throw VBAProject.EditError(message: String(format: String(localized: "Macros.Save.Unencodable"), module.name))
+                    throw VBAProject.EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: #bundle), module.name))
                 }
                 let unicode = module.name.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
                 for record in group.records {
@@ -306,7 +306,7 @@ struct VBADirectoryRecords {
     /// The records [MS-OVBA] §2.3.4.2.3.2 requires for a module.
     private static func newModuleRecords(_ module: VBAProject.Module, encoding: String.Encoding) throws -> [UInt8] {
         guard let name = module.name.data(using: encoding) else {
-            throw VBAProject.EditError(message: String(format: String(localized: "Macros.Save.Unencodable"), module.name))
+            throw VBAProject.EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: #bundle), module.name))
         }
         let unicode = module.name.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
         var out: [UInt8] = []
@@ -338,12 +338,12 @@ struct VBADirectoryRecords {
 // MARK: - New projects
 
 extension VBAProject {
-    static let workbookClassID = "0{00020819-0000-0000-C000-000000000046}"
-    static let worksheetClassID = "0{00020820-0000-0000-C000-000000000046}"
+    public static let workbookClassID = "0{00020819-0000-0000-C000-000000000046}"
+    public static let worksheetClassID = "0{00020820-0000-0000-C000-000000000046}"
 
     /// The header a document module carries, binding it to the workbook or a
     /// sheet through the class id of what it stands behind.
-    static func documentAttributes(name: String, classID: String) -> String {
+    public static func documentAttributes(name: String, classID: String) -> String {
         [
             "Attribute VB_Name = \"\(name)\"", "Attribute VB_Base = \"\(classID)\"",
             "Attribute VB_GlobalNameSpace = False", "Attribute VB_Creatable = False",
@@ -352,7 +352,7 @@ extension VBAProject {
         ].map { $0 + "\r\n" }.joined()
     }
 
-    static func classAttributes(name: String) -> String {
+    public static func classAttributes(name: String) -> String {
         [
             "Attribute VB_Name = \"\(name)\"", "Attribute VB_GlobalNameSpace = False",
             "Attribute VB_Creatable = False", "Attribute VB_PredeclaredId = False", "Attribute VB_Exposed = False",
@@ -363,7 +363,7 @@ extension VBAProject {
     /// and each worksheet, as Excel makes, and one standard module to write
     /// macros in. Gives the workbook and its sheets code names if they lack
     /// them, since those are what bind the document modules.
-    static func newProject(for workbook: inout Workbook) throws -> VBAProject {
+    public static func newProject(for workbook: inout Workbook) throws -> VBAProject {
         let workbookName = workbook.codeName ?? "ThisWorkbook"
         workbook.codeName = workbookName
         var taken = Set(workbook.sheets.compactMap { $0.codeName?.lowercased() } + [workbookName.lowercased()])
@@ -479,7 +479,7 @@ extension VBAProject {
 extension Workbook {
     /// Gives a workbook without macros a new, empty project to write them
     /// in. Only an `.xlsm` can keep it.
-    mutating func createMacroProject() throws {
+    public mutating func createMacroProject() throws {
         guard !hasMacros else { return }
         let project = try VBAProject.newProject(for: &self)
         let path = "xl/vbaProject.bin"
@@ -494,7 +494,7 @@ extension Workbook {
 
     /// Replaces the macro project with an edited one. An edited project no
     /// longer matches its digital signature, so the signature goes with it.
-    mutating func setMacroProject(_ data: Data) {
+    public mutating func setMacroProject(_ data: Data) {
         guard let path = preservedPackage.macroProjectPath else { return }
         preservedPackage.parts[path] = data
         let signatures = preservedPackage.parts.keys.filter {

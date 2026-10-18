@@ -8,31 +8,31 @@ private func lettered(_ value: VBAValue, _ interpreter: VBAInterpreter) throws -
 }
 
 extension VBAArguments {
-    func integer(_ position: Int, _ name: String? = nil, in interpreter: VBAInterpreter) throws -> Int? {
+    public func integer(_ position: Int, _ name: String? = nil, in interpreter: VBAInterpreter) throws -> Int? {
         try value(position, name).map { try interpreter.letValue($0).asInteger() }
     }
 
-    func string(_ position: Int, _ name: String? = nil, in interpreter: VBAInterpreter) throws -> String? {
+    public func string(_ position: Int, _ name: String? = nil, in interpreter: VBAInterpreter) throws -> String? {
         try value(position, name).map { try interpreter.letValue($0).asString() }
     }
 
-    func boolean(_ position: Int, _ name: String? = nil, in interpreter: VBAInterpreter) throws -> Bool? {
+    public func boolean(_ position: Int, _ name: String? = nil, in interpreter: VBAInterpreter) throws -> Bool? {
         try value(position, name).map { try interpreter.letValue($0).asBoolean() }
     }
 }
 
 // MARK: - Application
 
-final class VBAApplicationObject: VBAObject {
-    unowned let host: VBAExcelHost
-    var typeName: String { "Application" }
+public final class VBAApplicationObject: VBAObject {
+    public unowned let host: VBAExcelHost
+    public var typeName: String { "Application" }
 
-    init(host: VBAExcelHost) {
+    public init(host: VBAExcelHost) {
         self.host = host
     }
 
     /// The members of `Application` that may also be written unqualified.
-    func globalMember(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue? {
+    public func globalMember(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue? {
         let sheet = host.activeWorksheet
         switch name.lowercased() {
         case "range", "cells", "rows", "columns":
@@ -117,7 +117,7 @@ final class VBAApplicationObject: VBAObject {
 
     /// `Evaluate("SUM(A1:A3)")` and `[A1]`: a formula, worked out by the
     /// spreadsheet's own engine against the active sheet.
-    func evaluate(_ expression: VBAValue, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func evaluate(_ expression: VBAValue, in interpreter: VBAInterpreter) throws -> VBAValue {
         let text = try interpreter.letValue(expression).asString()
         var body = text.hasPrefix("=") ? String(text.dropFirst()) : text
         if let (sheetID, range) = try? host.resolveRange(body, defaultSheet: host.activeSheetID) {
@@ -130,7 +130,7 @@ final class VBAApplicationObject: VBAObject {
         return VBAExcelHost.value(of: Cell(value: value, formula: nil, style: .default))
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         let key = name.lowercased()
         if let value = try globalMember(name, arguments, in: interpreter) { return value }
         if let setting = host.applicationSettings[key] { return setting }
@@ -182,7 +182,7 @@ final class VBAApplicationObject: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         let key = name.lowercased()
         switch key {
@@ -201,15 +201,15 @@ final class VBAApplicationObject: VBAObject {
 
 // MARK: - Workbooks
 
-final class VBAWorkbooksObject: VBAObject {
-    unowned let host: VBAExcelHost
-    var typeName: String { "Workbooks" }
+public final class VBAWorkbooksObject: VBAObject {
+    public unowned let host: VBAExcelHost
+    public var typeName: String { "Workbooks" }
 
-    init(host: VBAExcelHost) {
+    public init(host: VBAExcelHost) {
         self.host = host
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "count": return .integer(1)
         case "", "item":
@@ -232,18 +232,18 @@ final class VBAWorkbooksObject: VBAObject {
         }
     }
 
-    func elements(in _: VBAInterpreter) throws -> [VBAValue] { [.object(host.workbookObject)] }
+    public func elements(in _: VBAInterpreter) throws -> [VBAValue] { [.object(host.workbookObject)] }
 }
 
-final class VBAWorkbookObject: VBAObject {
-    unowned let host: VBAExcelHost
-    var typeName: String { "Workbook" }
+public final class VBAWorkbookObject: VBAObject {
+    public unowned let host: VBAExcelHost
+    public var typeName: String { "Workbook" }
 
-    init(host: VBAExcelHost) {
+    public init(host: VBAExcelHost) {
         self.host = host
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "", "name": return .string(host.workbookName)
         // The workbook's working folder stands in for the folder it is in, so
@@ -255,7 +255,7 @@ final class VBAWorkbookObject: VBAObject {
         case "followhyperlink":
             let address = try interpreter.letValue(arguments.required(0, "Address")).asString()
             guard let url = VBALibrary.openableURL(address) else {
-                throw VBAError(number: 445, String(localized: "Macro.Unavailable.Shell"))
+                throw VBAError(number: 445, String(localized: "Macro.Unavailable.Shell", bundle: #bundle))
             }
             guard host.openURL(url) else { throw VBAFileSystem.permissionDenied }
             return .empty
@@ -277,7 +277,7 @@ final class VBAWorkbookObject: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _: VBAArguments, to _: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to _: VBAValue,
                    in _: VBAInterpreter) throws {
         // `ThisWorkbook.Saved = True` is how macros silence the save prompt.
         guard name.lowercased() == "saved" else { throw VBAError.unsupportedMember(name) }
@@ -286,13 +286,13 @@ final class VBAWorkbookObject: VBAObject {
 
 // MARK: - Sheets
 
-final class VBASheetsObject: VBAObject {
-    unowned let host: VBAExcelHost
+public final class VBASheetsObject: VBAObject {
+    public unowned let host: VBAExcelHost
     /// `Worksheets` leaves chart sheets out; `Sheets` has them all.
-    let worksheetsOnly: Bool
-    var typeName: String { "Sheets" }
+    public let worksheetsOnly: Bool
+    public var typeName: String { "Sheets" }
 
-    init(host: VBAExcelHost, worksheetsOnly: Bool) {
+    public init(host: VBAExcelHost, worksheetsOnly: Bool) {
         self.host = host
         self.worksheetsOnly = worksheetsOnly
     }
@@ -314,7 +314,7 @@ final class VBASheetsObject: VBAObject {
         return sheets[index - 1]
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         switch name.lowercased() {
         case "", "item":
             return .object(host.worksheetObject(try sheet(arguments.required(0, "Index"), in: interpreter).id))
@@ -351,17 +351,17 @@ final class VBASheetsObject: VBAObject {
         }
     }
 
-    func elements(in _: VBAInterpreter) throws -> [VBAValue] {
+    public func elements(in _: VBAInterpreter) throws -> [VBAValue] {
         sheets.map { .object(host.worksheetObject($0.id)) }
     }
 }
 
-final class VBAWorksheetObject: VBAObject {
-    unowned let host: VBAExcelHost
-    let sheetID: Worksheet.ID
-    var typeName: String { "Worksheet" }
+public final class VBAWorksheetObject: VBAObject {
+    public unowned let host: VBAExcelHost
+    public let sheetID: Worksheet.ID
+    public var typeName: String { "Worksheet" }
 
-    init(host: VBAExcelHost, sheetID: Worksheet.ID) {
+    public init(host: VBAExcelHost, sheetID: Worksheet.ID) {
         self.host = host
         self.sheetID = sheetID
     }
@@ -371,7 +371,7 @@ final class VBAWorksheetObject: VBAObject {
                   end: CellAddress(row: Worksheet.maximumRowCount - 1, column: Worksheet.maximumColumnCount - 1))
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         let sheet = try host.sheet(sheetID)
         switch name.lowercased() {
         case "", "name":
@@ -456,7 +456,7 @@ final class VBAWorksheetObject: VBAObject {
         }
     }
 
-    func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
+    public func setMember(_ name: String, _: VBAArguments, to value: VBAValue,
                    in interpreter: VBAInterpreter) throws {
         switch name.lowercased() {
         case "", "name":
@@ -486,18 +486,18 @@ final class VBAWorksheetObject: VBAObject {
 /// `WorksheetFunction.Sum(…)` and friends, answered by the formula engine:
 /// the call is written out as formula text and evaluated, so every function
 /// the grid knows is available to macros too.
-final class VBAWorksheetFunctionObject: VBAObject {
-    unowned let host: VBAExcelHost
+public final class VBAWorksheetFunctionObject: VBAObject {
+    public unowned let host: VBAExcelHost
     /// `WorksheetFunction` raises an error where `Application` returns one.
-    let raisesErrors: Bool
-    var typeName: String { "WorksheetFunction" }
+    public let raisesErrors: Bool
+    public var typeName: String { "WorksheetFunction" }
 
-    init(host: VBAExcelHost, raisesErrors: Bool) {
+    public init(host: VBAExcelHost, raisesErrors: Bool) {
         self.host = host
         self.raisesErrors = raisesErrors
     }
 
-    func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
+    public func member(_ name: String, _ arguments: VBAArguments, in interpreter: VBAInterpreter) throws -> VBAValue {
         var parts: [String] = []
         for argument in arguments.positional {
             guard let argument else {

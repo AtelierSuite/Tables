@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tables
 @testable import TablesEngine
+@testable import TablesMacros
 
 /// Covers workbook-level defined names: reading them, resolving them inside
 /// formulas, and writing them back where Excel expects to find them.
