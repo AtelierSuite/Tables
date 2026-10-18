@@ -23,6 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { true }
+
+    @objc func showMacroHelp(_ sender: Any?) {
+        MacroHelpWindowController.shared.showWindow(sender)
+    }
 }
 
 /// The app's document controller, made first so it is the shared one.

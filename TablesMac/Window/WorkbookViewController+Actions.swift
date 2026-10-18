@@ -488,6 +488,9 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
                 && state.selectedRanges.contains { range in sheet.comments.keys.contains { range.normalized.contains($0) } }
         case #selector(showUnsupportedFeatures(_:)):
             return !document.unsupportedFeatures.isEmpty
+        case #selector(showMacros(_:)):
+            // Delimited text and Numbers documents have nowhere to keep macros.
+            return !document.isPlainText && !document.isNumbers
         case #selector(zoomIn(_:)):
             return state.zoom < EditorState.zoomRange.upperBound
         case #selector(zoomOut(_:)):

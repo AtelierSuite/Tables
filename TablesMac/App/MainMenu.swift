@@ -259,6 +259,8 @@ enum MainMenu {
 
     private static func toolsMenu() -> NSMenu {
         let menu = NSMenu(title: String(localized: "Mac.Menu.Tools"))
+        menu.addItem(item(String(localized: "Toolbar.Macros"), #selector(WorkbookViewController.showMacros(_:)),
+                          "m", [.command, .shift]))
         menu.addItem(item(String(localized: "Toolbar.UnsupportedFeatures.Label"),
                           #selector(WorkbookViewController.showUnsupportedFeatures(_:))))
         return menu
@@ -276,6 +278,7 @@ enum MainMenu {
 
     private static func helpMenu() -> NSMenu {
         let menu = NSMenu(title: String(localized: "Mac.Menu.Help"))
+        menu.addItem(item(String(localized: "Help.Title"), #selector(AppDelegate.showMacroHelp(_:))))
         return menu
     }
 

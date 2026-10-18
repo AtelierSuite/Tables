@@ -30,6 +30,13 @@ final class WorkbookViewController: NSViewController {
     /// The popover the selected chart is edited in.
     var chartPopover: NSPopover?
     var hostedWorkbook: HostedWorkbook?
+    /// The workbook's macros window, once opened.
+    var macrosWindow: MacrosWindowController?
+    /// Whether the user agreed to run this workbook's macros.
+    var hasAllowedMacros = false
+    var isObservingRunner = false
+    var presentedPromptID: UUID?
+    let runningOverlay = RunningMacroOverlay()
 
     private static let tabBarHeight: CGFloat = 46
 
@@ -67,7 +74,8 @@ final class WorkbookViewController: NSViewController {
 
         findBar.isHidden = true
         findBar.onClose = { [weak self] in self?.setFindBarShown(false) }
-        for view in [formulaBar, findBar, scrollView, chartSheet, tabBar] as [NSView] {
+        runningOverlay.onStop = { [weak self] in self?.document?.macroRunner.stop() }
+        for view in [formulaBar, findBar, scrollView, chartSheet, tabBar, runningOverlay] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(view)
         }
@@ -93,6 +101,10 @@ final class WorkbookViewController: NSViewController {
             tabBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             tabBar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             tabBar.heightAnchor.constraint(equalToConstant: Self.tabBarHeight),
+            runningOverlay.topAnchor.constraint(equalTo: root.topAnchor),
+            runningOverlay.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            runningOverlay.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            runningOverlay.bottomAnchor.constraint(equalTo: root.bottomAnchor),
         ])
         let height = findBar.heightAnchor.constraint(equalToConstant: 0)
         height.isActive = true

@@ -222,6 +222,8 @@ final class GridView: NSView, NSTextFieldDelegate {
 
     override func keyDown(with event: NSEvent) {
         guard let document else { return super.keyDown(with: event) }
+        // While a macro runs, the sheet is the macro's.
+        guard !document.macroRunner.isRunning else { return }
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         // F2 edits the cell in place, as it does in Excel.
         if event.keyCode == 120 {
