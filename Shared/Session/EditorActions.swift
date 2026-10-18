@@ -469,6 +469,34 @@ extension EditorState {
         additionalSelections = []
     }
 
+    // MARK: - Fill and move
+
+    /// Fills `target` from the selection, as letting go of the fill handle
+    /// does, and selects what was filled.
+    func fillSelection(to target: CellRange, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let source = selection.normalized
+        guard !hasMultipleSelections, workbook.sheets[index].autoFill(from: source, to: target) else { return }
+        workbook.recalculate()
+        anchor = target.normalized.start
+        selection = target.normalized
+    }
+
+    /// Moves the selected cells so their top-left lands on `destination`, or
+    /// copies them there, as dropping a dragged selection does.
+    func moveSelection(to destination: CellAddress, copying: Bool, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let source = selection.normalized
+        guard !hasMultipleSelections,
+              workbook.moveCells(source, on: workbook.sheets[index].id, to: destination, copying: copying) else { return }
+        anchor = destination
+        selection = CellRange(
+            start: destination,
+            end: CellAddress(
+                row: destination.row + source.end.row - source.start.row,
+                column: destination.column + source.end.column - source.start.column))
+    }
+
     private func plainText(for range: CellRange, in sheet: Worksheet) -> String {
         range.rowRange.map { row in
             range.columnRange
