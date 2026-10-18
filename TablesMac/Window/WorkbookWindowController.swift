@@ -11,7 +11,7 @@ final class WorkbookWindowController: NSWindowController, NSWindowDelegate {
     private var inspectorItem: NSSplitViewItem?
     private var inspectorObservation: NSKeyValueObservation?
     /// Whether windows open with the inspector showing: as it was last left.
-    private static let showsInspectorKey = "ShowsInspector"
+    nonisolated private static let showsInspectorKey = "ShowsInspector"
     /// The workbook as the inspector's SwiftUI panels see it.
     private var hostedWorkbook: HostedWorkbook?
     private var toolbarController: WorkbookToolbar?
