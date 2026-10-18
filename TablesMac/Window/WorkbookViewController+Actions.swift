@@ -279,6 +279,24 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         edit { $0.insertAggregate(name, in: &$1) }
     }
 
+    // MARK: - Comments
+
+    @objc func newComment(_ sender: Any?) { showComment(kind: .thread) }
+    @objc func newNote(_ sender: Any?) { showComment(kind: .note) }
+    @objc func showCommentPanel(_ sender: Any?) { showComment(kind: .thread) }
+
+    private func showComment(kind: CellComment.Kind) {
+        guard let document else { return }
+        let state = document.state
+        if state.editingAddress != nil { grid.commitEditing(then: nil) }
+        state.showComment(at: state.selectedAddress, kind: kind, in: document.workbook)
+        document.notify()
+    }
+
+    @objc func deleteComment(_ sender: Any?) {
+        edit { state, workbook in state.deleteComments(in: &workbook) }
+    }
+
     // MARK: - View
 
     @objc func zoomIn(_ sender: Any?) { setZoom((state?.zoom ?? 1) * 1.25) }
@@ -305,6 +323,16 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         menu.addItem(MainMenu.item(String(localized: "CellMenu.Copy"), #selector(copy(_:))))
         menu.addItem(MainMenu.item(String(localized: "CellMenu.Paste"), #selector(paste(_:))))
         menu.addItem(MainMenu.item(String(localized: "Mac.Menu.ClearContents"), #selector(clearContents(_:))))
+        if let document, document.state.allowsComments {
+            menu.addItem(.separator())
+            if document.activeSheet.comments[address] != nil {
+                menu.addItem(MainMenu.item(String(localized: "CellMenu.ShowComment"), #selector(showCommentPanel(_:))))
+                menu.addItem(MainMenu.item(String(localized: "CellMenu.DeleteComment"), #selector(deleteComment(_:))))
+            } else {
+                menu.addItem(MainMenu.item(String(localized: "CellMenu.NewComment"), #selector(newComment(_:))))
+                menu.addItem(MainMenu.item(String(localized: "CellMenu.NewNote"), #selector(newNote(_:))))
+            }
+        }
         menu.addItem(.separator())
         menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.InsertAbove"), #selector(insertRowsAbove(_:))))
         menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Column.InsertBefore"), #selector(insertColumnsBefore(_:))))
@@ -419,6 +447,11 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(paste(_:)):
             return isCells && (state.clipboard?.isEmpty == false
                 || NSPasteboard.general.canReadObject(forClasses: [NSString.self]))
+        case #selector(newComment(_:)), #selector(newNote(_:)), #selector(showCommentPanel(_:)):
+            return isCells && state.allowsComments
+        case #selector(deleteComment(_:)):
+            return isCells && state.allowsComments
+                && state.selectedRanges.contains { range in sheet.comments.keys.contains { range.normalized.contains($0) } }
         case #selector(showUnsupportedFeatures(_:)):
             return !document.unsupportedFeatures.isEmpty
         case #selector(zoomIn(_:)):

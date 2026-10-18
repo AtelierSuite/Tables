@@ -128,6 +128,10 @@ enum MainMenu {
             functions.addItem(entry)
         }
         menu.addItem(submenu(functions))
+        menu.addItem(.separator())
+        menu.addItem(item(String(localized: "CellMenu.NewComment"), #selector(WorkbookViewController.newComment(_:)),
+                          "m", [.command, .option]))
+        menu.addItem(item(String(localized: "CellMenu.NewNote"), #selector(WorkbookViewController.newNote(_:))))
         return menu
     }
 

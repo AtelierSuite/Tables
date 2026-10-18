@@ -23,6 +23,8 @@ final class WorkbookViewController: NSViewController {
     private var presentedError: String?
     /// What the shared colour panel is picking a colour for.
     var colorTarget = ColorTarget.fill
+    /// The popover the comment on the selected cell is shown in.
+    var commentPopover: NSPopover?
 
     private static let tabBarHeight: CGFloat = 46
 
@@ -127,6 +129,7 @@ final class WorkbookViewController: NSViewController {
         view.window?.invalidateCursorRects(for: columnHeader ?? view)
         view.window?.invalidateCursorRects(for: rowHeader ?? view)
         updateTitleSubtitle(for: sheet)
+        syncCommentPopover(in: document)
         showErrorIfNeeded(in: document)
     }
 
@@ -152,6 +155,37 @@ final class WorkbookViewController: NSViewController {
             document?.state.errorMessage = nil
             self?.presentedError = nil
         }
+    }
+
+    // MARK: - Comments
+
+    /// Shows the comment popover while the session asks for it, pointing at
+    /// the selected cell, and keeps what it shows up to date.
+    private func syncCommentPopover(in document: WorkbookDocument) {
+        let state = document.state
+        guard state.presentedPanel == .comment, !document.activeSheet.isChartSheet else {
+            if let popover = commentPopover, popover.isShown { popover.close() }
+            return
+        }
+        let sheet = document.activeSheet
+        let address = state.selectedAddress
+        let rect = state.metrics.frame(for: sheet.mergedRange(containing: address) ?? CellRange(address))
+        if let popover = commentPopover, popover.isShown {
+            (popover.contentViewController as? CommentViewController)?.refresh()
+            popover.positioningRect = rect
+            return
+        }
+        let controller = CommentViewController()
+        controller.document = document
+        _ = controller.view
+        controller.refresh(force: true)
+        let popover = NSPopover()
+        popover.contentViewController = controller
+        popover.behavior = .transient
+        popover.delegate = self
+        grid.scrollToVisible(rect)
+        popover.show(relativeTo: rect, of: grid, preferredEdge: .maxX)
+        commentPopover = popover
     }
 
     // MARK: - Zoom
@@ -201,5 +235,17 @@ final class WorkbookViewController: NSViewController {
         let cell = state.metrics.frame(for: state.selection.normalized)
         let visible = grid.visibleRect
         return visible.intersects(cell) ? CGPoint(x: cell.midX, y: cell.midY) : CGPoint(x: visible.midX, y: visible.midY)
+    }
+}
+
+extension WorkbookViewController: NSPopoverDelegate {
+    func popoverDidClose(_ notification: Notification) {
+        guard (notification.object as? NSPopover) === commentPopover, let document else { return }
+        commentPopover = nil
+        if document.state.presentedPanel == .comment {
+            document.state.presentedPanel = nil
+            document.notify()
+        }
+        view.window?.makeFirstResponder(grid)
     }
 }
