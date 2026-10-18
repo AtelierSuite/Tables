@@ -1,0 +1,3032 @@
+[
+ {
+  "name": "ABS",
+  "category": "math",
+  "syntax": "ABS(number)",
+  "example": "=ABS(A2)"
+ },
+ {
+  "name": "ACCRINT",
+  "category": "financial",
+  "syntax": "ACCRINT(issue, first_interest, settlement, rate, par, frequency, [basis], [calc_method])",
+  "example": "=ACCRINT(A2, A3, A4, 0.05, 1000, 2)"
+ },
+ {
+  "name": "ACCRINTM",
+  "category": "financial",
+  "syntax": "ACCRINTM(issue, settlement, rate, par, [basis])",
+  "example": "=ACCRINTM(A2, A3, 0.05, 1000)"
+ },
+ {
+  "name": "ACOS",
+  "category": "math",
+  "syntax": "ACOS(number)",
+  "example": "=ACOS(0.5)"
+ },
+ {
+  "name": "ACOSH",
+  "category": "math",
+  "syntax": "ACOSH(number)",
+  "example": "=ACOSH(10)"
+ },
+ {
+  "name": "ACOT",
+  "category": "math",
+  "syntax": "ACOT(number)",
+  "example": "=ACOT(2)"
+ },
+ {
+  "name": "ACOTH",
+  "category": "math",
+  "syntax": "ACOTH(number)",
+  "example": "=ACOTH(6)"
+ },
+ {
+  "name": "ADDRESS",
+  "category": "lookup",
+  "syntax": "ADDRESS(row_num, column_num, [abs_num], [a1], [sheet_text])",
+  "example": "=ADDRESS(2, 3)"
+ },
+ {
+  "name": "AGGREGATE",
+  "category": "math",
+  "syntax": "AGGREGATE(function_num, options, ref1, [ref2], …)",
+  "example": "=AGGREGATE(9, 6, A2:A10)"
+ },
+ {
+  "name": "AMORDEGRC",
+  "category": "financial",
+  "syntax": "AMORDEGRC(cost, date_purchased, first_period, salvage, period, rate, [basis])",
+  "example": "=AMORDEGRC(2400, A2, A3, 300, 1, 0.15, 1)"
+ },
+ {
+  "name": "AMORLINC",
+  "category": "financial",
+  "syntax": "AMORLINC(cost, date_purchased, first_period, salvage, period, rate, [basis])",
+  "example": "=AMORLINC(2400, A2, A3, 300, 1, 0.15, 1)"
+ },
+ {
+  "name": "AND",
+  "category": "logical",
+  "syntax": "AND(logical1, [logical2], …)",
+  "example": "=AND(A1>0, B1>0)"
+ },
+ {
+  "name": "ARABIC",
+  "category": "math",
+  "syntax": "ARABIC(text)",
+  "example": "=ARABIC(\"MCMXCIV\")"
+ },
+ {
+  "name": "AREAS",
+  "category": "lookup",
+  "syntax": "AREAS(reference)",
+  "example": "=AREAS((A1:B2, D1:E2))"
+ },
+ {
+  "name": "ARRAYTOTEXT",
+  "category": "text",
+  "syntax": "ARRAYTOTEXT(array, [format])",
+  "example": "=ARRAYTOTEXT(A1:B3, 1)"
+ },
+ {
+  "name": "ASC",
+  "category": "text",
+  "syntax": "ASC(text)",
+  "example": "=ASC(A1)"
+ },
+ {
+  "name": "ASIN",
+  "category": "math",
+  "syntax": "ASIN(number)",
+  "example": "=ASIN(0.5)"
+ },
+ {
+  "name": "ASINH",
+  "category": "math",
+  "syntax": "ASINH(number)",
+  "example": "=ASINH(10)"
+ },
+ {
+  "name": "ATAN",
+  "category": "math",
+  "syntax": "ATAN(number)",
+  "example": "=ATAN(1)"
+ },
+ {
+  "name": "ATAN2",
+  "category": "math",
+  "syntax": "ATAN2(x_num, y_num)",
+  "example": "=ATAN2(1, 1)"
+ },
+ {
+  "name": "ATANH",
+  "category": "math",
+  "syntax": "ATANH(number)",
+  "example": "=ATANH(0.5)"
+ },
+ {
+  "name": "AVEDEV",
+  "category": "statistical",
+  "syntax": "AVEDEV(number1, [number2], …)",
+  "example": "=AVEDEV(A2:A10)"
+ },
+ {
+  "name": "AVERAGE",
+  "category": "statistical",
+  "syntax": "AVERAGE(number1, [number2], …)",
+  "example": "=AVERAGE(A2:A10)"
+ },
+ {
+  "name": "AVERAGEA",
+  "category": "statistical",
+  "syntax": "AVERAGEA(value1, [value2], …)",
+  "example": "=AVERAGEA(A2:A10)"
+ },
+ {
+  "name": "AVERAGEIF",
+  "category": "statistical",
+  "syntax": "AVERAGEIF(range, criteria, [average_range])",
+  "example": "=AVERAGEIF(A2:A10, \">5\")"
+ },
+ {
+  "name": "AVERAGEIFS",
+  "category": "statistical",
+  "syntax": "AVERAGEIFS(average_range, criteria_range1, criteria1, [criteria_range2, criteria2], …)",
+  "example": "=AVERAGEIFS(C2:C10, A2:A10, \"East\", B2:B10, \">100\")"
+ },
+ {
+  "name": "BAHTTEXT",
+  "category": "text",
+  "syntax": "BAHTTEXT(number)",
+  "example": "=BAHTTEXT(1234)"
+ },
+ {
+  "name": "BASE",
+  "category": "math",
+  "syntax": "BASE(number, radix, [min_length])",
+  "example": "=BASE(255, 16)"
+ },
+ {
+  "name": "BESSELI",
+  "category": "engineering",
+  "syntax": "BESSELI(x, n)",
+  "example": "=BESSELI(1.5, 1)"
+ },
+ {
+  "name": "BESSELJ",
+  "category": "engineering",
+  "syntax": "BESSELJ(x, n)",
+  "example": "=BESSELJ(1.9, 2)"
+ },
+ {
+  "name": "BESSELK",
+  "category": "engineering",
+  "syntax": "BESSELK(x, n)",
+  "example": "=BESSELK(1.5, 1)"
+ },
+ {
+  "name": "BESSELY",
+  "category": "engineering",
+  "syntax": "BESSELY(x, n)",
+  "example": "=BESSELY(2.5, 1)"
+ },
+ {
+  "name": "BETA.DIST",
+  "category": "statistical",
+  "syntax": "BETA.DIST(x, alpha, beta, cumulative, [A], [B])",
+  "example": "=BETA.DIST(0.4, 8, 10, TRUE)"
+ },
+ {
+  "name": "BETA.INV",
+  "category": "statistical",
+  "syntax": "BETA.INV(probability, alpha, beta, [A], [B])",
+  "example": "=BETA.INV(0.69, 8, 10)"
+ },
+ {
+  "name": "BETADIST",
+  "category": "compatibility",
+  "syntax": "BETADIST(x, alpha, beta, [A], [B])",
+  "example": "=BETADIST(0.4, 8, 10)"
+ },
+ {
+  "name": "BETAINV",
+  "category": "compatibility",
+  "syntax": "BETAINV(probability, alpha, beta, [A], [B])",
+  "example": "=BETAINV(0.69, 8, 10)"
+ },
+ {
+  "name": "BIN2DEC",
+  "category": "engineering",
+  "syntax": "BIN2DEC(number)",
+  "example": "=BIN2DEC(1100100)"
+ },
+ {
+  "name": "BIN2HEX",
+  "category": "engineering",
+  "syntax": "BIN2HEX(number, [places])",
+  "example": "=BIN2HEX(11111011, 4)"
+ },
+ {
+  "name": "BIN2OCT",
+  "category": "engineering",
+  "syntax": "BIN2OCT(number, [places])",
+  "example": "=BIN2OCT(1001, 3)"
+ },
+ {
+  "name": "BINOM.DIST",
+  "category": "statistical",
+  "syntax": "BINOM.DIST(number_s, trials, probability_s, cumulative)",
+  "example": "=BINOM.DIST(6, 10, 0.5, FALSE)"
+ },
+ {
+  "name": "BINOM.DIST.RANGE",
+  "category": "statistical",
+  "syntax": "BINOM.DIST.RANGE(trials, probability_s, number_s, [number_s2])",
+  "example": "=BINOM.DIST.RANGE(60, 0.75, 45, 50)"
+ },
+ {
+  "name": "BINOM.INV",
+  "category": "statistical",
+  "syntax": "BINOM.INV(trials, probability_s, alpha)",
+  "example": "=BINOM.INV(6, 0.5, 0.75)"
+ },
+ {
+  "name": "BINOMDIST",
+  "category": "compatibility",
+  "syntax": "BINOMDIST(number_s, trials, probability_s, cumulative)",
+  "example": "=BINOMDIST(6, 10, 0.5, FALSE)"
+ },
+ {
+  "name": "BITAND",
+  "category": "engineering",
+  "syntax": "BITAND(number1, number2)",
+  "example": "=BITAND(13, 25)"
+ },
+ {
+  "name": "BITLSHIFT",
+  "category": "engineering",
+  "syntax": "BITLSHIFT(number, shift_amount)",
+  "example": "=BITLSHIFT(4, 2)"
+ },
+ {
+  "name": "BITOR",
+  "category": "engineering",
+  "syntax": "BITOR(number1, number2)",
+  "example": "=BITOR(23, 10)"
+ },
+ {
+  "name": "BITRSHIFT",
+  "category": "engineering",
+  "syntax": "BITRSHIFT(number, shift_amount)",
+  "example": "=BITRSHIFT(13, 2)"
+ },
+ {
+  "name": "BITXOR",
+  "category": "engineering",
+  "syntax": "BITXOR(number1, number2)",
+  "example": "=BITXOR(5, 3)"
+ },
+ {
+  "name": "BYCOL",
+  "category": "logical",
+  "syntax": "BYCOL(array, lambda)",
+  "example": "=BYCOL(A1:C10, LAMBDA(col, SUM(col)))"
+ },
+ {
+  "name": "BYROW",
+  "category": "logical",
+  "syntax": "BYROW(array, lambda)",
+  "example": "=BYROW(A1:C10, LAMBDA(row, SUM(row)))"
+ },
+ {
+  "name": "CEILING",
+  "category": "compatibility",
+  "syntax": "CEILING(number, significance)",
+  "example": "=CEILING(4.42, 0.05)"
+ },
+ {
+  "name": "CEILING.MATH",
+  "category": "math",
+  "syntax": "CEILING.MATH(number, [significance], [mode])",
+  "example": "=CEILING.MATH(-4.3, 2)"
+ },
+ {
+  "name": "CEILING.PRECISE",
+  "category": "math",
+  "syntax": "CEILING.PRECISE(number, [significance])",
+  "example": "=CEILING.PRECISE(-4.3, 2)"
+ },
+ {
+  "name": "CELL",
+  "category": "information",
+  "syntax": "CELL(info_type, [reference])",
+  "example": "=CELL(\"address\", A1)"
+ },
+ {
+  "name": "CHAR",
+  "category": "text",
+  "syntax": "CHAR(number)",
+  "example": "=CHAR(65)"
+ },
+ {
+  "name": "CHIDIST",
+  "category": "compatibility",
+  "syntax": "CHIDIST(x, deg_freedom)",
+  "example": "=CHIDIST(18.307, 10)"
+ },
+ {
+  "name": "CHIINV",
+  "category": "compatibility",
+  "syntax": "CHIINV(probability, deg_freedom)",
+  "example": "=CHIINV(0.05, 10)"
+ },
+ {
+  "name": "CHISQ.DIST",
+  "category": "statistical",
+  "syntax": "CHISQ.DIST(x, deg_freedom, cumulative)",
+  "example": "=CHISQ.DIST(0.5, 1, TRUE)"
+ },
+ {
+  "name": "CHISQ.DIST.RT",
+  "category": "statistical",
+  "syntax": "CHISQ.DIST.RT(x, deg_freedom)",
+  "example": "=CHISQ.DIST.RT(18.307, 10)"
+ },
+ {
+  "name": "CHISQ.INV",
+  "category": "statistical",
+  "syntax": "CHISQ.INV(probability, deg_freedom)",
+  "example": "=CHISQ.INV(0.93, 1)"
+ },
+ {
+  "name": "CHISQ.INV.RT",
+  "category": "statistical",
+  "syntax": "CHISQ.INV.RT(probability, deg_freedom)",
+  "example": "=CHISQ.INV.RT(0.05, 10)"
+ },
+ {
+  "name": "CHISQ.TEST",
+  "category": "statistical",
+  "syntax": "CHISQ.TEST(actual_range, expected_range)",
+  "example": "=CHISQ.TEST(A2:B4, C2:D4)"
+ },
+ {
+  "name": "CHITEST",
+  "category": "compatibility",
+  "syntax": "CHITEST(actual_range, expected_range)",
+  "example": "=CHITEST(A2:B4, C2:D4)"
+ },
+ {
+  "name": "CHOOSE",
+  "category": "lookup",
+  "syntax": "CHOOSE(index_num, value1, [value2], …)",
+  "example": "=CHOOSE(2, \"Low\", \"Mid\", \"High\")"
+ },
+ {
+  "name": "CHOOSECOLS",
+  "category": "lookup",
+  "syntax": "CHOOSECOLS(array, col_num1, [col_num2], …)",
+  "example": "=CHOOSECOLS(A1:D10, 1, 3)"
+ },
+ {
+  "name": "CHOOSEROWS",
+  "category": "lookup",
+  "syntax": "CHOOSEROWS(array, row_num1, [row_num2], …)",
+  "example": "=CHOOSEROWS(A1:D10, 1, 2)"
+ },
+ {
+  "name": "CLEAN",
+  "category": "text",
+  "syntax": "CLEAN(text)",
+  "example": "=CLEAN(A1)"
+ },
+ {
+  "name": "CODE",
+  "category": "text",
+  "syntax": "CODE(text)",
+  "example": "=CODE(\"A\")"
+ },
+ {
+  "name": "COLUMN",
+  "category": "lookup",
+  "syntax": "COLUMN([reference])",
+  "example": "=COLUMN(C5)"
+ },
+ {
+  "name": "COLUMNS",
+  "category": "lookup",
+  "syntax": "COLUMNS(array)",
+  "example": "=COLUMNS(A1:D10)"
+ },
+ {
+  "name": "COMBIN",
+  "category": "math",
+  "syntax": "COMBIN(number, number_chosen)",
+  "example": "=COMBIN(8, 2)"
+ },
+ {
+  "name": "COMBINA",
+  "category": "math",
+  "syntax": "COMBINA(number, number_chosen)",
+  "example": "=COMBINA(4, 3)"
+ },
+ {
+  "name": "COMPLEX",
+  "category": "engineering",
+  "syntax": "COMPLEX(real_num, i_num, [suffix])",
+  "example": "=COMPLEX(3, 4)"
+ },
+ {
+  "name": "CONCAT",
+  "category": "text",
+  "syntax": "CONCAT(text1, [text2], …)",
+  "example": "=CONCAT(A1, \" \", B1)"
+ },
+ {
+  "name": "CONCATENATE",
+  "category": "compatibility",
+  "syntax": "CONCATENATE(text1, [text2], …)",
+  "example": "=CONCATENATE(A1, \" \", B1)"
+ },
+ {
+  "name": "CONFIDENCE",
+  "category": "compatibility",
+  "syntax": "CONFIDENCE(alpha, standard_dev, size)",
+  "example": "=CONFIDENCE(0.05, 2.5, 50)"
+ },
+ {
+  "name": "CONFIDENCE.NORM",
+  "category": "statistical",
+  "syntax": "CONFIDENCE.NORM(alpha, standard_dev, size)",
+  "example": "=CONFIDENCE.NORM(0.05, 2.5, 50)"
+ },
+ {
+  "name": "CONFIDENCE.T",
+  "category": "statistical",
+  "syntax": "CONFIDENCE.T(alpha, standard_dev, size)",
+  "example": "=CONFIDENCE.T(0.05, 1, 50)"
+ },
+ {
+  "name": "CONVERT",
+  "category": "engineering",
+  "syntax": "CONVERT(number, from_unit, to_unit)",
+  "example": "=CONVERT(1, \"lbm\", \"kg\")"
+ },
+ {
+  "name": "CORREL",
+  "category": "statistical",
+  "syntax": "CORREL(array1, array2)",
+  "example": "=CORREL(A2:A10, B2:B10)"
+ },
+ {
+  "name": "COS",
+  "category": "math",
+  "syntax": "COS(number)",
+  "example": "=COS(PI())"
+ },
+ {
+  "name": "COSH",
+  "category": "math",
+  "syntax": "COSH(number)",
+  "example": "=COSH(1)"
+ },
+ {
+  "name": "COT",
+  "category": "math",
+  "syntax": "COT(number)",
+  "example": "=COT(PI()/4)"
+ },
+ {
+  "name": "COTH",
+  "category": "math",
+  "syntax": "COTH(number)",
+  "example": "=COTH(1)"
+ },
+ {
+  "name": "COUNT",
+  "category": "statistical",
+  "syntax": "COUNT(value1, [value2], …)",
+  "example": "=COUNT(A2:A10)"
+ },
+ {
+  "name": "COUNTA",
+  "category": "statistical",
+  "syntax": "COUNTA(value1, [value2], …)",
+  "example": "=COUNTA(A2:A10)"
+ },
+ {
+  "name": "COUNTBLANK",
+  "category": "statistical",
+  "syntax": "COUNTBLANK(range)",
+  "example": "=COUNTBLANK(A2:A10)"
+ },
+ {
+  "name": "COUNTIF",
+  "category": "statistical",
+  "syntax": "COUNTIF(range, criteria)",
+  "example": "=COUNTIF(A2:A10, \">5\")"
+ },
+ {
+  "name": "COUNTIFS",
+  "category": "statistical",
+  "syntax": "COUNTIFS(criteria_range1, criteria1, [criteria_range2, criteria2], …)",
+  "example": "=COUNTIFS(A2:A10, \"East\", B2:B10, \">100\")"
+ },
+ {
+  "name": "COUPDAYBS",
+  "category": "financial",
+  "syntax": "COUPDAYBS(settlement, maturity, frequency, [basis])",
+  "example": "=COUPDAYBS(A2, A3, 2, 1)"
+ },
+ {
+  "name": "COUPDAYS",
+  "category": "financial",
+  "syntax": "COUPDAYS(settlement, maturity, frequency, [basis])",
+  "example": "=COUPDAYS(A2, A3, 2, 1)"
+ },
+ {
+  "name": "COUPDAYSNC",
+  "category": "financial",
+  "syntax": "COUPDAYSNC(settlement, maturity, frequency, [basis])",
+  "example": "=COUPDAYSNC(A2, A3, 2, 1)"
+ },
+ {
+  "name": "COUPNCD",
+  "category": "financial",
+  "syntax": "COUPNCD(settlement, maturity, frequency, [basis])",
+  "example": "=COUPNCD(A2, A3, 2, 1)"
+ },
+ {
+  "name": "COUPNUM",
+  "category": "financial",
+  "syntax": "COUPNUM(settlement, maturity, frequency, [basis])",
+  "example": "=COUPNUM(A2, A3, 2, 1)"
+ },
+ {
+  "name": "COUPPCD",
+  "category": "financial",
+  "syntax": "COUPPCD(settlement, maturity, frequency, [basis])",
+  "example": "=COUPPCD(A2, A3, 2, 1)"
+ },
+ {
+  "name": "COVAR",
+  "category": "compatibility",
+  "syntax": "COVAR(array1, array2)",
+  "example": "=COVAR(A2:A10, B2:B10)"
+ },
+ {
+  "name": "COVARIANCE.P",
+  "category": "statistical",
+  "syntax": "COVARIANCE.P(array1, array2)",
+  "example": "=COVARIANCE.P(A2:A10, B2:B10)"
+ },
+ {
+  "name": "COVARIANCE.S",
+  "category": "statistical",
+  "syntax": "COVARIANCE.S(array1, array2)",
+  "example": "=COVARIANCE.S(A2:A10, B2:B10)"
+ },
+ {
+  "name": "CRITBINOM",
+  "category": "compatibility",
+  "syntax": "CRITBINOM(trials, probability_s, alpha)",
+  "example": "=CRITBINOM(6, 0.5, 0.75)"
+ },
+ {
+  "name": "CSC",
+  "category": "math",
+  "syntax": "CSC(number)",
+  "example": "=CSC(PI()/6)"
+ },
+ {
+  "name": "CSCH",
+  "category": "math",
+  "syntax": "CSCH(number)",
+  "example": "=CSCH(1)"
+ },
+ {
+  "name": "CUMIPMT",
+  "category": "financial",
+  "syntax": "CUMIPMT(rate, nper, pv, start_period, end_period, type)",
+  "example": "=CUMIPMT(0.09/12, 360, 125000, 13, 24, 0)"
+ },
+ {
+  "name": "CUMPRINC",
+  "category": "financial",
+  "syntax": "CUMPRINC(rate, nper, pv, start_period, end_period, type)",
+  "example": "=CUMPRINC(0.09/12, 360, 125000, 13, 24, 0)"
+ },
+ {
+  "name": "DATE",
+  "category": "dateTime",
+  "syntax": "DATE(year, month, day)",
+  "example": "=DATE(2026, 10, 18)"
+ },
+ {
+  "name": "DATEDIF",
+  "category": "dateTime",
+  "syntax": "DATEDIF(start_date, end_date, unit)",
+  "example": "=DATEDIF(A2, B2, \"Y\")"
+ },
+ {
+  "name": "DATEVALUE",
+  "category": "dateTime",
+  "syntax": "DATEVALUE(date_text)",
+  "example": "=DATEVALUE(\"2026/10/18\")"
+ },
+ {
+  "name": "DAVERAGE",
+  "category": "database",
+  "syntax": "DAVERAGE(database, field, criteria)",
+  "example": "=DAVERAGE(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "DAY",
+  "category": "dateTime",
+  "syntax": "DAY(serial_number)",
+  "example": "=DAY(A2)"
+ },
+ {
+  "name": "DAYNAME",
+  "category": "dateTime",
+  "syntax": "DAYNAME(day_num)",
+  "example": "=DAYNAME(A2)"
+ },
+ {
+  "name": "DAYS",
+  "category": "dateTime",
+  "syntax": "DAYS(end_date, start_date)",
+  "example": "=DAYS(B2, A2)"
+ },
+ {
+  "name": "DAYS360",
+  "category": "dateTime",
+  "syntax": "DAYS360(start_date, end_date, [method])",
+  "example": "=DAYS360(A2, B2)"
+ },
+ {
+  "name": "DB",
+  "category": "financial",
+  "syntax": "DB(cost, salvage, life, period, [month])",
+  "example": "=DB(10000, 1000, 6, 1, 7)"
+ },
+ {
+  "name": "DBCS",
+  "category": "text",
+  "syntax": "DBCS(text)",
+  "example": "=DBCS(A1)"
+ },
+ {
+  "name": "DCOUNT",
+  "category": "database",
+  "syntax": "DCOUNT(database, [field], criteria)",
+  "example": "=DCOUNT(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "DCOUNTA",
+  "category": "database",
+  "syntax": "DCOUNTA(database, [field], criteria)",
+  "example": "=DCOUNTA(A1:D20, \"Name\", F1:F2)"
+ },
+ {
+  "name": "DDB",
+  "category": "financial",
+  "syntax": "DDB(cost, salvage, life, period, [factor])",
+  "example": "=DDB(10000, 1000, 5, 1)"
+ },
+ {
+  "name": "DEC2BIN",
+  "category": "engineering",
+  "syntax": "DEC2BIN(number, [places])",
+  "example": "=DEC2BIN(9, 4)"
+ },
+ {
+  "name": "DEC2HEX",
+  "category": "engineering",
+  "syntax": "DEC2HEX(number, [places])",
+  "example": "=DEC2HEX(100, 4)"
+ },
+ {
+  "name": "DEC2OCT",
+  "category": "engineering",
+  "syntax": "DEC2OCT(number, [places])",
+  "example": "=DEC2OCT(58, 3)"
+ },
+ {
+  "name": "DECIMAL",
+  "category": "math",
+  "syntax": "DECIMAL(text, radix)",
+  "example": "=DECIMAL(\"FF\", 16)"
+ },
+ {
+  "name": "DEGREES",
+  "category": "math",
+  "syntax": "DEGREES(angle)",
+  "example": "=DEGREES(PI())"
+ },
+ {
+  "name": "DELTA",
+  "category": "engineering",
+  "syntax": "DELTA(number1, [number2])",
+  "example": "=DELTA(5, 4)"
+ },
+ {
+  "name": "DEVSQ",
+  "category": "statistical",
+  "syntax": "DEVSQ(number1, [number2], …)",
+  "example": "=DEVSQ(A2:A10)"
+ },
+ {
+  "name": "DGET",
+  "category": "database",
+  "syntax": "DGET(database, field, criteria)",
+  "example": "=DGET(A1:D20, \"Price\", F1:F2)"
+ },
+ {
+  "name": "DISC",
+  "category": "financial",
+  "syntax": "DISC(settlement, maturity, pr, redemption, [basis])",
+  "example": "=DISC(A2, A3, 97.975, 100, 1)"
+ },
+ {
+  "name": "DMAX",
+  "category": "database",
+  "syntax": "DMAX(database, field, criteria)",
+  "example": "=DMAX(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "DMIN",
+  "category": "database",
+  "syntax": "DMIN(database, field, criteria)",
+  "example": "=DMIN(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "DOLLAR",
+  "category": "text",
+  "syntax": "DOLLAR(number, [decimals])",
+  "example": "=DOLLAR(A1, 2)"
+ },
+ {
+  "name": "DOLLARDE",
+  "category": "financial",
+  "syntax": "DOLLARDE(fractional_dollar, fraction)",
+  "example": "=DOLLARDE(1.02, 16)"
+ },
+ {
+  "name": "DOLLARFR",
+  "category": "financial",
+  "syntax": "DOLLARFR(decimal_dollar, fraction)",
+  "example": "=DOLLARFR(1.125, 16)"
+ },
+ {
+  "name": "DPRODUCT",
+  "category": "database",
+  "syntax": "DPRODUCT(database, field, criteria)",
+  "example": "=DPRODUCT(A1:D20, \"Rate\", F1:F2)"
+ },
+ {
+  "name": "DROP",
+  "category": "lookup",
+  "syntax": "DROP(array, rows, [columns])",
+  "example": "=DROP(A1:D10, 1)"
+ },
+ {
+  "name": "DSTDEV",
+  "category": "database",
+  "syntax": "DSTDEV(database, field, criteria)",
+  "example": "=DSTDEV(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "DSTDEVP",
+  "category": "database",
+  "syntax": "DSTDEVP(database, field, criteria)",
+  "example": "=DSTDEVP(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "DSUM",
+  "category": "database",
+  "syntax": "DSUM(database, field, criteria)",
+  "example": "=DSUM(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "DURATION",
+  "category": "financial",
+  "syntax": "DURATION(settlement, maturity, coupon, yld, frequency, [basis])",
+  "example": "=DURATION(A2, A3, 0.08, 0.09, 2, 1)"
+ },
+ {
+  "name": "DURATION.TIME",
+  "category": "dateTime",
+  "syntax": "DURATION.TIME(weeks, [days], [hours], [minutes], [seconds], [milliseconds])",
+  "example": "=DURATION.TIME(0, 1, 12)"
+ },
+ {
+  "name": "DVAR",
+  "category": "database",
+  "syntax": "DVAR(database, field, criteria)",
+  "example": "=DVAR(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "DVARP",
+  "category": "database",
+  "syntax": "DVARP(database, field, criteria)",
+  "example": "=DVARP(A1:D20, \"Sales\", F1:F2)"
+ },
+ {
+  "name": "EDATE",
+  "category": "dateTime",
+  "syntax": "EDATE(start_date, months)",
+  "example": "=EDATE(A2, 3)"
+ },
+ {
+  "name": "EFFECT",
+  "category": "financial",
+  "syntax": "EFFECT(nominal_rate, npery)",
+  "example": "=EFFECT(0.0525, 4)"
+ },
+ {
+  "name": "ENCODEURL",
+  "category": "web",
+  "syntax": "ENCODEURL(text)",
+  "example": "=ENCODEURL(\"a b&c\")"
+ },
+ {
+  "name": "EOMONTH",
+  "category": "dateTime",
+  "syntax": "EOMONTH(start_date, months)",
+  "example": "=EOMONTH(A2, 0)"
+ },
+ {
+  "name": "ERF",
+  "category": "engineering",
+  "syntax": "ERF(lower_limit, [upper_limit])",
+  "example": "=ERF(0, 1.5)"
+ },
+ {
+  "name": "ERF.PRECISE",
+  "category": "engineering",
+  "syntax": "ERF.PRECISE(x)",
+  "example": "=ERF.PRECISE(1)"
+ },
+ {
+  "name": "ERFC",
+  "category": "engineering",
+  "syntax": "ERFC(x)",
+  "example": "=ERFC(1)"
+ },
+ {
+  "name": "ERFC.PRECISE",
+  "category": "engineering",
+  "syntax": "ERFC.PRECISE(x)",
+  "example": "=ERFC.PRECISE(1)"
+ },
+ {
+  "name": "ERROR.TYPE",
+  "category": "information",
+  "syntax": "ERROR.TYPE(error_val)",
+  "example": "=ERROR.TYPE(A1)"
+ },
+ {
+  "name": "EVEN",
+  "category": "math",
+  "syntax": "EVEN(number)",
+  "example": "=EVEN(1.5)"
+ },
+ {
+  "name": "EXACT",
+  "category": "text",
+  "syntax": "EXACT(text1, text2)",
+  "example": "=EXACT(A1, B1)"
+ },
+ {
+  "name": "EXP",
+  "category": "math",
+  "syntax": "EXP(number)",
+  "example": "=EXP(1)"
+ },
+ {
+  "name": "EXPAND",
+  "category": "lookup",
+  "syntax": "EXPAND(array, rows, [columns], [pad_with])",
+  "example": "=EXPAND(A1:B2, 3, 3, \"\")"
+ },
+ {
+  "name": "EXPON.DIST",
+  "category": "statistical",
+  "syntax": "EXPON.DIST(x, lambda, cumulative)",
+  "example": "=EXPON.DIST(0.2, 10, TRUE)"
+ },
+ {
+  "name": "EXPONDIST",
+  "category": "compatibility",
+  "syntax": "EXPONDIST(x, lambda, cumulative)",
+  "example": "=EXPONDIST(0.2, 10, TRUE)"
+ },
+ {
+  "name": "F.DIST",
+  "category": "statistical",
+  "syntax": "F.DIST(x, deg_freedom1, deg_freedom2, cumulative)",
+  "example": "=F.DIST(15.2, 6, 4, TRUE)"
+ },
+ {
+  "name": "F.DIST.RT",
+  "category": "statistical",
+  "syntax": "F.DIST.RT(x, deg_freedom1, deg_freedom2)",
+  "example": "=F.DIST.RT(15.2, 6, 4)"
+ },
+ {
+  "name": "F.INV",
+  "category": "statistical",
+  "syntax": "F.INV(probability, deg_freedom1, deg_freedom2)",
+  "example": "=F.INV(0.01, 6, 4)"
+ },
+ {
+  "name": "F.INV.RT",
+  "category": "statistical",
+  "syntax": "F.INV.RT(probability, deg_freedom1, deg_freedom2)",
+  "example": "=F.INV.RT(0.01, 6, 4)"
+ },
+ {
+  "name": "F.TEST",
+  "category": "statistical",
+  "syntax": "F.TEST(array1, array2)",
+  "example": "=F.TEST(A2:A6, B2:B6)"
+ },
+ {
+  "name": "FACT",
+  "category": "math",
+  "syntax": "FACT(number)",
+  "example": "=FACT(5)"
+ },
+ {
+  "name": "FACTDOUBLE",
+  "category": "math",
+  "syntax": "FACTDOUBLE(number)",
+  "example": "=FACTDOUBLE(7)"
+ },
+ {
+  "name": "FALSE",
+  "category": "logical",
+  "syntax": "FALSE()",
+  "example": "=FALSE()"
+ },
+ {
+  "name": "FDIST",
+  "category": "compatibility",
+  "syntax": "FDIST(x, deg_freedom1, deg_freedom2)",
+  "example": "=FDIST(15.2, 6, 4)"
+ },
+ {
+  "name": "FILTER",
+  "category": "lookup",
+  "syntax": "FILTER(array, include, [if_empty])",
+  "example": "=FILTER(A2:C10, B2:B10 > 100, \"None\")"
+ },
+ {
+  "name": "FIND",
+  "category": "text",
+  "syntax": "FIND(find_text, within_text, [start_num])",
+  "example": "=FIND(\"@\", A1)"
+ },
+ {
+  "name": "FINDB",
+  "category": "text",
+  "syntax": "FINDB(find_text, within_text, [start_num])",
+  "example": "=FINDB(\"@\", A1)"
+ },
+ {
+  "name": "FINV",
+  "category": "compatibility",
+  "syntax": "FINV(probability, deg_freedom1, deg_freedom2)",
+  "example": "=FINV(0.01, 6, 4)"
+ },
+ {
+  "name": "FISHER",
+  "category": "statistical",
+  "syntax": "FISHER(x)",
+  "example": "=FISHER(0.75)"
+ },
+ {
+  "name": "FISHERINV",
+  "category": "statistical",
+  "syntax": "FISHERINV(y)",
+  "example": "=FISHERINV(0.973)"
+ },
+ {
+  "name": "FIXED",
+  "category": "text",
+  "syntax": "FIXED(number, [decimals], [no_commas])",
+  "example": "=FIXED(A1, 2, TRUE)"
+ },
+ {
+  "name": "FLOOR",
+  "category": "compatibility",
+  "syntax": "FLOOR(number, significance)",
+  "example": "=FLOOR(4.42, 0.05)"
+ },
+ {
+  "name": "FLOOR.MATH",
+  "category": "math",
+  "syntax": "FLOOR.MATH(number, [significance], [mode])",
+  "example": "=FLOOR.MATH(-4.3, 2)"
+ },
+ {
+  "name": "FLOOR.PRECISE",
+  "category": "math",
+  "syntax": "FLOOR.PRECISE(number, [significance])",
+  "example": "=FLOOR.PRECISE(-4.3, 2)"
+ },
+ {
+  "name": "FORECAST",
+  "category": "compatibility",
+  "syntax": "FORECAST(x, known_y's, known_x's)",
+  "example": "=FORECAST(30, B2:B10, A2:A10)"
+ },
+ {
+  "name": "FORECAST.ETS",
+  "category": "statistical",
+  "syntax": "FORECAST.ETS(target_date, values, timeline, [seasonality], [data_completion], [aggregation])",
+  "example": "=FORECAST.ETS(A21, B2:B20, A2:A20)"
+ },
+ {
+  "name": "FORECAST.ETS.CONFINT",
+  "category": "statistical",
+  "syntax": "FORECAST.ETS.CONFINT(target_date, values, timeline, [confidence_level], [seasonality], [data_completion], [aggregation])",
+  "example": "=FORECAST.ETS.CONFINT(A21, B2:B20, A2:A20, 0.95)"
+ },
+ {
+  "name": "FORECAST.ETS.SEASONALITY",
+  "category": "statistical",
+  "syntax": "FORECAST.ETS.SEASONALITY(values, timeline, [data_completion], [aggregation])",
+  "example": "=FORECAST.ETS.SEASONALITY(B2:B20, A2:A20)"
+ },
+ {
+  "name": "FORECAST.ETS.STAT",
+  "category": "statistical",
+  "syntax": "FORECAST.ETS.STAT(values, timeline, statistic_type, [seasonality], [data_completion], [aggregation])",
+  "example": "=FORECAST.ETS.STAT(B2:B20, A2:A20, 1)"
+ },
+ {
+  "name": "FORECAST.LINEAR",
+  "category": "statistical",
+  "syntax": "FORECAST.LINEAR(x, known_y's, known_x's)",
+  "example": "=FORECAST.LINEAR(30, B2:B10, A2:A10)"
+ },
+ {
+  "name": "FORMULATEXT",
+  "category": "lookup",
+  "syntax": "FORMULATEXT(reference)",
+  "example": "=FORMULATEXT(B2)"
+ },
+ {
+  "name": "FREQUENCY",
+  "category": "statistical",
+  "syntax": "FREQUENCY(data_array, bins_array)",
+  "example": "=FREQUENCY(A2:A20, C2:C5)"
+ },
+ {
+  "name": "FTEST",
+  "category": "compatibility",
+  "syntax": "FTEST(array1, array2)",
+  "example": "=FTEST(A2:A6, B2:B6)"
+ },
+ {
+  "name": "FV",
+  "category": "financial",
+  "syntax": "FV(rate, nper, pmt, [pv], [type])",
+  "example": "=FV(0.06/12, 10, -200, -500, 1)"
+ },
+ {
+  "name": "FVSCHEDULE",
+  "category": "financial",
+  "syntax": "FVSCHEDULE(principal, schedule)",
+  "example": "=FVSCHEDULE(1, {0.09, 0.11, 0.1})"
+ },
+ {
+  "name": "GAMMA",
+  "category": "statistical",
+  "syntax": "GAMMA(number)",
+  "example": "=GAMMA(2.5)"
+ },
+ {
+  "name": "GAMMA.DIST",
+  "category": "statistical",
+  "syntax": "GAMMA.DIST(x, alpha, beta, cumulative)",
+  "example": "=GAMMA.DIST(10, 9, 2, FALSE)"
+ },
+ {
+  "name": "GAMMA.INV",
+  "category": "statistical",
+  "syntax": "GAMMA.INV(probability, alpha, beta)",
+  "example": "=GAMMA.INV(0.068, 9, 2)"
+ },
+ {
+  "name": "GAMMADIST",
+  "category": "compatibility",
+  "syntax": "GAMMADIST(x, alpha, beta, cumulative)",
+  "example": "=GAMMADIST(10, 9, 2, FALSE)"
+ },
+ {
+  "name": "GAMMAINV",
+  "category": "compatibility",
+  "syntax": "GAMMAINV(probability, alpha, beta)",
+  "example": "=GAMMAINV(0.068, 9, 2)"
+ },
+ {
+  "name": "GAMMALN",
+  "category": "statistical",
+  "syntax": "GAMMALN(x)",
+  "example": "=GAMMALN(4)"
+ },
+ {
+  "name": "GAMMALN.PRECISE",
+  "category": "statistical",
+  "syntax": "GAMMALN.PRECISE(x)",
+  "example": "=GAMMALN.PRECISE(4)"
+ },
+ {
+  "name": "GAUSS",
+  "category": "statistical",
+  "syntax": "GAUSS(z)",
+  "example": "=GAUSS(2)"
+ },
+ {
+  "name": "GCD",
+  "category": "math",
+  "syntax": "GCD(number1, [number2], …)",
+  "example": "=GCD(24, 36)"
+ },
+ {
+  "name": "GEOMEAN",
+  "category": "statistical",
+  "syntax": "GEOMEAN(number1, [number2], …)",
+  "example": "=GEOMEAN(A2:A10)"
+ },
+ {
+  "name": "GESTEP",
+  "category": "engineering",
+  "syntax": "GESTEP(number, [step])",
+  "example": "=GESTEP(5, 4)"
+ },
+ {
+  "name": "GROUPBY",
+  "category": "lookup",
+  "syntax": "GROUPBY(row_fields, values, function, [field_headers], [total_depth], [sort_order], [filter_array], [field_relationship])",
+  "example": "=GROUPBY(A2:A20, C2:C20, SUM)"
+ },
+ {
+  "name": "GROWTH",
+  "category": "statistical",
+  "syntax": "GROWTH(known_y's, [known_x's], [new_x's], [const])",
+  "example": "=GROWTH(B2:B10, A2:A10, A11:A12)"
+ },
+ {
+  "name": "HARMEAN",
+  "category": "statistical",
+  "syntax": "HARMEAN(number1, [number2], …)",
+  "example": "=HARMEAN(A2:A10)"
+ },
+ {
+  "name": "HEX2BIN",
+  "category": "engineering",
+  "syntax": "HEX2BIN(number, [places])",
+  "example": "=HEX2BIN(\"F\", 8)"
+ },
+ {
+  "name": "HEX2DEC",
+  "category": "engineering",
+  "syntax": "HEX2DEC(number)",
+  "example": "=HEX2DEC(\"A5\")"
+ },
+ {
+  "name": "HEX2OCT",
+  "category": "engineering",
+  "syntax": "HEX2OCT(number, [places])",
+  "example": "=HEX2OCT(\"F\", 3)"
+ },
+ {
+  "name": "HLOOKUP",
+  "category": "lookup",
+  "syntax": "HLOOKUP(lookup_value, table_array, row_index_num, [range_lookup])",
+  "example": "=HLOOKUP(\"Q2\", A1:D5, 3, FALSE)"
+ },
+ {
+  "name": "HOUR",
+  "category": "dateTime",
+  "syntax": "HOUR(serial_number)",
+  "example": "=HOUR(A2)"
+ },
+ {
+  "name": "HSTACK",
+  "category": "lookup",
+  "syntax": "HSTACK(array1, [array2], …)",
+  "example": "=HSTACK(A1:A5, C1:C5)"
+ },
+ {
+  "name": "HYPERLINK",
+  "category": "lookup",
+  "syntax": "HYPERLINK(link_location, [friendly_name])",
+  "example": "=HYPERLINK(\"https://example.com\", \"Website\")"
+ },
+ {
+  "name": "HYPGEOM.DIST",
+  "category": "statistical",
+  "syntax": "HYPGEOM.DIST(sample_s, number_sample, population_s, number_pop, cumulative)",
+  "example": "=HYPGEOM.DIST(1, 4, 8, 20, TRUE)"
+ },
+ {
+  "name": "HYPGEOMDIST",
+  "category": "compatibility",
+  "syntax": "HYPGEOMDIST(sample_s, number_sample, population_s, number_pop)",
+  "example": "=HYPGEOMDIST(1, 4, 8, 20)"
+ },
+ {
+  "name": "IF",
+  "category": "logical",
+  "syntax": "IF(logical_test, value_if_true, [value_if_false])",
+  "example": "=IF(A1>=50, \"Pass\", \"Fail\")"
+ },
+ {
+  "name": "IFERROR",
+  "category": "logical",
+  "syntax": "IFERROR(value, value_if_error)",
+  "example": "=IFERROR(A1/B1, 0)"
+ },
+ {
+  "name": "IFNA",
+  "category": "logical",
+  "syntax": "IFNA(value, value_if_na)",
+  "example": "=IFNA(VLOOKUP(D1, A1:B10, 2, FALSE), \"Not found\")"
+ },
+ {
+  "name": "IFS",
+  "category": "logical",
+  "syntax": "IFS(logical_test1, value_if_true1, [logical_test2, value_if_true2], …)",
+  "example": "=IFS(A1>=90, \"A\", A1>=80, \"B\", TRUE, \"C\")"
+ },
+ {
+  "name": "IMABS",
+  "category": "engineering",
+  "syntax": "IMABS(inumber)",
+  "example": "=IMABS(\"5+12i\")"
+ },
+ {
+  "name": "IMAGINARY",
+  "category": "engineering",
+  "syntax": "IMAGINARY(inumber)",
+  "example": "=IMAGINARY(\"3+4i\")"
+ },
+ {
+  "name": "IMARGUMENT",
+  "category": "engineering",
+  "syntax": "IMARGUMENT(inumber)",
+  "example": "=IMARGUMENT(\"3+4i\")"
+ },
+ {
+  "name": "IMCONJUGATE",
+  "category": "engineering",
+  "syntax": "IMCONJUGATE(inumber)",
+  "example": "=IMCONJUGATE(\"3+4i\")"
+ },
+ {
+  "name": "IMCOS",
+  "category": "engineering",
+  "syntax": "IMCOS(inumber)",
+  "example": "=IMCOS(\"1+i\")"
+ },
+ {
+  "name": "IMCOSH",
+  "category": "engineering",
+  "syntax": "IMCOSH(inumber)",
+  "example": "=IMCOSH(\"4+3i\")"
+ },
+ {
+  "name": "IMCOT",
+  "category": "engineering",
+  "syntax": "IMCOT(inumber)",
+  "example": "=IMCOT(\"4+3i\")"
+ },
+ {
+  "name": "IMCSC",
+  "category": "engineering",
+  "syntax": "IMCSC(inumber)",
+  "example": "=IMCSC(\"4+3i\")"
+ },
+ {
+  "name": "IMCSCH",
+  "category": "engineering",
+  "syntax": "IMCSCH(inumber)",
+  "example": "=IMCSCH(\"4+3i\")"
+ },
+ {
+  "name": "IMDIV",
+  "category": "engineering",
+  "syntax": "IMDIV(inumber1, inumber2)",
+  "example": "=IMDIV(\"-238+240i\", \"10+24i\")"
+ },
+ {
+  "name": "IMEXP",
+  "category": "engineering",
+  "syntax": "IMEXP(inumber)",
+  "example": "=IMEXP(\"1+i\")"
+ },
+ {
+  "name": "IMLN",
+  "category": "engineering",
+  "syntax": "IMLN(inumber)",
+  "example": "=IMLN(\"3+4i\")"
+ },
+ {
+  "name": "IMLOG10",
+  "category": "engineering",
+  "syntax": "IMLOG10(inumber)",
+  "example": "=IMLOG10(\"3+4i\")"
+ },
+ {
+  "name": "IMLOG2",
+  "category": "engineering",
+  "syntax": "IMLOG2(inumber)",
+  "example": "=IMLOG2(\"3+4i\")"
+ },
+ {
+  "name": "IMPOWER",
+  "category": "engineering",
+  "syntax": "IMPOWER(inumber, number)",
+  "example": "=IMPOWER(\"2+3i\", 3)"
+ },
+ {
+  "name": "IMPRODUCT",
+  "category": "engineering",
+  "syntax": "IMPRODUCT(inumber1, [inumber2], …)",
+  "example": "=IMPRODUCT(\"3+4i\", \"5-3i\")"
+ },
+ {
+  "name": "IMREAL",
+  "category": "engineering",
+  "syntax": "IMREAL(inumber)",
+  "example": "=IMREAL(\"6-9i\")"
+ },
+ {
+  "name": "IMSEC",
+  "category": "engineering",
+  "syntax": "IMSEC(inumber)",
+  "example": "=IMSEC(\"4+3i\")"
+ },
+ {
+  "name": "IMSECH",
+  "category": "engineering",
+  "syntax": "IMSECH(inumber)",
+  "example": "=IMSECH(\"4+3i\")"
+ },
+ {
+  "name": "IMSIN",
+  "category": "engineering",
+  "syntax": "IMSIN(inumber)",
+  "example": "=IMSIN(\"3+4i\")"
+ },
+ {
+  "name": "IMSINH",
+  "category": "engineering",
+  "syntax": "IMSINH(inumber)",
+  "example": "=IMSINH(\"-4+3i\")"
+ },
+ {
+  "name": "IMSQRT",
+  "category": "engineering",
+  "syntax": "IMSQRT(inumber)",
+  "example": "=IMSQRT(\"1+i\")"
+ },
+ {
+  "name": "IMSUB",
+  "category": "engineering",
+  "syntax": "IMSUB(inumber1, inumber2)",
+  "example": "=IMSUB(\"13+4i\", \"5+3i\")"
+ },
+ {
+  "name": "IMSUM",
+  "category": "engineering",
+  "syntax": "IMSUM(inumber1, [inumber2], …)",
+  "example": "=IMSUM(\"3+4i\", \"5-3i\")"
+ },
+ {
+  "name": "IMTAN",
+  "category": "engineering",
+  "syntax": "IMTAN(inumber)",
+  "example": "=IMTAN(\"4+3i\")"
+ },
+ {
+  "name": "INDEX",
+  "category": "lookup",
+  "syntax": "INDEX(array, row_num, [column_num], [area_num])",
+  "example": "=INDEX(A2:C10, 3, 2)"
+ },
+ {
+  "name": "INDIRECT",
+  "category": "lookup",
+  "syntax": "INDIRECT(ref_text, [a1])",
+  "example": "=INDIRECT(\"B\" & A1)"
+ },
+ {
+  "name": "INFO",
+  "category": "information",
+  "syntax": "INFO(type_text)",
+  "example": "=INFO(\"osversion\")"
+ },
+ {
+  "name": "INT",
+  "category": "math",
+  "syntax": "INT(number)",
+  "example": "=INT(A2)"
+ },
+ {
+  "name": "INTERCEPT",
+  "category": "statistical",
+  "syntax": "INTERCEPT(known_y's, known_x's)",
+  "example": "=INTERCEPT(B2:B10, A2:A10)"
+ },
+ {
+  "name": "INTRATE",
+  "category": "financial",
+  "syntax": "INTRATE(settlement, maturity, investment, redemption, [basis])",
+  "example": "=INTRATE(A2, A3, 1000000, 1014420, 2)"
+ },
+ {
+  "name": "IPMT",
+  "category": "financial",
+  "syntax": "IPMT(rate, per, nper, pv, [fv], [type])",
+  "example": "=IPMT(0.1/12, 1, 36, 8000)"
+ },
+ {
+  "name": "IRR",
+  "category": "financial",
+  "syntax": "IRR(values, [guess])",
+  "example": "=IRR(A2:A6)"
+ },
+ {
+  "name": "ISBLANK",
+  "category": "information",
+  "syntax": "ISBLANK(value)",
+  "example": "=ISBLANK(A1)"
+ },
+ {
+  "name": "ISERR",
+  "category": "information",
+  "syntax": "ISERR(value)",
+  "example": "=ISERR(A1)"
+ },
+ {
+  "name": "ISERROR",
+  "category": "information",
+  "syntax": "ISERROR(value)",
+  "example": "=ISERROR(A1/B1)"
+ },
+ {
+  "name": "ISEVEN",
+  "category": "information",
+  "syntax": "ISEVEN(number)",
+  "example": "=ISEVEN(A1)"
+ },
+ {
+  "name": "ISFORMULA",
+  "category": "information",
+  "syntax": "ISFORMULA(reference)",
+  "example": "=ISFORMULA(A1)"
+ },
+ {
+  "name": "ISLOGICAL",
+  "category": "information",
+  "syntax": "ISLOGICAL(value)",
+  "example": "=ISLOGICAL(A1)"
+ },
+ {
+  "name": "ISNA",
+  "category": "information",
+  "syntax": "ISNA(value)",
+  "example": "=ISNA(A1)"
+ },
+ {
+  "name": "ISNONTEXT",
+  "category": "information",
+  "syntax": "ISNONTEXT(value)",
+  "example": "=ISNONTEXT(A1)"
+ },
+ {
+  "name": "ISNUMBER",
+  "category": "information",
+  "syntax": "ISNUMBER(value)",
+  "example": "=ISNUMBER(A1)"
+ },
+ {
+  "name": "ISO.CEILING",
+  "category": "math",
+  "syntax": "ISO.CEILING(number, [significance])",
+  "example": "=ISO.CEILING(-4.3, 2)"
+ },
+ {
+  "name": "ISODD",
+  "category": "information",
+  "syntax": "ISODD(number)",
+  "example": "=ISODD(A1)"
+ },
+ {
+  "name": "ISOMITTED",
+  "category": "logical",
+  "syntax": "ISOMITTED(argument)",
+  "example": "=LAMBDA(x, [y], IF(ISOMITTED(y), x, x*y))(5)"
+ },
+ {
+  "name": "ISOWEEKNUM",
+  "category": "dateTime",
+  "syntax": "ISOWEEKNUM(date)",
+  "example": "=ISOWEEKNUM(A2)"
+ },
+ {
+  "name": "ISPMT",
+  "category": "financial",
+  "syntax": "ISPMT(rate, per, nper, pv)",
+  "example": "=ISPMT(0.1/12, 1, 36, 8000000)"
+ },
+ {
+  "name": "ISREF",
+  "category": "information",
+  "syntax": "ISREF(value)",
+  "example": "=ISREF(A1)"
+ },
+ {
+  "name": "ISTEXT",
+  "category": "information",
+  "syntax": "ISTEXT(value)",
+  "example": "=ISTEXT(A1)"
+ },
+ {
+  "name": "JIS",
+  "category": "text",
+  "syntax": "JIS(text)",
+  "example": "=JIS(A1)"
+ },
+ {
+  "name": "KURT",
+  "category": "statistical",
+  "syntax": "KURT(number1, [number2], …)",
+  "example": "=KURT(A2:A10)"
+ },
+ {
+  "name": "LAMBDA",
+  "category": "logical",
+  "syntax": "LAMBDA([parameter1, parameter2, …], calculation)",
+  "example": "=LAMBDA(x, x*2)(A1)"
+ },
+ {
+  "name": "LARGE",
+  "category": "statistical",
+  "syntax": "LARGE(array, k)",
+  "example": "=LARGE(A2:A10, 2)"
+ },
+ {
+  "name": "LCM",
+  "category": "math",
+  "syntax": "LCM(number1, [number2], …)",
+  "example": "=LCM(4, 6)"
+ },
+ {
+  "name": "LEFT",
+  "category": "text",
+  "syntax": "LEFT(text, [num_chars])",
+  "example": "=LEFT(A1, 3)"
+ },
+ {
+  "name": "LEFTB",
+  "category": "text",
+  "syntax": "LEFTB(text, [num_bytes])",
+  "example": "=LEFTB(A1, 4)"
+ },
+ {
+  "name": "LEN",
+  "category": "text",
+  "syntax": "LEN(text)",
+  "example": "=LEN(A1)"
+ },
+ {
+  "name": "LENB",
+  "category": "text",
+  "syntax": "LENB(text)",
+  "example": "=LENB(A1)"
+ },
+ {
+  "name": "LET",
+  "category": "logical",
+  "syntax": "LET(name1, name_value1, calculation_or_name2, [name_value2, calculation_or_name3], …)",
+  "example": "=LET(x, A1*2, x+1)"
+ },
+ {
+  "name": "LINEST",
+  "category": "statistical",
+  "syntax": "LINEST(known_y's, [known_x's], [const], [stats])",
+  "example": "=LINEST(B2:B10, A2:A10)"
+ },
+ {
+  "name": "LN",
+  "category": "math",
+  "syntax": "LN(number)",
+  "example": "=LN(A2)"
+ },
+ {
+  "name": "LOG",
+  "category": "math",
+  "syntax": "LOG(number, [base])",
+  "example": "=LOG(8, 2)"
+ },
+ {
+  "name": "LOG10",
+  "category": "math",
+  "syntax": "LOG10(number)",
+  "example": "=LOG10(1000)"
+ },
+ {
+  "name": "LOGEST",
+  "category": "statistical",
+  "syntax": "LOGEST(known_y's, [known_x's], [const], [stats])",
+  "example": "=LOGEST(B2:B10, A2:A10)"
+ },
+ {
+  "name": "LOGINV",
+  "category": "compatibility",
+  "syntax": "LOGINV(probability, mean, standard_dev)",
+  "example": "=LOGINV(0.039, 3.5, 1.2)"
+ },
+ {
+  "name": "LOGNORM.DIST",
+  "category": "statistical",
+  "syntax": "LOGNORM.DIST(x, mean, standard_dev, cumulative)",
+  "example": "=LOGNORM.DIST(4, 3.5, 1.2, TRUE)"
+ },
+ {
+  "name": "LOGNORM.INV",
+  "category": "statistical",
+  "syntax": "LOGNORM.INV(probability, mean, standard_dev)",
+  "example": "=LOGNORM.INV(0.039, 3.5, 1.2)"
+ },
+ {
+  "name": "LOGNORMDIST",
+  "category": "compatibility",
+  "syntax": "LOGNORMDIST(x, mean, standard_dev)",
+  "example": "=LOGNORMDIST(4, 3.5, 1.2)"
+ },
+ {
+  "name": "LOOKUP",
+  "category": "lookup",
+  "syntax": "LOOKUP(lookup_value, lookup_vector, [result_vector])",
+  "example": "=LOOKUP(4, A2:A10, B2:B10)"
+ },
+ {
+  "name": "LOWER",
+  "category": "text",
+  "syntax": "LOWER(text)",
+  "example": "=LOWER(A1)"
+ },
+ {
+  "name": "MAKEARRAY",
+  "category": "logical",
+  "syntax": "MAKEARRAY(rows, cols, lambda)",
+  "example": "=MAKEARRAY(3, 3, LAMBDA(r, c, r*c))"
+ },
+ {
+  "name": "MAP",
+  "category": "logical",
+  "syntax": "MAP(array1, [array2], …, lambda)",
+  "example": "=MAP(A1:A10, LAMBDA(x, x*2))"
+ },
+ {
+  "name": "MATCH",
+  "category": "lookup",
+  "syntax": "MATCH(lookup_value, lookup_array, [match_type])",
+  "example": "=MATCH(\"Pear\", A2:A10, 0)"
+ },
+ {
+  "name": "MAX",
+  "category": "statistical",
+  "syntax": "MAX(number1, [number2], …)",
+  "example": "=MAX(A2:A10)"
+ },
+ {
+  "name": "MAXA",
+  "category": "statistical",
+  "syntax": "MAXA(value1, [value2], …)",
+  "example": "=MAXA(A2:A10)"
+ },
+ {
+  "name": "MAXIFS",
+  "category": "statistical",
+  "syntax": "MAXIFS(max_range, criteria_range1, criteria1, [criteria_range2, criteria2], …)",
+  "example": "=MAXIFS(C2:C10, A2:A10, \"East\")"
+ },
+ {
+  "name": "MDETERM",
+  "category": "math",
+  "syntax": "MDETERM(array)",
+  "example": "=MDETERM(A1:C3)"
+ },
+ {
+  "name": "MDURATION",
+  "category": "financial",
+  "syntax": "MDURATION(settlement, maturity, coupon, yld, frequency, [basis])",
+  "example": "=MDURATION(A2, A3, 0.08, 0.09, 2, 1)"
+ },
+ {
+  "name": "MEDIAN",
+  "category": "statistical",
+  "syntax": "MEDIAN(number1, [number2], …)",
+  "example": "=MEDIAN(A2:A10)"
+ },
+ {
+  "name": "MID",
+  "category": "text",
+  "syntax": "MID(text, start_num, num_chars)",
+  "example": "=MID(A1, 2, 3)"
+ },
+ {
+  "name": "MIDB",
+  "category": "text",
+  "syntax": "MIDB(text, start_num, num_bytes)",
+  "example": "=MIDB(A1, 3, 4)"
+ },
+ {
+  "name": "MIN",
+  "category": "statistical",
+  "syntax": "MIN(number1, [number2], …)",
+  "example": "=MIN(A2:A10)"
+ },
+ {
+  "name": "MINA",
+  "category": "statistical",
+  "syntax": "MINA(value1, [value2], …)",
+  "example": "=MINA(A2:A10)"
+ },
+ {
+  "name": "MINIFS",
+  "category": "statistical",
+  "syntax": "MINIFS(min_range, criteria_range1, criteria1, [criteria_range2, criteria2], …)",
+  "example": "=MINIFS(C2:C10, A2:A10, \"East\")"
+ },
+ {
+  "name": "MINUTE",
+  "category": "dateTime",
+  "syntax": "MINUTE(serial_number)",
+  "example": "=MINUTE(A2)"
+ },
+ {
+  "name": "MINVERSE",
+  "category": "math",
+  "syntax": "MINVERSE(array)",
+  "example": "=MINVERSE(A1:B2)"
+ },
+ {
+  "name": "MIRR",
+  "category": "financial",
+  "syntax": "MIRR(values, finance_rate, reinvest_rate)",
+  "example": "=MIRR(A2:A7, 0.1, 0.12)"
+ },
+ {
+  "name": "MMULT",
+  "category": "math",
+  "syntax": "MMULT(array1, array2)",
+  "example": "=MMULT(A1:B2, D1:E2)"
+ },
+ {
+  "name": "MOD",
+  "category": "math",
+  "syntax": "MOD(number, divisor)",
+  "example": "=MOD(A2, 3)"
+ },
+ {
+  "name": "MODE",
+  "category": "compatibility",
+  "syntax": "MODE(number1, [number2], …)",
+  "example": "=MODE(A2:A10)"
+ },
+ {
+  "name": "MODE.MULT",
+  "category": "statistical",
+  "syntax": "MODE.MULT(number1, [number2], …)",
+  "example": "=MODE.MULT(A2:A10)"
+ },
+ {
+  "name": "MODE.SNGL",
+  "category": "statistical",
+  "syntax": "MODE.SNGL(number1, [number2], …)",
+  "example": "=MODE.SNGL(A2:A10)"
+ },
+ {
+  "name": "MONTH",
+  "category": "dateTime",
+  "syntax": "MONTH(serial_number)",
+  "example": "=MONTH(A2)"
+ },
+ {
+  "name": "MROUND",
+  "category": "math",
+  "syntax": "MROUND(number, multiple)",
+  "example": "=MROUND(10, 3)"
+ },
+ {
+  "name": "MULTINOMIAL",
+  "category": "math",
+  "syntax": "MULTINOMIAL(number1, [number2], …)",
+  "example": "=MULTINOMIAL(2, 3, 4)"
+ },
+ {
+  "name": "MUNIT",
+  "category": "math",
+  "syntax": "MUNIT(dimension)",
+  "example": "=MUNIT(3)"
+ },
+ {
+  "name": "N",
+  "category": "information",
+  "syntax": "N(value)",
+  "example": "=N(A1)"
+ },
+ {
+  "name": "NA",
+  "category": "information",
+  "syntax": "NA()",
+  "example": "=NA()"
+ },
+ {
+  "name": "NEGBINOM.DIST",
+  "category": "statistical",
+  "syntax": "NEGBINOM.DIST(number_f, number_s, probability_s, cumulative)",
+  "example": "=NEGBINOM.DIST(10, 5, 0.25, FALSE)"
+ },
+ {
+  "name": "NEGBINOMDIST",
+  "category": "compatibility",
+  "syntax": "NEGBINOMDIST(number_f, number_s, probability_s)",
+  "example": "=NEGBINOMDIST(10, 5, 0.25)"
+ },
+ {
+  "name": "NETWORKDAYS",
+  "category": "dateTime",
+  "syntax": "NETWORKDAYS(start_date, end_date, [holidays])",
+  "example": "=NETWORKDAYS(A2, B2, C2:C10)"
+ },
+ {
+  "name": "NETWORKDAYS.INTL",
+  "category": "dateTime",
+  "syntax": "NETWORKDAYS.INTL(start_date, end_date, [weekend], [holidays])",
+  "example": "=NETWORKDAYS.INTL(A2, B2, 11)"
+ },
+ {
+  "name": "NOMINAL",
+  "category": "financial",
+  "syntax": "NOMINAL(effect_rate, npery)",
+  "example": "=NOMINAL(0.053543, 4)"
+ },
+ {
+  "name": "NORM.DIST",
+  "category": "statistical",
+  "syntax": "NORM.DIST(x, mean, standard_dev, cumulative)",
+  "example": "=NORM.DIST(42, 40, 1.5, TRUE)"
+ },
+ {
+  "name": "NORM.INV",
+  "category": "statistical",
+  "syntax": "NORM.INV(probability, mean, standard_dev)",
+  "example": "=NORM.INV(0.908, 40, 1.5)"
+ },
+ {
+  "name": "NORM.S.DIST",
+  "category": "statistical",
+  "syntax": "NORM.S.DIST(z, cumulative)",
+  "example": "=NORM.S.DIST(1.33, TRUE)"
+ },
+ {
+  "name": "NORM.S.INV",
+  "category": "statistical",
+  "syntax": "NORM.S.INV(probability)",
+  "example": "=NORM.S.INV(0.908)"
+ },
+ {
+  "name": "NORMDIST",
+  "category": "compatibility",
+  "syntax": "NORMDIST(x, mean, standard_dev, cumulative)",
+  "example": "=NORMDIST(42, 40, 1.5, TRUE)"
+ },
+ {
+  "name": "NORMINV",
+  "category": "compatibility",
+  "syntax": "NORMINV(probability, mean, standard_dev)",
+  "example": "=NORMINV(0.908, 40, 1.5)"
+ },
+ {
+  "name": "NORMSDIST",
+  "category": "compatibility",
+  "syntax": "NORMSDIST(z)",
+  "example": "=NORMSDIST(1.33)"
+ },
+ {
+  "name": "NORMSINV",
+  "category": "compatibility",
+  "syntax": "NORMSINV(probability)",
+  "example": "=NORMSINV(0.908)"
+ },
+ {
+  "name": "NOT",
+  "category": "logical",
+  "syntax": "NOT(logical)",
+  "example": "=NOT(A1>10)"
+ },
+ {
+  "name": "NOW",
+  "category": "dateTime",
+  "syntax": "NOW()",
+  "example": "=NOW()"
+ },
+ {
+  "name": "NPER",
+  "category": "financial",
+  "syntax": "NPER(rate, pmt, pv, [fv], [type])",
+  "example": "=NPER(0.12/12, -100, -1000, 10000, 1)"
+ },
+ {
+  "name": "NPV",
+  "category": "financial",
+  "syntax": "NPV(rate, value1, [value2], …)",
+  "example": "=NPV(0.1, A2:A6)"
+ },
+ {
+  "name": "NUMBERVALUE",
+  "category": "text",
+  "syntax": "NUMBERVALUE(text, [decimal_separator], [group_separator])",
+  "example": "=NUMBERVALUE(\"1.234,5\", \",\", \".\")"
+ },
+ {
+  "name": "OCT2BIN",
+  "category": "engineering",
+  "syntax": "OCT2BIN(number, [places])",
+  "example": "=OCT2BIN(3, 3)"
+ },
+ {
+  "name": "OCT2DEC",
+  "category": "engineering",
+  "syntax": "OCT2DEC(number)",
+  "example": "=OCT2DEC(54)"
+ },
+ {
+  "name": "OCT2HEX",
+  "category": "engineering",
+  "syntax": "OCT2HEX(number, [places])",
+  "example": "=OCT2HEX(100, 4)"
+ },
+ {
+  "name": "ODD",
+  "category": "math",
+  "syntax": "ODD(number)",
+  "example": "=ODD(2.5)"
+ },
+ {
+  "name": "ODDFPRICE",
+  "category": "financial",
+  "syntax": "ODDFPRICE(settlement, maturity, issue, first_coupon, rate, yld, redemption, frequency, [basis])",
+  "example": "=ODDFPRICE(A2, A3, A4, A5, 0.0785, 0.0625, 100, 2, 1)"
+ },
+ {
+  "name": "ODDFYIELD",
+  "category": "financial",
+  "syntax": "ODDFYIELD(settlement, maturity, issue, first_coupon, rate, pr, redemption, frequency, [basis])",
+  "example": "=ODDFYIELD(A2, A3, A4, A5, 0.0575, 84.5, 100, 2, 0)"
+ },
+ {
+  "name": "ODDLPRICE",
+  "category": "financial",
+  "syntax": "ODDLPRICE(settlement, maturity, last_interest, rate, yld, redemption, frequency, [basis])",
+  "example": "=ODDLPRICE(A2, A3, A4, 0.0375, 0.0405, 100, 2, 0)"
+ },
+ {
+  "name": "ODDLYIELD",
+  "category": "financial",
+  "syntax": "ODDLYIELD(settlement, maturity, last_interest, rate, pr, redemption, frequency, [basis])",
+  "example": "=ODDLYIELD(A2, A3, A4, 0.0375, 99.875, 100, 2, 0)"
+ },
+ {
+  "name": "OFFSET",
+  "category": "lookup",
+  "syntax": "OFFSET(reference, rows, cols, [height], [width])",
+  "example": "=OFFSET(A1, 2, 1, 3, 1)"
+ },
+ {
+  "name": "OR",
+  "category": "logical",
+  "syntax": "OR(logical1, [logical2], …)",
+  "example": "=OR(A1=\"Yes\", B1>100)"
+ },
+ {
+  "name": "PDURATION",
+  "category": "financial",
+  "syntax": "PDURATION(rate, pv, fv)",
+  "example": "=PDURATION(0.025, 2000, 2200)"
+ },
+ {
+  "name": "PEARSON",
+  "category": "statistical",
+  "syntax": "PEARSON(array1, array2)",
+  "example": "=PEARSON(A2:A10, B2:B10)"
+ },
+ {
+  "name": "PERCENTILE",
+  "category": "compatibility",
+  "syntax": "PERCENTILE(array, k)",
+  "example": "=PERCENTILE(A2:A10, 0.9)"
+ },
+ {
+  "name": "PERCENTILE.EXC",
+  "category": "statistical",
+  "syntax": "PERCENTILE.EXC(array, k)",
+  "example": "=PERCENTILE.EXC(A2:A10, 0.9)"
+ },
+ {
+  "name": "PERCENTILE.INC",
+  "category": "statistical",
+  "syntax": "PERCENTILE.INC(array, k)",
+  "example": "=PERCENTILE.INC(A2:A10, 0.9)"
+ },
+ {
+  "name": "PERCENTOF",
+  "category": "math",
+  "syntax": "PERCENTOF(data_subset, data_all)",
+  "example": "=PERCENTOF(B2:B4, B2:B10)"
+ },
+ {
+  "name": "PERCENTRANK",
+  "category": "compatibility",
+  "syntax": "PERCENTRANK(array, x, [significance])",
+  "example": "=PERCENTRANK(A2:A10, 8)"
+ },
+ {
+  "name": "PERCENTRANK.EXC",
+  "category": "statistical",
+  "syntax": "PERCENTRANK.EXC(array, x, [significance])",
+  "example": "=PERCENTRANK.EXC(A2:A10, 8)"
+ },
+ {
+  "name": "PERCENTRANK.INC",
+  "category": "statistical",
+  "syntax": "PERCENTRANK.INC(array, x, [significance])",
+  "example": "=PERCENTRANK.INC(A2:A10, 8)"
+ },
+ {
+  "name": "PERMUT",
+  "category": "statistical",
+  "syntax": "PERMUT(number, number_chosen)",
+  "example": "=PERMUT(10, 3)"
+ },
+ {
+  "name": "PERMUTATIONA",
+  "category": "statistical",
+  "syntax": "PERMUTATIONA(number, number_chosen)",
+  "example": "=PERMUTATIONA(10, 3)"
+ },
+ {
+  "name": "PHI",
+  "category": "statistical",
+  "syntax": "PHI(x)",
+  "example": "=PHI(0.75)"
+ },
+ {
+  "name": "PI",
+  "category": "math",
+  "syntax": "PI()",
+  "example": "=PI()*A2^2"
+ },
+ {
+  "name": "PIVOTBY",
+  "category": "lookup",
+  "syntax": "PIVOTBY(row_fields, col_fields, values, function, [field_headers], [row_total_depth], [row_sort_order], [col_total_depth], [col_sort_order], [filter_array], [relative_to])",
+  "example": "=PIVOTBY(A2:A20, B2:B20, C2:C20, SUM)"
+ },
+ {
+  "name": "PMT",
+  "category": "financial",
+  "syntax": "PMT(rate, nper, pv, [fv], [type])",
+  "example": "=PMT(0.08/12, 10, 10000)"
+ },
+ {
+  "name": "POISSON",
+  "category": "compatibility",
+  "syntax": "POISSON(x, mean, cumulative)",
+  "example": "=POISSON(2, 5, TRUE)"
+ },
+ {
+  "name": "POISSON.DIST",
+  "category": "statistical",
+  "syntax": "POISSON.DIST(x, mean, cumulative)",
+  "example": "=POISSON.DIST(2, 5, TRUE)"
+ },
+ {
+  "name": "POWER",
+  "category": "math",
+  "syntax": "POWER(number, power)",
+  "example": "=POWER(2, 10)"
+ },
+ {
+  "name": "PPMT",
+  "category": "financial",
+  "syntax": "PPMT(rate, per, nper, pv, [fv], [type])",
+  "example": "=PPMT(0.1/12, 1, 24, 2000)"
+ },
+ {
+  "name": "PRICE",
+  "category": "financial",
+  "syntax": "PRICE(settlement, maturity, rate, yld, redemption, frequency, [basis])",
+  "example": "=PRICE(A2, A3, 0.0575, 0.065, 100, 2, 0)"
+ },
+ {
+  "name": "PRICEDISC",
+  "category": "financial",
+  "syntax": "PRICEDISC(settlement, maturity, discount, redemption, [basis])",
+  "example": "=PRICEDISC(A2, A3, 0.0525, 100, 2)"
+ },
+ {
+  "name": "PRICEMAT",
+  "category": "financial",
+  "syntax": "PRICEMAT(settlement, maturity, issue, rate, yld, [basis])",
+  "example": "=PRICEMAT(A2, A3, A4, 0.061, 0.061, 0)"
+ },
+ {
+  "name": "PROB",
+  "category": "statistical",
+  "syntax": "PROB(x_range, prob_range, lower_limit, [upper_limit])",
+  "example": "=PROB(A2:A5, B2:B5, 1, 3)"
+ },
+ {
+  "name": "PRODUCT",
+  "category": "math",
+  "syntax": "PRODUCT(number1, [number2], …)",
+  "example": "=PRODUCT(A2:A5)"
+ },
+ {
+  "name": "PROPER",
+  "category": "text",
+  "syntax": "PROPER(text)",
+  "example": "=PROPER(A1)"
+ },
+ {
+  "name": "PV",
+  "category": "financial",
+  "syntax": "PV(rate, nper, pmt, [fv], [type])",
+  "example": "=PV(0.08/12, 240, 500)"
+ },
+ {
+  "name": "QUARTILE",
+  "category": "compatibility",
+  "syntax": "QUARTILE(array, quart)",
+  "example": "=QUARTILE(A2:A10, 1)"
+ },
+ {
+  "name": "QUARTILE.EXC",
+  "category": "statistical",
+  "syntax": "QUARTILE.EXC(array, quart)",
+  "example": "=QUARTILE.EXC(A2:A10, 1)"
+ },
+ {
+  "name": "QUARTILE.INC",
+  "category": "statistical",
+  "syntax": "QUARTILE.INC(array, quart)",
+  "example": "=QUARTILE.INC(A2:A10, 1)"
+ },
+ {
+  "name": "QUOTIENT",
+  "category": "math",
+  "syntax": "QUOTIENT(numerator, denominator)",
+  "example": "=QUOTIENT(10, 3)"
+ },
+ {
+  "name": "RADIANS",
+  "category": "math",
+  "syntax": "RADIANS(angle)",
+  "example": "=RADIANS(180)"
+ },
+ {
+  "name": "RAND",
+  "category": "math",
+  "syntax": "RAND()",
+  "example": "=RAND()"
+ },
+ {
+  "name": "RANDARRAY",
+  "category": "math",
+  "syntax": "RANDARRAY([rows], [columns], [min], [max], [whole_number])",
+  "example": "=RANDARRAY(5, 2, 1, 100, TRUE)"
+ },
+ {
+  "name": "RANDBETWEEN",
+  "category": "math",
+  "syntax": "RANDBETWEEN(bottom, top)",
+  "example": "=RANDBETWEEN(1, 100)"
+ },
+ {
+  "name": "RANK",
+  "category": "compatibility",
+  "syntax": "RANK(number, ref, [order])",
+  "example": "=RANK(A2, A2:A10)"
+ },
+ {
+  "name": "RANK.AVG",
+  "category": "statistical",
+  "syntax": "RANK.AVG(number, ref, [order])",
+  "example": "=RANK.AVG(A2, A2:A10)"
+ },
+ {
+  "name": "RANK.EQ",
+  "category": "statistical",
+  "syntax": "RANK.EQ(number, ref, [order])",
+  "example": "=RANK.EQ(A2, A2:A10)"
+ },
+ {
+  "name": "RATE",
+  "category": "financial",
+  "syntax": "RATE(nper, pmt, pv, [fv], [type], [guess])",
+  "example": "=RATE(48, -200, 8000)"
+ },
+ {
+  "name": "RECEIVED",
+  "category": "financial",
+  "syntax": "RECEIVED(settlement, maturity, investment, discount, [basis])",
+  "example": "=RECEIVED(A2, A3, 1000000, 0.0575, 2)"
+ },
+ {
+  "name": "REDUCE",
+  "category": "logical",
+  "syntax": "REDUCE([initial_value], array, lambda)",
+  "example": "=REDUCE(0, A1:A10, LAMBDA(acc, x, acc+x))"
+ },
+ {
+  "name": "REGEXEXTRACT",
+  "category": "text",
+  "syntax": "REGEXEXTRACT(text, pattern, [return_mode], [case_sensitivity])",
+  "example": "=REGEXEXTRACT(A1, \"[0-9]+\")"
+ },
+ {
+  "name": "REGEXREPLACE",
+  "category": "text",
+  "syntax": "REGEXREPLACE(text, pattern, replacement, [occurrence], [case_sensitivity])",
+  "example": "=REGEXREPLACE(A1, \"[0-9]\", \"#\")"
+ },
+ {
+  "name": "REGEXTEST",
+  "category": "text",
+  "syntax": "REGEXTEST(text, pattern, [case_sensitivity])",
+  "example": "=REGEXTEST(A1, \"^[A-Z]{3}$\")"
+ },
+ {
+  "name": "REPLACE",
+  "category": "text",
+  "syntax": "REPLACE(old_text, start_num, num_chars, new_text)",
+  "example": "=REPLACE(A1, 1, 3, \"ABC\")"
+ },
+ {
+  "name": "REPLACEB",
+  "category": "text",
+  "syntax": "REPLACEB(old_text, start_num, num_bytes, new_text)",
+  "example": "=REPLACEB(A1, 1, 4, \"ABCD\")"
+ },
+ {
+  "name": "REPT",
+  "category": "text",
+  "syntax": "REPT(text, number_times)",
+  "example": "=REPT(\"*\", 5)"
+ },
+ {
+  "name": "RIGHT",
+  "category": "text",
+  "syntax": "RIGHT(text, [num_chars])",
+  "example": "=RIGHT(A1, 4)"
+ },
+ {
+  "name": "RIGHTB",
+  "category": "text",
+  "syntax": "RIGHTB(text, [num_bytes])",
+  "example": "=RIGHTB(A1, 4)"
+ },
+ {
+  "name": "ROMAN",
+  "category": "math",
+  "syntax": "ROMAN(number, [form])",
+  "example": "=ROMAN(1994)"
+ },
+ {
+  "name": "ROUND",
+  "category": "math",
+  "syntax": "ROUND(number, num_digits)",
+  "example": "=ROUND(A2, 2)"
+ },
+ {
+  "name": "ROUNDDOWN",
+  "category": "math",
+  "syntax": "ROUNDDOWN(number, num_digits)",
+  "example": "=ROUNDDOWN(A2, 1)"
+ },
+ {
+  "name": "ROUNDUP",
+  "category": "math",
+  "syntax": "ROUNDUP(number, num_digits)",
+  "example": "=ROUNDUP(A2, 1)"
+ },
+ {
+  "name": "ROW",
+  "category": "lookup",
+  "syntax": "ROW([reference])",
+  "example": "=ROW(C5)"
+ },
+ {
+  "name": "ROWS",
+  "category": "lookup",
+  "syntax": "ROWS(array)",
+  "example": "=ROWS(A1:D10)"
+ },
+ {
+  "name": "RRI",
+  "category": "financial",
+  "syntax": "RRI(nper, pv, fv)",
+  "example": "=RRI(96, 10000, 11000)"
+ },
+ {
+  "name": "RSQ",
+  "category": "statistical",
+  "syntax": "RSQ(known_y's, known_x's)",
+  "example": "=RSQ(B2:B10, A2:A10)"
+ },
+ {
+  "name": "SCAN",
+  "category": "logical",
+  "syntax": "SCAN([initial_value], array, lambda)",
+  "example": "=SCAN(0, A1:A10, LAMBDA(acc, x, acc+x))"
+ },
+ {
+  "name": "SEARCH",
+  "category": "text",
+  "syntax": "SEARCH(find_text, within_text, [start_num])",
+  "example": "=SEARCH(\"apple\", A1)"
+ },
+ {
+  "name": "SEARCHB",
+  "category": "text",
+  "syntax": "SEARCHB(find_text, within_text, [start_num])",
+  "example": "=SEARCHB(\"apple\", A1)"
+ },
+ {
+  "name": "SEC",
+  "category": "math",
+  "syntax": "SEC(number)",
+  "example": "=SEC(PI()/3)"
+ },
+ {
+  "name": "SECH",
+  "category": "math",
+  "syntax": "SECH(number)",
+  "example": "=SECH(1)"
+ },
+ {
+  "name": "SECOND",
+  "category": "dateTime",
+  "syntax": "SECOND(serial_number)",
+  "example": "=SECOND(A2)"
+ },
+ {
+  "name": "SEQUENCE",
+  "category": "math",
+  "syntax": "SEQUENCE(rows, [columns], [start], [step])",
+  "example": "=SEQUENCE(10, 1, 1, 2)"
+ },
+ {
+  "name": "SERIESSUM",
+  "category": "math",
+  "syntax": "SERIESSUM(x, n, m, coefficients)",
+  "example": "=SERIESSUM(A2, 0, 2, B2:B5)"
+ },
+ {
+  "name": "SHEET",
+  "category": "information",
+  "syntax": "SHEET([value])",
+  "example": "=SHEET(A1)"
+ },
+ {
+  "name": "SHEETS",
+  "category": "information",
+  "syntax": "SHEETS([reference])",
+  "example": "=SHEETS()"
+ },
+ {
+  "name": "SIGN",
+  "category": "math",
+  "syntax": "SIGN(number)",
+  "example": "=SIGN(A2)"
+ },
+ {
+  "name": "SIN",
+  "category": "math",
+  "syntax": "SIN(number)",
+  "example": "=SIN(PI()/2)"
+ },
+ {
+  "name": "SINH",
+  "category": "math",
+  "syntax": "SINH(number)",
+  "example": "=SINH(1)"
+ },
+ {
+  "name": "SKEW",
+  "category": "statistical",
+  "syntax": "SKEW(number1, [number2], …)",
+  "example": "=SKEW(A2:A10)"
+ },
+ {
+  "name": "SKEW.P",
+  "category": "statistical",
+  "syntax": "SKEW.P(number1, [number2], …)",
+  "example": "=SKEW.P(A2:A10)"
+ },
+ {
+  "name": "SLN",
+  "category": "financial",
+  "syntax": "SLN(cost, salvage, life)",
+  "example": "=SLN(30000, 7500, 10)"
+ },
+ {
+  "name": "SLOPE",
+  "category": "statistical",
+  "syntax": "SLOPE(known_y's, known_x's)",
+  "example": "=SLOPE(B2:B10, A2:A10)"
+ },
+ {
+  "name": "SMALL",
+  "category": "statistical",
+  "syntax": "SMALL(array, k)",
+  "example": "=SMALL(A2:A10, 2)"
+ },
+ {
+  "name": "SORT",
+  "category": "lookup",
+  "syntax": "SORT(array, [sort_index], [sort_order], [by_col])",
+  "example": "=SORT(A2:B10, 2, -1)"
+ },
+ {
+  "name": "SORTBY",
+  "category": "lookup",
+  "syntax": "SORTBY(array, by_array1, [sort_order1], [by_array2, sort_order2], …)",
+  "example": "=SORTBY(A2:A10, B2:B10, -1)"
+ },
+ {
+  "name": "SQRT",
+  "category": "math",
+  "syntax": "SQRT(number)",
+  "example": "=SQRT(16)"
+ },
+ {
+  "name": "SQRTPI",
+  "category": "math",
+  "syntax": "SQRTPI(number)",
+  "example": "=SQRTPI(2)"
+ },
+ {
+  "name": "STANDARDIZE",
+  "category": "statistical",
+  "syntax": "STANDARDIZE(x, mean, standard_dev)",
+  "example": "=STANDARDIZE(42, 40, 1.5)"
+ },
+ {
+  "name": "STDEV",
+  "category": "compatibility",
+  "syntax": "STDEV(number1, [number2], …)",
+  "example": "=STDEV(A2:A10)"
+ },
+ {
+  "name": "STDEV.P",
+  "category": "statistical",
+  "syntax": "STDEV.P(number1, [number2], …)",
+  "example": "=STDEV.P(A2:A10)"
+ },
+ {
+  "name": "STDEV.S",
+  "category": "statistical",
+  "syntax": "STDEV.S(number1, [number2], …)",
+  "example": "=STDEV.S(A2:A10)"
+ },
+ {
+  "name": "STDEVA",
+  "category": "statistical",
+  "syntax": "STDEVA(value1, [value2], …)",
+  "example": "=STDEVA(A2:A10)"
+ },
+ {
+  "name": "STDEVP",
+  "category": "compatibility",
+  "syntax": "STDEVP(number1, [number2], …)",
+  "example": "=STDEVP(A2:A10)"
+ },
+ {
+  "name": "STDEVPA",
+  "category": "statistical",
+  "syntax": "STDEVPA(value1, [value2], …)",
+  "example": "=STDEVPA(A2:A10)"
+ },
+ {
+  "name": "STEYX",
+  "category": "statistical",
+  "syntax": "STEYX(known_y's, known_x's)",
+  "example": "=STEYX(B2:B10, A2:A10)"
+ },
+ {
+  "name": "SUBSTITUTE",
+  "category": "text",
+  "syntax": "SUBSTITUTE(text, old_text, new_text, [instance_num])",
+  "example": "=SUBSTITUTE(A1, \"-\", \"/\")"
+ },
+ {
+  "name": "SUBTOTAL",
+  "category": "math",
+  "syntax": "SUBTOTAL(function_num, ref1, [ref2], …)",
+  "example": "=SUBTOTAL(9, A2:A10)"
+ },
+ {
+  "name": "SUM",
+  "category": "math",
+  "syntax": "SUM(number1, [number2], …)",
+  "example": "=SUM(A2:A10)"
+ },
+ {
+  "name": "SUMIF",
+  "category": "math",
+  "syntax": "SUMIF(range, criteria, [sum_range])",
+  "example": "=SUMIF(A2:A10, \">5\")"
+ },
+ {
+  "name": "SUMIFS",
+  "category": "math",
+  "syntax": "SUMIFS(sum_range, criteria_range1, criteria1, [criteria_range2, criteria2], …)",
+  "example": "=SUMIFS(C2:C10, A2:A10, \"East\", B2:B10, \">100\")"
+ },
+ {
+  "name": "SUMPRODUCT",
+  "category": "math",
+  "syntax": "SUMPRODUCT(array1, [array2], …)",
+  "example": "=SUMPRODUCT(B2:B5, C2:C5)"
+ },
+ {
+  "name": "SUMSQ",
+  "category": "math",
+  "syntax": "SUMSQ(number1, [number2], …)",
+  "example": "=SUMSQ(3, 4)"
+ },
+ {
+  "name": "SUMX2MY2",
+  "category": "math",
+  "syntax": "SUMX2MY2(array_x, array_y)",
+  "example": "=SUMX2MY2(A2:A5, B2:B5)"
+ },
+ {
+  "name": "SUMX2PY2",
+  "category": "math",
+  "syntax": "SUMX2PY2(array_x, array_y)",
+  "example": "=SUMX2PY2(A2:A5, B2:B5)"
+ },
+ {
+  "name": "SUMXMY2",
+  "category": "math",
+  "syntax": "SUMXMY2(array_x, array_y)",
+  "example": "=SUMXMY2(A2:A5, B2:B5)"
+ },
+ {
+  "name": "SWITCH",
+  "category": "logical",
+  "syntax": "SWITCH(expression, value1, result1, [default_or_value2, result2], …)",
+  "example": "=SWITCH(A1, 1, \"Mon\", 2, \"Tue\", \"Other\")"
+ },
+ {
+  "name": "SYD",
+  "category": "financial",
+  "syntax": "SYD(cost, salvage, life, per)",
+  "example": "=SYD(30000, 7500, 10, 1)"
+ },
+ {
+  "name": "T",
+  "category": "text",
+  "syntax": "T(value)",
+  "example": "=T(A1)"
+ },
+ {
+  "name": "T.DIST",
+  "category": "statistical",
+  "syntax": "T.DIST(x, deg_freedom, cumulative)",
+  "example": "=T.DIST(1.96, 60, TRUE)"
+ },
+ {
+  "name": "T.DIST.2T",
+  "category": "statistical",
+  "syntax": "T.DIST.2T(x, deg_freedom)",
+  "example": "=T.DIST.2T(1.96, 60)"
+ },
+ {
+  "name": "T.DIST.RT",
+  "category": "statistical",
+  "syntax": "T.DIST.RT(x, deg_freedom)",
+  "example": "=T.DIST.RT(1.96, 60)"
+ },
+ {
+  "name": "T.INV",
+  "category": "statistical",
+  "syntax": "T.INV(probability, deg_freedom)",
+  "example": "=T.INV(0.75, 2)"
+ },
+ {
+  "name": "T.INV.2T",
+  "category": "statistical",
+  "syntax": "T.INV.2T(probability, deg_freedom)",
+  "example": "=T.INV.2T(0.05, 60)"
+ },
+ {
+  "name": "T.TEST",
+  "category": "statistical",
+  "syntax": "T.TEST(array1, array2, tails, type)",
+  "example": "=T.TEST(A2:A10, B2:B10, 2, 1)"
+ },
+ {
+  "name": "TAKE",
+  "category": "lookup",
+  "syntax": "TAKE(array, rows, [columns])",
+  "example": "=TAKE(A1:D10, 3)"
+ },
+ {
+  "name": "TAN",
+  "category": "math",
+  "syntax": "TAN(number)",
+  "example": "=TAN(PI()/4)"
+ },
+ {
+  "name": "TANH",
+  "category": "math",
+  "syntax": "TANH(number)",
+  "example": "=TANH(0.5)"
+ },
+ {
+  "name": "TBILLEQ",
+  "category": "financial",
+  "syntax": "TBILLEQ(settlement, maturity, discount)",
+  "example": "=TBILLEQ(A2, A3, 0.0914)"
+ },
+ {
+  "name": "TBILLPRICE",
+  "category": "financial",
+  "syntax": "TBILLPRICE(settlement, maturity, discount)",
+  "example": "=TBILLPRICE(A2, A3, 0.09)"
+ },
+ {
+  "name": "TBILLYIELD",
+  "category": "financial",
+  "syntax": "TBILLYIELD(settlement, maturity, pr)",
+  "example": "=TBILLYIELD(A2, A3, 98.45)"
+ },
+ {
+  "name": "TDIST",
+  "category": "compatibility",
+  "syntax": "TDIST(x, deg_freedom, tails)",
+  "example": "=TDIST(1.96, 60, 2)"
+ },
+ {
+  "name": "TEXT",
+  "category": "text",
+  "syntax": "TEXT(value, format_text)",
+  "example": "=TEXT(A1, \"yyyy-mm-dd\")"
+ },
+ {
+  "name": "TEXTAFTER",
+  "category": "text",
+  "syntax": "TEXTAFTER(text, delimiter, [instance_num], [match_mode], [match_end], [if_not_found])",
+  "example": "=TEXTAFTER(A1, \"@\")"
+ },
+ {
+  "name": "TEXTBEFORE",
+  "category": "text",
+  "syntax": "TEXTBEFORE(text, delimiter, [instance_num], [match_mode], [match_end], [if_not_found])",
+  "example": "=TEXTBEFORE(A1, \"@\")"
+ },
+ {
+  "name": "TEXTJOIN",
+  "category": "text",
+  "syntax": "TEXTJOIN(delimiter, ignore_empty, text1, [text2], …)",
+  "example": "=TEXTJOIN(\", \", TRUE, A1:A5)"
+ },
+ {
+  "name": "TEXTSPLIT",
+  "category": "text",
+  "syntax": "TEXTSPLIT(text, col_delimiter, [row_delimiter], [ignore_empty], [match_mode], [pad_with])",
+  "example": "=TEXTSPLIT(A1, \",\")"
+ },
+ {
+  "name": "TIME",
+  "category": "dateTime",
+  "syntax": "TIME(hour, minute, second)",
+  "example": "=TIME(14, 30, 0)"
+ },
+ {
+  "name": "TIMEVALUE",
+  "category": "dateTime",
+  "syntax": "TIMEVALUE(time_text)",
+  "example": "=TIMEVALUE(\"6:45 PM\")"
+ },
+ {
+  "name": "TINV",
+  "category": "compatibility",
+  "syntax": "TINV(probability, deg_freedom)",
+  "example": "=TINV(0.05, 60)"
+ },
+ {
+  "name": "TOCOL",
+  "category": "lookup",
+  "syntax": "TOCOL(array, [ignore], [scan_by_column])",
+  "example": "=TOCOL(A1:C3)"
+ },
+ {
+  "name": "TODAY",
+  "category": "dateTime",
+  "syntax": "TODAY()",
+  "example": "=TODAY()"
+ },
+ {
+  "name": "TOROW",
+  "category": "lookup",
+  "syntax": "TOROW(array, [ignore], [scan_by_column])",
+  "example": "=TOROW(A1:C3)"
+ },
+ {
+  "name": "TRANSPOSE",
+  "category": "lookup",
+  "syntax": "TRANSPOSE(array)",
+  "example": "=TRANSPOSE(A1:C2)"
+ },
+ {
+  "name": "TREND",
+  "category": "statistical",
+  "syntax": "TREND(known_y's, [known_x's], [new_x's], [const])",
+  "example": "=TREND(B2:B10, A2:A10, A11:A12)"
+ },
+ {
+  "name": "TRIM",
+  "category": "text",
+  "syntax": "TRIM(text)",
+  "example": "=TRIM(A1)"
+ },
+ {
+  "name": "TRIMMEAN",
+  "category": "statistical",
+  "syntax": "TRIMMEAN(array, percent)",
+  "example": "=TRIMMEAN(A2:A20, 0.2)"
+ },
+ {
+  "name": "TRIMRANGE",
+  "category": "lookup",
+  "syntax": "TRIMRANGE(range, [trim_rows], [trim_cols])",
+  "example": "=TRIMRANGE(A1:D100)"
+ },
+ {
+  "name": "TRUE",
+  "category": "logical",
+  "syntax": "TRUE()",
+  "example": "=TRUE()"
+ },
+ {
+  "name": "TRUNC",
+  "category": "math",
+  "syntax": "TRUNC(number, [num_digits])",
+  "example": "=TRUNC(A2, 2)"
+ },
+ {
+  "name": "TTEST",
+  "category": "compatibility",
+  "syntax": "TTEST(array1, array2, tails, type)",
+  "example": "=TTEST(A2:A10, B2:B10, 2, 1)"
+ },
+ {
+  "name": "TYPE",
+  "category": "information",
+  "syntax": "TYPE(value)",
+  "example": "=TYPE(A1)"
+ },
+ {
+  "name": "UNICHAR",
+  "category": "text",
+  "syntax": "UNICHAR(number)",
+  "example": "=UNICHAR(9731)"
+ },
+ {
+  "name": "UNICODE",
+  "category": "text",
+  "syntax": "UNICODE(text)",
+  "example": "=UNICODE(\"A\")"
+ },
+ {
+  "name": "UNIQUE",
+  "category": "lookup",
+  "syntax": "UNIQUE(array, [by_col], [exactly_once])",
+  "example": "=UNIQUE(A2:A100)"
+ },
+ {
+  "name": "UPPER",
+  "category": "text",
+  "syntax": "UPPER(text)",
+  "example": "=UPPER(A1)"
+ },
+ {
+  "name": "USDOLLAR",
+  "category": "text",
+  "syntax": "USDOLLAR(number, [decimals])",
+  "example": "=USDOLLAR(A1, 2)"
+ },
+ {
+  "name": "VALUE",
+  "category": "text",
+  "syntax": "VALUE(text)",
+  "example": "=VALUE(\"123.45\")"
+ },
+ {
+  "name": "VALUETOTEXT",
+  "category": "text",
+  "syntax": "VALUETOTEXT(value, [format])",
+  "example": "=VALUETOTEXT(A1, 1)"
+ },
+ {
+  "name": "VAR",
+  "category": "compatibility",
+  "syntax": "VAR(number1, [number2], …)",
+  "example": "=VAR(A2:A10)"
+ },
+ {
+  "name": "VAR.P",
+  "category": "statistical",
+  "syntax": "VAR.P(number1, [number2], …)",
+  "example": "=VAR.P(A2:A10)"
+ },
+ {
+  "name": "VAR.S",
+  "category": "statistical",
+  "syntax": "VAR.S(number1, [number2], …)",
+  "example": "=VAR.S(A2:A10)"
+ },
+ {
+  "name": "VARA",
+  "category": "statistical",
+  "syntax": "VARA(value1, [value2], …)",
+  "example": "=VARA(A2:A10)"
+ },
+ {
+  "name": "VARP",
+  "category": "compatibility",
+  "syntax": "VARP(number1, [number2], …)",
+  "example": "=VARP(A2:A10)"
+ },
+ {
+  "name": "VARPA",
+  "category": "statistical",
+  "syntax": "VARPA(value1, [value2], …)",
+  "example": "=VARPA(A2:A10)"
+ },
+ {
+  "name": "VDB",
+  "category": "financial",
+  "syntax": "VDB(cost, salvage, life, start_period, end_period, [factor], [no_switch])",
+  "example": "=VDB(2400, 300, 10, 0, 1)"
+ },
+ {
+  "name": "VLOOKUP",
+  "category": "lookup",
+  "syntax": "VLOOKUP(lookup_value, table_array, col_index_num, [range_lookup])",
+  "example": "=VLOOKUP(\"Pear\", A2:C10, 3, FALSE)"
+ },
+ {
+  "name": "VSTACK",
+  "category": "lookup",
+  "syntax": "VSTACK(array1, [array2], …)",
+  "example": "=VSTACK(A1:C5, A10:C15)"
+ },
+ {
+  "name": "WEEKDAY",
+  "category": "dateTime",
+  "syntax": "WEEKDAY(serial_number, [return_type])",
+  "example": "=WEEKDAY(A2, 2)"
+ },
+ {
+  "name": "WEEKNUM",
+  "category": "dateTime",
+  "syntax": "WEEKNUM(serial_number, [return_type])",
+  "example": "=WEEKNUM(A2, 2)"
+ },
+ {
+  "name": "WEIBULL",
+  "category": "compatibility",
+  "syntax": "WEIBULL(x, alpha, beta, cumulative)",
+  "example": "=WEIBULL(105, 20, 100, TRUE)"
+ },
+ {
+  "name": "WEIBULL.DIST",
+  "category": "statistical",
+  "syntax": "WEIBULL.DIST(x, alpha, beta, cumulative)",
+  "example": "=WEIBULL.DIST(105, 20, 100, TRUE)"
+ },
+ {
+  "name": "WORKDAY",
+  "category": "dateTime",
+  "syntax": "WORKDAY(start_date, days, [holidays])",
+  "example": "=WORKDAY(A2, 10, C2:C10)"
+ },
+ {
+  "name": "WORKDAY.INTL",
+  "category": "dateTime",
+  "syntax": "WORKDAY.INTL(start_date, days, [weekend], [holidays])",
+  "example": "=WORKDAY.INTL(A2, 10, 7)"
+ },
+ {
+  "name": "WRAPCOLS",
+  "category": "lookup",
+  "syntax": "WRAPCOLS(vector, wrap_count, [pad_with])",
+  "example": "=WRAPCOLS(A1:A12, 4)"
+ },
+ {
+  "name": "WRAPROWS",
+  "category": "lookup",
+  "syntax": "WRAPROWS(vector, wrap_count, [pad_with])",
+  "example": "=WRAPROWS(A1:A12, 4)"
+ },
+ {
+  "name": "XIRR",
+  "category": "financial",
+  "syntax": "XIRR(values, dates, [guess])",
+  "example": "=XIRR(A2:A6, B2:B6)"
+ },
+ {
+  "name": "XLOOKUP",
+  "category": "lookup",
+  "syntax": "XLOOKUP(lookup_value, lookup_array, return_array, [if_not_found], [match_mode], [search_mode])",
+  "example": "=XLOOKUP(E2, A2:A10, C2:C10, \"Not found\")"
+ },
+ {
+  "name": "XMATCH",
+  "category": "lookup",
+  "syntax": "XMATCH(lookup_value, lookup_array, [match_mode], [search_mode])",
+  "example": "=XMATCH(\"Pear\", A2:A10)"
+ },
+ {
+  "name": "XNPV",
+  "category": "financial",
+  "syntax": "XNPV(rate, values, dates)",
+  "example": "=XNPV(0.09, A2:A6, B2:B6)"
+ },
+ {
+  "name": "XOR",
+  "category": "logical",
+  "syntax": "XOR(logical1, [logical2], …)",
+  "example": "=XOR(A1>0, B1>0)"
+ },
+ {
+  "name": "YEAR",
+  "category": "dateTime",
+  "syntax": "YEAR(serial_number)",
+  "example": "=YEAR(A2)"
+ },
+ {
+  "name": "YEARFRAC",
+  "category": "dateTime",
+  "syntax": "YEARFRAC(start_date, end_date, [basis])",
+  "example": "=YEARFRAC(A2, B2)"
+ },
+ {
+  "name": "YIELD",
+  "category": "financial",
+  "syntax": "YIELD(settlement, maturity, rate, pr, redemption, frequency, [basis])",
+  "example": "=YIELD(A2, A3, 0.0575, 95.04287, 100, 2, 0)"
+ },
+ {
+  "name": "YIELDDISC",
+  "category": "financial",
+  "syntax": "YIELDDISC(settlement, maturity, pr, redemption, [basis])",
+  "example": "=YIELDDISC(A2, A3, 99.795, 100, 2)"
+ },
+ {
+  "name": "YIELDMAT",
+  "category": "financial",
+  "syntax": "YIELDMAT(settlement, maturity, issue, rate, pr, [basis])",
+  "example": "=YIELDMAT(A2, A3, A4, 0.0625, 100.0123, 0)"
+ },
+ {
+  "name": "Z.TEST",
+  "category": "statistical",
+  "syntax": "Z.TEST(array, x, [sigma])",
+  "example": "=Z.TEST(A2:A11, 4)"
+ },
+ {
+  "name": "ZTEST",
+  "category": "compatibility",
+  "syntax": "ZTEST(array, x, [sigma])",
+  "example": "=ZTEST(A2:A11, 4)"
+ }
+]
