@@ -1,5 +1,17 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+
+private typealias PreviewColor = UIColor
+private typealias PreviewFont = UIFont
+#else
+import AppKit
+import ImageIO
+import UniformTypeIdentifiers
+
+private typealias PreviewColor = NSColor
+private typealias PreviewFont = NSFont
+#endif
 
 /// Draws the thumbnails Numbers keeps in a document — `preview.jpg` and its
 /// smaller copies, which Files and Numbers show for it — from the workbook as
@@ -24,7 +36,7 @@ enum NumbersPreview {
         guard !canvas.tables.isEmpty else { return [:] }
         var previews: [String: Data] = [:]
         for (name, original) in originals {
-            guard let image = UIImage(data: original)?.cgImage, image.width > 0, image.height > 0,
+            guard let image = cgImage(from: original), image.width > 0, image.height > 0,
                   let rendered = canvas.jpeg(width: image.width, height: image.height, background: background(of: image))
             else { continue }
             previews[name] = rendered
@@ -32,9 +44,14 @@ enum NumbersPreview {
         return previews
     }
 
+    private static func cgImage(from data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
     /// The colour of the original's top-left corner, which is the canvas:
     /// white, or black when Numbers drew it in dark mode.
-    private static func background(of image: CGImage) -> UIColor {
+    private static func background(of image: CGImage) -> PreviewColor {
         var pixel = [UInt8](repeating: 0, count: 4)
         guard let corner = image.cropping(to: CGRect(x: 0, y: 0, width: 1, height: 1)),
               let context = CGContext(
@@ -42,7 +59,7 @@ enum NumbersPreview {
                 space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
               ) else { return .white }
         context.draw(corner, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-        return UIColor(red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255, blue: CGFloat(pixel[2]) / 255, alpha: 1)
+        return PreviewColor(red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255, blue: CGFloat(pixel[2]) / 255, alpha: 1)
     }
 }
 
@@ -102,14 +119,19 @@ private struct PreviewCanvas {
         return min(Self.maximumScale, size.width / (right + Self.margin))
     }
 
-    func jpeg(width: Int, height: Int, background: UIColor) -> Data? {
+    func jpeg(width: Int, height: Int, background: PreviewColor) -> Data? {
         let size = CGSize(width: width, height: height)
         let scale = scale(for: size)
         guard scale > 0 else { return nil }
         var white: CGFloat = 1
+        #if canImport(UIKit)
         background.getWhite(&white, alpha: nil)
+        #else
+        background.usingColorSpace(.genericGray)?.getWhite(&white, alpha: nil)
+        #endif
         let scheme: ColorScheme = white < 0.5 ? .dark : .light
 
+        #if canImport(UIKit)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
@@ -124,20 +146,47 @@ private struct PreviewCanvas {
             }
         }
         return image.jpegData(compressionQuality: 0.8)
+        #else
+        // Drawn top-down, as UIKit draws, so the layout below is the same.
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else { return nil }
+        context.translateBy(x: 0, y: size.height)
+        context.scaleBy(x: 1, y: -1)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        context.setFillColor(background.cgColor)
+        context.fill(CGRect(origin: .zero, size: size))
+        context.scaleBy(x: scale, y: scale)
+        let visible = CGRect(x: 0, y: 0, width: size.width / scale, height: size.height / scale)
+        for table in tables {
+            draw(table, visible: visible, scheme: scheme, in: context)
+        }
+        NSGraphicsContext.restoreGraphicsState()
+
+        guard let image = context.makeImage() else { return nil }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return data as Data
+        #endif
     }
 
     // MARK: - Drawing
 
     private func draw(_ table: Table, visible: CGRect, scheme: ColorScheme, in context: CGContext) {
         let sheet = table.sheet
-        let ink: UIColor = scheme == .dark ? .white : .black
-        let gridLine = UIColor(white: scheme == .dark ? 0.45 : 0.75, alpha: 1)
+        let ink: PreviewColor = scheme == .dark ? .white : .black
+        let gridLine = PreviewColor(white: scheme == .dark ? 0.45 : 0.75, alpha: 1)
         // The canvas follows the original preview; the cells' own colours
         // follow the table, which may have been made dark already.
         let palette = sheet.colorScheme(for: scheme)
 
         if let name = table.name, !name.isEmpty {
-            let font = UIFont(name: "HelveticaNeue", size: Self.nameFontSize) ?? .systemFont(ofSize: Self.nameFontSize)
+            let font = PreviewFont(name: "HelveticaNeue", size: Self.nameFontSize) ?? .systemFont(ofSize: Self.nameFontSize)
             let text = NSAttributedString(string: name, attributes: [.font: font, .foregroundColor: ink])
             let measured = text.size()
             let x = table.origin.x + (Self.width(of: table) - measured.width) / 2
@@ -194,7 +243,7 @@ private struct PreviewCanvas {
 
         for box in boxes {
             if let fill = sheet[box.address].style.fillColor(for: palette) {
-                context.setFillColor(UIColor(fill).cgColor)
+                context.setFillColor(PreviewColor(fill).cgColor)
                 context.fill(box.frame)
             }
         }
@@ -212,18 +261,28 @@ private struct PreviewCanvas {
         }
     }
 
-    private func drawText(of cell: Cell, in frame: CGRect, ink: UIColor, scheme: ColorScheme, context: CGContext) {
+    private func drawText(of cell: Cell, in frame: CGRect, ink: PreviewColor, scheme: ColorScheme, context: CGContext) {
         let text = CellFormatter.displayText(for: cell)
         guard !text.isEmpty else { return }
         let style = cell.style
-        var font = UIFont(name: style.fontName, size: style.fontSize) ?? .systemFont(ofSize: style.fontSize)
+        var font = PreviewFont(name: style.fontName, size: style.fontSize) ?? .systemFont(ofSize: style.fontSize)
+        #if canImport(UIKit)
         var traits: UIFontDescriptor.SymbolicTraits = []
         if style.isBold { traits.insert(.traitBold) }
         if style.isItalic { traits.insert(.traitItalic) }
         if !traits.isEmpty, let descriptor = font.fontDescriptor.withSymbolicTraits(traits) {
             font = UIFont(descriptor: descriptor, size: style.fontSize)
         }
-        let color: UIColor = cell.value.errorValue != nil ? .systemRed : style.textColor(for: scheme).map { UIColor($0) } ?? ink
+        #else
+        var traits: NSFontDescriptor.SymbolicTraits = []
+        if style.isBold { traits.insert(.bold) }
+        if style.isItalic { traits.insert(.italic) }
+        if !traits.isEmpty {
+            font = NSFont(descriptor: font.fontDescriptor.withSymbolicTraits(traits), size: style.fontSize) ?? font
+        }
+        #endif
+        let color: PreviewColor = cell.value.errorValue != nil
+            ? .systemRed : style.textColor(for: scheme).map { PreviewColor($0) } ?? ink
 
         let paragraph = NSMutableParagraphStyle()
         let horizontal = style.horizontalAlignment == .automatic
@@ -260,9 +319,9 @@ private struct PreviewCanvas {
         context.restoreGState()
     }
 
-    private func drawBorders(of style: CellStyle, in frame: CGRect, ink: UIColor, scheme: ColorScheme, context: CGContext) {
+    private func drawBorders(of style: CellStyle, in frame: CGRect, ink: PreviewColor, scheme: ColorScheme, context: CGContext) {
         for (edge, side) in style.borderSides {
-            let color = AdaptiveColor.resolve(hex: side.colorHex, for: scheme, isText: true).map { UIColor($0) } ?? ink
+            let color = AdaptiveColor.resolve(hex: side.colorHex, for: scheme, isText: true).map { PreviewColor($0) } ?? ink
             context.setStrokeColor(color.cgColor)
             context.setLineWidth(side.lineStyle.lineWidth)
             switch edge {
