@@ -20,6 +20,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Ahead of the first window: the document controller has to exist
         // before anything asks for `NSDocumentController.shared`.
         _ = DocumentController.shared
+        #if DEBUG
+        if let stage = ScreenshotStage.requested {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { ScreenshotStage.stage(stage) }
+        }
+        #endif
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { true }
