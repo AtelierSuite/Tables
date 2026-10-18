@@ -491,6 +491,9 @@ final class GridView: NSView, NSTextFieldDelegate {
                                isResizable: true, keepsAspectRatio: false)
                 view.onSelect = { [weak self] in self?.selectObject(chart: chart.id) }
                 view.onCommit = { [weak self] frame in self?.moveObject(chart: chart.id, to: frame) }
+                view.onDoubleClick = { [weak self] in
+                    NSApp.sendAction(#selector(WorkbookViewController.editChart(_:)), to: nil, from: self)
+                }
                 view.menu = chartMenu()
             }
         }
@@ -512,6 +515,7 @@ final class GridView: NSView, NSTextFieldDelegate {
                            keepsAspectRatio: anchor.locks.noChangeAspect)
             view.onSelect = { [weak self] in self?.selectObject(drawing: anchor.id) }
             view.onCommit = { [weak self] frame in self?.moveObject(drawing: anchor.id, to: frame) }
+            view.onDoubleClick = {}
             view.menu = nil
         }
         for (key, view) in objectViews where !wanted.contains(key) {
@@ -550,6 +554,8 @@ final class GridView: NSView, NSTextFieldDelegate {
 
     private func chartMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.addItem(MainMenu.item(String(localized: "Toolbar.EditChart"),
+                                   #selector(WorkbookViewController.editChart(_:))))
         menu.addItem(MainMenu.item(String(localized: "Mac.Menu.MoveChartToSheet"),
                                    #selector(WorkbookViewController.moveChartToNewSheet(_:))))
         menu.addItem(.separator())

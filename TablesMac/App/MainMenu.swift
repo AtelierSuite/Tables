@@ -128,6 +128,7 @@ enum MainMenu {
             charts.addItem(entry)
         }
         menu.addItem(submenu(charts))
+        menu.addItem(item(String(localized: "Toolbar.EditChart"), #selector(WorkbookViewController.editChart(_:))))
         let functions = NSMenu(title: String(localized: "Toolbar.InsertFunction"))
         for name in ["SUM", "AVERAGE", "COUNT", "MIN", "MAX"] {
             let entry = item(name, #selector(WorkbookViewController.insertFunction(_:)))

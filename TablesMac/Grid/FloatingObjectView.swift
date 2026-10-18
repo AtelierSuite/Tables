@@ -12,6 +12,7 @@ final class FloatingObjectView: NSView {
     let content: NSView
     var onSelect: () -> Void = {}
     var onCommit: (CGRect) -> Void = { _ in }
+    var onDoubleClick: () -> Void = {}
 
     private var isSelected = false
     private var isMovable = true
@@ -95,6 +96,10 @@ final class FloatingObjectView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         onSelect()
+        if event.clickCount == 2 {
+            onDoubleClick()
+            return
+        }
         let point = superview?.convert(event.locationInWindow, from: nil) ?? .zero
         let local = convert(event.locationInWindow, from: nil)
         if isResizable, handleRect.insetBy(dx: -4, dy: -4).contains(local) {

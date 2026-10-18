@@ -272,6 +272,16 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         edit { $0.insertChart(kind, in: &$1) }
     }
 
+    @objc func editChart(_ sender: Any?) {
+        guard let document else { return }
+        let state = document.state
+        if state.selectedChartID == nil, document.activeSheet.isChartSheet {
+            state.selectChart(document.activeSheet.charts.first?.id)
+        }
+        state.presentedPanel = .chart
+        document.notify()
+    }
+
     @objc func moveChartToNewSheet(_ sender: Any?) { edit { $0.moveSelectedChartToNewSheet(in: &$1) } }
 
     @objc func insertFunction(_ sender: Any?) {
@@ -460,6 +470,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             return isCells && state.allowsInsertingAndDeleting
         case #selector(insertChart(_:)):
             return isCells && !document.isPlainText && !document.isNumbers
+        case #selector(editChart(_:)):
+            return state.selectedChartID != nil || (sheet.isChartSheet && !sheet.charts.isEmpty)
         case #selector(moveChartToNewSheet(_:)):
             return isCells && state.selectedChartID != nil
         case #selector(deleteSheet(_:)), #selector(hideSheet(_:)):
