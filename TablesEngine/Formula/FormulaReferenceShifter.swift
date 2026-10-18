@@ -158,6 +158,81 @@ public enum FormulaReferenceShifter {
         return result
     }
 
+    /// Rewrites a formula after the cells in `source` were dragged by
+    /// `rowDelta` and `columnDelta`, as Excel's move does: a reference that
+    /// lies wholly inside the moved block follows it, anchored or not, and
+    /// every other reference stays where it was.
+    public static func moved(
+        _ formula: String, from source: CellRange, rowDelta: Int, columnDelta: Int, scope: Scope? = nil
+    ) -> String {
+        let box = source.normalized
+        let characters = Array(formula)
+        var result = ""
+        var index = 0
+        var quote: Character?
+        func placed(_ token: ReferenceToken) -> String {
+            var token = token
+            if let row = Int(token.rowDigits), let column = CellAddress.columnIndex(token.columnLetters) {
+                token.rowDigits = String(row + rowDelta)
+                token.columnLetters = CellAddress.columnName(column + columnDelta)
+            }
+            return render(token)
+        }
+        func isInside(_ token: ReferenceToken) -> Bool {
+            guard let row = Int(token.rowDigits), let column = CellAddress.columnIndex(token.columnLetters) else { return false }
+            return box.contains(CellAddress(row: row - 1, column: column))
+        }
+
+        while index < characters.count {
+            let character = characters[index]
+            if let open = quote {
+                result.append(character)
+                if character == open { quote = nil }
+                index += 1
+                continue
+            }
+            if character == "\"" || character == "'" || character == "[" {
+                quote = character == "[" ? "]" : character
+                result.append(character)
+                index += 1
+                continue
+            }
+            if let span = scanLineSpan(characters, from: index) {
+                result += String(characters[index..<span.endIndex])
+                index = span.endIndex
+                continue
+            }
+            guard let token = scanReference(characters, from: index) else {
+                result.append(character)
+                index += 1
+                continue
+            }
+            var lookahead = token.end
+            while lookahead < characters.count, characters[lookahead] == " " { lookahead += 1 }
+            let isFunctionName = lookahead < characters.count && characters[lookahead] == "("
+            let previous = index > 0 ? characters[index - 1] : " "
+            let isSuffixOfWord = previous.isLetter || previous.isNumber || previous == "_"
+            guard !isFunctionName, !isSuffixOfWord, scope?.covers(sheetName(before: index, in: characters)) ?? true else {
+                result += String(characters[index..<token.end])
+                index = token.end
+                continue
+            }
+            // A range follows only when both its corners were moved.
+            if token.end < characters.count, characters[token.end] == ":",
+               let end = scanReference(characters, from: token.end + 1) {
+                let follows = isInside(token) && isInside(end)
+                result += follows
+                    ? placed(token) + ":" + placed(end)
+                    : String(characters[index..<end.end])
+                index = end.end
+                continue
+            }
+            result += isInside(token) ? placed(token) : String(characters[index..<token.end])
+            index = token.end
+        }
+        return result
+    }
+
     // MARK: - Reference scanning
 
     /// The sheet named in front of a reference starting at `start`, as in
