@@ -29,6 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { true }
 
+    @objc func showFunctionReference(_ sender: Any?) {
+        FunctionReferenceWindowController.shared.showWindow(sender)
+    }
+
     @objc func showMacroHelp(_ sender: Any?) {
         MacroHelpWindowController.shared.showWindow(sender)
     }

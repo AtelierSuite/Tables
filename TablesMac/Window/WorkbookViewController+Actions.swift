@@ -289,6 +289,14 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         edit { $0.insertAggregate(name, in: &$1) }
     }
 
+    /// Starts a function from the function reference: in the formula being
+    /// typed, where the caret is, or else as a new formula in the selected cell.
+    @objc func startFunction(_ sender: Any?) {
+        guard let name = representedString(sender) else { return }
+        view.window?.makeKeyAndOrderFront(nil)
+        grid.startFunction(name)
+    }
+
     // MARK: - Find
 
     /// The Edit ▸ Find items: show the bar, step through matches, or look

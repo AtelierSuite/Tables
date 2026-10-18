@@ -278,6 +278,7 @@ enum MainMenu {
 
     private static func helpMenu() -> NSMenu {
         let menu = NSMenu(title: String(localized: "Mac.Menu.Help"))
+        menu.addItem(item(String(localized: "FunctionReference.Title"), #selector(AppDelegate.showFunctionReference(_:))))
         menu.addItem(item(String(localized: "Help.Title"), #selector(AppDelegate.showMacroHelp(_:))))
         return menu
     }

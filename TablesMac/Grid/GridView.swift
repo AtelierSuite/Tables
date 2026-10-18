@@ -541,6 +541,19 @@ final class GridView: NSView, NSTextFieldDelegate {
         }
     }
 
+    /// Starts a function: into the formula being typed, at the caret, or
+    /// else as a new formula in the selected cell.
+    func startFunction(_ name: String) {
+        guard let document else { return }
+        if document.state.isEnteringFormula, let field = window?.firstResponder as? NSTextView {
+            field.insertText(name + "(", replacementRange: field.selectedRange())
+            return
+        }
+        if document.state.editingAddress != nil { commitEditing(then: nil) }
+        window?.makeFirstResponder(self)
+        beginEditing(at: document.state.selectedAddress, seed: "=" + name + "(")
+    }
+
     /// Writes what was typed into the cell and moves on.
     func commitEditing(then direction: EditorState.MoveDirection?) {
         guard let document, document.state.editingAddress != nil else { return }
