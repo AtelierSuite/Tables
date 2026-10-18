@@ -33,15 +33,3 @@ final class HostedWorkbook {
         )
     }
 }
-
-/// The chart editor shared with the iPhone and iPad, in a popover by the chart.
-struct ChartEditor: View {
-    let model: HostedWorkbook
-    let state: EditorState
-
-    var body: some View {
-        ChartPanel(workbook: model.binding, state: state)
-            .formStyle(.grouped)
-            .frame(width: 380, height: 560)
-    }
-}

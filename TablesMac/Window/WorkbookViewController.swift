@@ -27,9 +27,6 @@ final class WorkbookViewController: NSViewController {
     var colorTarget = ColorTarget.fill
     /// The popover the comment on the selected cell is shown in.
     var commentPopover: NSPopover?
-    /// The popover the selected chart is edited in.
-    var chartPopover: NSPopover?
-    var hostedWorkbook: HostedWorkbook?
     /// The workbook's macros window, once opened.
     var macrosWindow: MacrosWindowController?
     /// Whether the user agreed to run this workbook's macros.
@@ -156,7 +153,6 @@ final class WorkbookViewController: NSViewController {
         view.window?.invalidateCursorRects(for: rowHeader ?? view)
         updateTitleSubtitle(for: sheet)
         syncCommentPopover(in: document)
-        syncChartPopover(in: document)
         showErrorIfNeeded(in: document)
     }
 
@@ -223,34 +219,6 @@ final class WorkbookViewController: NSViewController {
         commentPopover = popover
     }
 
-    // MARK: - Charts
-
-    /// Shows the chart editor while the session asks for it, beside the
-    /// selected chart, or filling in for a chart sheet's.
-    private func syncChartPopover(in document: WorkbookDocument) {
-        let state = document.state
-        hostedWorkbook?.refresh()
-        guard state.presentedPanel == .chart, let chart = state.selectedChart(in: document.workbook) else {
-            if let popover = chartPopover, popover.isShown { popover.close() }
-            return
-        }
-        guard chartPopover?.isShown != true else { return }
-        let model = hostedWorkbook ?? HostedWorkbook(document: document)
-        hostedWorkbook = model
-        let popover = NSPopover()
-        popover.contentViewController = NSHostingController(rootView: ChartEditor(model: model, state: state))
-        popover.behavior = .semitransient
-        popover.delegate = self
-        if document.activeSheet.isChartSheet {
-            popover.show(relativeTo: chartSheet.bounds, of: chartSheet, preferredEdge: .maxX)
-        } else {
-            let frame = chart.placement.frame(in: state.metrics)
-            grid.scrollToVisible(frame)
-            popover.show(relativeTo: frame, of: grid, preferredEdge: .maxX)
-        }
-        chartPopover = popover
-    }
-
     // MARK: - Zoom
 
     /// Zooms the grid about a point in it, which stays put on screen: the
@@ -303,14 +271,6 @@ final class WorkbookViewController: NSViewController {
 
 extension WorkbookViewController: NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
-        if (notification.object as? NSPopover) === chartPopover, let document {
-            chartPopover = nil
-            if document.state.presentedPanel == .chart {
-                document.state.presentedPanel = nil
-                document.notify()
-            }
-            return
-        }
         guard (notification.object as? NSPopover) === commentPopover, let document else { return }
         commentPopover = nil
         if document.state.presentedPanel == .comment {

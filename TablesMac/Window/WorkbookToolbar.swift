@@ -37,12 +37,13 @@ final class WorkbookToolbar: NSObject, NSToolbarDelegate {
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Item.style, Item.alignment, Item.fill, Item.textColor, Item.numberFormat, Item.borders, .space,
-         Item.function, Item.chart, .flexibleSpace, Item.unsupported]
+         Item.function, Item.chart, .flexibleSpace, Item.unsupported, .inspectorTrackingSeparator, .toggleInspector]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Item.style, Item.alignment, Item.fill, Item.textColor, Item.numberFormat, Item.borders, Item.merge,
-         Item.chart, Item.function, Item.unsupported, .space, .flexibleSpace]
+         Item.chart, Item.function, Item.unsupported, .space, .flexibleSpace,
+         .inspectorTrackingSeparator, .toggleInspector]
     }
 
     func toolbar(

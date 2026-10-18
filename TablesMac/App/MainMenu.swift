@@ -247,6 +247,8 @@ enum MainMenu {
         menu.addItem(item(String(localized: "Mac.Menu.ActualSize"), #selector(WorkbookViewController.actualSize(_:)),
                           "0"))
         menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Mac.Menu.ShowInspector"), #selector(NSSplitViewController.toggleInspector(_:)),
+                          "i", [.command, .option]))
         menu.addItem(item(String(localized: "Mac.Menu.ShowToolbar"), #selector(NSWindow.toggleToolbarShown(_:)),
                           "t", [.command, .option]))
         menu.addItem(item(String(localized: "Mac.Menu.CustomizeToolbar"),
