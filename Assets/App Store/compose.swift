@@ -118,8 +118,8 @@ let macScreenshots = [
     Screenshot(
         name: "01-budget",
         copy: [
-            "en": Copy(header: "Your spreadsheets, on the Mac", caption: "Excel, Numbers and CSV, with formulas and comments"),
-            "ja": Copy(header: "表計算を、Macでも", caption: "Excel・Numbers・CSVを、数式もコメントもそのまま"),
+            "en": Copy(header: "Open any spreadsheet", caption: "Excel, Numbers and CSV, with formulas and comments"),
+            "ja": Copy(header: "どんな表計算も、すぐに開ける", caption: "Excel・Numbers・CSVを、数式もコメントもそのまま"),
         ]
     ),
     Screenshot(
@@ -132,8 +132,8 @@ let macScreenshots = [
     Screenshot(
         name: "03-macros",
         copy: [
-            "en": Copy(header: "Automate with macros", caption: "Write and run VBA, in light or Dark Mode"),
-            "ja": Copy(header: "マクロで自動化", caption: "VBAを書いてすぐ実行、ダークモードにも対応"),
+            "en": Copy(header: "Automate with macros", caption: "Write VBA and run it right beside your sheet"),
+            "ja": Copy(header: "マクロで自動化", caption: "VBAを書いて、シートの横ですぐ実行"),
         ]
     ),
 ]
