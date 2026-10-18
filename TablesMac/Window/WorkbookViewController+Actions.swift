@@ -279,6 +279,28 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         edit { $0.insertAggregate(name, in: &$1) }
     }
 
+    // MARK: - Find
+
+    /// The Edit ▸ Find items: show the bar, step through matches, or look
+    /// for what the selected cell holds.
+    @objc func performFindPanelAction(_ sender: Any?) {
+        let tag = (sender as? NSMenuItem)?.tag ?? Int(NSFindPanelAction.showFindPanel.rawValue)
+        switch NSFindPanelAction(rawValue: UInt(tag)) {
+        case .next?:
+            if findBar.isHidden { setFindBarShown(true) }
+            findBar.findNext()
+        case .previous?:
+            if findBar.isHidden { setFindBarShown(true) }
+            findBar.findPrevious()
+        case .setFindString?:
+            guard let document else { return }
+            findBar.query = CellFormatter.displayText(for: document.activeSheet[document.state.selectedAddress])
+            setFindBarShown(true)
+        default:
+            setFindBarShown(true)
+        }
+    }
+
     // MARK: - Comments
 
     @objc func newComment(_ sender: Any?) { showComment(kind: .thread) }

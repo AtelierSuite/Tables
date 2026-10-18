@@ -92,6 +92,13 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item(String(localized: "Mac.Menu.ClearContents"),
                           #selector(WorkbookViewController.clearContents(_:))))
+        menu.addItem(.separator())
+        let find = NSMenu(title: String(localized: "Toolbar.Find"))
+        find.addItem(findItem(String(localized: "Mac.Menu.Find"), .showFindPanel, "f"))
+        find.addItem(findItem(String(localized: "Mac.Menu.FindNext"), .next, "g"))
+        find.addItem(findItem(String(localized: "Mac.Menu.FindPrevious"), .previous, "g", [.command, .shift]))
+        find.addItem(findItem(String(localized: "Mac.Menu.UseSelectionForFind"), .setFindString, "e"))
+        menu.addItem(submenu(find))
         return menu
     }
 
@@ -285,6 +292,15 @@ enum MainMenu {
     ) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         if !key.isEmpty { item.keyEquivalentModifierMask = modifiers }
+        return item
+    }
+
+    private static func findItem(
+        _ title: String, _ action: NSFindPanelAction, _ key: String,
+        _ modifiers: NSEvent.ModifierFlags = .command
+    ) -> NSMenuItem {
+        let item = item(title, #selector(WorkbookViewController.performFindPanelAction(_:)), key, modifiers)
+        item.tag = Int(action.rawValue)
         return item
     }
 

@@ -15,6 +15,8 @@ final class WorkbookViewController: NSViewController {
     let grid = GridView()
     let scrollView = NSScrollView()
     let tabBar = SheetTabBar()
+    let findBar = FindBar()
+    private var findBarHeight: NSLayoutConstraint?
     /// A chart sheet shows its one chart in the grid's place.
     private let chartSheet = ChartContentView()
     private var columnHeader: HeaderRulerView?
@@ -60,7 +62,9 @@ final class WorkbookViewController: NSViewController {
         formulaBar.grid = grid
         grid.formulaBarField = { [weak self] in self?.formulaBar.formulaField }
 
-        for view in [formulaBar, scrollView, chartSheet, tabBar] as [NSView] {
+        findBar.isHidden = true
+        findBar.onClose = { [weak self] in self?.setFindBarShown(false) }
+        for view in [formulaBar, findBar, scrollView, chartSheet, tabBar] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(view)
         }
@@ -69,7 +73,10 @@ final class WorkbookViewController: NSViewController {
             formulaBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             formulaBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             formulaBar.heightAnchor.constraint(equalToConstant: 36),
-            scrollView.topAnchor.constraint(equalTo: formulaBar.bottomAnchor),
+            findBar.topAnchor.constraint(equalTo: formulaBar.bottomAnchor),
+            findBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            findBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: findBar.bottomAnchor),
             scrollView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             // Under the tab bar, which is translucent; insets keep the last row
@@ -84,6 +91,9 @@ final class WorkbookViewController: NSViewController {
             tabBar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             tabBar.heightAnchor.constraint(equalToConstant: Self.tabBarHeight),
         ])
+        let height = findBar.heightAnchor.constraint(equalToConstant: 0)
+        height.isActive = true
+        findBarHeight = height
         view = root
 
         NotificationCenter.default.addObserver(
@@ -96,6 +106,7 @@ final class WorkbookViewController: NSViewController {
         guard let document else { return }
         grid.document = document
         formulaBar.document = document
+        findBar.document = document
         tabBar.document = document
         columnHeader?.document = document
         rowHeader?.document = document
@@ -155,6 +166,14 @@ final class WorkbookViewController: NSViewController {
             document?.state.errorMessage = nil
             self?.presentedError = nil
         }
+    }
+
+    // MARK: - Find
+
+    func setFindBarShown(_ shown: Bool) {
+        findBar.isHidden = !shown
+        findBarHeight?.constant = shown ? 36 : 0
+        view.window?.makeFirstResponder(shown ? findBar.searchField : grid)
     }
 
     // MARK: - Comments
