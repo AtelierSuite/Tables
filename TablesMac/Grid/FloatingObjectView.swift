@@ -28,10 +28,15 @@ final class FloatingObjectView: NSView {
     private static let handleSize: CGFloat = 10
     private static let minimumSize = CGSize(width: 24, height: 24)
 
+    /// The outline and handle, over the content rather than under it: a
+    /// hosted chart draws in a layer of its own above anything drawn here.
+    private let chrome = SelectionChrome()
+
     init(content: NSView) {
         self.content = content
         super.init(frame: .zero)
         addSubview(content)
+        addSubview(chrome)
     }
 
     @available(*, unavailable)
@@ -47,42 +52,21 @@ final class FloatingObjectView: NSView {
         self.keepsAspectRatio = keepsAspectRatio
         if self.isSelected != isSelected {
             self.isSelected = isSelected
-            needsDisplay = true
         }
+        chrome.isSelected = isSelected
+        chrome.isResizable = isResizable
         content.frame = bounds
+        chrome.frame = bounds
     }
 
     override func resizeSubviews(withOldSize oldSize: NSSize) {
         content.frame = bounds
+        chrome.frame = bounds
     }
 
     /// The content is shown, not used: clicks belong to the frame.
     override func hitTest(_ point: NSPoint) -> NSView? {
         frame.contains(point) ? self : nil
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        guard isSelected else { return }
-        NSColor.controlAccentColor.setStroke()
-        let outline = NSBezierPath(rect: bounds.insetBy(dx: 1, dy: 1))
-        outline.lineWidth = 2
-        outline.stroke()
-        if isResizable {
-            NSColor.controlAccentColor.setFill()
-            NSBezierPath(ovalIn: handleRect).fill()
-        }
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        // Drawn over the content, which is a layer-backed hosting view.
-        wantsLayer = true
-        layer?.zPosition = 1
-    }
-
-    override func layout() {
-        super.layout()
-        needsDisplay = true
     }
 
     private var handleRect: CGRect {
@@ -108,7 +92,7 @@ final class FloatingObjectView: NSView {
             gesture = .moving(start: point, frame: frame)
         }
         isSelected = true
-        needsDisplay = true
+        chrome.isSelected = true
         window?.invalidateCursorRects(for: self)
     }
 
@@ -141,6 +125,32 @@ final class FloatingObjectView: NSView {
         case .moving(_, let frame), .resizing(_, let frame): original = frame
         }
         if frame != original { onCommit(frame) }
+    }
+}
+
+/// The outline of a selected object, and the handle that resizes it.
+@MainActor
+private final class SelectionChrome: NSView {
+    var isSelected = false { didSet { if isSelected != oldValue { needsDisplay = true } } }
+    var isResizable = true { didSet { if isResizable != oldValue { needsDisplay = true } } }
+
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard isSelected else { return }
+        NSColor.controlAccentColor.setStroke()
+        let outline = NSBezierPath(rect: bounds.insetBy(dx: 1, dy: 1))
+        outline.lineWidth = 2
+        outline.stroke()
+        guard isResizable else { return }
+        let size: CGFloat = 10
+        let handle = NSBezierPath(ovalIn: CGRect(x: bounds.maxX - size, y: bounds.maxY - size, width: size, height: size))
+        NSColor.controlAccentColor.setFill()
+        handle.fill()
+        NSColor.white.setStroke()
+        handle.lineWidth = 1.5
+        handle.stroke()
     }
 }
 
