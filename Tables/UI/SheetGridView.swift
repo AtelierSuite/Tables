@@ -1051,26 +1051,6 @@ struct SheetGridView: View {
     }
 }
 
-extension Color {
-    /// The paper behind the grid.
-    static let sheetBackground: Color = {
-        #if canImport(UIKit)
-        return Color(uiColor: .systemBackground)
-        #else
-        return Color(nsColor: .textBackgroundColor)
-        #endif
-    }()
-
-    /// The surface the paper sits on, past the last row and column.
-    static let sheetCanvas: Color = {
-        #if canImport(UIKit)
-        return Color(uiColor: .secondarySystemBackground)
-        #else
-        return Color(nsColor: .underPageBackgroundColor)
-        #endif
-    }()
-}
-
 /// A pinch in progress, and the sums that keep the sheet under the fingers.
 ///
 /// Everything here is captured once, when the gesture starts, rather than read
