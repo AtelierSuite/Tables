@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// The source code of a workbook's macros, read out of `vbaProject.bin`.
 ///

@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// One chart floating over the grid.
 struct EmbeddedChartView: View {

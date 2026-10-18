@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// The obfuscation [MS-OVBA] §2.4.3 applies to the protection fields of the
 /// `PROJECT` stream — `CMG`, `DPB` and `GC` — which Office requires to be

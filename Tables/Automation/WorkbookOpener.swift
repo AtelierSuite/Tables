@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 #if canImport(UIKit)
 import UIKit
 #else

@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The files in a workbook's working folder: what its macros wrote, and
 /// what they can read. Files can be shared out or deleted here, and the

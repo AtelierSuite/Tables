@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Guards the places where our files have to satisfy Excel's rules rather than
 /// just our own reader, and the constructs real-world workbooks use that are

@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// How a running macro reaches the user. Each closure is called on the
 /// macro's own thread and may block it while the user answers.

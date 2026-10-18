@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The Human Interface Guidelines system colours, offered as swatches.
 ///

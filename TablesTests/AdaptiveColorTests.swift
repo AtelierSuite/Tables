@@ -1,6 +1,7 @@
 import SwiftUI
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 @Suite("Dark sheet colours")
 struct AdaptiveColorTests {

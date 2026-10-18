@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 @Suite("VBA syntax highlighting")
 struct VBASyntaxHighlighterTests {

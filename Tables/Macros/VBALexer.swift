@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// A lexical unit of VBA source.
 enum VBAToken: Hashable, Sendable {

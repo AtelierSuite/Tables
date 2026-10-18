@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// A Compound File Binary container ([MS-CFB]), the "file system in a file"
 /// that `vbaProject.bin` is. Storages hold streams and further storages, much

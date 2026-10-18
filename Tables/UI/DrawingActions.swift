@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Everything the UI does to the pictures and other objects kept from the
 /// file, alongside what `ChartActions` does to charts.

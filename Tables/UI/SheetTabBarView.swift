@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The bottom strip of worksheet tabs, Numbers-style.
 struct SheetTabBarView: View {

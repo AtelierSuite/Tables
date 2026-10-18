@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The workbook's macros: the ones that can be run, each module's code, and
 /// what the last run printed.

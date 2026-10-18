@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Legacy tolerance for rounded published examples. The executable answer
 /// catalog uses explicit absolute and relative tolerances for each vector.

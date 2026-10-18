@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Form Controls read out of a file, used, and written back.
 @Suite("Form controls")

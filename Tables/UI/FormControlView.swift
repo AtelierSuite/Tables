@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// A Form Control drawn over the sheet, working as it does in Excel: a button
 /// runs its macro, a check box or option button flips and writes its linked

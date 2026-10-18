@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Undo and redo over whole-workbook snapshots, and which changes run
 /// together into one step.

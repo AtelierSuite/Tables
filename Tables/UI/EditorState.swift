@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// A modal panel presented over the grid. iOS shows these as sheets; macOS uses
 /// popovers anchored to the toolbar.

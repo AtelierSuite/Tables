@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// One entry in a row or column header menu, described independently of how it
 /// gets presented. SwiftUI renders these for `contextMenu`; the platform bridge

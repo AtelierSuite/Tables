@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Absolute and relative tolerances are separate: small probabilities and yields
 /// must not inherit the absolute error budget of a number near one.

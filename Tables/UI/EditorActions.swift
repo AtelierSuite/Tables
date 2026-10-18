@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Every mutation the UI performs on the document, in one place so the grid,
 /// the toolbars and the keyboard commands all go through the same code.

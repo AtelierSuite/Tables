@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// Anything a macro can hold a reference to: a worksheet, a range, a
 /// collection, an instance of one of the project's own class modules.

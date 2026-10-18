@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// Where each workbook's macros keep their files: a folder of its own under
 /// `Macro Files` in the app's Documents, which on iOS the Files app shows

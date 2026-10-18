@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Cell appearance controls. Shared by the iOS sheet and the macOS popover.
 struct FormatPanel: View {

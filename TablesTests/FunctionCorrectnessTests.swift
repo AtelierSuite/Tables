@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 // Expected values come from Microsoft's documented examples, or are worked out
 // from each function's closed form outside Tables.

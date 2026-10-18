@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Builds a one-sheet workbook from an A1-keyed table of raw entries.
 private func makeFunctionWorkbook(_ entries: [String: String], name: String = "Sheet 1") -> Workbook {

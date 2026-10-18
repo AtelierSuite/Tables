@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		317D24A8764E4AB5861966AE /* TablesEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */; };
+		FF98168D53C00AFB3CFD0A08 /* TablesEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		91663F3BBD98DD230B502B0E /* TablesEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		3F115630021EC31ADC6E8E57 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,12 +27,41 @@
 			remoteGlobalIDString = B5E0D3A3CD0BA21B58F93682;
 			remoteInfo = Tables;
 		};
+		FE16F0D002017232DF6077C2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B01AE064393D90D69F5EE0FC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51499F63C10C90721F67C9C3;
+			remoteInfo = TablesEngine;
+		};
+		BEC5E17CD6312E96DBC418CB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B01AE064393D90D69F5EE0FC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51499F63C10C90721F67C9C3;
+			remoteInfo = TablesEngine;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		608309F10354CD4879B5DB2F /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				FF98168D53C00AFB3CFD0A08 /* TablesEngine.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		41B287FD78EA2B1E6246AFD6 /* Tables.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tables.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BF97AF3DA5F4B947A8CD85C /* TablesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TablesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE5271D8EB17CC946ACCACB0 /* TablesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TablesUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = TablesEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -58,7 +93,38 @@
 			path = TablesUITests;
 			sourceTree = "<group>";
 		};
+		BF4984104936A0280BF267C7 /* TablesEngine */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TablesEngine;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1DEE35A5A22503185C83A8A0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		59067369D87605AC0EB4762D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				317D24A8764E4AB5861966AE /* TablesEngine.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D854F3E69AC9C94CC69275E2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				91663F3BBD98DD230B502B0E /* TablesEngine.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		339F0B18E3B94FC46A9F1503 /* Products */ = {
@@ -67,6 +133,7 @@
 				41B287FD78EA2B1E6246AFD6 /* Tables.app */,
 				8BF97AF3DA5F4B947A8CD85C /* TablesTests.xctest */,
 				BE5271D8EB17CC946ACCACB0 /* TablesUITests.xctest */,
+				05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -77,6 +144,7 @@
 				31E98604CCAC43FBB7F61633 /* Tables */,
 				0EC790874E364CC29A349D30 /* TablesTests */,
 				62752161698B4E119157370C /* TablesUITests */,
+				BF4984104936A0280BF267C7 /* TablesEngine */,
 				339F0B18E3B94FC46A9F1503 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -89,11 +157,13 @@
 			buildConfigurationList = 4048E766303FE976463E8174 /* Build configuration list for PBXNativeTarget "TablesTests" */;
 			buildPhases = (
 				4E5E8FA108BDA988D18FC0D0 /* Sources */,
+				D854F3E69AC9C94CC69275E2 /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				B92002DC5E264D7D5CCD10F1 /* PBXTargetDependency */,
+				F5D207B451903B632118F401 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0EC790874E364CC29A349D30 /* TablesTests */,
@@ -111,10 +181,13 @@
 			buildPhases = (
 				C420ACB29908A5587B77BE03 /* Sources */,
 				EA134A20DFA7254CD2C91BB5 /* Resources */,
+				59067369D87605AC0EB4762D /* Frameworks */,
+				608309F10354CD4879B5DB2F /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CE769069382DDF412992DAF4 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				31E98604CCAC43FBB7F61633 /* Tables */,
@@ -147,6 +220,28 @@
 			productReference = BE5271D8EB17CC946ACCACB0 /* TablesUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		51499F63C10C90721F67C9C3 /* TablesEngine */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F7D870ECA12A45B155B8B578 /* Build configuration list for PBXNativeTarget "TablesEngine" */;
+			buildPhases = (
+				EB932550A65FF0B1080281E3 /* Sources */,
+				1DEE35A5A22503185C83A8A0 /* Frameworks */,
+				CBB10F45AF6B008EF0772182 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BF4984104936A0280BF267C7 /* TablesEngine */,
+			);
+			name = TablesEngine;
+			packageProductDependencies = (
+			);
+			productName = TablesEngine;
+			productReference = 05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */;
+			productType = "com.apple.product-type.framework";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -156,6 +251,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					51499F63C10C90721F67C9C3 = {
+						ProvisioningStyle = Automatic;
+					};
 					328BACD753D0BC4E6CF422ED = {
 						ProvisioningStyle = Automatic;
 					};
@@ -189,12 +287,20 @@
 				B5E0D3A3CD0BA21B58F93682 /* Tables */,
 				328BACD753D0BC4E6CF422ED /* TablesTests */,
 				FF6FE9DC9698D527F22B7894 /* TablesUITests */,
+				51499F63C10C90721F67C9C3 /* TablesEngine */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		EA134A20DFA7254CD2C91BB5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CBB10F45AF6B008EF0772182 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -225,6 +331,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EB932550A65FF0B1080281E3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -237,6 +350,16 @@
 			isa = PBXTargetDependency;
 			target = B5E0D3A3CD0BA21B58F93682 /* Tables */;
 			targetProxy = 79205E2BA687E771CD495B7E /* PBXContainerItemProxy */;
+		};
+		CE769069382DDF412992DAF4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51499F63C10C90721F67C9C3 /* TablesEngine */;
+			targetProxy = FE16F0D002017232DF6077C2 /* PBXContainerItemProxy */;
+		};
+		F5D207B451903B632118F401 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51499F63C10C90721F67C9C3 /* TablesEngine */;
+			targetProxy = BEC5E17CD6312E96DBC418CB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -518,6 +641,94 @@
 			};
 			name = Release;
 		};
+		6B1CD60519AF30C546A1A424 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = YYM4Z6MU8F;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
+				PRODUCT_BUNDLE_IDENTIFIER = com.tsubuzaki.Tables.Engine;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_MODULE = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
+		20F800603C0869AE154765A4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = YYM4Z6MU8F;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
+				PRODUCT_BUNDLE_IDENTIFIER = com.tsubuzaki.Tables.Engine;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_MODULE = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -553,6 +764,15 @@
 			buildConfigurations = (
 				82F3E1FA42FE618D0B2C11B8 /* Debug */,
 				B177AB524771EB2DE4E1E432 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F7D870ECA12A45B155B8B578 /* Build configuration list for PBXNativeTarget "TablesEngine" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B1CD60519AF30C546A1A424 /* Debug */,
+				20F800603C0869AE154765A4 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

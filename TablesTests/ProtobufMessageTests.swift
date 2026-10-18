@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 @Suite("Protocol Buffers messages")
 struct ProtobufMessageTests {

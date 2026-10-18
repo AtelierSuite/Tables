@@ -5,6 +5,7 @@ import UIKit
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 @Suite("Workbook automation")
 struct WorkbookAutomationTests {

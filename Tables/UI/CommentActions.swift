@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The comment edits the UI makes, alongside the other document mutations.
 extension EditorState {

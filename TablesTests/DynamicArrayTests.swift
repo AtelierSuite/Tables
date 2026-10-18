@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 private func makeSheetWorkbook(_ entries: [String: String]) -> Workbook {
     var sheet = Worksheet(name: "Sheet1")

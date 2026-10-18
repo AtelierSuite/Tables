@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// One cell as the canvas needs it: where it goes and what it holds.
 struct PaintedCell: Equatable, Sendable {

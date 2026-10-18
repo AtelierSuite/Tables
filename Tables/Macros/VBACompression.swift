@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// The run-length scheme of [MS-OVBA] §2.4.1, which every piece of source
 /// text and the `dir` stream in a macro project is stored with.

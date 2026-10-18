@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// A rectangle of cells on one sheet — `Range("A1:B2")`, `Cells(1, 1)`,
 /// `Rows(3)`. Holds only the sheet and the coordinates; every read and

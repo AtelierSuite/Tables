@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Reads, writes and answers the comment on the selected cell.
 ///

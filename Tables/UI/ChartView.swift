@@ -1,6 +1,7 @@
 import Charts
 import ImageIO
 import SwiftUI
+import TablesEngine
 
 /// Draws a `Chart` with Swift Charts.
 ///
@@ -9,7 +10,7 @@ import SwiftUI
 /// it. Sizes follow Excel's defaults, where text is measured in points:
 /// a 14pt title, 9pt labels.
 struct ChartView: View, Equatable {
-    let chart: Chart
+    let chart: TablesEngine.Chart
     let data: ResolvedChart
     /// The grid's zoom, so a chart on the sheet grows with the cells under it.
     var zoom: Double = 1
@@ -399,7 +400,7 @@ private struct CartesianStyle: ViewModifier {
     /// Bar charts lay their categories up the side.
     let categoryIsVertical: Bool
 
-    private var model: Chart { chart.chart }
+    private var model: TablesEngine.Chart { chart.chart }
     private var horizontalAxis: ChartAxis { categoryIsVertical ? model.valueAxis : model.categoryAxis }
     private var verticalAxis: ChartAxis { categoryIsVertical ? model.categoryAxis : model.valueAxis }
 
@@ -467,7 +468,7 @@ private struct ScaleStyle: ViewModifier {
     let chart: ChartView
     let categoryIsVertical: Bool
 
-    private var model: Chart { chart.chart }
+    private var model: TablesEngine.Chart { chart.chart }
 
     func body(content: Content) -> some View {
         let categories = chart.categoryKeysValue

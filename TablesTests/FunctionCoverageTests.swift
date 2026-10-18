@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Every worksheet function in Excel for Microsoft 365.
 let excelFunctionNames: [String] = """

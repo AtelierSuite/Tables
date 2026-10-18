@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Everything the UI does to charts, alongside the cell edits in
 /// `EditorActions`.

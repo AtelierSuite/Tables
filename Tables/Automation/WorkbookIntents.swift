@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import TablesEngine
 import UniformTypeIdentifiers
 
 // MARK: - The workbook passed between actions

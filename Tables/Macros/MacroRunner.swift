@@ -1,5 +1,6 @@
 import Foundation
 import Synchronization
+import TablesEngine
 
 /// Runs a workbook's macros away from the main thread, and carries their
 /// `MsgBox` and `InputBox` questions to the user and the answers back.

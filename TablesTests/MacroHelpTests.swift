@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// The help book makes promises; these hold the interpreter to them.
 @Suite("Macro help")

@@ -1,6 +1,7 @@
 import Testing
 import CoreGraphics
 @testable import Tables
+@testable import TablesEngine
 
 /// Pinch-to-zoom scales the sheet about the fingers rather than about the
 /// top-left corner. That is entirely a matter of where the scroll view is left

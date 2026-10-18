@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The macro help book: how macros run here, and what of VBA and Excel's
 /// objects Tables can run — and plainly, what it cannot. Searching answers

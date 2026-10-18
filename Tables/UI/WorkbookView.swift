@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The document's root view: the grid, the formula bar beneath it, sheet tabs,
 /// and whichever platform chrome belongs on top.

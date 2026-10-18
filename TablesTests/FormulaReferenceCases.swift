@@ -2,6 +2,7 @@
 // Oracles use 70-digit Decimal / exact Fraction and never run Tables.
 import Foundation
 @testable import Tables
+@testable import TablesEngine
 
 let independentFormulaAnswerCases: [FormulaAnswerCase] = [
     .init(function: "SUM", formula: "=SUM({1,2,3})", expected: .number(6.0), relativeTolerance: 2e-11),

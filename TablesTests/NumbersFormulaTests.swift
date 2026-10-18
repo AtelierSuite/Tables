@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Nodes laid out as Numbers writes them, for formulas to be read from.
 enum NumbersNodes {

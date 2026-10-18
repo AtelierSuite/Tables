@@ -1,4 +1,5 @@
 import AppIntents
+import TablesEngine
 
 /// The actions Siri and Spotlight offer by phrase, without a shortcut being built first.
 struct TablesShortcuts: AppShortcutsProvider {

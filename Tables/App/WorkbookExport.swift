@@ -1,5 +1,6 @@
 import CoreTransferable
 import Foundation
+import TablesEngine
 import UniformTypeIdentifiers
 
 /// Wraps a workbook so it can be handed to `ShareLink`. The workbook is written

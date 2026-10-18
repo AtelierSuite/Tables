@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 import UniformTypeIdentifiers
 
 /// The workbook operations Shortcuts actions perform, kept free of App Intents

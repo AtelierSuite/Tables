@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Undo and redo for a document's workbook.
 ///

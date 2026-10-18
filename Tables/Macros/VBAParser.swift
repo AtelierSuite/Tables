@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// Turns the source of one module into its syntax tree.
 struct VBAParser {

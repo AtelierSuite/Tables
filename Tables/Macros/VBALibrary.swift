@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// The functions and constants of the VBA library itself — `Len`, `Mid`,
 /// `DateAdd`, `vbCrLf` — which every host has, spreadsheet or not.

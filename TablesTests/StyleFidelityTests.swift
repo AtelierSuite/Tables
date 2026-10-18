@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Covers style detail real Excel files carry that is easy to flatten:
 /// per-edge border weights, diagonals, alignment indent and rotation, and row

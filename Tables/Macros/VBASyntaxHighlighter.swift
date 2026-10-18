@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// Finds what to colour in VBA source: keywords, comments, strings and
 /// numbers. Deliberately forgiving — it runs on every keystroke, over code

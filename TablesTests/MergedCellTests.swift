@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// Covers the two structural features real workbooks rely on that never reach a
 /// cell's own contents: merged regions and hidden sheets.

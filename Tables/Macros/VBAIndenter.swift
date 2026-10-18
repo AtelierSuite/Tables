@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// What pressing Return does in macro code: the line being finished snaps
 /// to its block's indentation if it closes one — `End Sub` under `Sub`,

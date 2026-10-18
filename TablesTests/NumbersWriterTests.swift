@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 @Suite("Numbers saving")
 struct NumbersWriterTests {

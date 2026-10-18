@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// A host that records links and keys instead of acting on them.
 private final class FileTestHost: VBAHost {

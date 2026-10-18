@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The chart types, as menu items that chart the selection. Shared by the
 /// iOS action bar and the macOS toolbar.

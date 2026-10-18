@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The strip of tables along the top of a Numbers sheet that holds several,
 /// as Numbers shows them: the sheet itself takes one tab at the bottom, and

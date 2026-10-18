@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 // The objects of the Excel object model that Tables can stand behind.
 

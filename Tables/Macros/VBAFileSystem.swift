@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// The files a macro can reach: one folder per workbook, and nothing above
 /// it. Every path a macro gives — relative, absolute, Windows-style with

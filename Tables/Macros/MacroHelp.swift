@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// The contents of the macro help book: what Tables can run and what it
 /// cannot, by topic. Names of things in code stay as VBA spells them; the

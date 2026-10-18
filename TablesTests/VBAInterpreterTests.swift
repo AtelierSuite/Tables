@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
 
 /// A host with no application behind it, recording what the macro said.
 private final class RecordingHost: VBAHost {

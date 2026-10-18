@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Which part of the border box a control is acting on.
 enum BorderTarget: Hashable, Sendable {
