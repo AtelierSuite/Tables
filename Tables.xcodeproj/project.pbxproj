@@ -130,6 +130,11 @@
 			path = TablesMacros;
 			sourceTree = "<group>";
 		};
+		AC879FC4F0871F08B3BCA832 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -189,6 +194,7 @@
 				62752161698B4E119157370C /* TablesUITests */,
 				BF4984104936A0280BF267C7 /* TablesEngine */,
 				0A5E72CA2F857CE60F6E615E /* TablesMacros */,
+				AC879FC4F0871F08B3BCA832 /* Shared */,
 				339F0B18E3B94FC46A9F1503 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -237,6 +243,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				31E98604CCAC43FBB7F61633 /* Tables */,
+				AC879FC4F0871F08B3BCA832 /* Shared */,
 			);
 			name = Tables;
 			packageProductDependencies = (
