@@ -202,5 +202,18 @@ final class WorkbookToolbar: NSObject, NSToolbarDelegate {
         if let warning = toolbar.items.first(where: { $0.itemIdentifier == Item.unsupported }) {
             warning.isHidden = document.unsupportedFeatures.isEmpty
         }
+        // Tools for formatting the document has nowhere to keep — any, in
+        // delimited text — are left out rather than shown switched off.
+        let kept = document.state.formatting
+        for item in toolbar.items {
+            switch item.itemIdentifier {
+            case Item.style, Item.alignment, Item.fill, Item.textColor: item.isHidden = !kept.contains(.styles)
+            case Item.numberFormat: item.isHidden = !kept.contains(.numberFormats)
+            case Item.borders: item.isHidden = !kept.contains(.borders)
+            case Item.merge: item.isHidden = !kept.contains(.merging)
+            case Item.chart: item.isHidden = document.isPlainText || document.isNumbers
+            default: break
+            }
+        }
     }
 }
