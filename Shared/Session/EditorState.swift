@@ -48,6 +48,10 @@ final class EditorState {
     /// The picture or other kept object picked out on the sheet, which can
     /// then be moved, resized or deleted. Never set alongside a chart.
     var selectedDrawingID: PreservedDrawingAnchor.ID?
+    /// Whether the selection shows its fill handles, which touch turns on
+    /// from the cell menu as Numbers does, since its corner grip already
+    /// grows the selection. Picking anything else puts them away.
+    var isAutoFilling = false
 
     /// Distance scrolled from the top-left of the content, insets removed.
     var scrollOffset = CGPoint.zero
@@ -105,6 +109,7 @@ final class EditorState {
     func selectSheet(_ id: Worksheet.ID, in workbook: Workbook) {
         activeSheetID = id
         editingAddress = nil
+        isAutoFilling = false
         selection = CellRange(CellAddress(row: 0, column: 0))
         additionalSelections = []
         anchor = CellAddress(row: 0, column: 0)
@@ -194,6 +199,7 @@ final class EditorState {
     /// Selects a cell, growing the range to cover any merged region it falls
     /// inside so that clicking anywhere in a merge selects the whole of it.
     func select(_ address: CellAddress, extending: Bool = false, in sheet: Worksheet) {
+        isAutoFilling = false
         if extending {
             let raw = CellRange(start: anchor, end: address)
             let expanded = sheet.expandedToMerges(raw)
@@ -212,6 +218,7 @@ final class EditorState {
     /// active one — the multi-range gesture's way in. Everything already
     /// selected stays selected.
     func addRange(startingAt address: CellAddress, in sheet: Worksheet) {
+        isAutoFilling = false
         // Normalized on the way in: the direction a range was dragged in only
         // matters while it is the active one, and two ranges covering the same
         // cells would draw over each other and be edited twice.

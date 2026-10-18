@@ -48,6 +48,13 @@ struct CellMenuBuilder {
                 target()
                 state.paste(in: &workbook.wrappedValue)
             },
+            HeaderMenuAction(
+                title: String(localized: "CellMenu.Autofill"), symbol: "arrow.down.forward.square",
+                isEnabled: !state.hasMultipleSelections
+            ) {
+                target()
+                state.isAutoFilling = true
+            },
         ]
         if state.allowsComments {
             actions.append(.separator)

@@ -31,6 +31,8 @@ struct SheetGridView: View {
     /// The grid point the selection handle started from, in content coordinates.
     /// Non-nil only while the handle is being dragged.
     @State private var handleDragOrigin: CGPoint?
+    /// While a fill handle is dragged, the range letting go would fill.
+    @State private var fillTarget: CellRange?
     /// The last cell tapped and when, so a second tap on it can open the menu.
     @State private var lastTap: (address: CellAddress, time: Date)?
     /// Bumped to raise the cell menu from a double tap or a long press.
@@ -609,7 +611,7 @@ struct SheetGridView: View {
             : state.selection.normalized
         let frame = metrics.frame(for: box)
         let isEditing = state.editingAddress != nil && !state.isEnteringFormula
-        let tint: Color = state.isEnteringFormula ? pointingTint : .accentColor
+        let tint: Color = state.isEnteringFormula ? pointingTint : (state.isAutoFilling ? .yellow : .accentColor)
 
         return ZStack(alignment: .topLeading) {
             // Fill everything but the anchor cell, the way a spreadsheet does.
@@ -637,7 +639,23 @@ struct SheetGridView: View {
         // the grip takes touches.
         .allowsHitTesting(false)
         .overlay(alignment: .bottomTrailing) {
-            if !isEditing { selectionHandle(from: box, tint: tint) }
+            if !isEditing, !state.isAutoFilling { selectionHandle(from: box, tint: tint) }
+        }
+        .overlay(alignment: .bottom) {
+            if state.isAutoFilling, !isEditing { fillHandle(from: box, vertical: true) }
+        }
+        .overlay(alignment: .trailing) {
+            if state.isAutoFilling, !isEditing { fillHandle(from: box, vertical: false) }
+        }
+        .overlay(alignment: .topLeading) {
+            if state.isAutoFilling, let fillTarget {
+                let preview = metrics.frame(for: fillTarget.normalized)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .strokeBorder(Color.yellow, style: StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                    .frame(width: preview.width, height: preview.height)
+                    .offset(x: preview.minX - frame.minX, y: preview.minY - frame.minY)
+                    .allowsHitTesting(false)
+            }
         }
         .offset(x: frame.minX, y: frame.minY)
         // Settling into a new range looks good for keyboard and tap selection,
@@ -686,6 +704,47 @@ struct SheetGridView: View {
             )
             .accessibilityIdentifier("selectionGrip")
             .accessibilityLabel("Grid.ExtendSelection")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// One of the two fill handles autofill puts on the selection's bottom
+    /// and trailing edges, as Numbers does. Dragging one away carries the
+    /// selection's series on along that axis; dragging back in clears cells.
+    private func fillHandle(from box: CellRange, vertical: Bool) -> some View {
+        Image(systemName: vertical ? "chevron.compact.down" : "chevron.compact.right")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.black)
+            .frame(width: vertical ? 34 : 20, height: vertical ? 20 : 34)
+            .glassEffect(.regular.tint(.yellow).interactive(), in: .capsule)
+            .offset(x: vertical ? 0 : 10, y: vertical ? 10 : 0)
+            .contentShape(.rect.inset(by: -14))
+            .gesture(
+                // Measured as a translation in global space, like the grip,
+                // since the handle rides the range it is dragging.
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged { value in
+                        let frame = metrics.frame(for: box)
+                        let origin = handleDragOrigin ?? (vertical
+                            ? CGPoint(x: frame.midX, y: frame.maxY - 1)
+                            : CGPoint(x: frame.maxX - 1, y: frame.midY))
+                        handleDragOrigin = origin
+                        let point = CGPoint(
+                            x: origin.x + value.translation.width, y: origin.y + value.translation.height)
+                        let toward = vertical
+                            ? CellAddress(row: metrics.row(atY: max(0, point.y)), column: box.end.column)
+                            : CellAddress(row: box.end.row, column: metrics.column(atX: max(0, point.x)))
+                        fillTarget = AutoFill.target(extending: box, toward: toward)
+                    }
+                    .onEnded { _ in
+                        handleDragOrigin = nil
+                        defer { fillTarget = nil }
+                        guard let target = fillTarget, target.normalized != box else { return }
+                        state.fillSelection(to: target, in: &workbook)
+                        state.isAutoFilling = false
+                    }
+            )
+            .accessibilityIdentifier(vertical ? "fillHandle.down" : "fillHandle.right")
+            .accessibilityLabel(vertical ? "Grid.FillDown" : "Grid.FillRight")
             .accessibilityAddTraits(.isButton)
     }
 
