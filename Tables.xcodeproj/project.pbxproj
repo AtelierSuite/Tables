@@ -14,6 +14,10 @@
 		BFADF12AB823A1E9E01D432D /* TablesMacros.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 042B9A79DBEFF2742D0492E3 /* TablesMacros.framework */; };
 		BC8D363D92EC129B478CBF7E /* TablesMacros.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 042B9A79DBEFF2742D0492E3 /* TablesMacros.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E9C23EA1AD61C9136B358D68 /* TablesMacros.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 042B9A79DBEFF2742D0492E3 /* TablesMacros.framework */; };
+		8054E1990DC9C91D6C6FE162 /* TablesEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */; };
+		1002B50275DDA1E3C1612849 /* TablesEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4DC6F17CE9F3C722D985FB40 /* TablesMacros.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 042B9A79DBEFF2742D0492E3 /* TablesMacros.framework */; };
+		6D96F7EFF880579D930CDAE4 /* TablesMacros.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 042B9A79DBEFF2742D0492E3 /* TablesMacros.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +70,20 @@
 			remoteGlobalIDString = B4978C40DF22542D3D90538B;
 			remoteInfo = TablesMacros;
 		};
+		2C6D90C293B9B204A2D9248C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B01AE064393D90D69F5EE0FC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51499F63C10C90721F67C9C3;
+			remoteInfo = TablesEngine;
+		};
+		45F9AF0DA099F3DE0BD0AEFE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B01AE064393D90D69F5EE0FC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B4978C40DF22542D3D90538B;
+			remoteInfo = TablesMacros;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -81,6 +99,18 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2FFA8FEBBDA9A63A2077B6E9 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				1002B50275DDA1E3C1612849 /* TablesEngine.framework in Embed Frameworks */,
+				6D96F7EFF880579D930CDAE4 /* TablesMacros.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -89,6 +119,7 @@
 		BE5271D8EB17CC946ACCACB0 /* TablesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TablesUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = TablesEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		042B9A79DBEFF2742D0492E3 /* TablesMacros.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = TablesMacros.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		C17A75E60F9F4FFE4F62E892 /* Tables.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tables.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -98,6 +129,14 @@
 				Support/Info.plist,
 			);
 			target = B5E0D3A3CD0BA21B58F93682 /* Tables */;
+		};
+		E2F93ABF92D00FAE11CB35C9 /* Exceptions for "TablesMac" folder in "Tables for Mac" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Support/Info.plist,
+				Support/TablesMac.entitlements,
+			);
+			target = 23B12061C14375A7294D9F8C /* Tables for Mac */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -133,6 +172,14 @@
 		AC879FC4F0871F08B3BCA832 /* Shared */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		DB059C75A02213E5F1C234F3 /* TablesMac */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E2F93ABF92D00FAE11CB35C9 /* Exceptions for "TablesMac" folder in "Tables for Mac" target */,
+			);
+			path = TablesMac;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -171,6 +218,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		67BEDC1FD18846A57B0B71D0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8054E1990DC9C91D6C6FE162 /* TablesEngine.framework in Frameworks */,
+				4DC6F17CE9F3C722D985FB40 /* TablesMacros.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -182,6 +238,7 @@
 				BE5271D8EB17CC946ACCACB0 /* TablesUITests.xctest */,
 				05EBF70FB71AB5EDCAE31967 /* TablesEngine.framework */,
 				042B9A79DBEFF2742D0492E3 /* TablesMacros.framework */,
+				C17A75E60F9F4FFE4F62E892 /* Tables.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -195,6 +252,7 @@
 				BF4984104936A0280BF267C7 /* TablesEngine */,
 				0A5E72CA2F857CE60F6E615E /* TablesMacros */,
 				AC879FC4F0871F08B3BCA832 /* Shared */,
+				DB059C75A02213E5F1C234F3 /* TablesMac */,
 				339F0B18E3B94FC46A9F1503 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -318,6 +376,32 @@
 			productReference = 042B9A79DBEFF2742D0492E3 /* TablesMacros.framework */;
 			productType = "com.apple.product-type.framework";
 		};
+		23B12061C14375A7294D9F8C /* Tables for Mac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 87B0B231BB40381825F9AB1D /* Build configuration list for PBXNativeTarget "Tables for Mac" */;
+			buildPhases = (
+				13ADEECEDE182E816F844A72 /* Sources */,
+				67BEDC1FD18846A57B0B71D0 /* Frameworks */,
+				125CA422659C43BDEF84FA03 /* Resources */,
+				2FFA8FEBBDA9A63A2077B6E9 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3D792873D33EDB3B29CF88EC /* PBXTargetDependency */,
+				2634D8D4403AB84BC27E984C /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DB059C75A02213E5F1C234F3 /* TablesMac */,
+				AC879FC4F0871F08B3BCA832 /* Shared */,
+			);
+			name = "Tables for Mac";
+			packageProductDependencies = (
+			);
+			productName = "Tables for Mac";
+			productReference = C17A75E60F9F4FFE4F62E892 /* Tables.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -327,6 +411,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					23B12061C14375A7294D9F8C = {
+						ProvisioningStyle = Automatic;
+					};
 					B4978C40DF22542D3D90538B = {
 						ProvisioningStyle = Automatic;
 					};
@@ -368,6 +455,7 @@
 				FF6FE9DC9698D527F22B7894 /* TablesUITests */,
 				51499F63C10C90721F67C9C3 /* TablesEngine */,
 				B4978C40DF22542D3D90538B /* TablesMacros */,
+				23B12061C14375A7294D9F8C /* Tables for Mac */,
 			);
 		};
 /* End PBXProject section */
@@ -388,6 +476,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		2EB8186965D9653FA7D29EC7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		125CA422659C43BDEF84FA03 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -432,6 +527,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		13ADEECEDE182E816F844A72 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -469,6 +571,16 @@
 			isa = PBXTargetDependency;
 			target = B4978C40DF22542D3D90538B /* TablesMacros */;
 			targetProxy = DF7067AB130C261C4995D652 /* PBXContainerItemProxy */;
+		};
+		3D792873D33EDB3B29CF88EC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51499F63C10C90721F67C9C3 /* TablesEngine */;
+			targetProxy = 2C6D90C293B9B204A2D9248C /* PBXContainerItemProxy */;
+		};
+		2634D8D4403AB84BC27E984C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B4978C40DF22542D3D90538B /* TablesMacros */;
+			targetProxy = 45F9AF0DA099F3DE0BD0AEFE /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -926,6 +1038,64 @@
 			};
 			name = Release;
 		};
+		A2E6E1D61942FE8EA4E3B8DC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TablesMac/Support/TablesMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = YYM4Z6MU8F;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TablesMac/Support/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tsubuzaki.Tables;
+				PRODUCT_MODULE_NAME = TablesMac;
+				PRODUCT_NAME = Tables;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		10D225F97767646CA68AF360 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TablesMac/Support/TablesMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = YYM4Z6MU8F;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TablesMac/Support/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tsubuzaki.Tables;
+				PRODUCT_MODULE_NAME = TablesMac;
+				PRODUCT_NAME = Tables;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -979,6 +1149,15 @@
 			buildConfigurations = (
 				F778CCAC664927AA2DF11103 /* Debug */,
 				F233C3006D705DE2240F809B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		87B0B231BB40381825F9AB1D /* Build configuration list for PBXNativeTarget "Tables for Mac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A2E6E1D61942FE8EA4E3B8DC /* Debug */,
+				10D225F97767646CA68AF360 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
