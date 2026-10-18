@@ -332,6 +332,70 @@ final class GridView: NSView, NSTextFieldDelegate {
         default:
             break
         }
+        if let event = NSApp.currentEvent { updatePointer(for: event) }
+    }
+
+    // MARK: - Pointer
+
+    /// Spreadsheets' own pointer over cells: a broad white cross.
+    private static let cellCursor: NSCursor = {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let arm: CGFloat = 4
+            let cross = NSBezierPath()
+            cross.appendRect(NSRect(x: bounds.midX - arm / 2, y: 1.5, width: arm, height: bounds.height - 3))
+            cross.appendRect(NSRect(x: 1.5, y: bounds.midY - arm / 2, width: bounds.width - 3, height: arm))
+            let outline = NSBezierPath()
+            outline.append(cross)
+            NSColor.black.setStroke()
+            outline.lineWidth = 2.5
+            outline.stroke()
+            NSColor.white.setFill()
+            cross.fill()
+            return true
+        }
+        return NSCursor(image: image, hotSpot: NSPoint(x: size.width / 2, y: size.height / 2))
+    }()
+
+    private var pointerArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let pointerArea { removeTrackingArea(pointerArea) }
+        let area = NSTrackingArea(
+            rect: .zero, options: [.cursorUpdate, .mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self)
+        addTrackingArea(area)
+        pointerArea = area
+    }
+
+    override func cursorUpdate(with event: NSEvent) { updatePointer(for: event) }
+    override func mouseMoved(with event: NSEvent) { updatePointer(for: event) }
+
+    /// The fill handle's crosshair, an open hand along the selection's border,
+    /// and over the cells the spreadsheet cross. Charts and pictures keep
+    /// their own.
+    private func updatePointer(for event: NSEvent) {
+        guard drag == nil, let document else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        if let hit = superview.flatMap({ hitTest($0.convert(event.locationInWindow, from: nil)) }), hit !== self {
+            if let object = hit as? FloatingObjectView {
+                object.cursor(atWindowPoint: event.locationInWindow).set()
+            } else if !(hit is NSTextView || hit is NSTextField) {
+                NSCursor.arrow.set()
+            }
+            return
+        }
+        if offersSelectionHandles(in: document) {
+            if fillHandleRect(in: document).insetBy(dx: -3, dy: -3).contains(point) {
+                NSCursor.crosshair.set()
+                return
+            }
+            if borderRects(in: document).contains(where: { $0.contains(point) }) {
+                NSCursor.openHand.set()
+                return
+            }
+        }
+        Self.cellCursor.set()
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {

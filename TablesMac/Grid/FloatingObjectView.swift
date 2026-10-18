@@ -74,8 +74,12 @@ final class FloatingObjectView: NSView {
                width: Self.handleSize, height: Self.handleSize)
     }
 
-    override func resetCursorRects() {
-        if isSelected, isResizable { addCursorRect(handleRect, cursor: .crosshair) }
+    /// The pointer over the object: a crosshair on the resize handle once
+    /// it is selected, an arrow everywhere else. The grid asks, since it
+    /// tracks the pointer for the whole sheet.
+    func cursor(atWindowPoint point: NSPoint) -> NSCursor {
+        let local = convert(point, from: nil)
+        return isSelected && isResizable && handleRect.insetBy(dx: -4, dy: -4).contains(local) ? .crosshair : .arrow
     }
 
     override func mouseDown(with event: NSEvent) {
