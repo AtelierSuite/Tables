@@ -206,6 +206,7 @@ final class WorkbookDocument: NSDocument {
         let first = file.workbook.visibleSheets.first ?? file.workbook.sheets.first
         if let first { state.selectSheet(first.id, in: file.workbook) }
         state.allowsComments = !file.isPlainText && !file.isNumbers
+        state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
         refreshCapabilities()
     }
 
@@ -213,6 +214,7 @@ final class WorkbookDocument: NSDocument {
     /// Numbers document.
     func refreshCapabilities() {
         state.allowsComments = !file.isPlainText && !file.isNumbers
+        state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
         state.allowsInsertingAndDeleting = file.allowsMovingCells(in: state.activeSheetID)
         state.formatting = file.formatting(in: state.activeSheetID)
     }

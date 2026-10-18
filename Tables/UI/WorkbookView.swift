@@ -100,6 +100,7 @@ struct WorkbookView: View {
         }
         .onAppear {
             state.allowsComments = !document.isPlainText && !document.isNumbers
+            state.allowsFreezingPanes = !document.isPlainText && !document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.sheets.first?.id
                 state.refreshMetrics(in: document.workbook)
@@ -263,6 +264,7 @@ struct WorkbookView: View {
             document.isMacroEnabled = target == .macroEnabledWorkbook
             state.formatting = document.formatting(in: state.activeSheetID)
             state.allowsComments = true
+            state.allowsFreezingPanes = true
         }
     }
 

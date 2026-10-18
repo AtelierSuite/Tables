@@ -80,6 +80,9 @@ final class EditorState {
     /// False for delimited text and Numbers documents, which have nowhere to
     /// keep comments and notes.
     var allowsComments = true
+    /// False for delimited text and Numbers documents, which have nowhere to
+    /// keep frozen rows and columns.
+    var allowsFreezingPanes = true
     /// False for a Numbers table that something Tables can't move along with
     /// its cells depends on — a chart, a filter, a merged cell: inserting or
     /// deleting rows and columns would leave it behind.

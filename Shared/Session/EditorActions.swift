@@ -469,6 +469,25 @@ extension EditorState {
         additionalSelections = []
     }
 
+    // MARK: - Frozen panes
+
+    /// Keeps the first `rows` rows and `columns` columns in view while the
+    /// rest scrolls; zero for both lets go.
+    func freezePanes(rows: Int, columns: Int, in workbook: inout Workbook) {
+        guard allowsFreezingPanes else { return }
+        let index = activeIndex(in: workbook)
+        let sheet = workbook.sheets[index]
+        workbook.sheets[index].frozenRows = min(max(0, rows), max(0, sheet.rowCount - 1))
+        workbook.sheets[index].frozenColumns = min(max(0, columns), max(0, sheet.columnCount - 1))
+    }
+
+    /// Freezes the rows above and the columns before the selection, as
+    /// Excel's Freeze Panes does.
+    func freezePanesAtSelection(in workbook: inout Workbook) {
+        let start = selection.normalized.start
+        freezePanes(rows: start.row, columns: start.column, in: &workbook)
+    }
+
     // MARK: - Fill and move
 
     /// Fills `target` from the selection, as letting go of the fill handle
