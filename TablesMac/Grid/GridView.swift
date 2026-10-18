@@ -26,6 +26,11 @@ final class GridView: NSView, NSTextFieldDelegate {
     private enum Drag {
         case selecting
         case pointing(origin: CellAddress)
+        /// Pulling the fill handle, toward the range it would fill.
+        case filling(target: CellRange)
+        /// Carrying the selection by its border: the grabbed cell's offset
+        /// into it, and where its top-left would land.
+        case moving(grab: CellAddress, destination: CellAddress)
     }
 
     private var drag: Drag?
@@ -73,6 +78,66 @@ final class GridView: NSView, NSTextFieldDelegate {
         renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: effectiveAppearance))
         drawReferences(in: document, context: context)
         drawSelection(in: document, context: context)
+        drawDragPreview(in: document, context: context)
+    }
+
+    /// The ring the selection is outlined with, in the grid's coordinates.
+    private func selectionRing(in document: WorkbookDocument) -> NSRect {
+        let sheet = document.activeSheet
+        return document.state.metrics.frame(for: sheet.expandedToMerges(document.state.selection)).insetBy(dx: 1, dy: 1)
+    }
+
+    /// Whether the selection can be filled or carried: one range, with no
+    /// edit, chart or picture in the way.
+    private func offersSelectionHandles(in document: WorkbookDocument) -> Bool {
+        let state = document.state
+        return !state.hasMultipleSelections && state.editingAddress == nil
+            && state.selectedChartID == nil && state.selectedDrawingID == nil
+            && !document.macroRunner.isRunning
+    }
+
+    /// The fill handle: the small square at the selection's bottom-right corner.
+    private func fillHandleRect(in document: WorkbookDocument) -> NSRect {
+        let ring = selectionRing(in: document)
+        let size: CGFloat = 7
+        return NSRect(x: ring.maxX - size / 2, y: ring.maxY - size / 2, width: size, height: size)
+    }
+
+    /// The strips along the selection's edges that pick it up to move it.
+    private func borderRects(in document: WorkbookDocument) -> [NSRect] {
+        let ring = selectionRing(in: document)
+        let reach: CGFloat = 3
+        return [
+            NSRect(x: ring.minX - reach, y: ring.minY - reach, width: ring.width + reach * 2, height: reach * 2),
+            NSRect(x: ring.minX - reach, y: ring.maxY - reach, width: ring.width + reach * 2, height: reach * 2),
+            NSRect(x: ring.minX - reach, y: ring.minY - reach, width: reach * 2, height: ring.height + reach * 2),
+            NSRect(x: ring.maxX - reach, y: ring.minY - reach, width: reach * 2, height: ring.height + reach * 2),
+        ]
+    }
+
+    /// Where a fill or a move would land, outlined while it is dragged.
+    private func drawDragPreview(in document: WorkbookDocument, context: CGContext) {
+        let metrics = document.state.metrics
+        let frame: NSRect
+        switch drag {
+        case .filling(let target):
+            frame = metrics.frame(for: target.normalized)
+        case .moving(_, let destination):
+            let box = document.state.selection.normalized
+            frame = metrics.frame(for: CellRange(
+                start: destination,
+                end: CellAddress(
+                    row: destination.row + box.end.row - box.start.row,
+                    column: destination.column + box.end.column - box.start.column)))
+        default:
+            return
+        }
+        context.saveGState()
+        context.setStrokeColor(NSColor.controlAccentColor.cgColor)
+        context.setLineWidth(2)
+        context.setLineDash(phase: 0, lengths: [4, 3])
+        context.stroke(frame.insetBy(dx: 1, dy: 1))
+        context.restoreGState()
     }
 
     /// Tints the selected ranges, leaving the active cell clear, and rings
@@ -99,6 +164,14 @@ final class GridView: NSView, NSTextFieldDelegate {
         if state.selection.normalized.isSingleCell == false {
             context.setLineWidth(1)
             context.stroke(active.insetBy(dx: 2, dy: 2))
+        }
+        if offersSelectionHandles(in: document) {
+            let handle = fillHandleRect(in: document)
+            context.setFillColor(accent.cgColor)
+            context.fill(handle)
+            context.setStrokeColor(NSColor.textBackgroundColor.cgColor)
+            context.setLineWidth(1)
+            context.stroke(handle.insetBy(dx: -0.5, dy: -0.5))
         }
         context.restoreGState()
     }
@@ -160,6 +233,24 @@ final class GridView: NSView, NSTextFieldDelegate {
         }
         window?.makeFirstResponder(self)
 
+        if event.clickCount == 1, event.modifierFlags.isDisjoint(with: [.shift, .command]),
+           offersSelectionHandles(in: document) {
+            if fillHandleRect(in: document).insetBy(dx: -3, dy: -3).contains(point) {
+                drag = .filling(target: state.selection.normalized)
+                return
+            }
+            if borderRects(in: document).contains(where: { $0.contains(point) }) {
+                let box = state.selection.normalized
+                let grabbed = rawAddress(at: point, metrics: state.metrics)
+                let grab = CellAddress(
+                    row: min(max(grabbed.row, box.start.row), box.end.row) - box.start.row,
+                    column: min(max(grabbed.column, box.start.column), box.end.column) - box.start.column)
+                drag = .moving(grab: grab, destination: box.start)
+                NSCursor.closedHand.push()
+                return
+            }
+        }
+
         if event.clickCount == 2 {
             beginEditing(at: address, seed: nil)
             return
@@ -188,14 +279,59 @@ final class GridView: NSView, NSTextFieldDelegate {
         case .pointing(let origin):
             state.insertReference(CellRange(start: origin, end: raw), in: document.workbook)
             showEditedText(in: document)
+        case .filling:
+            let target = AutoFill.target(extending: state.selection, toward: raw)
+            self.drag = .filling(target: target)
+            needsDisplay = true
+        case .moving(let grab, _):
+            let box = state.selection.normalized
+            let sheet = document.activeSheet
+            let height = box.end.row - box.start.row
+            let width = box.end.column - box.start.column
+            let destination = CellAddress(
+                row: min(max(0, raw.row - grab.row), max(0, sheet.rowCount - 1 - height)),
+                column: min(max(0, raw.column - grab.column), max(0, sheet.columnCount - 1 - width)))
+            self.drag = .moving(grab: grab, destination: destination)
+            updateMoveCursor(copying: event.modifierFlags.contains(.option))
+            needsDisplay = true
         }
     }
 
+    /// Holding Option while carrying the selection copies it instead, and
+    /// the pointer says so.
+    private func updateMoveCursor(copying: Bool) {
+        let cursor: NSCursor = copying ? .dragCopy : .closedHand
+        if NSCursor.current != cursor { cursor.set() }
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        super.flagsChanged(with: event)
+        if case .moving = drag { updateMoveCursor(copying: event.modifierFlags.contains(.option)) }
+    }
+
     override func mouseUp(with event: NSEvent) {
-        if case .pointing = drag {
-            document?.state.finishReferenceInsertion()
-        }
+        let finished = drag
         drag = nil
+        guard let document else { return }
+        let state = document.state
+        switch finished {
+        case .pointing:
+            state.finishReferenceInsertion()
+        case .filling(let target):
+            if target.normalized != state.selection.normalized {
+                document.edit { state.fillSelection(to: target, in: &$0) }
+            }
+            document.notify()
+        case .moving(_, let destination):
+            NSCursor.pop()
+            if destination != state.selection.normalized.start {
+                let copying = event.modifierFlags.contains(.option)
+                document.edit { state.moveSelection(to: destination, copying: copying, in: &$0) }
+            }
+            document.notify()
+        default:
+            break
+        }
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
