@@ -183,26 +183,33 @@ struct BorderScopePicker: View {
     @Binding var scope: BorderScope
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(BorderScope.allCases) { option in
-                let isSelected = option == scope
-                Button { scope = option } label: {
-                    BorderScopeGlyph(scope: option, isSelected: isSelected)
-                        .frame(width: 26, height: 26)
-                        .padding(6)
-                        .background(
-                            isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05),
-                            in: .rect(cornerRadius: 8, style: .continuous)
-                        )
-                        .contentShape(.rect)
+        // A carousel, like the pickers around it, so a narrow panel — the
+        // Mac's inspector — scrolls it rather than being pushed wider.
+        ScrollView(.horizontal) {
+            HStack(spacing: 4) {
+                ForEach(BorderScope.allCases) { option in
+                    let isSelected = option == scope
+                    Button { scope = option } label: {
+                        BorderScopeGlyph(scope: option, isSelected: isSelected)
+                            .frame(width: 26, height: 26)
+                            .padding(6)
+                            .background(
+                                isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05),
+                                in: .rect(cornerRadius: 8, style: .continuous)
+                            )
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .help(option.label)
+                    .accessibilityIdentifier("borderScope.\(option.rawValue)")
+                    .accessibilityLabel(option.label)
+                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                 }
-                .buttonStyle(.plain)
-                .help(option.label)
-                .accessibilityIdentifier("borderScope.\(option.rawValue)")
-                .accessibilityLabel(option.label)
-                .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
+        .scrollIndicators(.hidden)
     }
 }
 

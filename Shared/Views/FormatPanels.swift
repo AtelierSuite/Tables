@@ -195,8 +195,6 @@ struct FormatPanel: View {
             VStack(alignment: .leading, spacing: 0) {
                 CarouselCaption(key: "Format.Border.ApplyTo")
                 BorderScopePicker(scope: $borderScope)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
             }
             .listRowInsets(EdgeInsets())
 
