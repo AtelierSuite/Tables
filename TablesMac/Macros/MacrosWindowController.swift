@@ -175,7 +175,7 @@ final class MacrosWindowController: NSWindowController, NSWindowDelegate, NSTool
         outputController.view = outputStack
         let codeItem = NSSplitViewItem(viewController: codeController)
         let outputItem = NSSplitViewItem(viewController: outputController)
-        outputItem.minimumThickness = 60
+        outputItem.minimumThickness = 96
         outputItem.holdingPriority = .defaultLow + 10
         detail.addSplitViewItem(codeItem)
         detail.addSplitViewItem(outputItem)
