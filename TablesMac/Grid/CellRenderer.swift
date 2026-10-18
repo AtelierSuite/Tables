@@ -236,6 +236,13 @@ struct CellRenderer {
             with: CGSize(width: wraps ? box.width : Self.unbounded, height: Self.unbounded),
             options: [.usesLineFragmentOrigin]
         ).size
+        // A number a hair too wide may take some of the cell's padding before
+        // it gives way to #s.
+        if isNumber, !wraps, measured.width > room, measured.width <= frame.width - 2 * zoom {
+            let spare = (frame.width - 2 * zoom - box.width) / 2
+            box = box.insetBy(dx: -spare, dy: 0)
+            room = box.width
+        }
         if !wraps, measured.width > room {
             let shortened = isNumber ? hashes(filling: room, attributes: attributes)
                 : elided(string, to: room, attributes: attributes)
