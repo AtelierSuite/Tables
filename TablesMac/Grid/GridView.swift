@@ -337,26 +337,6 @@ final class GridView: NSView, NSTextFieldDelegate {
 
     // MARK: - Pointer
 
-    /// Spreadsheets' own pointer over cells: a broad white cross.
-    private static let cellCursor: NSCursor = {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size, flipped: false) { bounds in
-            let arm: CGFloat = 4
-            let cross = NSBezierPath()
-            cross.appendRect(NSRect(x: bounds.midX - arm / 2, y: 1.5, width: arm, height: bounds.height - 3))
-            cross.appendRect(NSRect(x: 1.5, y: bounds.midY - arm / 2, width: bounds.width - 3, height: arm))
-            let outline = NSBezierPath()
-            outline.append(cross)
-            NSColor.black.setStroke()
-            outline.lineWidth = 2.5
-            outline.stroke()
-            NSColor.white.setFill()
-            cross.fill()
-            return true
-        }
-        return NSCursor(image: image, hotSpot: NSPoint(x: size.width / 2, y: size.height / 2))
-    }()
-
     private var pointerArea: NSTrackingArea?
 
     override func updateTrackingAreas() {
@@ -371,9 +351,8 @@ final class GridView: NSView, NSTextFieldDelegate {
     override func cursorUpdate(with event: NSEvent) { updatePointer(for: event) }
     override func mouseMoved(with event: NSEvent) { updatePointer(for: event) }
 
-    /// The fill handle's crosshair, an open hand along the selection's border,
-    /// and over the cells the spreadsheet cross. Charts and pictures keep
-    /// their own.
+    /// The fill handle's crosshair and an open hand along the selection's
+    /// border; an arrow everywhere else. Charts and pictures keep their own.
     private func updatePointer(for event: NSEvent) {
         guard drag == nil, let document else { return }
         let point = convert(event.locationInWindow, from: nil)
@@ -395,7 +374,7 @@ final class GridView: NSView, NSTextFieldDelegate {
                 return
             }
         }
-        Self.cellCursor.set()
+        NSCursor.arrow.set()
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
