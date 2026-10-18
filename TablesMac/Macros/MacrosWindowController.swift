@@ -46,14 +46,27 @@ final class MacrosWindowController: NSWindowController, NSWindowDelegate, NSTool
         window.title = String(localized: "Macros.Title")
         window.subtitle = document.displayName
         window.contentViewController = makeContent()
-        window.setContentSize(NSSize(width: 900, height: 600))
         let toolbar = NSToolbar(identifier: "Macros")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         window.toolbar = toolbar
-        window.center()
         windowFrameAutosaveName = "Macros"
         reload()
+    }
+
+    /// The split views size the window to their smallest on first layout,
+    /// so the first showing sets a roomier size unless one was saved.
+    private var hasSized = false
+
+    override func showWindow(_ sender: Any?) {
+        if !hasSized, let window {
+            hasSized = true
+            if !window.setFrameUsingName("Macros") {
+                window.setContentSize(NSSize(width: 900, height: 600))
+                window.center()
+            }
+        }
+        super.showWindow(sender)
     }
 
     @available(*, unavailable)
