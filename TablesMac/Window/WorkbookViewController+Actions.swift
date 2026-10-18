@@ -339,6 +339,11 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
 
     // MARK: - View
 
+    @objc func freezeTopRow(_ sender: Any?) { edit { $0.freezePanes(rows: 1, columns: 0, in: &$1) } }
+    @objc func freezeFirstColumn(_ sender: Any?) { edit { $0.freezePanes(rows: 0, columns: 1, in: &$1) } }
+    @objc func freezePanesAtSelection(_ sender: Any?) { edit { $0.freezePanesAtSelection(in: &$1) } }
+    @objc func unfreezePanes(_ sender: Any?) { edit { $0.freezePanes(rows: 0, columns: 0, in: &$1) } }
+
     @objc func zoomIn(_ sender: Any?) { setZoom((state?.zoom ?? 1) * 1.25) }
     @objc func zoomOut(_ sender: Any?) { setZoom((state?.zoom ?? 1) / 1.25) }
     @objc func actualSize(_ sender: Any?) { setZoom(1) }
@@ -425,7 +430,11 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard let action = menuItem.action, let document else { return false }
         let style = document.state.representativeStyle(in: document.workbook)
+        let sheet = document.activeSheet
         switch action {
+        case #selector(freezeTopRow(_:)): menuItem.state = sheet.frozenRows == 1 && sheet.frozenColumns == 0 ? .on : .off
+        case #selector(freezeFirstColumn(_:)):
+            menuItem.state = sheet.frozenRows == 0 && sheet.frozenColumns == 1 ? .on : .off
         case #selector(toggleBold(_:)): menuItem.state = style.isBold ? .on : .off
         case #selector(toggleItalic(_:)): menuItem.state = style.isItalic ? .on : .off
         case #selector(toggleUnderline(_:)): menuItem.state = style.isUnderlined ? .on : .off
@@ -494,6 +503,12 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(deleteComment(_:)):
             return isCells && state.allowsComments
                 && state.selectedRanges.contains { range in sheet.comments.keys.contains { range.normalized.contains($0) } }
+        case #selector(freezeTopRow(_:)), #selector(freezeFirstColumn(_:)):
+            return isCells && state.allowsFreezingPanes
+        case #selector(freezePanesAtSelection(_:)):
+            return isCells && state.allowsFreezingPanes && state.selection.normalized.start != CellAddress(row: 0, column: 0)
+        case #selector(unfreezePanes(_:)):
+            return isCells && state.allowsFreezingPanes && (sheet.frozenRows > 0 || sheet.frozenColumns > 0)
         case #selector(showUnsupportedFeatures(_:)):
             return !document.unsupportedFeatures.isEmpty
         case #selector(showMacros(_:)):

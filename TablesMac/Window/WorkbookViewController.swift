@@ -20,6 +20,9 @@ final class WorkbookViewController: NSViewController {
     /// A chart sheet shows its one chart in the grid's place.
     private let chartSheet = ChartContentView()
     private var columnHeader: HeaderRulerView?
+    /// The frozen rows, columns and their corner, over the grid.
+    private let frozenPanes = [FrozenPaneView(part: .corner), FrozenPaneView(part: .rows), FrozenPaneView(part: .columns)]
+    private let frozenPaneContainer = FrozenPaneContainer()
     private var rowHeader: HeaderRulerView?
     /// The last error shown, so one is not raised twice.
     private var presentedError: String?
@@ -65,6 +68,14 @@ final class WorkbookViewController: NSViewController {
         columnHeader = columns
         rowHeader = rows
 
+        // Over the sheet, the corner on top.
+        for pane in frozenPanes.reversed() {
+            pane.grid = grid
+            frozenPaneContainer.addSubview(pane)
+        }
+        frozenPaneContainer.clipsToBounds = true
+        grid.panes = frozenPanes
+
         chartSheet.isHidden = true
         formulaBar.grid = grid
         grid.formulaBarField = { [weak self] in self?.formulaBar.formulaField }
@@ -72,7 +83,7 @@ final class WorkbookViewController: NSViewController {
         findBar.isHidden = true
         findBar.onClose = { [weak self] in self?.setFindBarShown(false) }
         runningOverlay.onStop = { [weak self] in self?.document?.macroRunner.stop() }
-        for view in [formulaBar, findBar, scrollView, chartSheet, tabBar, runningOverlay] as [NSView] {
+        for view in [formulaBar, findBar, scrollView, frozenPaneContainer, chartSheet, tabBar, runningOverlay] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(view)
         }
@@ -90,6 +101,10 @@ final class WorkbookViewController: NSViewController {
             // Under the tab bar, which is translucent; insets keep the last row
             // clear of it.
             scrollView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            frozenPaneContainer.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            frozenPaneContainer.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            frozenPaneContainer.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            frozenPaneContainer.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
             chartSheet.topAnchor.constraint(equalTo: formulaBar.bottomAnchor, constant: 16),
             chartSheet.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
             chartSheet.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
@@ -111,6 +126,11 @@ final class WorkbookViewController: NSViewController {
         NotificationCenter.default.addObserver(
             self, selector: #selector(gridDidScroll(_:)),
             name: NSView.boundsDidChangeNotification, object: scrollView.contentView
+        )
+        scrollView.contentView.postsFrameChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(gridDidScroll(_:)),
+            name: NSView.frameDidChangeNotification, object: scrollView.contentView
         )
     }
 
@@ -145,6 +165,7 @@ final class WorkbookViewController: NSViewController {
             chartSheet.show(chart, data: chart.resolved(in: document.workbook), zoom: 1)
         }
         grid.refresh()
+        layoutFrozenPanes()
         columnHeader?.refresh()
         rowHeader?.refresh()
         formulaBar.refresh()
@@ -163,6 +184,21 @@ final class WorkbookViewController: NSViewController {
     @objc private func gridDidScroll(_ notification: Notification) {
         columnHeader?.needsDisplay = true
         rowHeader?.needsDisplay = true
+        layoutFrozenPanes()
+    }
+
+    private func layoutFrozenPanes() {
+        let frozen = grid.frozenExtent
+        let headers = CGSize(width: rowHeader?.requiredThickness ?? 0, height: columnHeader?.requiredThickness ?? 0)
+        // Scrollers that take room of their own, rather than floating over the sheet.
+        let legacy = scrollView.scrollerStyle == .legacy
+        let trailing = CGSize(
+            width: legacy && scrollView.hasVerticalScroller ? scrollView.verticalScroller?.frame.width ?? 0 : 0,
+            height: legacy && scrollView.hasHorizontalScroller ? scrollView.horizontalScroller?.frame.height ?? 0 : 0)
+        frozenPaneContainer.isHidden = scrollView.isHidden
+        for pane in frozenPanes {
+            pane.layout(in: scrollView.contentView, frozen: frozen, headers: headers, trailing: trailing)
+        }
     }
 
     /// Says why an edit could not be made, once.

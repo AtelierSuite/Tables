@@ -247,6 +247,16 @@ enum MainMenu {
         menu.addItem(item(String(localized: "Mac.Menu.ActualSize"), #selector(WorkbookViewController.actualSize(_:)),
                           "0"))
         menu.addItem(.separator())
+        let freeze = NSMenu(title: String(localized: "Mac.Menu.FreezePanes"))
+        freeze.addItem(item(String(localized: "Mac.Menu.FreezeTopRow"), #selector(WorkbookViewController.freezeTopRow(_:))))
+        freeze.addItem(item(String(localized: "Mac.Menu.FreezeFirstColumn"),
+                            #selector(WorkbookViewController.freezeFirstColumn(_:))))
+        freeze.addItem(item(String(localized: "Mac.Menu.FreezeAtSelection"),
+                            #selector(WorkbookViewController.freezePanesAtSelection(_:))))
+        freeze.addItem(.separator())
+        freeze.addItem(item(String(localized: "Mac.Menu.Unfreeze"), #selector(WorkbookViewController.unfreezePanes(_:))))
+        menu.addItem(submenu(freeze))
+        menu.addItem(.separator())
         menu.addItem(item(String(localized: "Mac.Menu.ShowInspector"), #selector(NSSplitViewController.toggleInspector(_:)),
                           "i", [.command, .option]))
         menu.addItem(item(String(localized: "Mac.Menu.ShowToolbar"), #selector(NSWindow.toggleToolbarShown(_:)),

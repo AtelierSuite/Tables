@@ -44,6 +44,35 @@ final class GridView: NSView, NSTextFieldDelegate {
 
     private var state: EditorState? { document?.state }
 
+    /// The frozen panes laid over the grid, corner first, which draw through
+    /// it and hand it their clicks.
+    var panes: [FrozenPaneView] = []
+
+    /// The sheet coordinates under the pointer: through whichever frozen
+    /// pane it is over, or else the grid's own.
+    func sheetPoint(for event: NSEvent) -> NSPoint {
+        for pane in panes where !pane.isHidden {
+            let local = pane.convert(event.locationInWindow, from: nil)
+            if pane.bounds.contains(local) { return local }
+        }
+        return convert(event.locationInWindow, from: nil)
+    }
+
+    /// Whether the pointer is over a frozen pane rather than the grid itself.
+    private func isOverPane(_ event: NSEvent) -> Bool {
+        panes.contains { !$0.isHidden && $0.bounds.contains($0.convert(event.locationInWindow, from: nil)) }
+    }
+
+    /// How far the frozen rows reach down, and the frozen columns across.
+    var frozenExtent: CGSize {
+        guard let document else { return .zero }
+        let sheet = document.activeSheet
+        let metrics = document.state.metrics
+        return CGSize(
+            width: sheet.frozenColumns > 0 ? metrics.x(ofColumn: sheet.frozenColumns) : 0,
+            height: sheet.frozenRows > 0 ? metrics.y(ofRow: sheet.frozenRows) : 0)
+    }
+
     // MARK: - Updating
 
     /// Brings the grid up to date with the document.
@@ -55,10 +84,37 @@ final class GridView: NSView, NSTextFieldDelegate {
         syncEditor(in: document)
         syncObjects(in: document)
         needsDisplay = true
+        for pane in panes { pane.needsDisplay = true }
         if let target = document.state.scrollTarget {
             document.state.scrollTarget = nil
-            scrollToVisible(metrics.frame(for: target).insetBy(dx: -4, dy: -4))
+            reveal(target, in: document)
         }
+    }
+
+    /// Scrolls a cell into view, clear of the frozen panes: a frozen cell is
+    /// always in view along the frozen axis, and any other has to land
+    /// below and beside them rather than underneath.
+    private func reveal(_ address: CellAddress, in document: WorkbookDocument) {
+        let sheet = document.activeSheet
+        var frame = document.state.metrics.frame(for: address).insetBy(dx: -4, dy: -4)
+        let frozen = frozenExtent
+        let visible = visibleRect
+        if address.row < sheet.frozenRows {
+            // Already in view: ask for somewhere that is, so nothing moves.
+            frame.origin.y = visible.midY
+            frame.size.height = 1
+        } else if frame.minY < visible.minY + frozen.height {
+            frame.origin.y -= frozen.height
+            frame.size.height += frozen.height
+        }
+        if address.column < sheet.frozenColumns {
+            frame.origin.x = visible.midX
+            frame.size.width = 1
+        } else if frame.minX < visible.minX + frozen.width {
+            frame.origin.x -= frozen.width
+            frame.size.width += frozen.width
+        }
+        scrollToVisible(frame)
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -69,7 +125,14 @@ final class GridView: NSView, NSTextFieldDelegate {
     // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let document, let context = NSGraphicsContext.current?.cgContext else { return }
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        drawSheet(dirtyRect, in: context)
+    }
+
+    /// Draws a part of the sheet, given in its own coordinates: for the grid,
+    /// and for the frozen panes, which show parts of it in place.
+    func drawSheet(_ dirtyRect: NSRect, in context: CGContext) {
+        guard let document else { return }
         NSColor.textBackgroundColor.setFill()
         dirtyRect.fill()
         let renderer = CellRenderer(
@@ -214,7 +277,7 @@ final class GridView: NSView, NSTextFieldDelegate {
     override func mouseDown(with event: NSEvent) {
         guard let document else { return }
         let state = document.state
-        let point = convert(event.locationInWindow, from: nil)
+        let point = sheetPoint(for: event)
         let sheet = document.activeSheet
         let address = address(at: point, in: document)
 
@@ -270,7 +333,7 @@ final class GridView: NSView, NSTextFieldDelegate {
         guard let document, let drag else { return }
         autoscroll(with: event)
         let state = document.state
-        let point = convert(event.locationInWindow, from: nil)
+        let point = sheetPoint(for: event)
         let raw = rawAddress(at: point, metrics: state.metrics)
         switch drag {
         case .selecting:
@@ -355,8 +418,9 @@ final class GridView: NSView, NSTextFieldDelegate {
     /// border; an arrow everywhere else. Charts and pictures keep their own.
     private func updatePointer(for event: NSEvent) {
         guard drag == nil, let document else { return }
-        let point = convert(event.locationInWindow, from: nil)
-        if let hit = superview.flatMap({ hitTest($0.convert(event.locationInWindow, from: nil)) }), hit !== self {
+        let point = sheetPoint(for: event)
+        if !isOverPane(event), let hit = superview.flatMap({ hitTest($0.convert(event.locationInWindow, from: nil)) }),
+           hit !== self {
             if let object = hit as? FloatingObjectView {
                 object.cursor(atWindowPoint: event.locationInWindow).set()
             } else if !(hit is NSTextView || hit is NSTextField) {
@@ -380,7 +444,7 @@ final class GridView: NSView, NSTextFieldDelegate {
     override func menu(for event: NSEvent) -> NSMenu? {
         guard let document else { return nil }
         let state = document.state
-        let point = convert(event.locationInWindow, from: nil)
+        let point = sheetPoint(for: event)
         let address = address(at: point, in: document)
         if state.editingAddress != nil { commitEditing(then: nil) }
         state.selectChart(nil)
@@ -589,7 +653,8 @@ final class GridView: NSView, NSTextFieldDelegate {
         let sheet = document.activeSheet
         let metrics = state.metrics
         let frame = metrics.frame(for: sheet.mergedRange(containing: address) ?? CellRange(address))
-        let field = editor ?? makeEditor()
+        let host = editorHost(for: address, in: sheet)
+        let field = editor ?? makeEditor(in: host)
         let isFormula = state.editingText.hasPrefix("=")
         let style = sheet[address].style
         field.font = isFormula
@@ -602,12 +667,28 @@ final class GridView: NSView, NSTextFieldDelegate {
         if field.stringValue != state.editingText { field.stringValue = state.editingText }
         let needed = field.attributedStringValue.size().width + 12 * metrics.zoom + 4
         field.frame = CGRect(x: frame.minX, y: frame.minY, width: max(frame.width, min(needed, 600)), height: frame.height)
+        // A frozen cell is edited in the pane that shows it, which shares
+        // the sheet's coordinates; the grid beneath would be covered.
+        if field.superview !== host {
+            let hadFocus = window?.firstResponder === field.currentEditor()
+            isEndingEditing = true
+            field.removeFromSuperview()
+            host.addSubview(field)
+            isEndingEditing = false
+            if hadFocus { window?.makeFirstResponder(field) }
+        }
     }
 
-    private func makeEditor() -> CellEditorField {
+    private func editorHost(for address: CellAddress, in sheet: Worksheet) -> NSView {
+        let inRows = address.row < sheet.frozenRows, inColumns = address.column < sheet.frozenColumns
+        let part: FrozenPaneView.Part? = inRows && inColumns ? .corner : (inRows ? .rows : (inColumns ? .columns : nil))
+        return panes.first { $0.part == part && !$0.isHidden } ?? self
+    }
+
+    private func makeEditor(in host: NSView) -> CellEditorField {
         let field = CellEditorField()
         field.delegate = self
-        addSubview(field)
+        host.addSubview(field)
         editor = field
         return field
     }

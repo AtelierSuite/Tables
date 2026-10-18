@@ -56,15 +56,38 @@ final class HeaderRulerView: NSRulerView {
 
     private var metrics: SheetMetrics { document?.state.metrics ?? SheetMetrics() }
 
-    /// Converts from the ruler to the grid's coordinates along the ruler's axis.
+    /// The lines frozen in view along this ruler's axis, and how far they reach.
+    private var frozenCount: Int {
+        guard let sheet = document?.activeSheet else { return 0 }
+        return isColumns ? sheet.frozenColumns : sheet.frozenRows
+    }
+
+    private var frozenLength: Double { frozenCount > 0 ? start(of: frozenCount) : 0 }
+
+    /// Where the grid is scrolled to along this ruler's axis: the first
+    /// point of the sheet past the other ruler, which lies over the clip view.
+    private var scrolledOrigin: Double {
+        guard let scrollView else { return 0 }
+        let clip = scrollView.contentView.bounds
+        let other = isColumns ? scrollView.verticalRulerView : scrollView.horizontalRulerView
+        return Double(isColumns ? clip.minX : clip.minY) + Double(other?.requiredThickness ?? 0)
+    }
+
+    /// Converts from the ruler to the grid's coordinates along the ruler's
+    /// axis: past the frozen lines the sheet scrolls, over them it stays put.
     private func gridPosition(of point: NSPoint) -> CGFloat {
         guard let client = clientView else { return 0 }
         let converted = client.convert(point, from: self)
-        return isColumns ? converted.x : converted.y
+        let position = isColumns ? converted.x : converted.y
+        let unscrolled = Double(position) - scrolledOrigin
+        return frozenLength > 0 && unscrolled < frozenLength ? CGFloat(unscrolled) : position
     }
 
-    private func rulerRect(start: Double, length: Double) -> CGRect {
+    /// A span of the sheet along the ruler, in the ruler's coordinates: where
+    /// it scrolls to, or for a frozen line, where it stays.
+    private func rulerRect(start: Double, length: Double, frozen: Bool = false) -> CGRect {
         guard let client = clientView else { return .zero }
+        let start = frozen ? start + scrolledOrigin : start
         let rect = isColumns
             ? CGRect(x: start, y: 0, width: length, height: 1)
             : CGRect(x: 0, y: start, width: 1, height: length)
@@ -117,10 +140,10 @@ final class HeaderRulerView: NSRulerView {
         let separator = CellRenderer.gridLineColor(for: effectiveAppearance)
         let font = NSFont.systemFont(ofSize: 11)
 
-        for line in lines {
+        func drawLine(_ line: Int, frozen: Bool) {
             let length = length(of: line)
-            guard length > 0 else { continue }
-            let rect = rulerRect(start: start(of: line), length: length)
+            guard length > 0 else { return }
+            let rect = rulerRect(start: start(of: line), length: length, frozen: frozen)
             let isSelected = selected.contains { isColumns ? $0.columnRange.contains(line) : $0.rowRange.contains(line) }
             if isSelected {
                 NSColor.controlAccentColor.withAlphaComponent(spansAll ? 0.35 : 0.18).setFill()
@@ -140,6 +163,29 @@ final class HeaderRulerView: NSRulerView {
                 CGRect(x: 0, y: rect.maxY - 1, width: bounds.width, height: 1).fill()
             }
         }
+
+        // The scrolling lines, kept out from under the frozen ones, which
+        // are drawn over them where they stay.
+        let frozenZone = frozenLength > 0 ? rulerRect(start: 0, length: frozenLength, frozen: true) : .zero
+        NSGraphicsContext.saveGraphicsState()
+        if frozenLength > 0 {
+            let scrolling = isColumns
+                ? CGRect(x: frozenZone.maxX, y: 0, width: max(0, bounds.maxX - frozenZone.maxX), height: bounds.height)
+                : CGRect(x: 0, y: frozenZone.maxY, width: bounds.width, height: max(0, bounds.maxY - frozenZone.maxY))
+            scrolling.clip()
+        }
+        for line in lines where line >= frozenCount { drawLine(line, frozen: false) }
+        NSGraphicsContext.restoreGraphicsState()
+        if frozenLength > 0 {
+            for line in 0..<min(frozenCount, lineCount) { drawLine(line, frozen: true) }
+            // Where the frozen lines end, as on the sheet.
+            NSColor.separatorColor.withAlphaComponent(0.9).setFill()
+            if isColumns {
+                CGRect(x: frozenZone.maxX - 1, y: 0, width: 1, height: bounds.height).fill()
+            } else {
+                CGRect(x: 0, y: frozenZone.maxY - 1, width: bounds.width, height: 1).fill()
+            }
+        }
         separator.setFill()
         if isColumns {
             CGRect(x: 0, y: bounds.maxY - 1, width: bounds.width, height: 1).fill()
@@ -155,13 +201,19 @@ final class HeaderRulerView: NSRulerView {
         let span = isColumns ? Double(client.visibleRect.minX)...Double(client.visibleRect.maxX)
             : Double(client.visibleRect.minY)...Double(client.visibleRect.maxY)
         let lines = isColumns ? metrics.columns(in: span, overscan: 1) : metrics.rows(in: span, overscan: 1)
-        for line in lines {
-            let end = rulerRect(start: start(of: line) + length(of: line), length: 0)
+        let frozenEnd = frozenLength > 0 ? rulerRect(start: frozenLength, length: 0, frozen: true) : .zero
+        func addGrab(for line: Int, frozen: Bool) {
+            let end = rulerRect(start: start(of: line) + length(of: line), length: 0, frozen: frozen)
+            if !frozen, frozenLength > 0, (isColumns ? end.minX : end.minY) < (isColumns ? frozenEnd.minX : frozenEnd.minY) {
+                return
+            }
             let grab = isColumns
                 ? CGRect(x: end.minX - Self.grabDistance, y: 0, width: Self.grabDistance * 2, height: bounds.height)
                 : CGRect(x: 0, y: end.minY - Self.grabDistance, width: bounds.width, height: Self.grabDistance * 2)
             addCursorRect(grab, cursor: isColumns ? .resizeLeftRight : .resizeUpDown)
         }
+        for line in lines where line >= frozenCount { addGrab(for: line, frozen: false) }
+        for line in 0..<min(frozenCount, lineCount) { addGrab(for: line, frozen: true) }
     }
 
     override func mouseDown(with event: NSEvent) {
