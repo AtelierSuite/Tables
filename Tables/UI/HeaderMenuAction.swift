@@ -62,12 +62,49 @@ struct HeaderMenuBuilder {
                 state.unhideEverything(in: &workbook.wrappedValue)
             })
         }
+        if state.allowsFreezingPanes {
+            actions.append(.separator)
+            actions += freezeActions()
+        }
         actions.append(.separator)
         actions.append(HeaderMenuAction(
             title: String(localized: "HeaderMenu.RowsAndColumns"), symbol: "tablecells"
         ) {
             state.presentedPanel = .rowsAndColumns
         })
+        return actions
+    }
+
+    /// Freezing the lines up to this one, so they stay in view while the rest
+    /// scrolls, and letting go of what is frozen along this axis.
+    private func freezeActions() -> [HeaderMenuAction] {
+        let sheet = activeSheet
+        let frozen = axis == .row ? sheet.frozenRows : sheet.frozenColumns
+        var actions: [HeaderMenuAction] = []
+        if frozen != index + 1 {
+            actions.append(HeaderMenuAction(
+                title: String(localized: axis == .row ? "HeaderMenu.FreezeThroughRow" : "HeaderMenu.FreezeThroughColumn"),
+                symbol: axis == .row ? "rectangle.topthird.inset.filled" : "rectangle.leadingthird.inset.filled"
+            ) {
+                if axis == .row {
+                    state.freezePanes(rows: index + 1, columns: sheet.frozenColumns, in: &workbook.wrappedValue)
+                } else {
+                    state.freezePanes(rows: sheet.frozenRows, columns: index + 1, in: &workbook.wrappedValue)
+                }
+            })
+        }
+        if frozen > 0 {
+            actions.append(HeaderMenuAction(
+                title: String(localized: axis == .row ? "HeaderMenu.UnfreezeRows" : "HeaderMenu.UnfreezeColumns"),
+                symbol: "rectangle"
+            ) {
+                if axis == .row {
+                    state.freezePanes(rows: 0, columns: sheet.frozenColumns, in: &workbook.wrappedValue)
+                } else {
+                    state.freezePanes(rows: sheet.frozenRows, columns: 0, in: &workbook.wrappedValue)
+                }
+            })
+        }
         return actions
     }
 
