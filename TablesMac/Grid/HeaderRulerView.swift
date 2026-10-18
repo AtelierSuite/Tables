@@ -171,6 +171,8 @@ final class HeaderRulerView: NSRulerView {
         if state.editingAddress != nil {
             (clientView as? GridView)?.commitEditing(then: nil)
         }
+        state.selectChart(nil)
+        state.selectDrawing(nil)
         if let boundary = boundary(near: position) {
             if event.clickCount == 2, isColumns {
                 document.edit { state.fitColumn(boundary, in: &$0) }

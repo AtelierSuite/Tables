@@ -204,6 +204,8 @@ final class GridView: NSView, NSTextFieldDelegate {
         let point = convert(event.locationInWindow, from: nil)
         let address = address(at: point, in: document)
         if state.editingAddress != nil { commitEditing(then: nil) }
+        state.selectChart(nil)
+        state.selectDrawing(nil)
         if !state.isSelected(address) {
             state.select(address, in: document.activeSheet)
             document.notify()
