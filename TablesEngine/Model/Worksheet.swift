@@ -148,6 +148,10 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public var fittedRows: Set<Int> = []
     public var hiddenRows: Set<Int> = []
     public var hiddenColumns: Set<Int> = []
+    /// Rows at the top and columns at the left that stay in view while the
+    /// rest of the sheet scrolls — Excel's frozen panes. Zero for none.
+    public var frozenRows = 0
+    public var frozenColumns = 0
     /// Rectangular regions drawn, selected and edited as a single cell. They
     /// never overlap, and only the top-left cell of each keeps its content.
     public var mergedRanges: [CellRange] = []
@@ -346,6 +350,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         moveDrawings(.insert(index: index, count: count), axis: .row)
         origins?.insertRows(count, at: index, rowCount: rowCount)
         rowCount += count
+        // Rows inserted among the frozen ones join them, as in Excel.
+        if index < frozenRows { frozenRows += count }
     }
 
     public mutating func insertColumns(_ count: Int, at index: Int) {
@@ -359,6 +365,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         moveDrawings(.insert(index: index, count: count), axis: .column)
         origins?.insertColumns(count, at: index, columnCount: columnCount)
         columnCount += count
+        if index < frozenColumns { frozenColumns += count }
     }
 
     public mutating func removeRows(_ range: ClosedRange<Int>) {
@@ -375,6 +382,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         moveDrawings(.remove(range: range), axis: .row)
         origins?.removeRows(range, rowCount: rowCount)
         rowCount -= count
+        frozenRows -= Self.overlap(of: range, withFirst: frozenRows)
     }
 
     public mutating func removeColumns(_ range: ClosedRange<Int>) {
@@ -390,6 +398,13 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         moveDrawings(.remove(range: range), axis: .column)
         origins?.removeColumns(range, columnCount: columnCount)
         columnCount -= count
+        frozenColumns -= Self.overlap(of: range, withFirst: frozenColumns)
+    }
+
+    /// How many of the first `count` lines a removed range takes away.
+    private static func overlap(of range: ClosedRange<Int>, withFirst count: Int) -> Int {
+        guard count > 0, range.lowerBound < count else { return 0 }
+        return min(range.upperBound, count - 1) - range.lowerBound + 1
     }
 
     public mutating func setRows(_ range: ClosedRange<Int>, hidden: Bool) {

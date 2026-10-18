@@ -237,7 +237,11 @@ public enum XLSXReader {
             case "sheetViews":
                 // Without a pane split this is only where the cursor was left,
                 // which nobody would call a feature.
-                let isSplit = child.children(named: "sheetView").contains { $0.firstChild(named: "pane") != nil }
+                // A frozen pane is modelled now; a plain split still is not.
+                let isSplit = child.children(named: "sheetView").contains { view in
+                    guard let pane = view.firstChild(named: "pane") else { return false }
+                    return !["frozen", "frozenSplit"].contains(pane.attribute("state") ?? "")
+                }
                 feature = isSplit ? .frozenPanes : nil
             case "extLst":
                 // Excel 2010's additions, each in an `ext` of its own. The ones
@@ -572,7 +576,30 @@ public enum XLSXReader {
         sheet.preservedElements = preservedChildren(
             of: root, hasDifferentialFormats: hasDifferentialFormats
         )
+        readFrozenPanes(into: &sheet)
         return sheet
+    }
+
+    /// Reads a frozen pane off the sheet's first view, and takes it — with
+    /// the selections it divides the view into — out of the view kept for
+    /// writing, which has the model's pane written back into it instead.
+    /// A split that is not frozen stays as it was, unmodelled.
+    private static func readFrozenPanes(into sheet: inout Worksheet) {
+        guard let index = sheet.preservedElements.firstIndex(where: { $0.name == "sheetViews" }),
+              let views = try? XMLLite.parse(Data(sheet.preservedElements[index].xml.utf8)),
+              let view = views.firstChild(named: "sheetView"),
+              let pane = view.firstChild(named: "pane"),
+              ["frozen", "frozenSplit"].contains(pane.attribute("state") ?? "") else { return }
+        func count(_ attribute: String) -> Int {
+            max(0, Int(Double(pane.attribute(attribute) ?? "") ?? 0))
+        }
+        sheet.frozenRows = min(count("ySplit"), max(0, sheet.rowCount - 1))
+        sheet.frozenColumns = min(count("xSplit"), max(0, sheet.columnCount - 1))
+        view.removeChild(pane)
+        for selection in view.children(named: "selection") { view.removeChild(selection) }
+        if let xml = XMLLite.serialize(views) {
+            sheet.preservedElements[index] = PreservedElement(name: "sheetViews", xml: xml)
+        }
     }
 
     /// Worksheet children we neither read nor write, but keep verbatim.

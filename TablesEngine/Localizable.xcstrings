@@ -2667,31 +2667,31 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Frozen rows and columns"
+            "value" : "Split panes"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "固定された行と列"
+            "value" : "ウィンドウ枠の分割"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "고정된 행 및 열"
+            "value" : "창 나누기"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "冻结的行和列"
+            "value" : "拆分窗格"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "凍結的列與欄"
+            "value" : "分割窗格"
           }
         }
       }

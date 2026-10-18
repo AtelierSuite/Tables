@@ -569,7 +569,7 @@ public enum XLSXWriter {
             add("mergeCells", xml)
         }
 
-        for element in sheet.preservedElements {
+        for element in preservedElements(of: sheet) {
             // A duplicated sheet carries its predecessor's fragments but not
             // its `_rels`, so the ids in them would resolve to nothing.
             guard hasRelationshipsPart || !element.needsSheetRelationships else { continue }
@@ -589,6 +589,42 @@ public enum XLSXWriter {
             + "<worksheet xmlns=\"\(mainNamespace)\" xmlns:r=\"\(relationshipNamespace)\">"
             + fragments.map(\.xml).joined()
             + "</worksheet>"
+    }
+
+    /// The sheet's kept fragments, with its frozen pane written into the
+    /// first sheet view — the one the file had, or one of our own.
+    private static func preservedElements(of sheet: Worksheet) -> [PreservedElement] {
+        var elements = sheet.preservedElements
+        guard sheet.frozenRows > 0 || sheet.frozenColumns > 0 else { return elements }
+        let pane = frozenPane(for: sheet)
+        if let index = elements.firstIndex(where: { $0.name == "sheetViews" }),
+           let views = try? XMLLite.parse(Data(elements[index].xml.utf8)),
+           let view = views.firstChild(named: "sheetView"),
+           let paneElement = XMLLite.fragment(pane, namespaces: [:]) {
+            // The pane leads the view: it comes before any selection in the schema.
+            view.insertChild(paneElement, at: 0)
+            if let xml = XMLLite.serialize(views) {
+                elements[index] = PreservedElement(name: "sheetViews", xml: xml)
+                return elements
+            }
+        }
+        elements.removeAll { $0.name == "sheetViews" }
+        elements.append(PreservedElement(
+            name: "sheetViews", xml: "<sheetViews><sheetView workbookViewId=\"0\">\(pane)</sheetView></sheetViews>"))
+        return elements
+    }
+
+    /// Excel's `<pane>` for frozen rows and columns: where the split falls,
+    /// the first cell below and right of it, and which quarter scrolls.
+    private static func frozenPane(for sheet: Worksheet) -> String {
+        let rows = sheet.frozenRows, columns = sheet.frozenColumns
+        var xml = "<pane"
+        if columns > 0 { xml += " xSplit=\"\(columns)\"" }
+        if rows > 0 { xml += " ySplit=\"\(rows)\"" }
+        xml += " topLeftCell=\"\(CellAddress(row: rows, column: columns).a1)\""
+        let active = rows > 0 && columns > 0 ? "bottomRight" : (rows > 0 ? "bottomLeft" : "topRight")
+        xml += " activePane=\"\(active)\" state=\"frozen\"/>"
+        return xml
     }
 
     private static func cellPart(
