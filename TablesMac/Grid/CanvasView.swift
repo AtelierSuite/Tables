@@ -6,7 +6,11 @@ import TablesEngine
 ///
 /// The table being worked on is the grid itself, carried to its place on
 /// the page; the others are drawn around it, read-only, until one is
-/// clicked. A table's name above it is where it is picked up to be moved.
+/// clicked. A table is picked up to be moved by its name, by the round
+/// grip outside its top-left corner, or by the edge just outside its
+/// cells: all of them on the page, never on a cell, so clicking and
+/// dragging cells is left to the grid. It snaps into line with the tables
+/// around it as it comes close, with guides to show it.
 @MainActor
 final class CanvasView: NSView {
     weak var document: WorkbookDocument?
@@ -23,9 +27,12 @@ final class CanvasView: NSView {
 
     /// The tables as last laid out, in the canvas's order.
     private var placed: [Placed] = []
-    /// The table whose name is being dragged: where the drag started, and
-    /// how far it has come.
+    /// The table being dragged: where the drag started, and how far it has
+    /// come once kept on the page and snapped into line.
     private var drag: (id: Worksheet.ID, start: CGPoint, offset: CGSize)?
+    /// The lines showing what the dragged table is lined up with, drawn
+    /// over everything, the grid included.
+    private let guideView = CanvasGuideView()
     private var activeID: Worksheet.ID?
     private var pointerArea: NSTrackingArea?
 
@@ -54,6 +61,9 @@ final class CanvasView: NSView {
         }
         fit(visible: visible)
         if grid.superview !== self { addSubview(grid) }
+        if guideView.superview !== self || subviews.last !== guideView {
+            addSubview(guideView, positioned: .above, relativeTo: nil)
+        }
         if let frame = placed.first(where: { $0.sheet.id == active })?.frame, grid.frame.origin != frame.origin {
             grid.setFrameOrigin(frame.origin)
         }
@@ -68,10 +78,18 @@ final class CanvasView: NSView {
         let bottom = placed.map(\.frame.maxY).max() ?? 0
         let size = NSSize(width: max(visible.width, right + margin), height: max(visible.height, bottom + margin * 2))
         if frame.size != size { setFrameSize(size) }
+        guideView.frame = bounds
     }
 
     /// Where the active table sits on the page.
     var activeFrame: CGRect? { placed.first { $0.sheet.id == activeID }?.frame }
+
+    /// The round grip outside the active table's top-left corner.
+    private func gripRect(of table: Placed) -> CGRect {
+        CGRect(x: table.frame.minX - 20, y: table.frame.minY - 20, width: 16, height: 16)
+    }
+
+    private var showsGrip: Bool { document?.state.allowsLayingOutTables == true }
 
     private func nameRect(of table: Placed) -> CGRect {
         CGRect(x: table.frame.minX, y: table.frame.minY - nameHeight, width: max(table.frame.width, 120), height: nameHeight)
@@ -101,7 +119,19 @@ final class CanvasView: NSView {
             if let name = table.name {
                 drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID)
             }
+            if table.sheet.id == activeID, showsGrip { drawGrip(in: gripRect(of: table)) }
         }
+    }
+
+    private func drawGrip(in rect: CGRect) {
+        let circle = NSBezierPath(ovalIn: rect)
+        NSColor.controlBackgroundColor.setFill()
+        circle.fill()
+        NSColor.secondaryLabelColor.setStroke()
+        circle.lineWidth = 1
+        circle.stroke()
+        NSColor.secondaryLabelColor.setFill()
+        NSBezierPath(ovalIn: CGRect(x: rect.midX - 2.5, y: rect.midY - 2.5, width: 5, height: 5)).fill()
     }
 
     private func drawName(_ name: String, in rect: CGRect, isActive: Bool) {
@@ -124,10 +154,19 @@ final class CanvasView: NSView {
         placed.last { $0.name != nil && nameRect(of: $0).contains(point) }
     }
 
+    /// The table a drag starting here would pick up: by its name, by the
+    /// active table's grip, or by the edge just outside its cells.
+    private func grabbable(at point: CGPoint) -> Placed? {
+        if let table = tableName(at: point) { return table }
+        if showsGrip, let active = placed.first(where: { $0.sheet.id == activeID }),
+           gripRect(of: active).insetBy(dx: -4, dy: -4).contains(point) { return active }
+        return placed.last { $0.frame.insetBy(dx: -5, dy: -5).contains(point) && !$0.frame.contains(point) }
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard let document else { return }
         let point = convert(event.locationInWindow, from: nil)
-        if let table = tableName(at: point) {
+        if let table = grabbable(at: point) {
             if table.sheet.id != activeID { document.selectSheet(table.sheet.id) }
             if document.state.allowsLayingOutTables {
                 drag = (table.sheet.id, point, .zero)
@@ -147,19 +186,28 @@ final class CanvasView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard var drag, let document else { return }
+        guard var drag, let document, let canvas = document.workbook.canvas(containing: drag.id),
+              let table = canvas.table(for: drag.id), let moving = placed.first(where: { $0.sheet.id == drag.id })
+        else { return }
         let point = convert(event.locationInWindow, from: nil)
-        drag.offset = CGSize(width: point.x - drag.start.x, height: point.y - drag.start.y)
+        // Measured from where the table was, so the page and the tables
+        // round it decide where it lands, however far the pointer goes.
+        let zoom = self.zoom
+        let resting = CGRect(x: table.x * zoom, y: table.y * zoom, width: moving.frame.width, height: moving.frame.height)
+        let proposed = resting.offsetBy(dx: point.x - drag.start.x, dy: point.y - drag.start.y)
+        let others = placed.filter { $0.sheet.id != drag.id }.map(\.frame)
+        let snapped = CanvasSnapping.snap(proposed, among: others, minimum: CanvasSnapping.minimumOrigin(zoom: zoom))
+        drag.offset = CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY)
         self.drag = drag
-        if let canvas = document.workbook.canvas(containing: drag.id) {
-            refresh(canvas, visible: enclosingScrollView?.contentSize ?? bounds.size)
-        }
+        guideView.guides = snapped.guides
+        refresh(canvas, visible: enclosingScrollView?.contentSize ?? bounds.size)
         autoscroll(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {
         guard let drag, let document else { return }
         self.drag = nil
+        guideView.guides = []
         NSCursor.openHand.set()
         guard drag.offset != .zero, let table = document.workbook.canvas(containing: drag.id)?.table(for: drag.id) else {
             return document.notify()
@@ -196,7 +244,30 @@ final class CanvasView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         // The grid sets its own.
         if let grid, grid.frame.contains(point) { return }
-        let movable = document?.state.allowsLayingOutTables == true && tableName(at: point) != nil
+        let movable = document?.state.allowsLayingOutTables == true && grabbable(at: point) != nil
         (movable ? NSCursor.openHand : NSCursor.arrow).set()
+    }
+}
+
+/// The guides a dragged table shows while it is lined up with another:
+/// over everything on the canvas, and never in the way of a click.
+@MainActor
+private final class CanvasGuideView: NSView {
+    var guides: [CanvasSnapping.Guide] = [] {
+        didSet { if guides != oldValue { needsDisplay = true } }
+    }
+
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard !guides.isEmpty else { return }
+        NSColor.systemYellow.setFill()
+        for guide in guides {
+            let line = guide.axis == .vertical
+                ? CGRect(x: guide.position - 0.5, y: guide.start, width: 1, height: guide.end - guide.start)
+                : CGRect(x: guide.start, y: guide.position - 0.5, width: guide.end - guide.start, height: 1)
+            line.fill()
+        }
     }
 }
