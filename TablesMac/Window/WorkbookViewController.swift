@@ -208,11 +208,12 @@ final class WorkbookViewController: NSViewController {
             if entering, let frame = canvasView.activeFrame {
                 // The table's name too, above it.
                 let reach = SheetCanvas.nameHeight * (document?.state.zoom ?? 1)
-                canvasView.scroll(CGPoint(x: max(0, frame.minX - reach), y: max(0, frame.minY - reach * 2)))
+                // The grip outside its corner, as well.
+                canvasView.scroll(CGPoint(x: max(0, frame.minX - reach - 24), y: max(0, frame.minY - reach * 2)))
             } else if switched, let frame = canvasView.activeFrame {
                 // A table just picked or added comes into view, name and all.
                 let reach = SheetCanvas.nameHeight * (document?.state.zoom ?? 1)
-                let head = CGRect(x: frame.minX, y: frame.minY - reach, width: min(frame.width, 400),
+                let head = CGRect(x: frame.minX - 24, y: frame.minY - reach, width: min(frame.width, 400) + 24,
                                   height: min(frame.height, 200) + reach)
                 canvasView.scrollToVisible(head.insetBy(dx: -12, dy: -12))
             }
