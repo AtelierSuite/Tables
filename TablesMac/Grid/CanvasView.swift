@@ -107,6 +107,16 @@ final class CanvasView: NSView {
         }
     }
 
+    /// Lets what a dragged table passes over show through its headers, and
+    /// brings them back once it is let go.
+    private func fadeHeaders(to opacity: CGFloat) {
+        guard let headerView, headerView.alphaValue != opacity else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = CanvasChrome.fadeDuration
+            headerView.animator().alphaValue = opacity
+        }
+    }
+
     /// Grows the page to hold every table with room to spare, and to fill
     /// the window.
     func fit(visible: CGSize) {
@@ -235,6 +245,7 @@ final class CanvasView: NSView {
             proposed, among: others, minimum: CanvasSnapping.minimumOrigin(zoom: zoom, rowCount: moving.sheet.rowCount))
         drag.offset = CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY)
         self.drag = drag
+        if drag.offset != .zero { fadeHeaders(to: CanvasChrome.draggingOpacity) }
         guideView.guides = snapped.guides
         refresh(canvas, visible: enclosingScrollView?.contentSize ?? bounds.size)
         autoscroll(with: event)
@@ -244,6 +255,7 @@ final class CanvasView: NSView {
         guard let drag, let document else { return }
         self.drag = nil
         guideView.guides = []
+        fadeHeaders(to: 1)
         NSCursor.openHand.set()
         guard drag.offset != .zero, let table = document.workbook.canvas(containing: drag.id)?.table(for: drag.id) else {
             // A click on the corner, rather than a drag, selects the table.

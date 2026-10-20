@@ -101,4 +101,8 @@ enum CanvasChrome {
 
     /// How long headers take to fade in or out as tables are picked.
     static let fadeDuration = 0.18
+
+    /// How opaque a table's headers are while it is being dragged, so what
+    /// it passes over shows through them.
+    static let draggingOpacity = 0.4
 }
