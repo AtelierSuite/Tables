@@ -179,7 +179,7 @@ struct SheetTabBarView: View {
     private func menuActions(for sheet: Worksheet) -> [HeaderMenuAction] {
         // A canvas's name only changes where the file can keep canvases.
         let isCanvas = !tables(sharingTabWith: sheet).isEmpty
-        let rename = !isCanvas || state.allowsArrangingCanvases ? [
+        let rename = !isCanvas || state.allowsLayingOutTables ? [
             HeaderMenuAction(title: String(localized: "SheetTabBar.Menu.Rename"), symbol: "pencil") {
                 beginRename(sheet)
             },
@@ -303,7 +303,7 @@ struct SheetTabBarView: View {
 
     private func commitRename(for sheet: Worksheet) {
         if !tables(sharingTabWith: sheet).isEmpty, let canvas = workbook.canvas(containing: sheet.id) {
-            workbook.renameCanvas(canvas.id, to: draftName)
+            state.renameCanvas(containing: canvas.tables[0].sheetID, to: draftName, in: &workbook)
         } else {
             workbook.renameSheet(sheet.id, to: draftName)
         }

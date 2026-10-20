@@ -208,6 +208,7 @@ final class WorkbookDocument: NSDocument {
         state.allowsComments = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
+        state.allowsLayingOutTables = !file.isPlainText
         refreshCapabilities()
     }
 
@@ -217,6 +218,7 @@ final class WorkbookDocument: NSDocument {
         state.allowsComments = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
+        state.allowsLayingOutTables = !file.isPlainText
         state.allowsInsertingAndDeleting = file.allowsMovingCells(in: state.activeSheetID)
         state.formatting = file.formatting(in: state.activeSheetID)
     }

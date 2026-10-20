@@ -150,7 +150,7 @@ struct SheetGridView: View {
         ) {
             TextField("SheetTabBar.RenameField.Placeholder", text: $tableNameDraft)
             Button("Canvas.RenameTable.Confirm") {
-                if let id = renamingTableID { workbook.renameSheet(id, to: tableNameDraft) }
+                if let id = renamingTableID { state.renameTable(id, to: tableNameDraft, in: &workbook) }
                 renamingTableID = nil
             }
             Button("Cancel", role: .cancel) { renamingTableID = nil }
@@ -389,12 +389,12 @@ struct SheetGridView: View {
             .gesture(
                 DragGesture(minimumDistance: 4)
                     .onChanged { value in
-                        guard state.allowsArrangingCanvases else { return }
+                        guard state.allowsLayingOutTables else { return }
                         tableDrag = (sheet.id, value.translation)
                     }
                     .onEnded { value in
                         defer { tableDrag = nil }
-                        guard state.allowsArrangingCanvases,
+                        guard state.allowsLayingOutTables,
                               let table = workbook.canvas(containing: sheet.id)?.table(for: sheet.id) else { return }
                         state.moveTable(sheet.id, toX: (table.x + value.translation.width / zoom).rounded(),
                                         y: (table.y + value.translation.height / zoom).rounded(), in: &workbook)
@@ -409,15 +409,16 @@ struct SheetGridView: View {
     private func tableActions(for sheet: Worksheet) -> [HeaderMenuAction] {
         let showsName = workbook.canvas(containing: sheet.id)?.table(for: sheet.id)?.showsName ?? true
         let arranging = state.allowsArrangingCanvases
+        let layingOut = state.allowsLayingOutTables
         let targets = state.canvasTargets(in: workbook).filter { $0.id != sheet.id }
         return [
             HeaderMenuAction(title: String(localized: "Canvas.RenameTable"), symbol: "pencil") {
-                tableNameDraft = sheet.name
+                tableNameDraft = workbook.tableName(of: sheet.id)
                 renamingTableID = sheet.id
             },
             HeaderMenuAction(
                 title: String(localized: "Canvas.ShowTableName"), symbol: showsName ? "checkmark" : "",
-                isEnabled: arranging
+                isEnabled: layingOut
             ) {
                 state.setTableNameShown(!showsName, for: sheet.id, in: &workbook)
             },

@@ -198,7 +198,7 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
         // A canvas's tab is the canvas's name, which only a file that keeps
         // canvases can change.
         let isCanvas = !tables(sharingTabWith: sheet, in: document).isEmpty
-        if isCanvas, !document.state.allowsArrangingCanvases { return }
+        if isCanvas, !document.state.allowsLayingOutTables { return }
         let field = NSTextField(string: tabName(for: sheet, in: document))
         field.delegate = self
         field.font = .systemFont(ofSize: 12)
@@ -217,9 +217,9 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
         renamingID = nil
         field.removeFromSuperview()
         if (notification.userInfo?["NSTextMovement"] as? Int) != NSTextMovement.cancel.rawValue, let document {
-            if let canvas = document.workbook.canvas(containing: id),
-               let sheet = document.workbook[id], !tables(sharingTabWith: sheet, in: document).isEmpty {
-                document.edit { $0.renameCanvas(canvas.id, to: name) }
+            if let sheet = document.workbook[id], !tables(sharingTabWith: sheet, in: document).isEmpty {
+                let state = document.state
+                document.edit { state.renameCanvas(containing: id, to: name, in: &$0) }
             } else {
                 document.edit { $0.renameSheet(id, to: name) }
             }

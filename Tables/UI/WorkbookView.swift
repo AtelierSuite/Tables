@@ -97,6 +97,7 @@ struct WorkbookView: View {
             state.allowsComments = !document.isPlainText && !document.isNumbers
             state.allowsFreezingPanes = !document.isPlainText && !document.isNumbers
             state.allowsArrangingCanvases = !document.isPlainText && !document.isNumbers
+            state.allowsLayingOutTables = !document.isPlainText
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.sheets.first?.id
                 state.refreshMetrics(in: document.workbook)
@@ -257,6 +258,7 @@ struct WorkbookView: View {
             state.allowsComments = true
             state.allowsFreezingPanes = true
             state.allowsArrangingCanvases = true
+            state.allowsLayingOutTables = true
         }
     }
 

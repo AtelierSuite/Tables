@@ -129,7 +129,7 @@ final class CanvasView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         if let table = tableName(at: point) {
             if table.sheet.id != activeID { document.selectSheet(table.sheet.id) }
-            if document.state.allowsArrangingCanvases {
+            if document.state.allowsLayingOutTables {
                 drag = (table.sheet.id, point, .zero)
                 NSCursor.closedHand.set()
             }
@@ -196,7 +196,7 @@ final class CanvasView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         // The grid sets its own.
         if let grid, grid.frame.contains(point) { return }
-        let movable = document?.state.allowsArrangingCanvases == true && tableName(at: point) != nil
+        let movable = document?.state.allowsLayingOutTables == true && tableName(at: point) != nil
         (movable ? NSCursor.openHand : NSCursor.arrow).set()
     }
 }

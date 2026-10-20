@@ -282,7 +282,7 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         let id = document.activeSheet.id
         let alert = NSAlert()
         alert.messageText = String(localized: "Canvas.RenameTable.Title")
-        let field = NSTextField(string: document.activeSheet.name)
+        let field = NSTextField(string: document.workbook.tableName(of: id))
         field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
         alert.accessoryView = field
         alert.addButton(withTitle: String(localized: "Canvas.RenameTable.Confirm"))
@@ -290,7 +290,7 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         alert.window.initialFirstResponder = field
         alert.beginSheetModal(for: window) { [weak self] response in
             guard response == .alertFirstButtonReturn else { return }
-            self?.edit { _, workbook in workbook.renameSheet(id, to: field.stringValue) }
+            self?.edit { $0.renameTable(id, to: field.stringValue, in: &$1) }
         }
     }
 
@@ -588,10 +588,10 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             return isCells && state.allowsArrangingCanvases
         case #selector(moveTableToSheet(_:)):
             return isCells && state.allowsArrangingCanvases
-        case #selector(moveTableToOwnSheet(_:)), #selector(toggleTableName(_:)):
+        case #selector(moveTableToOwnSheet(_:)):
             return state.allowsArrangingCanvases && onCanvas
-        case #selector(renameTable(_:)):
-            return onCanvas
+        case #selector(toggleTableName(_:)), #selector(renameTable(_:)):
+            return state.allowsLayingOutTables && onCanvas
         case #selector(showUnsupportedFeatures(_:)):
             return !document.unsupportedFeatures.isEmpty
         case #selector(showMacros(_:)):

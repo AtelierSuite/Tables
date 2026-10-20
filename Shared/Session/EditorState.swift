@@ -86,6 +86,9 @@ final class EditorState {
     /// False for delimited text and Numbers documents, which can't keep
     /// sheets laid out together on a canvas, or moved about on one.
     var allowsArrangingCanvases = true
+    /// False for delimited text, which has no tables to lay out: moving and
+    /// naming the tables on a canvas, which Numbers documents keep too.
+    var allowsLayingOutTables = true
     /// False for a Numbers table that something Tables can't move along with
     /// its cells depends on — a chart, a filter, a merged cell: inserting or
     /// deleting rows and columns would leave it behind.

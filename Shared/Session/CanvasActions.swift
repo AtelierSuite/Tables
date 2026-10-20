@@ -42,15 +42,35 @@ extension EditorState {
 
     /// Moves a table on its canvas, to a place in points at 100%.
     func moveTable(_ id: Worksheet.ID, toX x: Double, y: Double, in workbook: inout Workbook) {
-        guard allowsArrangingCanvases else { return }
+        guard allowsLayingOutTables else { return }
         workbook.moveTable(id, toX: x, y: y)
     }
 
     func setTableNameShown(_ shown: Bool, for id: Worksheet.ID, in workbook: inout Workbook) {
-        guard allowsArrangingCanvases,
+        guard allowsLayingOutTables,
               let canvas = workbook.canvases.firstIndex(where: { $0.contains(id) }),
               let table = workbook.canvases[canvas].tables.firstIndex(where: { $0.sheetID == id }) else { return }
         workbook.canvases[canvas].tables[table].showsName = shown
+    }
+
+    /// Renames a table: its own name where it has one, as a Numbers table
+    /// does, and otherwise its sheet, as Excel knows it.
+    func renameTable(_ id: Worksheet.ID, to name: String, in workbook: inout Workbook) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard allowsLayingOutTables, !trimmed.isEmpty else { return }
+        if let canvas = workbook.canvases.firstIndex(where: { $0.contains(id) }),
+           let table = workbook.canvases[canvas].tables.firstIndex(where: { $0.sheetID == id }),
+           workbook.canvases[canvas].tables[table].name != nil {
+            workbook.canvases[canvas].tables[table].name = trimmed
+        } else {
+            workbook.renameSheet(id, to: trimmed)
+        }
+    }
+
+    /// Renames the canvas a sheet is on.
+    func renameCanvas(containing id: Worksheet.ID, to name: String, in workbook: inout Workbook) {
+        guard allowsLayingOutTables, let canvas = workbook.canvas(containing: id) else { return }
+        workbook.renameCanvas(canvas.id, to: name)
     }
 
     /// The sheets the active one could join on a canvas: every other one
