@@ -50,8 +50,10 @@ struct SheetGridView: View {
     /// What the dragged table is lined up with, shown while it is.
     @State private var canvasGuides: [CanvasSnapping.Guide] = []
     /// The table being renamed from its menu, and the name typed so far.
+    /// The table whose name is being typed in place, and what is typed.
     @State private var renamingTableID: Worksheet.ID?
     @State private var tableNameDraft = ""
+    @FocusState private var isTableNameFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
     #if os(macOS)
     /// Where the pointer last was, for the right-click menu to read.
@@ -146,17 +148,6 @@ struct SheetGridView: View {
         }
         .onChange(of: state.editingAddress) { _, address in
             isCellEditorFocused = address != nil && !state.isFormulaBarActive
-        }
-        .alert(
-            "Canvas.RenameTable.Title",
-            isPresented: Binding(get: { renamingTableID != nil }, set: { if !$0 { renamingTableID = nil } })
-        ) {
-            TextField("SheetTabBar.RenameField.Placeholder", text: $tableNameDraft)
-            Button("Canvas.RenameTable.Confirm") {
-                if let id = renamingTableID { state.renameTable(id, to: tableNameDraft, in: &workbook) }
-                renamingTableID = nil
-            }
-            Button("Cancel", role: .cancel) { renamingTableID = nil }
         }
     }
 
@@ -358,8 +349,8 @@ struct SheetGridView: View {
     // MARK: - Canvas tables
 
     /// The canvas's other tables, drawn where they sit, and every table's
-    /// name above it, which is where a table is picked up to be moved. A tap
-    /// on another table makes it the one worked on.
+    /// name above it, which a tap edits in place. A tap on another table
+    /// makes it the one worked on.
     private func canvasTables(_ canvas: SheetCanvas) -> some View {
         let zoom = state.zoom
         let active = activeSheet.id
@@ -459,16 +450,53 @@ struct SheetGridView: View {
         }
     }
 
+    @ViewBuilder
     private func tableName(of sheet: Worksheet, isActive: Bool, zoom: Double) -> some View {
-        Text(workbook.tableName(of: sheet.id))
-            .font(.system(size: max(9, 14 * zoom), weight: .semibold))
-            .foregroundStyle(isActive ? Color.primary : Color.secondary)
-            .lineLimit(1)
-            .frame(height: (SheetCanvas.nameHeight - 4) * zoom, alignment: .bottomLeading)
-            .contentShape(.rect)
-            .gesture(tableDragGesture(for: sheet, zoom: zoom))
-            .onTapGesture { if !isActive { pickTable(sheet, at: CellAddress(row: 0, column: 0)) } }
-            .contextMenu { HeaderActionMenu(actions: tableActions(for: sheet)) }
+        let font = Font.system(size: max(9, 14 * zoom), weight: .semibold)
+        let height = (SheetCanvas.nameHeight - 4) * zoom
+        if renamingTableID == sheet.id {
+            TextField("SheetTabBar.RenameField.Placeholder", text: $tableNameDraft)
+                .font(font)
+                .textFieldStyle(.plain)
+                .focused($isTableNameFocused)
+                .submitLabel(.done)
+                .onSubmit { endRenamingTable() }
+                .onChange(of: isTableNameFocused) { _, focused in if !focused { endRenamingTable() } }
+                .frame(width: max(sheet.totalWidth * zoom, 120), height: height, alignment: .bottomLeading)
+        } else {
+            Text(workbook.tableName(of: sheet.id))
+                .font(font)
+                .foregroundStyle(isActive ? Color.primary : Color.secondary)
+                .lineLimit(1)
+                .frame(height: height, alignment: .bottomLeading)
+                .contentShape(.rect)
+                .onTapGesture {
+                    if !isActive { pickTable(sheet, at: CellAddress(row: 0, column: 0)) }
+                    beginRenamingTable(sheet.id)
+                }
+                .contextMenu { HeaderActionMenu(actions: tableActions(for: sheet)) }
+        }
+    }
+
+    /// Puts a field where a table's name is, to type a new one in.
+    private func beginRenamingTable(_ id: Worksheet.ID) {
+        guard state.allowsLayingOutTables else { return }
+        endRenamingTable()
+        // A hidden name has nowhere to be typed, so it shows again.
+        if workbook.canvas(containing: id)?.table(for: id)?.showsName == false {
+            state.setTableNameShown(true, for: id, in: &workbook)
+        }
+        tableNameDraft = workbook.tableName(of: id)
+        renamingTableID = id
+        isTableNameFocused = true
+    }
+
+    /// Puts the name typed in place; an empty one leaves the old.
+    private func endRenamingTable() {
+        guard let id = renamingTableID else { return }
+        renamingTableID = nil
+        isTableNameFocused = false
+        if tableNameDraft != workbook.tableName(of: id) { state.renameTable(id, to: tableNameDraft, in: &workbook) }
     }
 
     /// The corner where the active table's headers meet: dragged, it
@@ -551,9 +579,8 @@ struct SheetGridView: View {
         let layingOut = state.allowsLayingOutTables
         let targets = state.canvasTargets(in: workbook).filter { $0.id != sheet.id }
         return [
-            HeaderMenuAction(title: String(localized: "Canvas.RenameTable"), symbol: "pencil") {
-                tableNameDraft = workbook.tableName(of: sheet.id)
-                renamingTableID = sheet.id
+            HeaderMenuAction(title: String(localized: "Canvas.RenameTable"), symbol: "pencil", isEnabled: layingOut) {
+                beginRenamingTable(sheet.id)
             },
             HeaderMenuAction(
                 title: String(localized: "Canvas.ShowTableName"), symbol: showsName ? "checkmark" : "",
