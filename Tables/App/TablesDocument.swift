@@ -1,162 +1,60 @@
-import Synchronization
 import SwiftUI
+import Synchronization
+import TablesEngine
 import UniformTypeIdentifiers
 
-extension UTType {
-    /// The Office Open XML workbook type, declared by the system.
-    static let openXMLWorkbook = UTType("org.openxmlformats.spreadsheetml.sheet") ?? .data
-    /// The `.xlsm` workbook, which may carry macros. It does not conform to
-    /// the plain workbook type, so it is asked about in its own right.
-    static let macroEnabledWorkbook = UTType("org.openxmlformats.spreadsheetml.sheet.macroenabled") ?? .data
-    /// A Numbers document saved as a single file, as Numbers saves by default.
-    /// Imported rather than looked up, so that a system without Numbers'
-    /// declarations can't leave it falling back on a type everything matches.
-    static let numbersDocument = UTType(importedAs: "com.apple.iwork.numbers.sffnumbers")
-    /// A Numbers document saved as a package, as older versions saved them.
-    static let numbersPackage = UTType(importedAs: "com.apple.iwork.numbers.numbers")
-}
-
-/// The app's document: an entire workbook, loaded from `.xlsx`, `.xlsm` or
-/// `.csv`, or imported from Numbers.
+/// The app's document: the `WorkbookFile` it was opened from, as a SwiftUI
+/// document.
 struct TablesDocument: FileDocument {
-    static let readableContentTypes: [UTType] = [
-        .openXMLWorkbook, .macroEnabledWorkbook, .commaSeparatedText, .tabSeparatedText,
-        .numbersDocument, .numbersPackage
-    ]
-    static let writableContentTypes: [UTType] = [
-        .openXMLWorkbook, .macroEnabledWorkbook, .commaSeparatedText, .tabSeparatedText,
-        .numbersDocument, .numbersPackage
-    ]
+    static let readableContentTypes = WorkbookFile.readableContentTypes
+    static let writableContentTypes = WorkbookFile.writableContentTypes
 
-    var workbook: Workbook
+    private var file: WorkbookFile
     /// CSV holds a single sheet, so exporting picks one: whichever the user
     /// is looking at. Held by reference, because looking at a sheet is not an
     /// edit — written through the document, it marked the file changed and
     /// saved it just for being opened.
     let csvExport = CSVExportChoice()
-    /// Whether the file is delimited text, which keeps values but no styling,
-    /// so formatting applied to it would be thrown away on save. Settable
-    /// because the file can be converted into a workbook while open.
-    var isPlainText: Bool
-    /// Whether the file is an `.xlsm`, the only kind that keeps macros.
-    var isMacroEnabled: Bool
-    /// The Numbers document the workbook was read from, which saving
-    /// patches with the workbook's changes. Nil for any other kind of file.
-    let numbersSource: NumbersSource?
 
-    /// Whether the file is a Numbers document, which keeps only the changes
-    /// `NumbersEditPolicy` allows.
-    var isNumbers: Bool { numbersSource != nil }
-
-    /// Whether rows and columns can be inserted into and deleted from a sheet:
-    /// in a Numbers document, only where nothing Tables can't move depends on
-    /// where its cells are.
-    func allowsMovingCells(in sheetID: Worksheet.ID?) -> Bool {
-        guard let source = numbersSource else { return true }
-        guard let sheetID, let table = source.tables[sheetID], let imported = source.imported[sheetID] else { return false }
-        return NumbersEditPolicy.canMoveCells(in: table, imported: imported, source: source)
+    var workbook: Workbook {
+        get { file.workbook }
+        set { file.workbook = newValue }
     }
 
-    /// The formatting a sheet keeps: none in delimited text, and in a Numbers
-    /// document only what `NumbersEditPolicy` can save.
-    func formatting(in sheetID: Worksheet.ID?) -> FormattingKinds {
-        if isPlainText { return [] }
-        guard let source = numbersSource else { return .all }
-        guard let sheetID, let table = source.tables[sheetID] else { return [] }
-        return NumbersEditPolicy.formatting(in: table)
+    var isPlainText: Bool {
+        get { file.isPlainText }
+        set { file.isPlainText = newValue }
     }
 
-    /// What the opened file used that Tables cannot edit. Empty for anything we
-    /// authored ourselves and for CSV, which has no such features to begin with.
-    var unsupportedFeatures: UnsupportedFeatureReport { numbersSource?.features ?? workbook.unsupportedFeatures }
+    var isMacroEnabled: Bool {
+        get { file.isMacroEnabled }
+        set { file.isMacroEnabled = newValue }
+    }
+
+    var numbersSource: NumbersSource? { file.numbersSource }
+    var isNumbers: Bool { file.isNumbers }
+    var unsupportedFeatures: UnsupportedFeatureReport { file.unsupportedFeatures }
+
+    func allowsMovingCells(in sheetID: Worksheet.ID?) -> Bool { file.allowsMovingCells(in: sheetID) }
+    func formatting(in sheetID: Worksheet.ID?) -> FormattingKinds { file.formatting(in: sheetID) }
 
     init() {
-        workbook = Workbook()
-        isPlainText = false
-        isMacroEnabled = false
-        numbersSource = nil
+        file = WorkbookFile()
     }
 
     init(workbook: Workbook) {
-        self.workbook = workbook
-        isPlainText = false
-        isMacroEnabled = false
-        numbersSource = nil
+        file = WorkbookFile(workbook: workbook)
     }
 
     init(configuration: ReadConfiguration) throws {
-        isMacroEnabled = configuration.contentType.conforms(to: .macroEnabledWorkbook)
-        if Self.isNumbers(configuration.contentType) {
-            let file = configuration.file
-            let document = try file.isDirectory
-                ? NumbersReader.document(from: file)
-                : NumbersReader.document(from: file.regularFileContents ?? Data())
-            workbook = document.workbook
-            numbersSource = document.source
-            isPlainText = false
-            return
-        }
-        numbersSource = nil
-
-        guard let data = configuration.file.regularFileContents else {
-            throw CocoaError(.fileReadCorruptFile)
-        }
-        let name = configuration.file.preferredFilename.map {
-            ($0 as NSString).deletingPathExtension
-        } ?? Workbook.defaultSheetName(1)
-
-        if configuration.contentType.conforms(to: .openXMLWorkbook)
-            || configuration.contentType.conforms(to: .macroEnabledWorkbook) {
-            workbook = try XLSXReader.workbook(from: data)
-            isPlainText = false
-        } else if configuration.contentType.conforms(to: .commaSeparatedText)
-                    || configuration.contentType.conforms(to: .tabSeparatedText)
-                    || configuration.contentType.conforms(to: .text) {
-            workbook = CSVCodec.workbook(from: data, sheetName: name)
-            isPlainText = true
-        } else {
-            // Fall back on content sniffing: ZIP packages start with "PK".
-            if data.starts(with: [0x50, 0x4B]) {
-                workbook = try XLSXReader.workbook(from: data)
-                isPlainText = false
-            } else {
-                workbook = CSVCodec.workbook(from: data, sheetName: name)
-                isPlainText = true
-            }
-        }
+        file = try WorkbookFile(file: configuration.file, contentType: configuration.contentType)
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        if Self.isNumbers(configuration.contentType) {
-            // Only into the document it came from: Tables can patch a Numbers
-            // document but can't make one.
-            guard let numbersSource else { throw CocoaError(.fileWriteUnsupportedScheme) }
-            return try NumbersWriter.fileWrapper(
-                for: workbook, source: numbersSource, existing: configuration.existingFile
-            )
-        }
-        let data: Data
-        // Tab separated text does not conform to the comma separated type, so
-        // ask about it in its own right rather than relying on the order here.
-        if configuration.contentType.conforms(to: .tabSeparatedText) {
-            data = CSVCodec.data(from: exportSheet, delimiter: "\t")
-        } else if configuration.contentType.conforms(to: .commaSeparatedText) {
-            data = CSVCodec.data(from: exportSheet)
-        } else {
-            data = try XLSXWriter.data(
-                from: workbook, macroEnabled: configuration.contentType.conforms(to: .macroEnabledWorkbook)
-            )
-        }
-        return FileWrapper(regularFileWithContents: data)
-    }
-
-    private static func isNumbers(_ type: UTType) -> Bool {
-        type.conforms(to: .numbersDocument) || type.conforms(to: .numbersPackage)
-    }
-
-    /// Saving as delimited text writes whichever sheet the user picked.
-    private var exportSheet: Worksheet {
-        workbook.sheet(at: csvExport.sheetIndex)
+        try file.fileWrapper(
+            contentType: configuration.contentType, existing: configuration.existingFile,
+            exportSheetIndex: csvExport.sheetIndex
+        )
     }
 }
 

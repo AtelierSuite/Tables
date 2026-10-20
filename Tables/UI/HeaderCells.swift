@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// A column letter button with a drag-to-resize grip on its trailing edge.
 /// Long-press (or right-click) opens the structure menu; so does a double tap.

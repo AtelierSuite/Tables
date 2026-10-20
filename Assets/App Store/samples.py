@@ -1,12 +1,12 @@
 """Writes the sample documents the App Store screenshots open.
 
-Usage: python3 samples.py <iPhone|iPad> <en|ja>
+Usage: python3 samples.py <iPhone|iPad|Mac> <en|ja>
 
 Prints the directory it wrote the documents to.
 
 The iPhone set is sized to fit a phone screen without scrolling; the iPad set is
-larger so the sheets fill the screen. Everything is set in Kivotos. Needs
-openpyxl (pip3 install openpyxl).
+larger so the sheets fill the screen, and the Mac uses the iPad set. Everything
+is set in Kivotos. Needs openpyxl (pip3 install openpyxl).
 """
 import csv, os, random, re, sys, tempfile, zipfile, datetime as dt
 from openpyxl import Workbook
@@ -25,7 +25,7 @@ def choose(value, options):
 
 if len(sys.argv) != 3:
     sys.exit(__doc__)
-DEVICE = choose(sys.argv[1], ("iPhone", "iPad"))
+DEVICE = choose(sys.argv[1], ("iPhone", "iPad", "Mac"))
 LANG = choose(sys.argv[2], ("en", "ja"))
 OUT = tempfile.mkdtemp(prefix=f"tables-samples-{DEVICE}-{LANG}-")
 JA = LANG == "ja"

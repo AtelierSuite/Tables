@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The colours a formula's references are told apart by, both where they are
 /// outlined on the grid and where they are written in the formula.

@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The scrollable spreadsheet canvas.
 ///
@@ -30,6 +31,8 @@ struct SheetGridView: View {
     /// The grid point the selection handle started from, in content coordinates.
     /// Non-nil only while the handle is being dragged.
     @State private var handleDragOrigin: CGPoint?
+    /// While a fill handle is dragged, the range letting go would fill.
+    @State private var fillTarget: CellRange?
     /// The last cell tapped and when, so a second tap on it can open the menu.
     @State private var lastTap: (address: CellAddress, time: Date)?
     /// Bumped to raise the cell menu from a double tap or a long press.
@@ -187,6 +190,13 @@ struct SheetGridView: View {
         let top = state.scrollOffset.y - columnHeaderHeight
         let height = max(state.viewportSize.height, 200)
         return metrics.rows(in: max(0, top)...(top + height))
+    }
+
+    /// The columns with a header showing: the frozen ones, then whatever
+    /// has scrolled into view past them.
+    private var headerColumns: [Int] {
+        let frozen = activeSheet.frozenColumns
+        return Array(0..<min(frozen, metrics.columnCount)) + visibleColumns.filter { $0 >= frozen }
     }
 
     private var visibleColumns: Range<Int> {
@@ -608,7 +618,7 @@ struct SheetGridView: View {
             : state.selection.normalized
         let frame = metrics.frame(for: box)
         let isEditing = state.editingAddress != nil && !state.isEnteringFormula
-        let tint: Color = state.isEnteringFormula ? pointingTint : .accentColor
+        let tint: Color = state.isEnteringFormula ? pointingTint : (state.isAutoFilling ? .yellow : .accentColor)
 
         return ZStack(alignment: .topLeading) {
             // Fill everything but the anchor cell, the way a spreadsheet does.
@@ -636,7 +646,23 @@ struct SheetGridView: View {
         // the grip takes touches.
         .allowsHitTesting(false)
         .overlay(alignment: .bottomTrailing) {
-            if !isEditing { selectionHandle(from: box, tint: tint) }
+            if !isEditing, !state.isAutoFilling { selectionHandle(from: box, tint: tint) }
+        }
+        .overlay(alignment: .bottom) {
+            if state.isAutoFilling, !isEditing { fillHandle(from: box, vertical: true) }
+        }
+        .overlay(alignment: .trailing) {
+            if state.isAutoFilling, !isEditing { fillHandle(from: box, vertical: false) }
+        }
+        .overlay(alignment: .topLeading) {
+            if state.isAutoFilling, let fillTarget {
+                let preview = metrics.frame(for: fillTarget.normalized)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .strokeBorder(Color.yellow, style: StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                    .frame(width: preview.width, height: preview.height)
+                    .offset(x: preview.minX - frame.minX, y: preview.minY - frame.minY)
+                    .allowsHitTesting(false)
+            }
         }
         .offset(x: frame.minX, y: frame.minY)
         // Settling into a new range looks good for keyboard and tap selection,
@@ -685,6 +711,47 @@ struct SheetGridView: View {
             )
             .accessibilityIdentifier("selectionGrip")
             .accessibilityLabel("Grid.ExtendSelection")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// One of the two fill handles autofill puts on the selection's bottom
+    /// and trailing edges, as Numbers does. Dragging one away carries the
+    /// selection's series on along that axis; dragging back in clears cells.
+    private func fillHandle(from box: CellRange, vertical: Bool) -> some View {
+        Image(systemName: vertical ? "chevron.compact.down" : "chevron.compact.right")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.black)
+            .frame(width: vertical ? 34 : 20, height: vertical ? 20 : 34)
+            .glassEffect(.regular.tint(.yellow).interactive(), in: .capsule)
+            .offset(x: vertical ? 0 : 10, y: vertical ? 10 : 0)
+            .contentShape(.rect.inset(by: -14))
+            .gesture(
+                // Measured as a translation in global space, like the grip,
+                // since the handle rides the range it is dragging.
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged { value in
+                        let frame = metrics.frame(for: box)
+                        let origin = handleDragOrigin ?? (vertical
+                            ? CGPoint(x: frame.midX, y: frame.maxY - 1)
+                            : CGPoint(x: frame.maxX - 1, y: frame.midY))
+                        handleDragOrigin = origin
+                        let point = CGPoint(
+                            x: origin.x + value.translation.width, y: origin.y + value.translation.height)
+                        let toward = vertical
+                            ? CellAddress(row: metrics.row(atY: max(0, point.y)), column: box.end.column)
+                            : CellAddress(row: box.end.row, column: metrics.column(atX: max(0, point.x)))
+                        fillTarget = AutoFill.target(extending: box, toward: toward)
+                    }
+                    .onEnded { _ in
+                        handleDragOrigin = nil
+                        defer { fillTarget = nil }
+                        guard let target = fillTarget, target.normalized != box else { return }
+                        state.fillSelection(to: target, in: &workbook)
+                        state.isAutoFilling = false
+                    }
+            )
+            .accessibilityIdentifier(vertical ? "fillHandle.down" : "fillHandle.right")
+            .accessibilityLabel(vertical ? "Grid.FillDown" : "Grid.FillRight")
             .accessibilityAddTraits(.isButton)
     }
 
@@ -920,6 +987,9 @@ struct SheetGridView: View {
         )
 
         return ZStack(alignment: .topLeading) {
+            frozenPanes(width: visibleGridWidth, height: visibleGridHeight)
+                .offset(x: rowHeaderWidth, y: columnHeaderHeight)
+
             columnHeaders
                 .frame(width: visibleGridWidth, height: columnHeaderHeight)
                 .offset(x: rowHeaderWidth)
@@ -936,7 +1006,7 @@ struct SheetGridView: View {
     private var columnHeaders: some View {
         ZStack(alignment: .topLeading) {
             Color.headerBackground.background(.regularMaterial)
-            ForEach(visibleColumns, id: \.self) { column in
+            ForEach(headerColumns, id: \.self) { column in
                 if !activeSheet.hiddenColumns.contains(column) {
                     ColumnHeaderCell(
                         title: CellAddress.columnName(column),
@@ -959,7 +1029,16 @@ struct SheetGridView: View {
                             ).actions()
                         }
                     )
-                    .offset(x: metrics.x(ofColumn: column) - state.scrollOffset.x)
+                    .offset(x: metrics.x(ofColumn: column) - (column < activeSheet.frozenColumns ? 0 : state.scrollOffset.x))
+                    // A frozen column's header stays put over the ones scrolling beneath it.
+                    .zIndex(column < activeSheet.frozenColumns ? 1 : 0)
+                    .background(alignment: .topLeading) {
+                        if column < activeSheet.frozenColumns {
+                            Color.headerBackground.background(.regularMaterial)
+                                .frame(width: metrics.width(ofColumn: column), height: columnHeaderHeight)
+                                .offset(x: metrics.x(ofColumn: column))
+                        }
+                    }
                 }
             }
         }
@@ -968,7 +1047,9 @@ struct SheetGridView: View {
 
     private func rowHeaders(viewportHeight: Double) -> some View {
         let top = state.scrollOffset.y - columnHeaderHeight
-        let rows = metrics.rows(in: max(0, top)...(top + max(viewportHeight, 200)))
+        let frozen = activeSheet.frozenRows
+        let scrolled = metrics.rows(in: max(0, top)...(top + max(viewportHeight, 200))).filter { $0 >= frozen }
+        let rows = Array(0..<min(frozen, metrics.rowCount)) + scrolled
 
         return ZStack(alignment: .topLeading) {
             Color.headerBackground.background(.regularMaterial)
@@ -994,11 +1075,134 @@ struct SheetGridView: View {
                             ).actions()
                         }
                     )
-                    .offset(y: metrics.y(ofRow: row) - state.scrollOffset.y)
+                    .offset(y: metrics.y(ofRow: row) - (row < activeSheet.frozenRows ? 0 : state.scrollOffset.y))
+                    .zIndex(row < activeSheet.frozenRows ? 1 : 0)
+                    .background(alignment: .topLeading) {
+                        if row < activeSheet.frozenRows {
+                            Color.headerBackground.background(.regularMaterial)
+                                .frame(width: rowHeaderWidth, height: metrics.height(ofRow: row))
+                                .offset(y: metrics.y(ofRow: row))
+                        }
+                    }
                 }
             }
         }
         .clipped()
+    }
+
+    // MARK: - Frozen panes
+
+    /// How far the frozen rows reach down, and the frozen columns across.
+    private var frozenExtent: CGSize {
+        let sheet = activeSheet
+        return CGSize(
+            width: sheet.frozenColumns > 0 ? metrics.x(ofColumn: sheet.frozenColumns) : 0,
+            height: sheet.frozenRows > 0 ? metrics.y(ofRow: sheet.frozenRows) : 0
+        )
+    }
+
+    /// While a frozen cell is edited the panes step aside: the editor is one
+    /// of the scrolling cells, and the sheet scrolls back to it.
+    private var isEditingFrozenCell: Bool {
+        guard let address = state.editingAddress else { return false }
+        return address.row < activeSheet.frozenRows || address.column < activeSheet.frozenColumns
+    }
+
+    /// The frozen rows along the top, the frozen columns down the side and
+    /// the corner where they meet, drawn over the scrolling sheet where they
+    /// stay. Each is the sheet's own tiles, shifted by the scroll along the
+    /// axis it scrolls in.
+    @ViewBuilder
+    private func frozenPanes(width: Double, height: Double) -> some View {
+        let sheet = activeSheet
+        let frozen = frozenExtent
+        if (frozen.width > 0 || frozen.height > 0), !isEditingFrozenCell {
+            let rows = 0..<min(sheet.frozenRows, metrics.rowCount)
+            let columns = 0..<min(sheet.frozenColumns, metrics.columnCount)
+            ZStack(alignment: .topLeading) {
+                if frozen.height > 0 {
+                    let shift = CGPoint(x: state.scrollOffset.x, y: 0)
+                    pinned(frozenPane(rows: rows, columns: visibleColumns, shift: shift),
+                           width: width, height: min(height, frozen.height), shift: shift)
+                        .overlay(alignment: .bottom) { frozenEdge(horizontal: true) }
+                }
+                if frozen.width > 0 {
+                    let shift = CGPoint(x: 0, y: state.scrollOffset.y)
+                    pinned(frozenPane(rows: visibleRows, columns: columns, shift: shift),
+                           width: min(width, frozen.width), height: height, shift: shift)
+                        .overlay(alignment: .trailing) { frozenEdge(horizontal: false) }
+                }
+                if frozen.width > 0, frozen.height > 0 {
+                    pinned(frozenPane(rows: rows, columns: columns, shift: .zero),
+                           width: min(width, frozen.width), height: min(height, frozen.height), shift: .zero)
+                }
+            }
+        }
+    }
+
+    /// One frozen pane: the tiles covering it and the selection over them,
+    /// in the sheet's coordinates moved back by `shift`. Taps land on the
+    /// cell beneath, as they would on the sheet.
+    private func frozenPane(rows: Range<Int>, columns: Range<Int>, shift: CGPoint) -> some View {
+        let sheet = activeSheet
+        let plans = tilePlans(rows: rows, columns: columns)
+        let merges = visibleMerges(in: sheet, coveredBy: plans)
+        let scheme = sheet.colorScheme(for: colorScheme)
+        let selection = metrics.frame(for: sheet.expandedToMerges(state.selection))
+
+        return ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(Color.sheetBackground)
+                .frame(width: metrics.totalWidth, height: metrics.totalHeight)
+            ForEach(plans) { plan in
+                let frame = metrics.frame(for: plan.range)
+                GridTileView(
+                    rows: plan.rows,
+                    columns: plan.columns,
+                    origin: frame.origin,
+                    size: frame.size,
+                    hiddenRows: sheet.hiddenRows,
+                    hiddenColumns: sheet.hiddenColumns,
+                    contents: contents(of: plan, in: sheet, merges: merges),
+                    metrics: metrics,
+                    scheme: scheme
+                )
+                .equatable()
+            }
+            if !state.isEnteringFormula {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.14))
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .frame(width: max(selection.width, 1), height: max(selection.height, 1))
+                    .offset(x: selection.minX, y: selection.minY)
+                    .allowsHitTesting(false)
+            }
+        }
+        .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
+        .offset(x: -shift.x, y: -shift.y)
+        // Clipping a view leaves its touches where they were: the sheet-sized
+        // drawing takes none, and the pane, once clipped, takes them instead.
+        .allowsHitTesting(false)
+    }
+
+    /// Clips a frozen pane to its place and sends its taps to the cell under
+    /// them, `shift` being how far the pane's drawing is scrolled.
+    private func pinned(_ pane: some View, width: Double, height: Double, shift: CGPoint) -> some View {
+        pane
+            .frame(width: width, height: height, alignment: .topLeading)
+            .clipped()
+            .contentShape(.rect)
+            .onTapGesture(coordinateSpace: .local) { point in
+                tap(address(at: CGPoint(x: point.x + shift.x, y: point.y + shift.y)))
+            }
+    }
+
+    /// The line Excel draws where the frozen part ends.
+    private func frozenEdge(horizontal: Bool) -> some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.6))
+            .frame(width: horizontal ? nil : 1, height: horizontal ? 1 : nil)
+            .allowsHitTesting(false)
     }
 
     private var cornerButton: some View {
@@ -1027,14 +1231,26 @@ struct SheetGridView: View {
         let visibleWidth = max(1, state.viewportSize.width - rowHeaderWidth)
         let visibleHeight = max(1, state.viewportSize.height - columnHeaderHeight)
         var offset = state.scrollOffset
+        let sheet = activeSheet
+        let frozen = frozenExtent
+        // A frozen cell is in view already, unless it is being edited: the
+        // editor lives with the scrolling cells, so the sheet goes back to it.
+        let editingFrozen = isEditingFrozenCell
+        let pinsRow = address.row < sheet.frozenRows && !editingFrozen
+        let pinsColumn = address.column < sheet.frozenColumns && !editingFrozen
+        // Anything else has to land clear of the frozen panes, not under them.
+        let leading = address.column < sheet.frozenColumns ? 0 : frozen.width
+        let top = address.row < sheet.frozenRows ? 0 : frozen.height
 
-        if frame.minX < offset.x {
-            offset.x = frame.minX
+        if pinsColumn {
+        } else if frame.minX < offset.x + leading {
+            offset.x = frame.minX - leading
         } else if frame.maxX > offset.x + visibleWidth {
             offset.x = frame.maxX - visibleWidth
         }
-        if frame.minY < offset.y {
-            offset.y = frame.minY
+        if pinsRow {
+        } else if frame.minY < offset.y + top {
+            offset.y = frame.minY - top
         } else if frame.maxY > offset.y + visibleHeight {
             offset.y = frame.maxY - visibleHeight
         }
@@ -1048,26 +1264,6 @@ struct SheetGridView: View {
             scrollPosition.scrollTo(point: destination)
         }
     }
-}
-
-extension Color {
-    /// The paper behind the grid.
-    static let sheetBackground: Color = {
-        #if canImport(UIKit)
-        return Color(uiColor: .systemBackground)
-        #else
-        return Color(nsColor: .textBackgroundColor)
-        #endif
-    }()
-
-    /// The surface the paper sits on, past the last row and column.
-    static let sheetCanvas: Color = {
-        #if canImport(UIKit)
-        return Color(uiColor: .secondarySystemBackground)
-        #else
-        return Color(nsColor: .underPageBackgroundColor)
-        #endif
-    }()
 }
 
 /// A pinch in progress, and the sums that keep the sheet under the fingers.

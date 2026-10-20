@@ -1,5 +1,7 @@
 import Testing
 @testable import Tables
+@testable import TablesEngine
+@testable import TablesMacros
 
 @Suite("Formula reference scanner")
 struct FormulaReferenceScannerTests {

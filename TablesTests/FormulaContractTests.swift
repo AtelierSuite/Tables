@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
+@testable import TablesMacros
 
 /// These functions have no fixed current answer. Their contracts are executed
 /// below, rather than counted as covered because their names occur in a file.

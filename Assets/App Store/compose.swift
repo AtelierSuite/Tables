@@ -4,19 +4,25 @@ import AppKit
 
 let scriptDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
 let languages = ["en", "ja"]
+/// The devices named on the command line (`./compose.swift Mac`), or all of them.
+let requestedDevices = Set(CommandLine.arguments.dropFirst())
 
 /// Captures live in `Raw/<device>/<lang>/` and are written to `<device>/<lang>/`.
 enum Device: String {
     case iPhone
     case iPad
+    case mac = "Mac"
 
-    /// 6.5" iPhone and 13" iPad.
+    /// 6.5" iPhone, 13" iPad, and the Mac's 16:10.
     var canvasSize: NSSize {
         switch self {
         case .iPhone: NSSize(width: 1242, height: 2688)
         case .iPad: NSSize(width: 2064, height: 2752)
+        case .mac: NSSize(width: 2880, height: 1800)
         }
     }
+
+    var isRequested: Bool { requestedDevices.isEmpty || requestedDevices.contains(rawValue) }
 
     /// Text and margins are laid out for the iPhone canvas and scaled up by width.
     var scale: CGFloat { canvasSize.width / Device.iPhone.canvasSize.width }
@@ -106,6 +112,30 @@ let iPadScreenshots = [
     Screenshot(name: "04-format", copy: formatCopy),
     Screenshot(name: "05-number-format", copy: numberFormatCopy),
     Screenshot(name: "06-dark", copy: darkCopy),
+]
+
+let macScreenshots = [
+    Screenshot(
+        name: "01-budget",
+        copy: [
+            "en": Copy(header: "Open any spreadsheet", caption: "Excel, Numbers and CSV, with formulas and comments"),
+            "ja": Copy(header: "どんな表計算も、すぐに開ける", caption: "Excel・Numbers・CSVを、数式もコメントもそのまま"),
+        ]
+    ),
+    Screenshot(
+        name: "02-charts",
+        copy: [
+            "en": Copy(header: "Charts in a click", caption: "Chart any range, and style it right beside your data"),
+            "ja": Copy(header: "グラフもワンクリック", caption: "範囲を選んでグラフに、デザインもその場で"),
+        ]
+    ),
+    Screenshot(
+        name: "03-macros",
+        copy: [
+            "en": Copy(header: "Automate with macros", caption: "Write VBA and run it right beside your sheet"),
+            "ja": Copy(header: "マクロで自動化", caption: "VBAを書いて、シートの横ですぐ実行"),
+        ]
+    ),
 ]
 
 // MARK: - Text
@@ -242,7 +272,7 @@ func deviceAspect(_ device: Device) -> CGFloat {
     switch device {
     case .iPhone:
         return hardwarePixel.width / hardwarePixel.height
-    case .iPad:
+    case .iPad, .mac:
         let screenHeight = (1 - 2 * iPadBezel) / iPadScreenAspect
         return 1 / (screenHeight + 2 * iPadBezel)
     }
@@ -280,6 +310,62 @@ func drawiPad(raw: NSImage, in rect: NSRect) {
     ctx.restoreGState()
 }
 
+// MARK: - Mac windows
+
+/// A window capture, with the shadow macOS gives a window in front.
+func drawWindow(_ raw: NSImage, in rect: NSRect) {
+    NSGraphicsContext.current?.saveGraphicsState()
+    let shadow = NSShadow()
+    shadow.shadowColor = NSColor.black.withAlphaComponent(0.4)
+    shadow.shadowBlurRadius = 70
+    shadow.shadowOffset = NSSize(width: 0, height: -30)
+    shadow.set()
+    raw.draw(in: rect)
+    NSGraphicsContext.current?.restoreGraphicsState()
+}
+
+/// The header and caption across the top, and the window below them,
+/// with a second window — the Macros window — overlapping its corner.
+func drawMac(copy: Copy, raw: NSImage, extra: NSImage?, canvasSize: NSSize) {
+    let textWidth = canvasSize.width - 240
+    let header = Line(copy.header, size: 120, weight: .bold, color: .white, maxWidth: textWidth)
+    let caption = Line(
+        copy.caption, size: 60, weight: .medium, color: NSColor.white.withAlphaComponent(0.92), maxWidth: textWidth
+    )
+    let captionGap: CGFloat = 8
+    let inkHeight = header.size.height + captionGap + caption.inkBottom - header.inkTop
+    let textBand = inkHeight + 2 * 90
+    let bottomMargin: CGFloat = 100
+
+    // Captures are 2880 × 1800, a window of 1440 × 900 points at 2x.
+    let windowHeight = canvasSize.height - textBand - bottomMargin
+    let scale = windowHeight / raw.size.height
+    let windowSize = NSSize(width: raw.size.width * scale, height: windowHeight)
+    var windowRect = NSRect(
+        x: ((canvasSize.width - windowSize.width) / 2).rounded(), y: bottomMargin,
+        width: windowSize.width, height: windowSize.height
+    )
+    let extraSize = extra.map { NSSize(width: $0.size.width * scale, height: $0.size.height * scale) }
+    if let extraSize {
+        // Shifted left to make room for the second window on the right.
+        windowRect.origin.x = ((canvasSize.width - windowSize.width - extraSize.width * 0.45) / 2).rounded()
+    }
+
+    let inkTop = (canvasSize.height + windowRect.maxY + inkHeight) / 2
+    let headerTop = (inkTop + header.inkTop).rounded()
+    header.draw(top: headerTop, canvasWidth: canvasSize.width)
+    caption.draw(top: headerTop - header.size.height - captionGap, canvasWidth: canvasSize.width)
+
+    drawWindow(raw, in: windowRect)
+    if let extra, let extraSize {
+        let extraRect = NSRect(
+            x: windowRect.maxX - extraSize.width * 0.55, y: windowRect.minY - bottomMargin * 0.5,
+            width: extraSize.width, height: extraSize.height
+        )
+        drawWindow(extra, in: extraRect)
+    }
+}
+
 // MARK: - Composition
 
 func compose(_ shot: Screenshot, language: String, device: Device) -> Bool {
@@ -297,6 +383,13 @@ func compose(_ shot: Screenshot, language: String, device: Device) -> Bool {
 
     NSGradient(starting: gradientTop, ending: gradientBottom)?
         .draw(in: NSRect(origin: .zero, size: canvasSize), angle: -90)
+
+    if device == .mac {
+        let extra = NSImage(contentsOf: device.rawDir(language).appendingPathComponent("\(shot.name)-macros.png"))
+        drawMac(copy: copy, raw: raw, extra: extra, canvasSize: canvasSize)
+        image.unlockFocus()
+        return write(image, canvasSize: canvasSize, shot: shot, language: language, device: device)
+    }
 
     // One-line header and caption. AppKit's origin is bottom-left.
     let textWidth = canvasSize.width - 96 * s
@@ -326,7 +419,7 @@ func compose(_ shot: Screenshot, language: String, device: Device) -> Bool {
             deviceSize.height = deviceSize.width / aspect
         }
         deviceBottom = deviceTop - deviceSize.height
-    case .iPad:
+    case .iPad, .mac:
         // The iPad is drawn as wide as the margins allow and runs off the bottom of the
         // canvas, leaving a band above it for the text.
         deviceSize = NSSize(width: canvasSize.width - 140 * s, height: (canvasSize.width - 140 * s) / aspect)
@@ -358,13 +451,16 @@ func compose(_ shot: Screenshot, language: String, device: Device) -> Bool {
         hardwareImage.draw(in: deviceRect)
         NSGraphicsContext.current?.restoreGraphicsState()
         maskedScreen(raw: raw).draw(in: deviceRect)
-    case .iPad:
+    case .iPad, .mac:
         drawiPad(raw: raw, in: deviceRect)
     }
 
     image.unlockFocus()
+    return write(image, canvasSize: canvasSize, shot: shot, language: language, device: device)
+}
 
-    // Rasterize at exactly the canvas size in pixels.
+/// Rasterizes at exactly the canvas size in pixels and writes it out.
+func write(_ image: NSImage, canvasSize: NSSize, shot: Screenshot, language: String, device: Device) -> Bool {
     guard let bitmap = NSBitmapImageRep(
         bitmapDataPlanes: nil,
         pixelsWide: Int(canvasSize.width), pixelsHigh: Int(canvasSize.height),
@@ -392,12 +488,12 @@ func compose(_ shot: Screenshot, language: String, device: Device) -> Bool {
 }
 
 var allOK = true
+let sets: [(Device, [Screenshot])] = [(.iPhone, iPhoneScreenshots), (.iPad, iPadScreenshots), (.mac, macScreenshots)]
 for language in languages {
-    for shot in iPhoneScreenshots {
-        allOK = compose(shot, language: language, device: .iPhone) && allOK
-    }
-    for shot in iPadScreenshots {
-        allOK = compose(shot, language: language, device: .iPad) && allOK
+    for (device, shots) in sets where device.isRequested {
+        for shot in shots {
+            allOK = compose(shot, language: language, device: device) && allOK
+        }
     }
 }
 exit(allOK ? 0 : 1)

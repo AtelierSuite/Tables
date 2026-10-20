@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// The pieces of the document picker's top area: a green field ruled like a
 /// sheet, with a wall of the app's features behind the actions.

@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
+@testable import TablesMacros
 
 /// Covers finding cells by what they show and by their formulas.
 @Suite("Find")

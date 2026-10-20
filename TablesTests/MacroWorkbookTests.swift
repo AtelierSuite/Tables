@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
+@testable import TablesMacros
 
 /// What a workbook with macros needs from a save beyond its cells: the names
 /// that bind its modules to its sheets.

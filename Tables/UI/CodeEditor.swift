@@ -1,4 +1,6 @@
 import SwiftUI
+import TablesEngine
+import TablesMacros
 
 /// A plain-text editor for macro code: monospaced, coloured as VBA, and with
 /// every typing aid that would corrupt code switched off — curly quotes

@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Finds text in the cells of every sheet, by what they show or by their
 /// formulas, and goes to the cell picked from the results.

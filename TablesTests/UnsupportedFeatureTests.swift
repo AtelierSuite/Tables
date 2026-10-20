@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
+@testable import TablesMacros
 
 /// Guards what happens to the parts of a workbook Tables cannot edit. A file
 /// opened here and saved again must come back with them intact, or without
@@ -174,20 +176,49 @@ struct UnsupportedFeatureTests {
         #expect(sheet.contains("&quot;a,b&quot;"))
     }
 
-    @Test("A frozen pane survives ahead of the parts we generate")
+    @Test("A frozen pane is read, and written back ahead of the parts we generate")
     func frozenPanesSurvive() throws {
-        let body = "<sheetViews><sheetView workbookViewId=\"0\">"
-            + "<pane xSplit=\"1\" ySplit=\"1\" topLeftCell=\"B2\" state=\"frozen\"/>"
+        let body = "<sheetViews><sheetView workbookViewId=\"0\" zoomScale=\"120\">"
+            + "<pane xSplit=\"1\" ySplit=\"2\" topLeftCell=\"B3\" activePane=\"bottomRight\" state=\"frozen\"/>"
+            + "<selection pane=\"bottomRight\" activeCell=\"C4\"/>"
             + "</sheetView></sheetViews>"
         let (workbook, entries) = try roundTrip(try package(sheets: [body]))
         let sheet = try text(entries, "xl/worksheets/sheet1.xml")
 
-        #expect(sheet.contains("state=\"frozen\""))
+        #expect(workbook.sheets[0].frozenRows == 2)
+        #expect(workbook.sheets[0].frozenColumns == 1)
+        // Attributes come out in name order.
+        #expect(sheet.contains("<pane activePane=\"bottomRight\" state=\"frozen\" topLeftCell=\"B3\" xSplit=\"1\" ySplit=\"2\"/>"))
+        // The rest of the view comes along; one pane only.
+        #expect(sheet.contains("zoomScale=\"120\""))
+        #expect(sheet.components(separatedBy: "<pane").count == 2)
         // `sheetViews` precedes `sheetFormatPr` and `sheetData` in the schema.
         let views = try #require(sheet.range(of: "<sheetViews"))
         let format = try #require(sheet.range(of: "<sheetFormatPr"))
         #expect(views.lowerBound < format.lowerBound)
+        #expect(workbook.unsupportedFeatures.isEmpty)
+    }
+
+    @Test("A split that isn't frozen is kept, and named as unsupported")
+    func splitPanesSurvive() throws {
+        let body = "<sheetViews><sheetView workbookViewId=\"0\">"
+            + "<pane xSplit=\"2400\" ySplit=\"1200\" topLeftCell=\"C5\"/>"
+            + "</sheetView></sheetViews>"
+        let (workbook, entries) = try roundTrip(try package(sheets: [body]))
+
+        #expect(try text(entries, "xl/worksheets/sheet1.xml").contains("xSplit=\"2400\""))
+        #expect(workbook.sheets[0].frozenRows == 0)
         #expect(workbook.unsupportedFeatures.preserved.contains(.frozenPanes))
+    }
+
+    @Test("Freezing a sheet with no view of its own writes one")
+    func freezingWritesAView() throws {
+        var sheet = Worksheet(name: "Sheet1")
+        sheet.frozenRows = 1
+        let data = try XLSXWriter.data(from: Workbook(sheets: [sheet]))
+        let reread = try XLSXReader.workbook(from: data)
+        #expect(reread.sheets[0].frozenRows == 1)
+        #expect(reread.sheets[0].frozenColumns == 0)
     }
 
     @Test("A view carrying only a cursor position is not called a lost feature")

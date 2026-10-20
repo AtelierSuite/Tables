@@ -1,4 +1,5 @@
 import SwiftUI
+import TablesEngine
 
 /// Builds the action list for a cell, in the same shape the header menus use so
 /// the long-press and double-tap paths can share one description of the menu.
@@ -46,6 +47,13 @@ struct CellMenuBuilder {
             ) {
                 target()
                 state.paste(in: &workbook.wrappedValue)
+            },
+            HeaderMenuAction(
+                title: String(localized: "CellMenu.Autofill"), symbol: "arrow.down.forward.square",
+                isEnabled: !state.hasMultipleSelections
+            ) {
+                target()
+                state.isAutoFilling = true
             },
         ]
         if state.allowsComments {

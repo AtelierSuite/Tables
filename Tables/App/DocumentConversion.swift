@@ -1,4 +1,5 @@
 import Foundation
+import TablesEngine
 
 /// Turns the open file into a workbook of another kind, in place: a CSV
 /// becomes an `.xlsx` that can keep formatting, an `.xlsx` an `.xlsm` that can

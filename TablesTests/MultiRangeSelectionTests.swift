@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import Tables
+@testable import TablesEngine
+@testable import TablesMacros
 
 /// Covers a selection made of several ranges: what edits reach, and what puts
 /// the extra ranges away again.

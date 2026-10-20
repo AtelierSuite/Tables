@@ -1,5 +1,7 @@
 import Testing
 @testable import Tables
+@testable import TablesEngine
+@testable import TablesMacros
 
 @Suite("Sheet structure")
 struct WorksheetStructureTests {
@@ -164,6 +166,25 @@ struct WorksheetStructureTests {
         #expect(metrics.column(atX: 10) == 0)
         #expect(metrics.column(atX: 250) >= 2)
         #expect(metrics.totalHeight == Worksheet.defaultRowHeight * 20)
+    }
+
+    @Test("Frozen rows and columns grow and shrink with the lines inserted and removed among them")
+    func frozenPanesFollowStructure() {
+        var sheet = Worksheet(name: "Sheet1")
+        sheet.rowCount = 20
+        sheet.columnCount = 10
+        sheet.frozenRows = 2
+        sheet.frozenColumns = 1
+        sheet.insertRows(1, at: 1)
+        #expect(sheet.frozenRows == 3)
+        sheet.insertRows(1, at: 5)
+        #expect(sheet.frozenRows == 3)
+        sheet.removeRows(2...6)
+        #expect(sheet.frozenRows == 2)
+        sheet.insertColumns(2, at: 0)
+        #expect(sheet.frozenColumns == 3)
+        sheet.removeColumns(0...0)
+        #expect(sheet.frozenColumns == 2)
     }
 }
 
