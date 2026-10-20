@@ -63,9 +63,13 @@ final class GridView: NSView, NSTextFieldDelegate {
         panes.contains { !$0.isHidden && $0.bounds.contains($0.convert(event.locationInWindow, from: nil)) }
     }
 
+    /// Whether the grid is a table on a canvas rather than the whole sheet,
+    /// where nothing is frozen in place.
+    var isOnCanvas = false
+
     /// How far the frozen rows reach down, and the frozen columns across.
     var frozenExtent: CGSize {
-        guard let document else { return .zero }
+        guard let document, !isOnCanvas else { return .zero }
         let sheet = document.activeSheet
         let metrics = document.state.metrics
         return CGSize(
@@ -126,7 +130,11 @@ final class GridView: NSView, NSTextFieldDelegate {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
-        drawSheet(dirtyRect, in: context)
+        // Views don't clip by default, and AppKit can ask for more than the
+        // grid covers: on a canvas, that would paint over the tables around it.
+        let visible = dirtyRect.intersection(bounds)
+        guard !visible.isNull, !visible.isEmpty else { return }
+        drawSheet(visible, in: context)
     }
 
     /// Draws a part of the sheet, given in its own coordinates: for the grid,

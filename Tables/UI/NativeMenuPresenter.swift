@@ -88,7 +88,11 @@ private extension NativeMenuPresenter {
             }
         }
 
-        private static func command(for action: HeaderMenuAction) -> UIAction {
+        private static func command(for action: HeaderMenuAction) -> UIMenuElement {
+            if !action.children.isEmpty {
+                return UIMenu(title: action.title, image: UIImage(systemName: action.symbol),
+                              children: action.children.map(command))
+            }
             let command = UIAction(
                 title: action.title,
                 image: UIImage(systemName: action.symbol),
@@ -137,6 +141,11 @@ private extension NativeMenuPresenter {
                 if case .separator = action.kind { return .separator() }
 
                 let item = NSMenuItem(title: action.title, action: #selector(run(_:)), keyEquivalent: "")
+                if !action.children.isEmpty {
+                    item.action = nil
+                    item.submenu = NSMenu()
+                    for child in action.children { item.submenu?.addItem(self.item(for: child)) }
+                }
                 item.target = self
                 item.isEnabled = action.isEnabled
                 item.image = NSImage(systemSymbolName: action.symbol, accessibilityDescription: nil)

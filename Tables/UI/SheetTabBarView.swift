@@ -5,9 +5,6 @@ import TablesEngine
 struct SheetTabBarView: View {
     @Binding var workbook: Workbook
     @Bindable var state: EditorState
-    /// The Numbers document the workbook was read from, whose sheets holding
-    /// several tables take one tab between them.
-    var numbersSource: NumbersSource?
 
     @State private var renamingSheetID: Worksheet.ID?
     @State private var draftName = ""
@@ -77,23 +74,23 @@ struct SheetTabBarView: View {
     private var hiddenSheets: [Worksheet] { workbook.sheets.filter(\.isHidden) }
 
     /// The sheets that get a tab: every visible one, but only the first of
-    /// the tables a Numbers sheet holds — the rest are reached from the
-    /// strip of tables above the grid.
+    /// the tables a canvas holds — the rest are picked on the canvas.
     private var tabSheets: [Worksheet] {
         workbook.visibleSheets.filter { sheet in
             tables(sharingTabWith: sheet).first.map { $0.id == sheet.id } ?? true
         }
     }
 
-    /// The tables a tab stands for when its Numbers sheet holds several.
+    /// The tables a tab stands for when it is a canvas of several.
     private func tables(sharingTabWith sheet: Worksheet) -> [Worksheet] {
-        numbersSource?.worksheets(sharingSheetWith: sheet.id, in: workbook) ?? []
+        guard let canvas = workbook.canvas(containing: sheet.id) else { return [] }
+        let sheets = workbook.sheets(on: canvas)
+        return sheets.count > 1 ? sheets : []
     }
 
-    /// What a tab is called: a Numbers sheet's own name when it holds
-    /// several tables, as each of its worksheets is named after both.
+    /// What a tab is called: its canvas's name when it is one.
     private func tabName(for sheet: Worksheet) -> String {
-        guard !tables(sharingTabWith: sheet).isEmpty, let name = numbersSource?.tables[sheet.id]?.sheetName,
+        guard !tables(sharingTabWith: sheet).isEmpty, let name = workbook.canvas(containing: sheet.id)?.name,
               !name.isEmpty else { return sheet.name }
         return name
     }
@@ -180,13 +177,41 @@ struct SheetTabBarView: View {
     // MARK: - Menu
 
     private func menuActions(for sheet: Worksheet) -> [HeaderMenuAction] {
-        // A tab standing for several tables has no one name to rename.
-        let rename = tables(sharingTabWith: sheet).isEmpty ? [
+        // A canvas's name only changes where the file can keep canvases.
+        let isCanvas = !tables(sharingTabWith: sheet).isEmpty
+        let rename = !isCanvas || state.allowsLayingOutTables ? [
             HeaderMenuAction(title: String(localized: "SheetTabBar.Menu.Rename"), symbol: "pencil") {
                 beginRename(sheet)
             },
         ] : []
-        return rename + [
+        var canvas: [HeaderMenuAction] = []
+        if state.allowsArrangingCanvases, !sheet.isChartSheet {
+            canvas.append(.separator)
+            canvas.append(HeaderMenuAction(title: String(localized: "Canvas.NewTable"), symbol: "plus.rectangle") {
+                state.selectSheet(sheet.id, in: workbook)
+                state.addTable(in: &workbook)
+            })
+            let targets = workbook.visibleSheets.filter { other in
+                other.id != sheet.id && !other.isChartSheet
+                    && (tables(sharingTabWith: other).first.map { $0.id == other.id } ?? true)
+            }
+            if !isCanvas {
+                canvas.append(HeaderMenuAction(
+                    title: String(localized: "Canvas.MoveToSheet"), symbol: "rectangle.on.rectangle",
+                    isEnabled: !targets.isEmpty,
+                    children: targets.map { target in
+                        HeaderMenuAction(title: tabName(for: target), symbol: "") {
+                            state.placeSheet(sheet.id, onCanvasWith: target.id, in: &workbook)
+                        }
+                    }
+                ))
+            }
+        }
+        // A canvas's tables are duplicated, hidden and deleted one by one,
+        // from their names on it.
+        guard !isCanvas else { return rename + canvas }
+        return rename + canvas + [
+            .separator,
             HeaderMenuAction(
                 title: String(localized: "SheetTabBar.Menu.Duplicate"), symbol: "plus.square.on.square"
             ) {
@@ -271,13 +296,17 @@ struct SheetTabBarView: View {
     }
 
     private func beginRename(_ sheet: Worksheet) {
-        draftName = sheet.name
+        draftName = tabName(for: sheet)
         renamingSheetID = sheet.id
         isRenaming = true
     }
 
     private func commitRename(for sheet: Worksheet) {
-        workbook.renameSheet(sheet.id, to: draftName)
+        if !tables(sharingTabWith: sheet).isEmpty, let canvas = workbook.canvas(containing: sheet.id) {
+            state.renameCanvas(containing: canvas.tables[0].sheetID, to: draftName, in: &workbook)
+        } else {
+            workbook.renameSheet(sheet.id, to: draftName)
+        }
         renamingSheetID = nil
         isRenaming = false
     }

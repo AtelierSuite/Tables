@@ -6,8 +6,8 @@ import TablesEngine
 ///
 /// A click shows a sheet, a double-click renames it, dragging reorders, and
 /// a right-click offers the rest. Hidden sheets come back from the menu beside
-/// the add button. In a Numbers document, a sheet holding several tables
-/// takes one tab, and its tables are picked from the control at the end.
+/// the add button. Sheets laid out together on a canvas take one tab, named
+/// for the canvas; its tables are picked on the canvas itself.
 @MainActor
 final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
     weak var document: WorkbookDocument?
@@ -19,8 +19,6 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
     private var hiddenGlass = NSView()
     private let tabStack = NSStackView()
     private let scrollView = NSScrollView()
-    private let tablePicker = NSSegmentedControl()
-    private var tablePickerIDs: [Worksheet.ID] = []
     private var renameField: NSTextField?
     private var renamingID: Worksheet.ID?
 
@@ -63,14 +61,9 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
         scrollView.horizontalScrollElasticity = .allowed
         tabStack.translatesAutoresizingMaskIntoConstraints = false
 
-        tablePicker.segmentStyle = .rounded
-        tablePicker.target = self
-        tablePicker.action = #selector(pickTable(_:))
-        tablePicker.controlSize = .small
-
         let addGlass = GlassCircle(content: addButton)
         hiddenGlass = GlassCircle(content: hiddenButton)
-        let row = NSStackView(views: [addGlass, hiddenGlass, scrollView, tablePicker])
+        let row = NSStackView(views: [addGlass, hiddenGlass, scrollView])
         row.orientation = .horizontal
         row.spacing = 8
         row.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
@@ -96,11 +89,15 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
 
     // MARK: - Sheets
 
+    /// The sheets on the canvas a sheet shares, in order; empty when it has
+    /// the page to itself.
     private func tables(sharingTabWith sheet: Worksheet, in document: WorkbookDocument) -> [Worksheet] {
-        document.numbersSource?.worksheets(sharingSheetWith: sheet.id, in: document.workbook) ?? []
+        guard let canvas = document.workbook.canvas(containing: sheet.id) else { return [] }
+        let sheets = document.workbook.sheets(on: canvas)
+        return sheets.count > 1 ? sheets : []
     }
 
-    /// Every visible sheet, but only the first of a Numbers sheet's tables.
+    /// Every visible sheet, but only the first of a canvas's tables.
     private func tabSheets(in document: WorkbookDocument) -> [Worksheet] {
         document.workbook.visibleSheets.filter { sheet in
             tables(sharingTabWith: sheet, in: document).first.map { $0.id == sheet.id } ?? true
@@ -109,7 +106,7 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
 
     private func tabName(for sheet: Worksheet, in document: WorkbookDocument) -> String {
         guard !tables(sharingTabWith: sheet, in: document).isEmpty,
-              let name = document.numbersSource?.tables[sheet.id]?.sheetName, !name.isEmpty else { return sheet.name }
+              let name = document.workbook.canvas(containing: sheet.id)?.name, !name.isEmpty else { return sheet.name }
         return name
     }
 
@@ -150,17 +147,6 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
             item.representedObject = sheet.id
             hiddenButton.menu?.addItem(item)
         }
-
-        tablePickerIDs = activeTables.map(\.id)
-        tablePicker.isHidden = activeTables.count < 2
-        tablePicker.segmentCount = activeTables.count
-        for (index, table) in activeTables.enumerated() {
-            let name = document.numbersSource?.tables[table.id]?.tableName ?? ""
-            tablePicker.setLabel(name.isEmpty ? table.name : name, forSegment: index)
-            tablePicker.setImage(NSImage(systemSymbolName: "tablecells", accessibilityDescription: nil), forSegment: index)
-            tablePicker.setImageScaling(.scaleProportionallyDown, forSegment: index)
-        }
-        if let index = tablePickerIDs.firstIndex(of: active.id) { tablePicker.selectedSegment = index }
     }
 
     // MARK: - Actions
@@ -181,17 +167,15 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
         document.notify()
     }
 
-    @objc private func pickTable(_ sender: NSSegmentedControl) {
-        guard sender.selectedSegment >= 0, sender.selectedSegment < tablePickerIDs.count else { return }
-        document?.selectSheet(tablePickerIDs[sender.selectedSegment])
-    }
-
+    /// A tab already showing one of its canvas's tables stays on that table.
     fileprivate func select(_ id: Worksheet.ID) {
-        document?.selectSheet(id)
+        guard let document, let sheet = document.workbook[id] else { return }
+        if tables(sharingTabWith: sheet, in: document).contains(where: { $0.id == document.activeSheet.id }) { return }
+        document.selectSheet(id)
     }
 
     fileprivate func menu(for id: Worksheet.ID) -> NSMenu? {
-        document?.selectSheet(id)
+        select(id)
         return tabMenu?(id)
     }
 
@@ -211,7 +195,11 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
     func beginRenaming(_ id: Worksheet.ID) {
         guard let document, let tab = tabStack.arrangedSubviews.compactMap({ $0 as? SheetTab })
             .first(where: { $0.sheetID == id }), let sheet = document.workbook[id] else { return }
-        let field = NSTextField(string: sheet.name)
+        // A canvas's tab is the canvas's name, which only a file that keeps
+        // canvases can change.
+        let isCanvas = !tables(sharingTabWith: sheet, in: document).isEmpty
+        if isCanvas, !document.state.allowsLayingOutTables { return }
+        let field = NSTextField(string: tabName(for: sheet, in: document))
         field.delegate = self
         field.font = .systemFont(ofSize: 12)
         field.focusRingType = .none
@@ -228,8 +216,13 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
         renameField = nil
         renamingID = nil
         field.removeFromSuperview()
-        if (notification.userInfo?["NSTextMovement"] as? Int) != NSTextMovement.cancel.rawValue {
-            document?.edit { $0.renameSheet(id, to: name) }
+        if (notification.userInfo?["NSTextMovement"] as? Int) != NSTextMovement.cancel.rawValue, let document {
+            if let sheet = document.workbook[id], !tables(sharingTabWith: sheet, in: document).isEmpty {
+                let state = document.state
+                document.edit { state.renameCanvas(containing: id, to: name, in: &$0) }
+            } else {
+                document.edit { $0.renameSheet(id, to: name) }
+            }
         }
         refresh()
     }

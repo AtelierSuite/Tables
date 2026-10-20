@@ -17,6 +17,10 @@ struct SheetGridView: View {
     @Bindable var state: EditorState
     /// Runs the macro a form control was clicked for.
     var runMacro: (FormControl) -> Void = { _ in }
+    /// The canvas the sheet is a table on, when it shares one: the grid then
+    /// sits where the canvas puts it, among the other tables, with no
+    /// headers pinned round it.
+    var canvas: SheetCanvas?
 
     /// Room past the last row and column so the final cells can scroll clear of
     /// the floating controls.
@@ -41,6 +45,15 @@ struct SheetGridView: View {
     /// larger selection leaves somewhere other than the selection's corner.
     @State private var cellMenuAddress: CellAddress?
     @State private var isCellEditorFocused = false
+    /// The table whose name is being dragged across the canvas, and how far.
+    @State private var tableDrag: (id: Worksheet.ID, offset: CGSize)?
+    /// What the dragged table is lined up with, shown while it is.
+    @State private var canvasGuides: [CanvasSnapping.Guide] = []
+    /// The table being renamed from its menu, and the name typed so far.
+    /// The table whose name is being typed in place, and what is typed.
+    @State private var renamingTableID: Worksheet.ID?
+    @State private var tableNameDraft = ""
+    @FocusState private var isTableNameFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
     #if os(macOS)
     /// Where the pointer last was, for the right-click menu to read.
@@ -62,6 +75,40 @@ struct SheetGridView: View {
     private var activeSheet: Worksheet { state.activeSheet(in: workbook) }
     private var metrics: SheetMetrics { state.metrics }
 
+    // MARK: - Canvas
+
+    /// Where the grid's first cell sits in the scrolling content: past the
+    /// headers, or at the table's place on its canvas.
+    private var gridOrigin: CGPoint {
+        guard let canvas, let table = canvas.table(for: activeSheet.id) else {
+            return CGPoint(x: rowHeaderWidth, y: columnHeaderHeight)
+        }
+        let dragged = tableDrag?.id == activeSheet.id ? tableDrag?.offset ?? .zero : .zero
+        return CGPoint(x: table.x * state.zoom + dragged.width, y: table.y * state.zoom + dragged.height)
+    }
+
+    /// How much of the top and leading edges the pinned headers cover.
+    private var headerInsets: CGSize {
+        canvas == nil ? CGSize(width: rowHeaderWidth, height: columnHeaderHeight) : .zero
+    }
+
+    /// How large the scrolling content is: the sheet and some room past it,
+    /// or every table on the canvas and a margin round them.
+    private var contentExtent: CGSize {
+        guard let canvas else {
+            return CGSize(width: rowHeaderWidth + metrics.totalWidth + trailingPadding,
+                          height: columnHeaderHeight + metrics.totalHeight + bottomPadding)
+        }
+        let zoom = state.zoom
+        var extent = CGSize.zero
+        for sheet in workbook.sheets(on: canvas) {
+            guard let table = canvas.table(for: sheet.id) else { continue }
+            extent.width = max(extent.width, (table.x + sheet.totalWidth) * zoom)
+            extent.height = max(extent.height, (table.y + sheet.totalHeight) * zoom)
+        }
+        return CGSize(width: extent.width + trailingPadding, height: extent.height + bottomPadding)
+    }
+
     private var rowHeaderWidth: Double {
         // Widen the gutter as row numbers get longer.
         44 + Double(max(0, String(activeSheet.rowCount).count - 3)) * 9
@@ -74,14 +121,20 @@ struct SheetGridView: View {
             }
             // Keep headers below the navigation bar, but extend them beneath
             // the floating toolbar just like the scroll view's cells.
-            GeometryReader { proxy in
-                headerOverlay(in: proxy)
-                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
-                    .clipped()
+            if canvas == nil {
+                GeometryReader { proxy in
+                    headerOverlay(in: proxy)
+                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                        .clipped()
+                }
+                .ignoresSafeArea(.container, edges: .bottom)
             }
-            .ignoresSafeArea(.container, edges: .bottom)
         }
-        .onChange(of: activeSheet.id) { _, _ in state.refreshMetrics(in: workbook) }
+        .onChange(of: activeSheet.id) { _, _ in
+            state.refreshMetrics(in: workbook)
+            // On a canvas, a table just picked or added comes into view.
+            if canvas != nil { revealActiveTable() }
+        }
         .onChange(of: activeSheet.rowCount) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.columnCount) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.hiddenRows) { _, _ in state.refreshMetrics(in: workbook) }
@@ -107,8 +160,8 @@ struct SheetGridView: View {
                 // which drags the headers off the top-left corner and floats
                 // the whole sheet in the middle of the screen.
                 .frame(
-                    width: max(proxy.size.width, rowHeaderWidth + metrics.totalWidth + trailingPadding),
-                    height: max(proxy.size.height, columnHeaderHeight + metrics.totalHeight + bottomPadding),
+                    width: max(proxy.size.width, contentExtent.width),
+                    height: max(proxy.size.height, contentExtent.height),
                     alignment: .topLeading
                 )
         }
@@ -116,12 +169,12 @@ struct SheetGridView: View {
             .scrollBounceBehavior(.basedOnSize)
             // The pinned headers are drawn over the scroll view, so keep the
             // indicators clear of them rather than sliding underneath.
-            .contentMargins(.top, columnHeaderHeight, for: .scrollIndicators)
-            .contentMargins(.leading, rowHeaderWidth, for: .scrollIndicators)
+            .contentMargins(.top, headerInsets.height, for: .scrollIndicators)
+            .contentMargins(.leading, headerInsets.width, for: .scrollIndicators)
             // Canvas, not paper: the sheet paints its own extent, so anything
             // past the last row and column reads as the space around the sheet
             // rather than as grid that failed to draw.
-            .background(Color.sheetCanvas)
+            .background(canvas == nil ? Color.sheetCanvas : Color.sheetBackground)
             // `contentOffset` is measured from the scroll view's origin, which
             // sits above the navigation bar's content inset — so it is already
             // negative at rest. Adding the insets back gives distance scrolled
@@ -159,7 +212,7 @@ struct SheetGridView: View {
                     zoom: state.zoom,
                     scrollOffset: state.scrollOffset,
                     location: value.startLocation,
-                    headers: CGSize(width: rowHeaderWidth, height: columnHeaderHeight),
+                    headers: headerInsets,
                     viewport: state.viewportSize
                 )
                 zoomAnchor = anchor
@@ -170,10 +223,7 @@ struct SheetGridView: View {
                 state.refreshMetrics(in: workbook)
                 // The metrics have already grown, so the content box the new
                 // offset is clamped against is the one being scrolled.
-                let offset = anchor.scrollOffset(at: target, contentSize: CGSize(
-                    width: rowHeaderWidth + metrics.totalWidth + trailingPadding,
-                    height: columnHeaderHeight + metrics.totalHeight + bottomPadding
-                ))
+                let offset = anchor.scrollOffset(at: target, contentSize: contentExtent)
                 // Back into the raw offsets `ScrollPosition` works in, and
                 // without an animation: the pinch is already the animation.
                 scrollPosition.scrollTo(point: CGPoint(
@@ -187,9 +237,9 @@ struct SheetGridView: View {
     // MARK: - Visible window
 
     private var visibleRows: Range<Int> {
-        let top = state.scrollOffset.y - columnHeaderHeight
+        let top = state.scrollOffset.y - gridOrigin.y + headerInsets.height - columnHeaderHeight
         let height = max(state.viewportSize.height, 200)
-        return metrics.rows(in: max(0, top)...(top + height))
+        return metrics.rows(in: max(0, top)...max(0, top + height))
     }
 
     /// The columns with a header showing: the frozen ones, then whatever
@@ -200,9 +250,9 @@ struct SheetGridView: View {
     }
 
     private var visibleColumns: Range<Int> {
-        let left = state.scrollOffset.x - rowHeaderWidth
+        let left = state.scrollOffset.x - gridOrigin.x + headerInsets.width - rowHeaderWidth
         let width = max(state.viewportSize.width, 200)
-        return metrics.columns(in: max(0, left)...(left + width))
+        return metrics.columns(in: max(0, left)...max(0, left + width))
     }
 
     // MARK: - Content
@@ -219,9 +269,15 @@ struct SheetGridView: View {
             editorOverlay
             cellMenuAnchor
         }
-        .padding(.leading, rowHeaderWidth)
-        .padding(.top, columnHeaderHeight)
+        .padding(.leading, gridOrigin.x)
+        .padding(.top, gridOrigin.y)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(alignment: .topLeading) {
+            if let canvas { canvasTables(canvas) }
+        }
+        .overlay(alignment: .topLeading) {
+            if !canvasGuides.isEmpty { guideLines }
+        }
     }
 
     /// The drawn grid, plus the one tap and one long press that serve all of it.
@@ -234,7 +290,7 @@ struct SheetGridView: View {
         // computed properties reaching through the workbook, and a tile asking
         // for them apiece is work repeated on every scroll frame.
         let sheet = activeSheet
-        let plans = tilePlans(rows: visibleRows, columns: visibleColumns)
+        let plans = tilePlans(rows: visibleRows, columns: visibleColumns, metrics: metrics)
         // Measured against the tiles rather than the viewport, so that what a
         // tile holds depends only on which tile it is. A merge found only once
         // the window had scrolled onto it would leave the tile's cached drawing
@@ -252,7 +308,7 @@ struct SheetGridView: View {
                     size: frame.size,
                     hiddenRows: sheet.hiddenRows,
                     hiddenColumns: sheet.hiddenColumns,
-                    contents: contents(of: plan, in: sheet, merges: merges),
+                    contents: contents(of: plan, in: sheet, merges: merges, metrics: metrics),
                     metrics: metrics,
                     scheme: scheme
                 )
@@ -290,6 +346,325 @@ struct SheetGridView: View {
         #endif
     }
 
+    // MARK: - Canvas tables
+
+    /// The canvas's other tables, drawn where they sit, and every table's
+    /// name above it, which a tap edits in place. A tap on another table
+    /// makes it the one worked on.
+    private func canvasTables(_ canvas: SheetCanvas) -> some View {
+        let zoom = state.zoom
+        let active = activeSheet.id
+        return ZStack(alignment: .topLeading) {
+            ForEach(workbook.sheets(on: canvas)) { sheet in
+                if let table = canvas.table(for: sheet.id) {
+                    let dragged = tableDrag?.id == sheet.id ? tableDrag?.offset ?? .zero : .zero
+                    let origin = CGPoint(x: table.x * zoom + dragged.width, y: table.y * zoom + dragged.height)
+                    if sheet.id != active {
+                        canvasTable(sheet, at: origin, zoom: zoom)
+                    }
+                    Rectangle()
+                        .strokeBorder(Color.secondary.opacity(0.35), lineWidth: 1)
+                        .frame(width: sheet.totalWidth * zoom + 2, height: sheet.totalHeight * zoom + 2)
+                        .offset(x: origin.x - 1, y: origin.y - 1)
+                        .allowsHitTesting(false)
+                    if table.showsName {
+                        tableName(of: sheet, isActive: sheet.id == active, zoom: zoom)
+                            .offset(x: origin.x, y: origin.y - CanvasChrome.nameReach(zoom: zoom))
+                    }
+                }
+            }
+            // A layer of their own, so only the headers fade as tables are picked.
+            ZStack(alignment: .topLeading) {
+                ForEach(workbook.sheets(on: canvas)) { sheet in
+                    if sheet.id == active, canvas.table(for: sheet.id) != nil {
+                        canvasHeaders(for: sheet)
+                            .offset(x: gridOrigin.x, y: gridOrigin.y)
+                            .transition(.opacity)
+                    }
+                }
+            }
+            // What a dragged table passes over shows through its headers.
+            .opacity(isMovingTable ? CanvasChrome.draggingOpacity : 1)
+            .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: active)
+            .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: isMovingTable)
+        }
+    }
+
+    /// Whether a table is being dragged away from where it rests.
+    private var isMovingTable: Bool {
+        guard let tableDrag else { return false }
+        return tableDrag.offset != .zero
+    }
+
+    /// The column letters and row numbers round the table being worked on,
+    /// laid out from its first cell, in the room every table keeps for
+    /// them. The corner where they meet is the handle the table is moved
+    /// by, and a tap there selects all of it.
+    private func canvasHeaders(for sheet: Worksheet) -> some View {
+        let barHeight = Double(CanvasChrome.columnHeaderHeight)
+        let barWidth = Double(CanvasChrome.rowHeaderWidth(rowCount: sheet.rowCount))
+        let columns = visibleColumns.filter { $0 < metrics.columnCount && !sheet.hiddenColumns.contains($0) }
+        let rows = visibleRows.filter { $0 < metrics.rowCount && !sheet.hiddenRows.contains($0) }
+        return ZStack(alignment: .topLeading) {
+            Color.headerBackground.background(.regularMaterial)
+                .frame(width: metrics.totalWidth, height: barHeight)
+                .offset(y: -barHeight)
+            Color.headerBackground.background(.regularMaterial)
+                .frame(width: barWidth, height: metrics.totalHeight)
+                .offset(x: -barWidth)
+            ForEach(columns, id: \.self) { column in
+                ColumnHeaderCell(
+                    title: CellAddress.columnName(column),
+                    width: metrics.width(ofColumn: column), height: barHeight,
+                    isSelected: state.selectedRanges.contains { $0.columnRange.contains(column) },
+                    isHiddenNeighbor: sheet.hiddenColumns.contains(column + 1),
+                    onSelect: { state.selectEntireColumns(column...column, in: activeSheet) },
+                    onResize: { delta in
+                        state.resizeColumn(column, to: (metrics.width(ofColumn: column) + delta) / metrics.zoom, in: &workbook)
+                    },
+                    onFit: { state.fitColumn(column, in: &workbook) },
+                    actions: {
+                        HeaderMenuBuilder(axis: .column, index: column, workbook: $workbook, state: state).actions()
+                    }
+                )
+                .offset(x: metrics.x(ofColumn: column), y: -barHeight)
+            }
+            ForEach(rows, id: \.self) { row in
+                RowHeaderCell(
+                    title: String(row + 1),
+                    width: barWidth, height: metrics.height(ofRow: row),
+                    isSelected: state.selectedRanges.contains { $0.rowRange.contains(row) },
+                    isHiddenNeighbor: sheet.hiddenRows.contains(row + 1),
+                    onSelect: { state.selectEntireRows(row...row, in: activeSheet) },
+                    onResize: { delta in
+                        state.resizeRow(row, to: (metrics.height(ofRow: row) + delta) / metrics.zoom, in: &workbook)
+                    },
+                    actions: {
+                        HeaderMenuBuilder(axis: .row, index: row, workbook: $workbook, state: state).actions()
+                    }
+                )
+                .offset(x: -barWidth, y: metrics.y(ofRow: row))
+            }
+            tableHandle(for: sheet, width: barWidth, height: barHeight)
+                .offset(x: -barWidth, y: -barHeight)
+        }
+    }
+
+    @ViewBuilder
+    private func tableName(of sheet: Worksheet, isActive: Bool, zoom: Double) -> some View {
+        let font = Font.system(size: max(9, 14 * zoom), weight: .semibold)
+        let height = (SheetCanvas.nameHeight - 4) * zoom
+        if renamingTableID == sheet.id {
+            TextField("SheetTabBar.RenameField.Placeholder", text: $tableNameDraft)
+                .font(font)
+                .textFieldStyle(.plain)
+                .focused($isTableNameFocused)
+                .submitLabel(.done)
+                .onSubmit { endRenamingTable() }
+                .onChange(of: isTableNameFocused) { _, focused in if !focused { endRenamingTable() } }
+                .frame(width: max(sheet.totalWidth * zoom, 120), height: height, alignment: .bottomLeading)
+        } else {
+            Text(workbook.tableName(of: sheet.id))
+                .font(font)
+                .foregroundStyle(isActive ? Color.primary : Color.secondary)
+                .lineLimit(1)
+                .frame(height: height, alignment: .bottomLeading)
+                .contentShape(.rect)
+                .onTapGesture {
+                    if !isActive { pickTable(sheet, at: CellAddress(row: 0, column: 0)) }
+                    beginRenamingTable(sheet.id)
+                }
+                .contextMenu { HeaderActionMenu(actions: tableActions(for: sheet)) }
+        }
+    }
+
+    /// Puts a field where a table's name is, to type a new one in.
+    private func beginRenamingTable(_ id: Worksheet.ID) {
+        guard state.allowsLayingOutTables else { return }
+        endRenamingTable()
+        // A hidden name has nowhere to be typed, so it shows again.
+        if workbook.canvas(containing: id)?.table(for: id)?.showsName == false {
+            state.setTableNameShown(true, for: id, in: &workbook)
+        }
+        tableNameDraft = workbook.tableName(of: id)
+        renamingTableID = id
+        isTableNameFocused = true
+    }
+
+    /// Puts the name typed in place; an empty one leaves the old.
+    private func endRenamingTable() {
+        guard let id = renamingTableID else { return }
+        renamingTableID = nil
+        isTableNameFocused = false
+        if tableNameDraft != workbook.tableName(of: id) { state.renameTable(id, to: tableNameDraft, in: &workbook) }
+    }
+
+    /// The corner where the active table's headers meet: dragged, it
+    /// carries the table; tapped, it selects all of it. Its touch area
+    /// reaches up and left, away from the cells.
+    private func tableHandle(for sheet: Worksheet, width: Double, height: Double) -> some View {
+        let movable = state.allowsLayingOutTables
+        return ZStack {
+            UnevenRoundedRectangle(topLeadingRadius: 5)
+                .fill(movable ? Color.accentColor : Color.headerBackground)
+            if movable {
+                Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(width: width, height: height)
+        .padding([.top, .leading], 10)
+        .contentShape(.rect)
+        .onTapGesture { state.selectAll(in: activeSheet) }
+        .gesture(tableDragGesture(for: sheet, zoom: state.zoom))
+        .offset(x: -10, y: -10)
+        .accessibilityLabel(Text("Canvas.MoveTable"))
+        .accessibilityAction(named: Text("Grid.SelectAll")) { state.selectAll(in: activeSheet) }
+    }
+
+    /// Carries a table across the canvas, kept on the page and snapping
+    /// into line with the others, and puts it down where it is let go.
+    private func tableDragGesture(for sheet: Worksheet, zoom: Double) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                guard state.allowsLayingOutTables, let canvas = workbook.canvas(containing: sheet.id),
+                      let table = canvas.table(for: sheet.id) else { return }
+                let resting = CGRect(x: table.x * zoom, y: table.y * zoom,
+                                     width: sheet.totalWidth * zoom, height: sheet.totalHeight * zoom)
+                let others = workbook.sheets(on: canvas).compactMap { other -> CGRect? in
+                    guard other.id != sheet.id, let placed = canvas.table(for: other.id) else { return nil }
+                    return CGRect(x: placed.x * zoom, y: placed.y * zoom,
+                                  width: other.totalWidth * zoom, height: other.totalHeight * zoom)
+                }
+                let snapped = CanvasSnapping.snap(
+                    resting.offsetBy(dx: value.translation.width, dy: value.translation.height), among: others,
+                    minimum: CanvasSnapping.minimumOrigin(zoom: zoom, rowCount: sheet.rowCount))
+                tableDrag = (sheet.id, CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY))
+                canvasGuides = snapped.guides
+            }
+            .onEnded { _ in
+                defer {
+                    tableDrag = nil
+                    canvasGuides = []
+                }
+                guard state.allowsLayingOutTables, let offset = tableDrag?.offset,
+                      let table = workbook.canvas(containing: sheet.id)?.table(for: sheet.id) else { return }
+                state.moveTable(sheet.id, toX: (table.x + offset.width / zoom).rounded(),
+                                y: (table.y + offset.height / zoom).rounded(), in: &workbook)
+            }
+    }
+
+    /// The guides showing what a dragged table is lined up with, on the
+    /// page and over everything, the active grid included.
+    private var guideLines: some View {
+        Path { path in
+            for guide in canvasGuides {
+                if guide.axis == .vertical {
+                    path.addRect(CGRect(x: guide.position - 0.5, y: guide.start, width: 1, height: guide.end - guide.start))
+                } else {
+                    path.addRect(CGRect(x: guide.start, y: guide.position - 0.5, width: guide.end - guide.start, height: 1))
+                }
+            }
+        }
+        .fill(Color.yellow)
+        .allowsHitTesting(false)
+    }
+
+    /// What a table's name offers when pressed: naming it, moving it to
+    /// another sheet or one of its own, and adding another beside it.
+    private func tableActions(for sheet: Worksheet) -> [HeaderMenuAction] {
+        let showsName = workbook.canvas(containing: sheet.id)?.table(for: sheet.id)?.showsName ?? true
+        let arranging = state.allowsArrangingCanvases
+        let layingOut = state.allowsLayingOutTables
+        let targets = state.canvasTargets(in: workbook).filter { $0.id != sheet.id }
+        return [
+            HeaderMenuAction(title: String(localized: "Canvas.RenameTable"), symbol: "pencil", isEnabled: layingOut) {
+                beginRenamingTable(sheet.id)
+            },
+            HeaderMenuAction(
+                title: String(localized: "Canvas.ShowTableName"), symbol: showsName ? "checkmark" : "",
+                isEnabled: layingOut
+            ) {
+                state.setTableNameShown(!showsName, for: sheet.id, in: &workbook)
+            },
+            .separator,
+            HeaderMenuAction(
+                title: String(localized: "Canvas.MoveToSheet"), symbol: "rectangle.on.rectangle",
+                isEnabled: arranging && !targets.isEmpty,
+                children: targets.map { target in
+                    HeaderMenuAction(title: workbook.canvas(containing: target.id)?.name ?? target.name, symbol: "") {
+                        state.placeSheet(sheet.id, onCanvasWith: target.id, in: &workbook)
+                    }
+                }
+            ),
+            HeaderMenuAction(
+                title: String(localized: "Canvas.MoveToOwnSheet"), symbol: "rectangle.portrait.and.arrow.right",
+                isEnabled: arranging
+            ) {
+                state.removeFromCanvas(sheet.id, in: &workbook)
+            },
+            HeaderMenuAction(title: String(localized: "Canvas.NewTable"), symbol: "plus.rectangle", isEnabled: arranging) {
+                state.selectSheet(sheet.id, in: workbook)
+                state.addTable(in: &workbook)
+            },
+            .separator,
+            HeaderMenuAction(
+                title: String(localized: "SheetTabBar.Menu.Delete"), symbol: "trash", kind: .destructive,
+                isEnabled: workbook.sheets.count > 1
+            ) {
+                state.deleteSheet(sheet.id, in: &workbook)
+            },
+        ]
+    }
+
+    /// Another table on the canvas, drawn only as far as it is in view.
+    private func canvasTable(_ sheet: Worksheet, at origin: CGPoint, zoom: Double) -> some View {
+        let metrics = SheetMetrics(sheet: sheet, zoom: zoom)
+        let top = state.scrollOffset.y - origin.y
+        let left = state.scrollOffset.x - origin.x
+        let height = max(state.viewportSize.height, 200), width = max(state.viewportSize.width, 200)
+        let rows = metrics.rows(in: max(0, top)...max(0, top + height))
+        let columns = metrics.columns(in: max(0, left)...max(0, left + width))
+        let plans = top + height < 0 || left + width < 0 ? [] : tilePlans(rows: rows, columns: columns, metrics: metrics)
+        let merges = visibleMerges(in: sheet, coveredBy: plans)
+        let scheme = sheet.colorScheme(for: colorScheme)
+
+        return ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(Color.sheetBackground)
+                .frame(width: metrics.totalWidth, height: metrics.totalHeight)
+            ForEach(plans) { plan in
+                let frame = metrics.frame(for: plan.range)
+                GridTileView(
+                    rows: plan.rows, columns: plan.columns,
+                    origin: frame.origin, size: frame.size,
+                    hiddenRows: sheet.hiddenRows, hiddenColumns: sheet.hiddenColumns,
+                    contents: contents(of: plan, in: sheet, merges: merges, metrics: metrics),
+                    metrics: metrics, scheme: scheme
+                )
+                .equatable()
+            }
+        }
+        .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
+        .clipped()
+        .contentShape(.rect)
+        .onTapGesture(coordinateSpace: .local) { point in
+            pickTable(sheet, at: CellAddress(row: metrics.row(atY: point.y), column: metrics.column(atX: point.x)))
+        }
+        .offset(x: origin.x, y: origin.y)
+    }
+
+    /// Makes another table on the canvas the one worked on, with a cell of
+    /// it selected, leaving the canvas scrolled where it is.
+    private func pickTable(_ sheet: Worksheet, at address: CellAddress) {
+        if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
+        let offset = state.scrollOffset
+        state.selectSheet(sheet.id, in: workbook)
+        state.scrollOffset = offset
+        state.select(sheet.mergedRange(containing: address)?.normalized.start ?? address, in: sheet)
+    }
+
     // MARK: - Tiles
 
     /// One tile's place in the grid.
@@ -316,7 +691,7 @@ struct SheetGridView: View {
     /// Bands are cut from the sheet's own line numbering, never from the window:
     /// bands measured from the viewport would shift under every frame and no
     /// tile would ever be reused.
-    private func tilePlans(rows: Range<Int>, columns: Range<Int>) -> [TilePlan] {
+    private func tilePlans(rows: Range<Int>, columns: Range<Int>, metrics: SheetMetrics) -> [TilePlan] {
         guard !rows.isEmpty, !columns.isEmpty else { return [] }
         let rowSpan = tileSpan(extent: metrics.totalHeight, lines: metrics.rowCount)
         let columnSpan = tileSpan(extent: metrics.totalWidth, lines: metrics.columnCount)
@@ -352,7 +727,7 @@ struct SheetGridView: View {
     /// most sheets — that is the difference between a handful of entries per
     /// tile and a hundred.
     private func contents(
-        of plan: TilePlan, in sheet: Worksheet, merges: [CellRange]
+        of plan: TilePlan, in sheet: Worksheet, merges: [CellRange], metrics: SheetMetrics
     ) -> TileContents {
         var painted = TileContents()
 
@@ -384,10 +759,10 @@ struct SheetGridView: View {
                 guard !painted.covered.contains(address),
                       let cell = sheet.cells[address], !cell.isEmptyEntirely else { continue }
                 var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
-                entry.overflow = overflow(of: address, in: sheet, edges: &painted.overflowEdges)
+                entry.overflow = overflow(of: address, in: sheet, metrics: metrics, edges: &painted.overflowEdges)
                 painted.cells.append(entry)
             }
-            spillsFromOutside(row: row, of: plan, in: sheet, into: &painted)
+            spillsFromOutside(row: row, of: plan, in: sheet, metrics: metrics, into: &painted)
         }
         for (address, comment) in sheet.comments
         where plan.rows.contains(address.row) && plan.columns.contains(address.column)
@@ -405,7 +780,7 @@ struct SheetGridView: View {
     /// How far a cell's text spills, as a frame, noting the cell edges it
     /// runs across so their gridlines can make way for it.
     private func overflow(
-        of address: CellAddress, in sheet: Worksheet, edges: inout Set<CellAddress>
+        of address: CellAddress, in sheet: Worksheet, metrics: SheetMetrics, edges: inout Set<CellAddress>
     ) -> CGRect? {
         guard let span = sheet.overflowSpan(of: address) else { return nil }
         for column in span.lowerBound..<span.upperBound {
@@ -420,7 +795,9 @@ struct SheetGridView: View {
     /// Text that starts in a cell outside the tile and runs into it. The
     /// nearest filled cell on either side is the only one that can: anything
     /// further away is stopped by it.
-    private func spillsFromOutside(row: Int, of plan: TilePlan, in sheet: Worksheet, into painted: inout TileContents) {
+    private func spillsFromOutside(
+        row: Int, of plan: TilePlan, in sheet: Worksheet, metrics: SheetMetrics, into painted: inout TileContents
+    ) {
         let reach = 24
         let before = stride(from: plan.columns.lowerBound - 1, through: max(0, plan.columns.lowerBound - reach), by: -1)
         let after = stride(from: plan.columns.upperBound, to: min(sheet.columnCount, plan.columns.upperBound + reach), by: 1)
@@ -431,7 +808,7 @@ struct SheetGridView: View {
                 if let span = sheet.overflowSpan(of: address, reach: reach),
                    span.overlaps(plan.columns.lowerBound...(plan.columns.upperBound - 1)) {
                     var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
-                    entry.overflow = overflow(of: address, in: sheet, edges: &painted.overflowEdges)
+                    entry.overflow = overflow(of: address, in: sheet, metrics: metrics, edges: &painted.overflowEdges)
                     entry.textOnly = true
                     painted.cells.append(entry)
                 }
@@ -775,7 +1152,8 @@ struct SheetGridView: View {
         let sheet = activeSheet
         if !sheet.charts.isEmpty || !sheet.preservedDrawingAnchors.isEmpty || !sheet.formControls.isEmpty {
             let window = CGRect(
-                x: state.scrollOffset.x, y: state.scrollOffset.y,
+                x: state.scrollOffset.x - gridOrigin.x + headerInsets.width,
+                y: state.scrollOffset.y - gridOrigin.y + headerInsets.height,
                 width: state.viewportSize.width, height: state.viewportSize.height
             ).insetBy(dx: -200, dy: -200)
 
@@ -1095,6 +1473,7 @@ struct SheetGridView: View {
     /// How far the frozen rows reach down, and the frozen columns across.
     private var frozenExtent: CGSize {
         let sheet = activeSheet
+        guard canvas == nil else { return .zero }
         return CGSize(
             width: sheet.frozenColumns > 0 ? metrics.x(ofColumn: sheet.frozenColumns) : 0,
             height: sheet.frozenRows > 0 ? metrics.y(ofRow: sheet.frozenRows) : 0
@@ -1104,7 +1483,7 @@ struct SheetGridView: View {
     /// While a frozen cell is edited the panes step aside: the editor is one
     /// of the scrolling cells, and the sheet scrolls back to it.
     private var isEditingFrozenCell: Bool {
-        guard let address = state.editingAddress else { return false }
+        guard let address = state.editingAddress, canvas == nil else { return false }
         return address.row < activeSheet.frozenRows || address.column < activeSheet.frozenColumns
     }
 
@@ -1145,7 +1524,7 @@ struct SheetGridView: View {
     /// cell beneath, as they would on the sheet.
     private func frozenPane(rows: Range<Int>, columns: Range<Int>, shift: CGPoint) -> some View {
         let sheet = activeSheet
-        let plans = tilePlans(rows: rows, columns: columns)
+        let plans = tilePlans(rows: rows, columns: columns, metrics: metrics)
         let merges = visibleMerges(in: sheet, coveredBy: plans)
         let scheme = sheet.colorScheme(for: colorScheme)
         let selection = metrics.frame(for: sheet.expandedToMerges(state.selection))
@@ -1163,7 +1542,7 @@ struct SheetGridView: View {
                     size: frame.size,
                     hiddenRows: sheet.hiddenRows,
                     hiddenColumns: sheet.hiddenColumns,
-                    contents: contents(of: plan, in: sheet, merges: merges),
+                    contents: contents(of: plan, in: sheet, merges: merges, metrics: metrics),
                     metrics: metrics,
                     scheme: scheme
                 )
@@ -1225,13 +1604,44 @@ struct SheetGridView: View {
 
     // MARK: - Scrolling
 
+    /// Brings the table just picked or added on a canvas into view: its top,
+    /// name and all, near the top of the screen, unless it is there already,
+    /// clear of the bars along the bottom.
+    private func revealActiveTable() {
+        let origin = gridOrigin
+        let top = origin.y - CanvasChrome.nameReach(zoom: state.zoom)
+        let offset = state.scrollOffset
+        let comfortable = state.viewportSize.height * 0.5
+        let inView = top >= offset.y && top <= offset.y + comfortable
+            && origin.x >= offset.x && origin.x <= offset.x + state.viewportSize.width * 0.5
+        guard !inView else { return }
+        let destination = CGPoint(
+            x: max(0, origin.x - CanvasChrome.rowHeaderWidth(rowCount: activeSheet.rowCount) - 16) - state.scrollInsets.width,
+            y: max(0, top - 16) - state.scrollInsets.height
+        )
+        withAnimation(.easeOut(duration: 0.22)) {
+            scrollPosition.scrollTo(point: destination)
+        }
+    }
+
     /// Nudges the scroll offset just enough to reveal a cell under the headers.
     private func scrollIntoView(_ address: CellAddress) {
-        let frame = metrics.frame(for: address)
-        let visibleWidth = max(1, state.viewportSize.width - rowHeaderWidth)
-        let visibleHeight = max(1, state.viewportSize.height - columnHeaderHeight)
+        // In the content's coordinates, less the headers covering its edge.
+        let shift = CGPoint(x: gridOrigin.x - headerInsets.width, y: gridOrigin.y - headerInsets.height)
+        var frame = metrics.frame(for: address).offsetBy(dx: shift.x, dy: shift.y)
+        // A table's first row brings its name along.
+        if canvas != nil, address.row == 0 {
+            let name = CanvasChrome.nameReach(zoom: state.zoom)
+            frame = CGRect(x: frame.minX, y: frame.minY - name, width: frame.width, height: frame.height + name)
+        }
+        let visibleWidth = max(1, state.viewportSize.width - headerInsets.width)
+        let visibleHeight = max(1, state.viewportSize.height - headerInsets.height)
         var offset = state.scrollOffset
-        let sheet = activeSheet
+        var sheet = activeSheet
+        if canvas != nil {
+            sheet.frozenRows = 0
+            sheet.frozenColumns = 0
+        }
         let frozen = frozenExtent
         // A frozen cell is in view already, unless it is being edited: the
         // editor lives with the scrolling cells, so the sheet goes back to it.

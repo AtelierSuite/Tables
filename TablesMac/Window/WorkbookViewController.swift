@@ -13,6 +13,8 @@ final class WorkbookViewController: NSViewController {
 
     let formulaBar = FormulaBar()
     let grid = GridView()
+    /// A sheet sharing a canvas with others is shown on it, the grid one of its tables.
+    let canvasView = CanvasView()
     let scrollView = NSScrollView()
     let tabBar = SheetTabBar()
     let findBar = FindBar()
@@ -24,6 +26,8 @@ final class WorkbookViewController: NSViewController {
     private let frozenPanes = [FrozenPaneView(part: .corner), FrozenPaneView(part: .rows), FrozenPaneView(part: .columns)]
     private let frozenPaneContainer = FrozenPaneContainer()
     private var rowHeader: HeaderRulerView?
+    /// The table last shown on a canvas, to tell when another is picked.
+    private var shownTableID: Worksheet.ID?
     /// The last error shown, so one is not raised twice.
     private var presentedError: String?
     /// What the shared colour panel is picking a colour for.
@@ -65,6 +69,7 @@ final class WorkbookViewController: NSViewController {
         scrollView.rulersVisible = true
         columns.clientView = grid
         rows.clientView = grid
+        canvasView.grid = grid
         columnHeader = columns
         rowHeader = rows
 
@@ -137,6 +142,9 @@ final class WorkbookViewController: NSViewController {
     private func connect() {
         guard let document else { return }
         grid.document = document
+        canvasView.document = document
+        canvasView.tableMenu = { [weak self] _ in self?.canvasTableMenu() }
+        canvasView.lineMenu = { [weak self] isColumn in self?.headerMenu(forColumns: isColumn) }
         formulaBar.document = document
         findBar.document = document
         tabBar.document = document
@@ -164,6 +172,7 @@ final class WorkbookViewController: NSViewController {
         if isChartSheet, let chart = sheet.charts.first {
             chartSheet.show(chart, data: chart.resolved(in: document.workbook), zoom: 1)
         }
+        showCanvas(isChartSheet ? nil : document.state.activeCanvas(in: document.workbook))
         grid.refresh()
         layoutFrozenPanes()
         columnHeader?.refresh()
@@ -181,6 +190,46 @@ final class WorkbookViewController: NSViewController {
         view.window?.subtitle = sheet.name
     }
 
+    /// Shows the sheet on its canvas, or as a grid of its own: the grid moves
+    /// between being the scroll view's document and a table on the page.
+    private func showCanvas(_ canvas: SheetCanvas?) {
+        let window = view.window
+        let wasFocused = window?.firstResponder === grid
+        if let canvas {
+            let entering = scrollView.documentView !== canvasView
+            if entering {
+                grid.removeFromSuperview()
+                scrollView.documentView = canvasView
+                scrollView.rulersVisible = false
+                grid.isOnCanvas = true
+            }
+            canvasView.refresh(canvas, visible: scrollView.contentSize)
+            let switched = shownTableID != document?.activeSheet.id
+            shownTableID = document?.activeSheet.id
+            if entering, let frame = canvasView.activeFrame {
+                // Its headers and name too.
+                let reach = CanvasChrome.nameReach(zoom: document?.state.zoom ?? 1)
+                let rows = CanvasChrome.rowHeaderWidth(rowCount: document?.activeSheet.rowCount ?? 1)
+                canvasView.scroll(CGPoint(x: max(0, frame.minX - rows - 24), y: max(0, frame.minY - reach - 20)))
+            } else if switched, let frame = canvasView.activeFrame {
+                // A table just picked or added comes into view, name and all.
+                let reach = CanvasChrome.nameReach(zoom: document?.state.zoom ?? 1)
+                let rows = CanvasChrome.rowHeaderWidth(rowCount: document?.activeSheet.rowCount ?? 1)
+                let head = CGRect(x: frame.minX - rows, y: frame.minY - reach, width: min(frame.width, 400) + rows,
+                                  height: min(frame.height, 200) + reach)
+                canvasView.scrollToVisible(head.insetBy(dx: -12, dy: -12))
+            }
+        } else if scrollView.documentView !== grid {
+            shownTableID = nil
+            grid.removeFromSuperview()
+            grid.setFrameOrigin(.zero)
+            grid.isOnCanvas = false
+            scrollView.documentView = grid
+            scrollView.rulersVisible = true
+        }
+        if wasFocused, window?.firstResponder !== grid { window?.makeFirstResponder(grid) }
+    }
+
     @objc private func gridDidScroll(_ notification: Notification) {
         columnHeader?.needsDisplay = true
         rowHeader?.needsDisplay = true
@@ -195,7 +244,8 @@ final class WorkbookViewController: NSViewController {
         let trailing = CGSize(
             width: legacy && scrollView.hasVerticalScroller ? scrollView.verticalScroller?.frame.width ?? 0 : 0,
             height: legacy && scrollView.hasHorizontalScroller ? scrollView.horizontalScroller?.frame.height ?? 0 : 0)
-        frozenPaneContainer.isHidden = scrollView.isHidden
+        frozenPaneContainer.isHidden = scrollView.isHidden || grid.isOnCanvas
+        if grid.isOnCanvas { canvasView.fit(visible: scrollView.contentSize) }
         for pane in frozenPanes {
             pane.layout(in: scrollView.contentView, frozen: frozen, headers: headers, trailing: trailing)
         }
@@ -264,6 +314,7 @@ final class WorkbookViewController: NSViewController {
         let state = document.state
         let clamped = min(max(zoom, EditorState.zoomRange.lowerBound), EditorState.zoomRange.upperBound)
         guard clamped != state.zoom else { return }
+        if grid.isOnCanvas { return zoomCanvas(to: clamped, around: anchor.map { canvasView.convert($0, from: grid) }) }
         let old = state.metrics
         let point = anchor ?? zoomAnchor(in: document)
 
@@ -289,6 +340,30 @@ final class WorkbookViewController: NSViewController {
         var bounds = clip.bounds
         bounds.origin.x += moved.x - point.x
         bounds.origin.y += moved.y - point.y
+        clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
+        scrollView.reflectScrolledClipView(clip)
+    }
+
+    /// Zooms a canvas about a point on it, the pointer's when it is over the
+    /// page: everything on the page scales about its top-left corner.
+    private func zoomCanvas(to zoom: Double, around anchor: CGPoint?) {
+        guard let document else { return }
+        let state = document.state
+        let old = state.zoom
+        var point = anchor ?? canvasView.convert(
+            CGPoint(x: canvasView.visibleRect.midX, y: canvasView.visibleRect.midY), from: canvasView)
+        if anchor == nil, let window = view.window {
+            let pointer = canvasView.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            if canvasView.visibleRect.contains(pointer) { point = pointer }
+        }
+        state.zoom = zoom
+        state.refreshMetrics(in: document.workbook)
+        document.notify()
+        let scale = zoom / old
+        let clip = scrollView.contentView
+        var bounds = clip.bounds
+        bounds.origin.x += point.x * scale - point.x
+        bounds.origin.y += point.y * scale - point.y
         clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
         scrollView.reflectScrolledClipView(clip)
     }

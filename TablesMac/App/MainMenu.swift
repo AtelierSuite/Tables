@@ -120,6 +120,8 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item(String(localized: "Mac.Menu.NewSheet"), #selector(WorkbookViewController.newSheet(_:)),
                           "t", [.command, .shift]))
+        menu.addItem(item(String(localized: "Canvas.NewTable"), #selector(WorkbookViewController.newTable(_:)),
+                          "t", [.command, .option]))
         let charts = NSMenu(title: String(localized: "Toolbar.InsertChart"))
         for kind in ChartKind.allCases {
             let entry = item(kind.label, #selector(WorkbookViewController.insertChart(_:)))
@@ -233,6 +235,10 @@ enum MainMenu {
         menu.addItem(item(String(localized: "SheetTabBar.Menu.Hide"), #selector(WorkbookViewController.hideSheet(_:))))
         menu.addItem(item(String(localized: "SheetTabBar.Menu.Delete"), #selector(WorkbookViewController.deleteSheet(_:))))
         menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Canvas.ShowTableName"), #selector(WorkbookViewController.toggleTableName(_:))))
+        menu.addItem(item(String(localized: "Canvas.MoveToOwnSheet"),
+                          #selector(WorkbookViewController.moveTableToOwnSheet(_:))))
+        menu.addItem(.separator())
         menu.addItem(item(String(localized: "Mac.Menu.PreviousSheet"),
                           #selector(WorkbookViewController.selectPreviousSheet(_:)), "{", [.command, .option]))
         menu.addItem(item(String(localized: "Mac.Menu.NextSheet"),
@@ -297,7 +303,7 @@ enum MainMenu {
 
     // MARK: - Items
 
-    private static func submenu(_ menu: NSMenu) -> NSMenuItem {
+    static func submenu(_ menu: NSMenu) -> NSMenuItem {
         let item = NSMenuItem(title: menu.title, action: nil, keyEquivalent: "")
         item.submenu = menu
         return item

@@ -333,6 +333,9 @@ struct NumbersDocumentBuilder {
         /// parts: 10-point black text, wrapped at the top, in the body, and
         /// bold text on a grey fill in header rows.
         var hasStyles = false
+        /// Where the table sits on its sheet, as its drawable records it.
+        var origin: (x: Float, y: Float)?
+        var showsName = false
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -536,6 +539,7 @@ struct NumbersDocumentBuilder {
             .string(8, table.name)
             .double(16, 20)
             .double(17, Self.defaultColumnWidth)
+        if table.showsName { model = model.bool(22, true) }
         if table.headerRows > 0 { model = model.varint(9, table.headerRows) }
         if table.headerColumns > 0 { model = model.varint(10, table.headerColumns) }
         if table.footerRows > 0 { model = model.varint(11, table.footerRows) }
@@ -560,7 +564,12 @@ struct NumbersDocumentBuilder {
         // The table's own formula owner, which the engine knows by number.
         add(type: 4008, ProtobufWriter().varint(2, 100 + tableOwnerCount).varint(3, 1))
         tableOwnerCount += 1
-        return add(type: 6000, ProtobufWriter().message(1, ProtobufWriter()).message(2, Self.reference(modelIdentifier)))
+        let drawable = table.origin.map { origin in
+            ProtobufWriter().message(1, ProtobufWriter()
+                .message(1, ProtobufWriter().float(1, origin.x).float(2, origin.y))
+                .message(2, ProtobufWriter().float(1, 300).float(2, 200)))
+        } ?? ProtobufWriter()
+        return add(type: 6000, ProtobufWriter().message(1, drawable).message(2, Self.reference(modelIdentifier)))
     }
 
     /// Identifiers for each row and column, numbered so their order differs

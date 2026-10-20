@@ -17,6 +17,8 @@ struct HeaderMenuAction: Identifiable {
     var symbol = ""
     var kind: Kind = .normal
     var isEnabled = true
+    /// A submenu's entries, which make this one open them instead of acting.
+    var children: [HeaderMenuAction] = []
     var perform: () -> Void = {}
 
     static var separator: HeaderMenuAction {
@@ -226,12 +228,19 @@ struct HeaderActionMenu: View {
             case .separator:
                 Divider()
             case .normal, .destructive:
-                Button(
-                    action.title, systemImage: action.symbol,
-                    role: action.kind == .destructive ? .destructive : nil,
-                    action: action.perform
-                )
-                .disabled(!action.isEnabled)
+                if !action.children.isEmpty {
+                    Menu(action.title, systemImage: action.symbol) {
+                        HeaderActionMenu(actions: action.children)
+                    }
+                    .disabled(!action.isEnabled)
+                } else {
+                    Button(
+                        action.title, systemImage: action.symbol,
+                        role: action.kind == .destructive ? .destructive : nil,
+                        action: action.perform
+                    )
+                    .disabled(!action.isEnabled)
+                }
             }
         }
     }

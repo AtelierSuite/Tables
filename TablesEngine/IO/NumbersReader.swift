@@ -92,14 +92,18 @@ public enum NumbersReader {
             guard let sheet = archive[sheetReference]?.message else { continue }
             let sheetName = sheet.string(1) ?? ""
             let models = sheet.messages(2)
-                .compactMap { archive[$0] }
-                .filter { $0.type == ObjectType.tableInfo }
-                .compactMap { info -> (identifier: UInt64, message: ProtobufMessage, info: ProtobufMessage, isPivot: Bool)? in
+                .compactMap { reference in archive[reference].map { (reference.uint(1), $0) } }
+                .filter { $0.1.type == ObjectType.tableInfo }
+                .compactMap { infoIdentifier, info -> (
+                    identifier: UInt64, message: ProtobufMessage, info: ProtobufMessage,
+                    infoIdentifier: UInt64?, isPivot: Bool
+                )? in
                     guard let identifier = info.message.message(2)?.uint(1),
                           let model = archive[identifier]?.message else { return nil }
-                    return (identifier, model, info.message, info.message.bool(16))
+                    return (identifier, model, info.message, infoIdentifier, info.message.bool(16))
                 }
 
+            var placed: [Worksheet.ID] = []
             for model in models {
                 let reader = try TableReader(table: model.message, archive: archive)
                 var worksheet = reader.worksheet
@@ -118,6 +122,7 @@ public enum NumbersReader {
                 readers[worksheet.id] = reader
                 tables[worksheet.id] = NumbersSource.Table(
                     modelIdentifier: model.identifier,
+                    infoIdentifier: model.infoIdentifier,
                     sheetIdentifier: sheetReference.uint(1),
                     sharesSheet: models.count > 1,
                     sheetName: sheetName,
@@ -145,6 +150,26 @@ public enum NumbersReader {
                     showsName: model.message.bool(TableField.nameShown),
                     defaultRowHeight: model.message.double(TableField.defaultRowHeight) ?? NumbersSource.defaultRowHeight
                 )
+                placed.append(worksheet.id)
+            }
+            // A sheet of several tables is a canvas, each where Numbers has it.
+            if placed.count > 1 {
+                var canvas = SheetCanvas(name: sheetName, tables: [])
+                for id in placed {
+                    guard let table = tables[id], let worksheet = workbook[id] else { continue }
+                    let below = canvas.tables.last.flatMap { last in
+                        workbook[last.sheetID].map { last.y + $0.totalHeight + SheetCanvas.margin }
+                    } ?? SheetCanvas.margin
+                    let origin = table.canvasOrigin
+                    canvas.tables.append(SheetCanvas.Table(
+                        sheetID: id,
+                        x: origin.map { Double($0.x) } ?? SheetCanvas.margin,
+                        y: origin.map { Double($0.y) } ?? below + (table.showsName ? SheetCanvas.nameHeight : 0),
+                        showsName: table.showsName,
+                        name: table.tableName.isEmpty ? worksheet.name : table.tableName
+                    ))
+                }
+                workbook.canvases.append(canvas)
             }
         }
 
@@ -336,7 +361,8 @@ public enum NumbersReader {
 
     // MARK: - Format constants
 
-    /// Fields of a `TST.TableModelArchive` read only for drawing previews.
+    /// Fields of a `TST.TableModelArchive` read for drawing previews and
+    /// laying tables out, and written back when the layout changes.
     public enum TableField {
         public static let nameShown = 22
         public static let defaultRowHeight = 16
@@ -378,6 +404,8 @@ public final class NumbersSource: @unchecked Sendable {
     public struct Table: Sendable {
         /// The `TST.TableModelArchive` it came from.
         public var modelIdentifier: UInt64
+        /// The `TST.TableInfoArchive` drawable placing it on its sheet.
+        public var infoIdentifier: UInt64?
         /// The `TN.SheetArchive` it is on, and whether other tables are too.
         public var sheetIdentifier: UInt64?
         public var sharesSheet = false

@@ -20,6 +20,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Ahead of the first window: the document controller has to exist
         // before anything asks for `NSDocumentController.shared`.
         _ = DocumentController.shared
+        // A plain launch should begin with the standard document picker.
+        // Defer until AppKit has finished restoring or opening launch items.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, NSApp.orderedDocuments.isEmpty else { return }
+            DocumentController.shared.openDocument(self)
+        }
         #if DEBUG
         if let stage = ScreenshotStage.requested {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { ScreenshotStage.stage(stage) }
@@ -27,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
     }
 
-    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
 
     @objc func showFunctionReference(_ sender: Any?) {
         FunctionReferenceWindowController.shared.showWindow(sender)

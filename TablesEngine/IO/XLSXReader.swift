@@ -51,6 +51,7 @@ public enum XLSXReader {
             guard let payload = entries[path] ?? entries[fallbackPath] else {
                 var placeholder = Worksheet(name: name)
                 placeholder.isHidden = isHidden
+                placeholder.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
                 sheets.append(placeholder)
                 sheetPaths.append(path)
                 sheetFindings.append([])
@@ -78,6 +79,7 @@ public enum XLSXReader {
             sheet.preservedElements.removeAll { $0.name == "drawing" }
             sheet.name = name
             sheet.isHidden = isHidden
+            sheet.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
             if sheet.kind == .worksheet {
                 sheet.codeName = sheetXML.firstChild(named: "sheetPr")?.attribute("codeName")
             }
@@ -93,6 +95,10 @@ public enum XLSXReader {
         var workbook = Workbook(sheets: sheets, definedNames: parseDefinedNames(workbookXML, sheets: sheets))
         workbook.themeAccentColors = theme.accentColors
         workbook.codeName = workbookXML.firstChild(named: "workbookPr")?.attribute("codeName")
+        workbook.canvases = CanvasPart.canvases(
+            entries: entries,
+            workbookRelationships: PackagePreservation.relationships(in: entries["xl/_rels/workbook.xml.rels"]),
+            sheets: workbook.sheets)
         adoptArrayFormulas(in: &workbook)
 
         // Drawings are read into the model — charts as charts, everything
