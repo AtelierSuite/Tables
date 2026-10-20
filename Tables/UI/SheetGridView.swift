@@ -47,6 +47,8 @@ struct SheetGridView: View {
     @State private var isCellEditorFocused = false
     /// The table whose name is being dragged across the canvas, and how far.
     @State private var tableDrag: (id: Worksheet.ID, offset: CGSize)?
+    /// What the dragged table is lined up with, shown while it is.
+    @State private var canvasGuides: [CanvasSnapping.Guide] = []
     /// The table being renamed from its menu, and the name typed so far.
     @State private var renamingTableID: Worksheet.ID?
     @State private var tableNameDraft = ""
@@ -79,7 +81,8 @@ struct SheetGridView: View {
         guard let canvas, let table = canvas.table(for: activeSheet.id) else {
             return CGPoint(x: rowHeaderWidth, y: columnHeaderHeight)
         }
-        return CGPoint(x: table.x * state.zoom, y: table.y * state.zoom)
+        let dragged = tableDrag?.id == activeSheet.id ? tableDrag?.offset ?? .zero : .zero
+        return CGPoint(x: table.x * state.zoom + dragged.width, y: table.y * state.zoom + dragged.height)
     }
 
     /// How much of the top and leading edges the pinned headers cover.
@@ -281,6 +284,9 @@ struct SheetGridView: View {
         .background(alignment: .topLeading) {
             if let canvas { canvasTables(canvas) }
         }
+        .overlay(alignment: .topLeading) {
+            if !canvasGuides.isEmpty { guideLines }
+        }
     }
 
     /// The drawn grid, plus the one tap and one long press that serve all of it.
@@ -374,6 +380,10 @@ struct SheetGridView: View {
                         tableName(of: sheet, isActive: sheet.id == active, zoom: zoom)
                             .offset(x: origin.x, y: origin.y - SheetCanvas.nameHeight * zoom)
                     }
+                    if sheet.id == active, state.allowsLayingOutTables {
+                        tableGrip(for: sheet, zoom: zoom)
+                            .offset(x: origin.x - 36, y: origin.y - 36)
+                    }
                 }
             }
         }
@@ -386,22 +396,72 @@ struct SheetGridView: View {
             .lineLimit(1)
             .frame(height: (SheetCanvas.nameHeight - 4) * zoom, alignment: .bottomLeading)
             .contentShape(.rect)
-            .gesture(
-                DragGesture(minimumDistance: 4)
-                    .onChanged { value in
-                        guard state.allowsLayingOutTables else { return }
-                        tableDrag = (sheet.id, value.translation)
-                    }
-                    .onEnded { value in
-                        defer { tableDrag = nil }
-                        guard state.allowsLayingOutTables,
-                              let table = workbook.canvas(containing: sheet.id)?.table(for: sheet.id) else { return }
-                        state.moveTable(sheet.id, toX: (table.x + value.translation.width / zoom).rounded(),
-                                        y: (table.y + value.translation.height / zoom).rounded(), in: &workbook)
-                    }
-            )
+            .gesture(tableDragGesture(for: sheet, zoom: zoom))
             .onTapGesture { if !isActive { pickTable(sheet, at: CellAddress(row: 0, column: 0)) } }
             .contextMenu { HeaderActionMenu(actions: tableActions(for: sheet)) }
+    }
+
+    /// The round grip outside the active table's top-left corner, which
+    /// picks it up without reaching any of its cells. The finger gets a
+    /// larger target than the eye.
+    private func tableGrip(for sheet: Worksheet, zoom: Double) -> some View {
+        Circle()
+            .fill(Color(uiColor: .systemBackground))
+            .overlay(Circle().strokeBorder(Color.secondary, lineWidth: 1))
+            .overlay(Circle().fill(Color.secondary).frame(width: 6, height: 6))
+            .frame(width: 18, height: 18)
+            .frame(width: 36, height: 36)
+            .contentShape(.circle)
+            .gesture(tableDragGesture(for: sheet, zoom: zoom))
+            .accessibilityLabel(Text("Canvas.MoveTable"))
+    }
+
+    /// Carries a table across the canvas, kept on the page and snapping
+    /// into line with the others, and puts it down where it is let go.
+    private func tableDragGesture(for sheet: Worksheet, zoom: Double) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                guard state.allowsLayingOutTables, let canvas = workbook.canvas(containing: sheet.id),
+                      let table = canvas.table(for: sheet.id) else { return }
+                let resting = CGRect(x: table.x * zoom, y: table.y * zoom,
+                                     width: sheet.totalWidth * zoom, height: sheet.totalHeight * zoom)
+                let others = workbook.sheets(on: canvas).compactMap { other -> CGRect? in
+                    guard other.id != sheet.id, let placed = canvas.table(for: other.id) else { return nil }
+                    return CGRect(x: placed.x * zoom, y: placed.y * zoom,
+                                  width: other.totalWidth * zoom, height: other.totalHeight * zoom)
+                }
+                let snapped = CanvasSnapping.snap(
+                    resting.offsetBy(dx: value.translation.width, dy: value.translation.height), among: others,
+                    minimum: CanvasSnapping.minimumOrigin(zoom: zoom))
+                tableDrag = (sheet.id, CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY))
+                canvasGuides = snapped.guides
+            }
+            .onEnded { _ in
+                defer {
+                    tableDrag = nil
+                    canvasGuides = []
+                }
+                guard state.allowsLayingOutTables, let offset = tableDrag?.offset,
+                      let table = workbook.canvas(containing: sheet.id)?.table(for: sheet.id) else { return }
+                state.moveTable(sheet.id, toX: (table.x + offset.width / zoom).rounded(),
+                                y: (table.y + offset.height / zoom).rounded(), in: &workbook)
+            }
+    }
+
+    /// The guides showing what a dragged table is lined up with, on the
+    /// page and over everything, the active grid included.
+    private var guideLines: some View {
+        Path { path in
+            for guide in canvasGuides {
+                if guide.axis == .vertical {
+                    path.addRect(CGRect(x: guide.position - 0.5, y: guide.start, width: 1, height: guide.end - guide.start))
+                } else {
+                    path.addRect(CGRect(x: guide.start, y: guide.position - 0.5, width: guide.end - guide.start, height: 1))
+                }
+            }
+        }
+        .fill(Color.yellow)
+        .allowsHitTesting(false)
     }
 
     /// What a table's name offers when pressed: naming it, moving it to
