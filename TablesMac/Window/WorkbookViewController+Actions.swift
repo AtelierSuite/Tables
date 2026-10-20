@@ -240,6 +240,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
 
     @objc func renameSheet(_ sender: Any?) {
         guard let document else { return }
+        // A table on a canvas has no tab of its own to type in.
+        if state?.activeCanvas(in: document.workbook) != nil { return renameTable(sender) }
         tabBar.beginRenaming(document.activeSheet.id)
     }
 
@@ -251,6 +253,75 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
     @objc func deleteSheet(_ sender: Any?) {
         guard let id = document?.activeSheet.id else { return }
         edit { $0.deleteSheet(id, in: &$1) }
+    }
+
+    // MARK: - Canvases
+
+    @objc func newTable(_ sender: Any?) { edit { $0.addTable(in: &$1) } }
+
+    /// Puts the active sheet on the canvas of the sheet the item names.
+    @objc func moveTableToSheet(_ sender: NSMenuItem) {
+        guard let id = document?.activeSheet.id, let target = sender.representedObject as? Worksheet.ID else { return }
+        edit { $0.placeSheet(id, onCanvasWith: target, in: &$1) }
+    }
+
+    @objc func moveTableToOwnSheet(_ sender: Any?) {
+        guard let id = document?.activeSheet.id else { return }
+        edit { $0.removeFromCanvas(id, in: &$1) }
+    }
+
+    @objc func toggleTableName(_ sender: Any?) {
+        guard let document, let table = document.workbook.canvas(containing: document.activeSheet.id)?
+            .table(for: document.activeSheet.id) else { return }
+        edit { $0.setTableNameShown(!table.showsName, for: table.sheetID, in: &$1) }
+    }
+
+    /// Asks for a table's new name: its sheet's, as Excel knows it.
+    @objc func renameTable(_ sender: Any?) {
+        guard let document, let window = view.window else { return }
+        let id = document.activeSheet.id
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Canvas.RenameTable.Title")
+        let field = NSTextField(string: document.activeSheet.name)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: String(localized: "Canvas.RenameTable.Confirm"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.window.initialFirstResponder = field
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            self?.edit { _, workbook in workbook.renameSheet(id, to: field.stringValue) }
+        }
+    }
+
+    /// The sheets the active one can be moved onto, as a menu.
+    func moveToSheetMenu() -> NSMenu {
+        let menu = NSMenu(title: String(localized: "Canvas.MoveToSheet"))
+        guard let document else { return menu }
+        for sheet in document.state.canvasTargets(in: document.workbook) {
+            let title = document.workbook.canvas(containing: sheet.id)?.name ?? sheet.name
+            let entry = MainMenu.item(title, #selector(moveTableToSheet(_:)))
+            entry.representedObject = sheet.id
+            menu.addItem(entry)
+        }
+        return menu
+    }
+
+    /// The menu for a right-click on a table on a canvas.
+    func canvasTableMenu() -> NSMenu {
+        let menu = NSMenu()
+        let showsName = document.flatMap { $0.workbook.canvas(containing: $0.activeSheet.id)?.table(for: $0.activeSheet.id) }?
+            .showsName ?? false
+        let name = MainMenu.item(String(localized: "Canvas.ShowTableName"), #selector(toggleTableName(_:)))
+        name.state = showsName ? .on : .off
+        menu.addItem(name)
+        menu.addItem(MainMenu.item(String(localized: "Canvas.RenameTable"), #selector(renameTable(_:))))
+        menu.addItem(.separator())
+        menu.addItem(MainMenu.submenu(moveToSheetMenu()))
+        menu.addItem(MainMenu.item(String(localized: "Canvas.MoveToOwnSheet"), #selector(moveTableToOwnSheet(_:))))
+        menu.addItem(.separator())
+        menu.addItem(MainMenu.item(String(localized: "SheetTabBar.Menu.Delete"), #selector(deleteSheet(_:))))
+        return menu
     }
 
     @objc func selectPreviousSheet(_ sender: Any?) { stepSheet(by: -1) }
@@ -421,6 +492,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         menu.addItem(MainMenu.item(String(localized: "SheetTabBar.Menu.Duplicate"), #selector(duplicateSheet(_:))))
         menu.addItem(MainMenu.item(String(localized: "SheetTabBar.Menu.Hide"), #selector(hideSheet(_:))))
         menu.addItem(.separator())
+        menu.addItem(MainMenu.submenu(moveToSheetMenu()))
+        menu.addItem(.separator())
         menu.addItem(MainMenu.item(String(localized: "SheetTabBar.Menu.Delete"), #selector(deleteSheet(_:))))
         return menu
     }
@@ -464,6 +537,7 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         let sheet = document.activeSheet
         let formatting = state.formatting
         let isCells = !sheet.isChartSheet
+        let onCanvas = state.activeCanvas(in: document.workbook) != nil
         switch action {
         case #selector(toggleBold(_:)), #selector(toggleItalic(_:)), #selector(toggleUnderline(_:)),
              #selector(toggleStrikethrough(_:)), #selector(increaseFontSize(_:)), #selector(decreaseFontSize(_:)),
@@ -504,11 +578,20 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             return isCells && state.allowsComments
                 && state.selectedRanges.contains { range in sheet.comments.keys.contains { range.normalized.contains($0) } }
         case #selector(freezeTopRow(_:)), #selector(freezeFirstColumn(_:)):
-            return isCells && state.allowsFreezingPanes
+            return isCells && state.allowsFreezingPanes && !onCanvas
         case #selector(freezePanesAtSelection(_:)):
-            return isCells && state.allowsFreezingPanes && state.selection.normalized.start != CellAddress(row: 0, column: 0)
+            return isCells && state.allowsFreezingPanes && !onCanvas
+                && state.selection.normalized.start != CellAddress(row: 0, column: 0)
         case #selector(unfreezePanes(_:)):
-            return isCells && state.allowsFreezingPanes && (sheet.frozenRows > 0 || sheet.frozenColumns > 0)
+            return isCells && state.allowsFreezingPanes && !onCanvas && (sheet.frozenRows > 0 || sheet.frozenColumns > 0)
+        case #selector(newTable(_:)):
+            return isCells && state.allowsArrangingCanvases
+        case #selector(moveTableToSheet(_:)):
+            return isCells && state.allowsArrangingCanvases
+        case #selector(moveTableToOwnSheet(_:)), #selector(toggleTableName(_:)):
+            return state.allowsArrangingCanvases && onCanvas
+        case #selector(renameTable(_:)):
+            return onCanvas
         case #selector(showUnsupportedFeatures(_:)):
             return !document.unsupportedFeatures.isEmpty
         case #selector(showMacros(_:)):

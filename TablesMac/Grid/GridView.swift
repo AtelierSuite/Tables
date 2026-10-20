@@ -63,9 +63,13 @@ final class GridView: NSView, NSTextFieldDelegate {
         panes.contains { !$0.isHidden && $0.bounds.contains($0.convert(event.locationInWindow, from: nil)) }
     }
 
+    /// Whether the grid is a table on a canvas rather than the whole sheet,
+    /// where nothing is frozen in place.
+    var isOnCanvas = false
+
     /// How far the frozen rows reach down, and the frozen columns across.
     var frozenExtent: CGSize {
-        guard let document else { return .zero }
+        guard let document, !isOnCanvas else { return .zero }
         let sheet = document.activeSheet
         let metrics = document.state.metrics
         return CGSize(
