@@ -126,7 +126,9 @@ final class GridView: NSView, NSTextFieldDelegate {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
-        drawSheet(dirtyRect, in: context)
+        // Views don't clip by default, and AppKit can ask for more than the
+        // grid covers: on a canvas, that would paint over the tables around it.
+        drawSheet(dirtyRect.intersection(bounds), in: context)
     }
 
     /// Draws a part of the sheet, given in its own coordinates: for the grid,
