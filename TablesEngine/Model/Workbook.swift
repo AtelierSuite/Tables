@@ -247,6 +247,9 @@ public struct Workbook: Hashable, Sendable {
     public var themeAccentColors = ThemeColorScheme.office.accentColors
     /// The file's tables, so structured references in formulas resolve.
     public var tables: [TableDefinition] = []
+    /// Sheets laid out together as tables on one page; see `SheetCanvas`.
+    /// A sheet on none of them is a grid of its own.
+    public var canvases: [SheetCanvas] = []
     /// The name the macros know the workbook by, `ThisWorkbook` unless the
     /// file renamed it. Like a sheet's, it binds the workbook to its module.
     public var codeName: String?
@@ -397,6 +400,7 @@ public struct Workbook: Hashable, Sendable {
             }
         }
         sheets.remove(at: index)
+        pruneCanvases()
         // Deleting the only visible sheet would leave the strip empty.
         if visibleSheets.isEmpty { sheets[0].isHidden = false }
         return true
@@ -406,6 +410,14 @@ public struct Workbook: Hashable, Sendable {
         guard let index = index(of: sheetID) else { return }
         let sheet = sheets.remove(at: index)
         sheets.insert(sheet, at: min(max(0, destination), sheets.count))
+        // A canvas's sheets move as one, around the one carried.
+        if let canvas = canvas(containing: sheetID) {
+            let members = canvas.tables.map(\.sheetID)
+            let moved = members.compactMap { id in sheets.first { $0.id == id } }
+            let others = sheets.filter { !canvas.contains($0.id) }
+            let at = sheets[..<(self.index(of: sheetID) ?? 0)].filter { !canvas.contains($0.id) }.count
+            sheets = Array(others[..<at]) + moved + Array(others[at...])
+        }
     }
 
     public mutating func renameSheet(_ sheetID: Worksheet.ID, to name: String) {
