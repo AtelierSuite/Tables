@@ -100,6 +100,7 @@ public enum NumbersReader {
                     return (identifier, model, info.message, info.message.bool(16))
                 }
 
+            var placed: [Worksheet.ID] = []
             for model in models {
                 let reader = try TableReader(table: model.message, archive: archive)
                 var worksheet = reader.worksheet
@@ -145,6 +146,26 @@ public enum NumbersReader {
                     showsName: model.message.bool(TableField.nameShown),
                     defaultRowHeight: model.message.double(TableField.defaultRowHeight) ?? NumbersSource.defaultRowHeight
                 )
+                placed.append(worksheet.id)
+            }
+            // A sheet of several tables is a canvas, each where Numbers has it.
+            if placed.count > 1 {
+                var canvas = SheetCanvas(name: sheetName, tables: [])
+                for id in placed {
+                    guard let table = tables[id], let worksheet = workbook[id] else { continue }
+                    let below = canvas.tables.last.flatMap { last in
+                        workbook[last.sheetID].map { last.y + $0.totalHeight + SheetCanvas.margin }
+                    } ?? SheetCanvas.margin
+                    let origin = table.canvasOrigin
+                    canvas.tables.append(SheetCanvas.Table(
+                        sheetID: id,
+                        x: origin.map { Double($0.x) } ?? SheetCanvas.margin,
+                        y: origin.map { Double($0.y) } ?? below + (table.showsName ? SheetCanvas.nameHeight : 0),
+                        showsName: table.showsName,
+                        name: table.tableName.isEmpty ? worksheet.name : table.tableName
+                    ))
+                }
+                workbook.canvases.append(canvas)
             }
         }
 
