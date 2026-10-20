@@ -36,9 +36,10 @@ struct CanvasSnappingTests {
     func staysOnThePage() {
         let dragged = CGRect(x: -900, y: -40, width: 120, height: 80)
         #expect(CanvasSnapping.snap(dragged, among: []).origin == .zero)
-        // With room left for its grip and its name.
-        let minimum = CanvasSnapping.minimumOrigin(zoom: 1)
-        #expect(minimum == CGPoint(x: 24, y: 26))
+        // With room left for its headers and its name.
+        let minimum = CanvasSnapping.minimumOrigin(zoom: 1, rowCount: 20)
+        #expect(minimum == CGPoint(x: CanvasChrome.rowHeaderWidth(rowCount: 20) + 4,
+                                   y: CanvasChrome.columnHeaderHeight + 26 + 4))
         #expect(CanvasSnapping.snap(dragged, among: [], minimum: minimum).origin == minimum)
     }
 }

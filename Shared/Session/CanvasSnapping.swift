@@ -21,14 +21,11 @@ enum CanvasSnapping {
     /// another's to snap to it.
     static let threshold: CGFloat = 6
 
-    /// How close a table may come to the page's left edge, on screen:
-    /// enough to leave its grip on the page.
-    static let leadingInset: CGFloat = 24
-
-    /// The nearest a table's corner may come to the page's top-left, on
-    /// screen, at a zoom: room for its grip, and for its name above it.
-    static func minimumOrigin(zoom: Double) -> CGPoint {
-        CGPoint(x: leadingInset, y: max(leadingInset, SheetCanvas.nameHeight * zoom))
+    /// The nearest a table's first cell may come to the page's top-left, on
+    /// screen: room for its headers and its name, so its handle stays on
+    /// the page.
+    static func minimumOrigin(zoom: Double, rowCount: Int) -> CGPoint {
+        CGPoint(x: CanvasChrome.rowHeaderWidth(rowCount: rowCount) + 4, y: CanvasChrome.nameReach(zoom: zoom) + 4)
     }
 
     /// Where `frame` lands among `others`, never nearer the page's top-left
@@ -74,4 +71,34 @@ enum CanvasSnapping {
         }
         return (frame.origin, guides)
     }
+}
+
+/// The headers a table on a canvas shows while it is the one worked on,
+/// and the room kept for them whether or not they show, so a table taking
+/// them on never moves, and neither does its name.
+enum CanvasChrome {
+    /// The bar of column letters above the table, on screen: taller on
+    /// iPhone and iPad, for a finger.
+    #if os(iOS)
+    static let columnHeaderHeight: CGFloat = 24
+    private static let minimumRowHeaderWidth: CGFloat = 32
+    #else
+    static let columnHeaderHeight: CGFloat = 20
+    private static let minimumRowHeaderWidth: CGFloat = 26
+    #endif
+
+    /// The bar of row numbers to the table's left: wide enough for the
+    /// last row's number.
+    static func rowHeaderWidth(rowCount: Int) -> CGFloat {
+        max(minimumRowHeaderWidth, 12 + 7 * CGFloat(String(max(1, rowCount)).count))
+    }
+
+    /// How far above a table's first cell the top of its name is: past the
+    /// column bar, kept for it even while it isn't shown.
+    static func nameReach(zoom: Double) -> CGFloat {
+        columnHeaderHeight + SheetCanvas.nameHeight * zoom
+    }
+
+    /// How long headers take to fade in or out as tables are picked.
+    static let fadeDuration = 0.18
 }
