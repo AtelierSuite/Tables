@@ -101,6 +101,7 @@ struct WorkbookView: View {
         .onAppear {
             state.allowsComments = !document.isPlainText && !document.isNumbers
             state.allowsFreezingPanes = !document.isPlainText && !document.isNumbers
+            state.allowsArrangingCanvases = !document.isPlainText && !document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.sheets.first?.id
                 state.refreshMetrics(in: document.workbook)
@@ -265,6 +266,7 @@ struct WorkbookView: View {
             state.formatting = document.formatting(in: state.activeSheetID)
             state.allowsComments = true
             state.allowsFreezingPanes = true
+            state.allowsArrangingCanvases = true
         }
     }
 
