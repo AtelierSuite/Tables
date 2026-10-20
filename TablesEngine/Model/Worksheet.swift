@@ -158,6 +158,10 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// Sheets Excel marks `state="hidden"`: kept in the document, kept out of
     /// the tab strip.
     public var isHidden = false
+    /// The number the file knew the sheet by (Excel's `sheetId`), kept so it
+    /// stays the same across saves: anything else in the file naming the
+    /// sheet by it goes on finding the same one.
+    public var fileSheetID: Int?
     public var tabColorHex: String?
     /// The name the workbook's macros know this sheet by — `Sheet1` in
     /// `Sheet1.Range("A1")` — which stays put when the tab is renamed. It is

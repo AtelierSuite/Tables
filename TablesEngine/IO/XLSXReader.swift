@@ -51,6 +51,7 @@ public enum XLSXReader {
             guard let payload = entries[path] ?? entries[fallbackPath] else {
                 var placeholder = Worksheet(name: name)
                 placeholder.isHidden = isHidden
+                placeholder.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
                 sheets.append(placeholder)
                 sheetPaths.append(path)
                 sheetFindings.append([])
@@ -78,6 +79,7 @@ public enum XLSXReader {
             sheet.preservedElements.removeAll { $0.name == "drawing" }
             sheet.name = name
             sheet.isHidden = isHidden
+            sheet.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
             if sheet.kind == .worksheet {
                 sheet.codeName = sheetXML.firstChild(named: "sheetPr")?.attribute("codeName")
             }

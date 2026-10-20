@@ -361,6 +361,7 @@ public struct Workbook: Hashable, Sendable {
         // Code names are unique, and the original's document module stays
         // with the original.
         copy.codeName = nil
+        copy.fileSheetID = nil
         // Excel points a copied sheet's charts at the copy's own cells.
         for chart in copy.charts.indices {
             copy.charts[chart].id = UUID()

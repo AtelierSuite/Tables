@@ -424,13 +424,30 @@ public enum XLSXWriter {
         xml += "<sheets>"
         let hasVisibleSheet = workbook.sheets.contains { !$0.isHidden }
         for (index, sheet) in workbook.sheets.enumerated() {
-            xml += "<sheet name=\"\(XMLLite.escape(sheet.name))\" sheetId=\"\(index + 1)\""
+            xml += "<sheet name=\"\(XMLLite.escape(sheet.name))\" sheetId=\"\(sheetIDs[index])\""
             // Excel refuses to open a workbook with nothing visible, so the
             // first sheet stays visible however the model got into that state.
             if sheet.isHidden, hasVisibleSheet || index > 0 { xml += " state=\"hidden\"" }
             xml += " r:id=\"rId\(index + 1)\"/>"
         }
         xml += "</sheets>"
+    /// The number each sheet goes by in the file: the one it was read
+    /// with, unless another sheet already has it, and the next free one
+    /// for a sheet new to the file.
+    static func fileSheetIDs(of workbook: Workbook) -> [Int] {
+        var used: Set<Int> = []
+        var ids = workbook.sheets.map { sheet -> Int? in
+            guard let id = sheet.fileSheetID, id > 0, used.insert(id).inserted else { return nil }
+            return id
+        }
+        var next = (used.max() ?? 0) + 1
+        for index in ids.indices where ids[index] == nil {
+            ids[index] = next
+            next += 1
+        }
+        return ids.map { $0 ?? 0 }
+    }
+
         // A name scoped to a sheet that is gone is dropped rather than written
         // unscoped: promoting it to workbook scope would let it answer formulas
         // it never applied to.
@@ -439,6 +456,7 @@ public enum XLSXWriter {
             guard let position = workbook.index(of: scope) else { return nil }
             return (name, position)
         }
+        let sheetIDs = fileSheetIDs(of: workbook)
         // Element order inside `<workbook>` is schema-enforced: `<definedNames>`
         // sits between `<sheets>` and `<calcPr>`, and Excel rejects the part if
         // it appears anywhere else.
