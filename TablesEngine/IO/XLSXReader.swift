@@ -95,6 +95,10 @@ public enum XLSXReader {
         var workbook = Workbook(sheets: sheets, definedNames: parseDefinedNames(workbookXML, sheets: sheets))
         workbook.themeAccentColors = theme.accentColors
         workbook.codeName = workbookXML.firstChild(named: "workbookPr")?.attribute("codeName")
+        workbook.canvases = CanvasPart.canvases(
+            entries: entries,
+            workbookRelationships: PackagePreservation.relationships(in: entries["xl/_rels/workbook.xml.rels"]),
+            sheets: workbook.sheets)
         adoptArrayFormulas(in: &workbook)
 
         // Drawings are read into the model — charts as charts, everything

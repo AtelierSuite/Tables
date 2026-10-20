@@ -81,4 +81,80 @@ struct SheetCanvasTests {
         #expect(!placed)
         #expect(book.canvases.isEmpty)
     }
+
+    // MARK: - Excel files
+
+    private func canvasWorkbook() -> Workbook {
+        var book = workbook("Summary", "Sales", "Costs", "Notes")
+        book.placeSheet(book.sheets[1].id, onCanvasWith: book.sheets[0].id)
+        book.moveTable(book.sheets[1].id, toX: 420, y: 60)
+        book.canvases[0].tables[1].showsName = false
+        book.renameCanvas(book.canvases[0].id, to: "Overview")
+        return book
+    }
+
+    @Test("Canvases come back from an Excel file as they were saved")
+    func excelRoundTrip() throws {
+        let book = canvasWorkbook()
+        let read = try XLSXReader.workbook(from: XLSXWriter.data(from: book))
+
+        let canvas = try #require(read.canvases.first)
+        #expect(read.canvases.count == 1)
+        #expect(canvas.name == "Overview")
+        #expect(canvas.tables.map { read[$0.sheetID]?.name } == ["Summary", "Sales"])
+        #expect(canvas.tables[1].x == 420 && canvas.tables[1].y == 60)
+        #expect(canvas.tables[1].showsName == false)
+        #expect(canvas.tables[0].showsName)
+    }
+
+    @Test("The canvases are a custom XML part beside the sheets, which stay sheets")
+    func excelPackage() throws {
+        let entries = try ZipArchive.entries(in: XLSXWriter.data(from: canvasWorkbook()))
+        let part = try #require(entries["customXml/item1.xml"].map { String(decoding: $0, as: UTF8.self) })
+        #expect(part.contains("<canvas name=\"Overview\">"))
+        #expect(entries["customXml/itemProps1.xml"] != nil)
+        let relationships = String(decoding: entries["xl/_rels/workbook.xml.rels"] ?? Data(), as: UTF8.self)
+        #expect(relationships.contains("Target=\"../customXml/item1.xml\""))
+        let types = String(decoding: entries["[Content_Types].xml"] ?? Data(), as: UTF8.self)
+        #expect(types.contains("/customXml/itemProps1.xml"))
+        let workbookPart = String(decoding: entries["xl/workbook.xml"] ?? Data(), as: UTF8.self)
+        #expect(workbookPart.components(separatedBy: "<sheet ").count - 1 == 4)
+
+        // Nothing at all without a canvas.
+        let plain = try ZipArchive.entries(in: XLSXWriter.data(from: workbook("A", "B")))
+        #expect(!plain.keys.contains { $0.hasPrefix("customXml/") })
+    }
+
+    @Test("A sheet renamed elsewhere stays on its canvas; one deleted takes the canvas with it")
+    func excelEditedElsewhere() throws {
+        var entries = try ZipArchive.entries(in: XLSXWriter.data(from: canvasWorkbook()))
+        var workbookXML = String(decoding: entries["xl/workbook.xml"] ?? Data(), as: UTF8.self)
+        workbookXML = workbookXML.replacingOccurrences(of: "name=\"Sales\"", with: "name=\"Revenue\"")
+        entries["xl/workbook.xml"] = Data(workbookXML.utf8)
+        let renamed = try XLSXReader.workbook(from: ZipArchive.archive(entries: entries.map { ($0.key, $0.value) }))
+        #expect(renamed.canvases.first?.tables.compactMap { renamed[$0.sheetID]?.name } == ["Summary", "Revenue"])
+
+        var book = canvasWorkbook()
+        let saved = try XLSXReader.workbook(from: XLSXWriter.data(from: book))
+        #expect(saved.sheets.map(\.fileSheetID) == [1, 2, 3, 4])
+        book = saved
+        _ = book.removeSheet(book.sheets[0].id)
+        let reread = try XLSXReader.workbook(from: XLSXWriter.data(from: book))
+        #expect(reread.canvases.isEmpty)
+        // The sheets that are left keep their numbers.
+        #expect(reread.sheets.map(\.fileSheetID) == [2, 3, 4])
+    }
+
+    @Test("A Numbers document's canvases go into the Excel file it is exported as")
+    func numbersToExcel() throws {
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Plans", tables: [
+            .init(name: "Trips", rows: [[.text("Kyoto")]]),
+            .init(name: "Extra", rows: [[.text("Second")]]),
+        ])
+        let numbers = try NumbersReader.workbook(from: document.singleFile())
+        let excel = try XLSXReader.workbook(from: XLSXWriter.data(from: numbers))
+        #expect(excel.canvases.first?.name == "Plans")
+        #expect(excel.canvases.first?.tables.count == 2)
+    }
 }

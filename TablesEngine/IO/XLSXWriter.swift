@@ -12,13 +12,14 @@ public enum XLSXWriter {
         let drawings = DrawingPlan(workbook: workbook)
         let formulas = FormulaPlan(workbook: workbook)
         let comments = CommentPlan(workbook: workbook, preserved: preserved)
+        let canvases = CanvasPart.part(for: workbook, sheetIDs: fileSheetIDs(of: workbook))
 
         var parts: [(path: String, data: Data)] = [
             (
                 "[Content_Types].xml",
                 contentTypes(workbook: workbook, drawings: drawings, preserved: preserved,
                              hasMetadata: formulas.usesDynamicArrays, comments: comments,
-                             macroEnabled: macroEnabled).utf8Data
+                             macroEnabled: macroEnabled, hasCanvases: canvases != nil).utf8Data
             ),
             ("_rels/.rels", rootRelationships(preserved: preserved).utf8Data),
             ("xl/workbook.xml", workbookPart(workbook).utf8Data),
@@ -26,12 +27,19 @@ public enum XLSXWriter {
                 "xl/_rels/workbook.xml.rels",
                 workbookRelationships(workbook: workbook, drawings: drawings, preserved: preserved,
                                       hasMetadata: formulas.usesDynamicArrays,
-                                      hasPersons: comments.personsPath != nil).utf8Data
+                                      hasPersons: comments.personsPath != nil,
+                                      hasCanvases: canvases != nil).utf8Data
             ),
             ("xl/styles.xml", styles.xml.utf8Data),
             ("xl/sharedStrings.xml", strings.xml.utf8Data),
         ]
         if formulas.usesDynamicArrays { parts.append((FormulaPlan.metadataPath, FormulaPlan.metadataPart.utf8Data)) }
+        if let canvases {
+            parts.append((CanvasPart.path, canvases.utf8Data))
+            parts.append((CanvasPart.propertiesPath, CanvasPart.propertiesPart.utf8Data))
+            parts.append((XLSXReader.PackagePreservation.relationshipsPath(for: CanvasPart.path),
+                          CanvasPart.relationshipsPart.utf8Data))
+        }
         if let personsPath = comments.personsPath {
             parts.append((personsPath, CommentParts.personsPart(comments.authors).utf8Data))
         }
@@ -293,7 +301,7 @@ public enum XLSXWriter {
 
     private static func contentTypes(
         workbook: Workbook, drawings: DrawingPlan, preserved: PreservedPackage, hasMetadata: Bool,
-        comments: CommentPlan, macroEnabled: Bool
+        comments: CommentPlan, macroEnabled: Bool, hasCanvases: Bool
     ) -> String {
         var xml = declaration
         xml += "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
@@ -344,6 +352,9 @@ public enum XLSXWriter {
         if let path = comments.personsPath {
             xml += "<Override PartName=\"/\(path)\" ContentType=\"\(CommentParts.personContentType)\"/>"
         }
+        if hasCanvases {
+            xml += "<Override PartName=\"/\(CanvasPart.propertiesPath)\" ContentType=\"\(CanvasPart.propertiesContentType)\"/>"
+        }
         for (name, type) in preserved.contentTypeOverrides.sorted(by: { $0.key < $1.key })
         where !generatedPartNames.contains(name) && !comments.generatedPartNames.contains(name) {
             xml += "<Override PartName=\"\(XMLLite.escape(name))\" ContentType=\"\(XMLLite.escape(type))\"/>"
@@ -368,7 +379,8 @@ public enum XLSXWriter {
     }
 
     private static func workbookRelationships(
-        workbook: Workbook, drawings: DrawingPlan, preserved: PreservedPackage, hasMetadata: Bool, hasPersons: Bool
+        workbook: Workbook, drawings: DrawingPlan, preserved: PreservedPackage, hasMetadata: Bool, hasPersons: Bool,
+        hasCanvases: Bool
     ) -> String {
         let sheetCount = workbook.sheets.count
         var xml = declaration
@@ -391,6 +403,10 @@ public enum XLSXWriter {
         }
         if hasPersons {
             xml += "<Relationship Id=\"rId\(nextID)\" Type=\"\(CommentParts.personType)\" Target=\"persons/person.xml\"/>"
+            nextID += 1
+        }
+        if hasCanvases {
+            xml += "<Relationship Id=\"rId\(nextID)\" Type=\"\(CanvasPart.relationshipType)\" Target=\"../\(CanvasPart.path)\"/>"
         }
         xml += "</Relationships>"
         return xml
@@ -415,22 +431,6 @@ public enum XLSXWriter {
         return xml
     }
 
-    private static func workbookPart(_ workbook: Workbook) -> String {
-        var xml = declaration
-        xml += "<workbook xmlns=\"\(mainNamespace)\" xmlns:r=\"\(relationshipNamespace)\">"
-        if let codeName = workbook.codeName {
-            xml += "<workbookPr codeName=\"\(XMLLite.escape(codeName))\"/>"
-        }
-        xml += "<sheets>"
-        let hasVisibleSheet = workbook.sheets.contains { !$0.isHidden }
-        for (index, sheet) in workbook.sheets.enumerated() {
-            xml += "<sheet name=\"\(XMLLite.escape(sheet.name))\" sheetId=\"\(sheetIDs[index])\""
-            // Excel refuses to open a workbook with nothing visible, so the
-            // first sheet stays visible however the model got into that state.
-            if sheet.isHidden, hasVisibleSheet || index > 0 { xml += " state=\"hidden\"" }
-            xml += " r:id=\"rId\(index + 1)\"/>"
-        }
-        xml += "</sheets>"
     /// The number each sheet goes by in the file: the one it was read
     /// with, unless another sheet already has it, and the next free one
     /// for a sheet new to the file.
@@ -448,6 +448,23 @@ public enum XLSXWriter {
         return ids.map { $0 ?? 0 }
     }
 
+    private static func workbookPart(_ workbook: Workbook) -> String {
+        var xml = declaration
+        xml += "<workbook xmlns=\"\(mainNamespace)\" xmlns:r=\"\(relationshipNamespace)\">"
+        if let codeName = workbook.codeName {
+            xml += "<workbookPr codeName=\"\(XMLLite.escape(codeName))\"/>"
+        }
+        xml += "<sheets>"
+        let hasVisibleSheet = workbook.sheets.contains { !$0.isHidden }
+        let sheetIDs = fileSheetIDs(of: workbook)
+        for (index, sheet) in workbook.sheets.enumerated() {
+            xml += "<sheet name=\"\(XMLLite.escape(sheet.name))\" sheetId=\"\(sheetIDs[index])\""
+            // Excel refuses to open a workbook with nothing visible, so the
+            // first sheet stays visible however the model got into that state.
+            if sheet.isHidden, hasVisibleSheet || index > 0 { xml += " state=\"hidden\"" }
+            xml += " r:id=\"rId\(index + 1)\"/>"
+        }
+        xml += "</sheets>"
         // A name scoped to a sheet that is gone is dropped rather than written
         // unscoped: promoting it to workbook scope would let it answer formulas
         // it never applied to.
@@ -456,7 +473,6 @@ public enum XLSXWriter {
             guard let position = workbook.index(of: scope) else { return nil }
             return (name, position)
         }
-        let sheetIDs = fileSheetIDs(of: workbook)
         // Element order inside `<workbook>` is schema-enforced: `<definedNames>`
         // sits between `<sheets>` and `<calcPr>`, and Excel rejects the part if
         // it appears anywhere else.
