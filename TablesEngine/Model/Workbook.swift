@@ -419,6 +419,8 @@ public struct Workbook: Hashable, Sendable {
             let at = sheets[..<(self.index(of: sheetID) ?? 0)].filter { !canvas.contains($0.id) }.count
             sheets = Array(others[..<at]) + moved + Array(others[at...])
         }
+        // A sheet let go in the middle of another canvas goes after it.
+        for canvas in canvases where !canvas.contains(sheetID) { keepCanvasTogether(canvas) }
     }
 
     public mutating func renameSheet(_ sheetID: Worksheet.ID, to name: String) {

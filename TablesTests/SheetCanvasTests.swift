@@ -69,6 +69,10 @@ struct SheetCanvasTests {
         book.placeSheet(ids[1], onCanvasWith: ids[0])
         book.moveSheet(ids[0], to: 3)
         #expect(book.sheets.map(\.id) == [ids[2], ids[3], ids[0], ids[1]])
+
+        // And another sheet never lands between them.
+        book.moveSheet(ids[2], to: 2)
+        #expect(book.sheets.map(\.id) == [ids[3], ids[0], ids[1], ids[2]])
     }
 
     @Test("Chart sheets have no cells to lay out")
