@@ -276,10 +276,14 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         edit { $0.setTableNameShown(!table.showsName, for: table.sheetID, in: &$1) }
     }
 
-    /// Asks for a table's new name: its sheet's, as Excel knows it.
+    /// Edits a table's name where it shows on the canvas, or asks for one
+    /// when it is hidden.
     @objc func renameTable(_ sender: Any?) {
         guard let document, let window = view.window else { return }
         let id = document.activeSheet.id
+        if document.workbook.canvas(containing: id)?.table(for: id)?.showsName == true {
+            return canvasView.beginEditingName(of: id)
+        }
         let alert = NSAlert()
         alert.messageText = String(localized: "Canvas.RenameTable.Title")
         let field = NSTextField(string: document.workbook.tableName(of: id))

@@ -9,10 +9,10 @@ import TablesEngine
 /// clicked. The table worked on has column letters and row numbers round
 /// it, which fade in as it is picked, into room every table keeps for them
 /// so nothing moves. A table is picked up to be moved by the corner where
-/// its headers meet, by its name, or by the edge just outside its cells:
-/// all of them on the page, never on a cell, so clicking and dragging
-/// cells is left to the grid. It snaps into line with the tables around it
-/// as it comes close, with guides to show it.
+/// its headers meet, or by the edge just outside its cells: both on the
+/// page, never on a cell, so clicking and dragging cells is left to the
+/// grid. It snaps into line with the tables around it as it comes close,
+/// with guides to show it. A click on a table's name edits it in place.
 @MainActor
 final class CanvasView: NSView {
     weak var document: WorkbookDocument?
@@ -44,6 +44,9 @@ final class CanvasView: NSView {
     private let guideView = CanvasGuideView()
     private var activeID: Worksheet.ID?
     private var pointerArea: NSTrackingArea?
+    /// The field a table's name is edited in, over where it is drawn.
+    private var nameField: NSTextField?
+    private var editingNameID: Worksheet.ID?
 
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { true }
@@ -77,6 +80,7 @@ final class CanvasView: NSView {
             grid.setFrameOrigin(frame.origin)
         }
         showHeaders(for: active)
+        placeNameField()
         needsDisplay = true
     }
 
@@ -165,14 +169,16 @@ final class CanvasView: NSView {
             // An edge round every table, so one without gridlines still reads as one.
             NSColor.separatorColor.setStroke()
             NSBezierPath(rect: table.frame.insetBy(dx: -0.5, dy: -0.5)).stroke()
-            if let name = table.name {
+            if let name = table.name, table.sheet.id != editingNameID {
                 drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID)
             }
         }
     }
 
+    private var nameFont: NSFont { NSFont.systemFont(ofSize: max(9, 14 * zoom), weight: .semibold) }
+
     private func drawName(_ name: String, in rect: CGRect, isActive: Bool) {
-        let font = NSFont.systemFont(ofSize: max(9, 14 * zoom), weight: .semibold)
+        let font = nameFont
         let text = NSAttributedString(string: name, attributes: [
             .font: font, .foregroundColor: isActive ? NSColor.labelColor : NSColor.secondaryLabelColor,
         ])
@@ -197,17 +203,21 @@ final class CanvasView: NSView {
     }
 
     /// The table a drag starting here would pick up: by the corner of the
-    /// active table's headers, by its name, or by the edge just outside
-    /// its cells.
+    /// active table's headers, or by the edge just outside its cells.
     private func grabbable(at point: CGPoint) -> Placed? {
         if isOnCorner(point) { return placed.first { $0.sheet.id == activeID } }
-        if let table = tableName(at: point) { return table }
+        if tableName(at: point) != nil { return nil }
         return placed.last { $0.frame.insetBy(dx: -5, dy: -5).contains(point) && !$0.frame.contains(point) }
     }
 
     override func mouseDown(with event: NSEvent) {
         guard let document else { return }
         let point = convert(event.locationInWindow, from: nil)
+        if let table = tableName(at: point) {
+            if table.sheet.id != activeID { document.selectSheet(table.sheet.id) }
+            if document.state.allowsLayingOutTables { beginEditingName(of: table.sheet.id) }
+            return
+        }
         if let table = grabbable(at: point) {
             isDraggingFromCorner = isOnCorner(point)
             if table.sheet.id != activeID { document.selectSheet(table.sheet.id) }
@@ -300,8 +310,75 @@ final class CanvasView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         // The grid sets its own.
         if let grid, grid.frame.contains(point) { return }
-        let movable = document?.state.allowsLayingOutTables == true && grabbable(at: point) != nil
-        (movable ? NSCursor.openHand : NSCursor.arrow).set()
+        let editable = document?.state.allowsLayingOutTables == true
+        if editable, tableName(at: point) != nil { return NSCursor.iBeam.set() }
+        (editable && grabbable(at: point) != nil ? NSCursor.openHand : NSCursor.arrow).set()
+    }
+
+    // MARK: - Naming
+
+    /// Puts a field over a table's name to type a new one in, as a sheet's
+    /// tab is renamed; the table must show its name.
+    func beginEditingName(of id: Worksheet.ID) {
+        guard let document, document.state.allowsLayingOutTables,
+              placed.contains(where: { $0.sheet.id == id && $0.name != nil }) else { return }
+        endEditingName(commit: true)
+        let field = NSTextField(string: document.workbook.tableName(of: id))
+        field.isBordered = false
+        field.drawsBackground = true
+        field.backgroundColor = .textBackgroundColor
+        field.focusRingType = .exterior
+        field.usesSingleLineMode = true
+        field.cell?.isScrollable = true
+        field.delegate = self
+        editingNameID = id
+        nameField = field
+        addSubview(field, positioned: .below, relativeTo: guideView)
+        placeNameField()
+        window?.makeFirstResponder(field)
+        field.currentEditor()?.selectAll(nil)
+        needsDisplay = true
+    }
+
+    /// Keeps the field over the name as the canvas is laid out afresh, and
+    /// lets it go if its table has gone or no longer shows its name.
+    private func placeNameField() {
+        guard let field = nameField, let id = editingNameID else { return }
+        guard let table = placed.first(where: { $0.sheet.id == id && $0.name != nil }) else {
+            return endEditingName(commit: false)
+        }
+        field.font = nameFont
+        let height = ceil(field.intrinsicContentSize.height)
+        let rect = nameRect(of: table)
+        let frame = CGRect(x: rect.minX - 2, y: rect.maxY - height - 3 * zoom, width: rect.width + 2, height: height)
+        if field.frame != frame { field.frame = frame }
+    }
+
+    /// Puts the name typed in place, or leaves the old one.
+    private func endEditingName(commit: Bool) {
+        guard let field = nameField, let id = editingNameID else { return }
+        nameField = nil
+        editingNameID = nil
+        let name = field.stringValue
+        let hadFocus = field.currentEditor() != nil
+        field.removeFromSuperview()
+        needsDisplay = true
+        if hadFocus, let grid { window?.makeFirstResponder(grid) }
+        guard commit, let document, name != document.workbook.tableName(of: id) else { return }
+        let state = document.state
+        document.edit { state.renameTable(id, to: name, in: &$0) }
+    }
+}
+
+extension CanvasView: NSTextFieldDelegate {
+    func controlTextDidEndEditing(_ notification: Notification) {
+        endEditingName(commit: true)
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        guard selector == #selector(cancelOperation(_:)) else { return false }
+        endEditingName(commit: false)
+        return true
     }
 }
 
