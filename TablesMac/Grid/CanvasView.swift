@@ -86,7 +86,7 @@ final class CanvasView: NSView {
 
     /// The round grip outside the active table's top-left corner.
     private func gripRect(of table: Placed) -> CGRect {
-        CGRect(x: table.frame.minX - 20, y: table.frame.minY - 20, width: 16, height: 16)
+        CGRect(x: table.frame.minX - 24, y: table.frame.minY - 24, width: 20, height: 20)
     }
 
     private var showsGrip: Bool { document?.state.allowsLayingOutTables == true }
@@ -123,15 +123,19 @@ final class CanvasView: NSView {
         }
     }
 
+    /// The grip: the move arrows on a disc of the accent colour, as a
+    /// handle for carrying something about reads anywhere on the Mac.
     private func drawGrip(in rect: CGRect) {
-        let circle = NSBezierPath(ovalIn: rect)
-        NSColor.controlBackgroundColor.setFill()
-        circle.fill()
-        NSColor.secondaryLabelColor.setStroke()
-        circle.lineWidth = 1
-        circle.stroke()
-        NSColor.secondaryLabelColor.setFill()
-        NSBezierPath(ovalIn: CGRect(x: rect.midX - 2.5, y: rect.midY - 2.5, width: 5, height: 5)).fill()
+        NSColor.controlAccentColor.setFill()
+        NSBezierPath(ovalIn: rect).fill()
+        let configuration = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
+            .applying(.init(paletteColors: [.white]))
+        guard let arrows = NSImage(systemSymbolName: "arrow.up.and.down.and.arrow.left.and.right",
+                                   accessibilityDescription: nil)?.withSymbolConfiguration(configuration) else { return }
+        let size = arrows.size
+        arrows.draw(in: CGRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2,
+                               width: size.width, height: size.height),
+                    from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
     }
 
     private func drawName(_ name: String, in rect: CGRect, isActive: Bool) {

@@ -405,11 +405,12 @@ struct SheetGridView: View {
     /// picks it up without reaching any of its cells. The finger gets a
     /// larger target than the eye.
     private func tableGrip(for sheet: Worksheet, zoom: Double) -> some View {
-        Circle()
-            .fill(Color(uiColor: .systemBackground))
-            .overlay(Circle().strokeBorder(Color.secondary, lineWidth: 1))
-            .overlay(Circle().fill(Color.secondary).frame(width: 6, height: 6))
-            .frame(width: 18, height: 18)
+        Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 24, height: 24)
+            .background(Color.accentColor, in: .circle)
+            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
             .frame(width: 36, height: 36)
             .contentShape(.circle)
             .gesture(tableDragGesture(for: sheet, zoom: zoom))
