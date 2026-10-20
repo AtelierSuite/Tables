@@ -89,10 +89,13 @@ private struct PreviewCanvas {
             // A table with no place recorded goes below the one before it.
             let below = tables.last.map { $0.origin.y + Self.height(of: $0) + Self.margin } ?? Self.margin
             let fallback = CGPoint(x: Self.margin, y: below + (table.showsName ? Self.nameHeight : 0))
+            // Where the canvas has it now, which a save may have moved.
+            let placed = workbook.canvas(containing: sheet.id)?.table(for: sheet.id)
+            let showsName = placed?.showsName ?? table.showsName
             tables.append(Table(
                 sheet: sheet,
-                origin: table.canvasOrigin ?? fallback,
-                name: table.showsName ? table.tableName : nil,
+                origin: placed.map { CGPoint(x: $0.x, y: $0.y) } ?? table.canvasOrigin ?? fallback,
+                name: showsName ? workbook.tableName(of: sheet.id) : nil,
                 defaultRowHeight: table.defaultRowHeight
             ))
         }

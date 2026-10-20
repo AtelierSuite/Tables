@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import Tables
 @testable import TablesEngine
 
 @Suite("Sheet canvases")
@@ -160,5 +161,59 @@ struct SheetCanvasTests {
         let excel = try XLSXReader.workbook(from: XLSXWriter.data(from: numbers))
         #expect(excel.canvases.first?.name == "Plans")
         #expect(excel.canvases.first?.tables.count == 2)
+    }
+
+    // MARK: - Numbers files
+
+    private func plans() throws -> (Workbook, NumbersSource) {
+        var document = NumbersDocumentBuilder()
+        var trips = NumbersDocumentBuilder.Table(name: "Trips", rows: [[.text("Kyoto")]])
+        trips.origin = (40, 60)
+        trips.showsName = true
+        var extra = NumbersDocumentBuilder.Table(name: "Extra", rows: [[.text("Second")]])
+        extra.origin = (40, 300)
+        document.addSheet("Plans", tables: [trips, extra])
+        return try NumbersReader.document(from: document.singleFile())
+    }
+
+    private func saved(_ workbook: Workbook, _ source: NumbersSource) throws -> Workbook {
+        let data = try #require(NumbersWriter.fileWrapper(for: workbook, source: source, existing: nil).regularFileContents)
+        return try NumbersReader.workbook(from: data)
+    }
+
+    @Test("Tables moved, named and shown or hidden on a Numbers sheet are saved into it") @MainActor
+    func numbersLayoutSaves() throws {
+        var (book, source) = try plans()
+        let canvas = try #require(book.canvases.first)
+        #expect(canvas.tables.map(\.x) == [40, 40] && canvas.tables.map(\.y) == [60, 300])
+        let (trips, extra) = (canvas.tables[0].sheetID, canvas.tables[1].sheetID)
+
+        let state = EditorState()
+        state.moveTable(extra, toX: 420, y: 60, in: &book)
+        state.setTableNameShown(false, for: trips, in: &book)
+        state.setTableNameShown(true, for: extra, in: &book)
+        state.renameTable(extra, to: "Hotels", in: &book)
+        state.renameCanvas(containing: trips, to: "Holiday", in: &book)
+        #expect(NumbersEditPolicy.reconcile(book, from: source.imported, source: source).violation == nil)
+
+        let read = try saved(book, source)
+        let layout = try #require(read.canvases.first)
+        #expect(layout.name == "Holiday")
+        #expect(layout.tables[1].x == 420 && layout.tables[1].y == 60)
+        #expect(layout.tables[0].x == 40 && layout.tables[0].y == 60)
+        #expect(layout.tables.map(\.showsName) == [false, true])
+        #expect(read.tableName(of: layout.tables[1].sheetID) == "Hotels")
+        // The cells are as they were.
+        #expect(read[layout.tables[1].sheetID]?[CellAddress(row: 0, column: 0)].value == .text("Second"))
+    }
+
+    @Test("Which tables a Numbers sheet holds stays as Numbers has it")
+    func numbersRegroupingRefused() throws {
+        let (book, source) = try plans()
+        var regrouped = book
+        regrouped.removeFromCanvas(book.sheets[1].id)
+        let result = NumbersEditPolicy.reconcile(regrouped, from: book, source: source)
+        #expect(result.violation == .structure)
+        #expect(result.workbook.canvases == book.canvases)
     }
 }

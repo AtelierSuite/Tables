@@ -7,7 +7,7 @@ import Foundation
 /// comes through untouched. That only works for changes the patch can
 /// express: values and formulas typed into cells, rows and columns inserted
 /// and deleted where nothing Tables can't move depends on where they are,
-/// rows and columns resized, sheets renamed. Anything else is turned away as it's made,
+/// rows and columns resized, sheets renamed, tables moved and named. Anything else is turned away as it's made,
 /// rather than accepted and then lost when the document is saved.
 public enum NumbersEditPolicy {
     public enum Violation: Error, Equatable, LocalizedError, Sendable {
@@ -144,6 +144,7 @@ public enum NumbersEditPolicy {
     private static func structuralViolation(_ new: Workbook, from old: Workbook, source: NumbersSource) -> Violation? {
         guard new.sheets.map(\.id) == old.sheets.map(\.id),
               new.definedNames == old.definedNames else { return .structure }
+        if let violation = canvasViolation(new, from: old, source: source) { return violation }
         for (sheet, previous) in zip(new.sheets, old.sheets) where sheet != previous {
             // A sheet takes its name from Numbers' sheet when it has the
             // sheet to itself; one of several tables is named after both.
@@ -172,6 +173,29 @@ public enum NumbersEditPolicy {
             }
             if table.isPivot, sheet.rowCount != previous.rowCount || sheet.columnCount != previous.columnCount {
                 return .structure
+            }
+        }
+        return nil
+    }
+
+    /// Why a change to how tables sit on their sheets can't be saved, if
+    /// it can't. Tables can move, be named and have their names shown or
+    /// not, and a sheet of several can be renamed; which tables a sheet
+    /// holds stays as Numbers has it.
+    private static func canvasViolation(_ new: Workbook, from old: Workbook, source: NumbersSource) -> Violation? {
+        guard new.canvases.map(\.id) == old.canvases.map(\.id) else { return .structure }
+        for (canvas, previous) in zip(new.canvases, old.canvases) where canvas != previous {
+            guard canvas.tables.map(\.sheetID) == previous.tables.map(\.sheetID) else { return .structure }
+            if canvas.name != previous.name, canvas.name.isEmpty { return .structure }
+            for (table, before) in zip(canvas.tables, previous.tables) where table != before {
+                guard let read = source.tables[table.sheetID] else { return .structure }
+                // A table placed nowhere in the file has no position to move.
+                if table.x != before.x || table.y != before.y, read.canvasOrigin == nil || read.infoIdentifier == nil {
+                    return .structure
+                }
+                if table.name != before.name, table.name?.isEmpty ?? true { return .structure }
+                let rewrites = [read.modelIdentifier, read.infoIdentifier, read.sheetIdentifier].compactMap { $0 }
+                if rewrites.contains(where: source.archive.patchedObjects.contains) { return .unmergedChanges }
             }
         }
         return nil

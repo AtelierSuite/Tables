@@ -92,12 +92,15 @@ public enum NumbersReader {
             guard let sheet = archive[sheetReference]?.message else { continue }
             let sheetName = sheet.string(1) ?? ""
             let models = sheet.messages(2)
-                .compactMap { archive[$0] }
-                .filter { $0.type == ObjectType.tableInfo }
-                .compactMap { info -> (identifier: UInt64, message: ProtobufMessage, info: ProtobufMessage, isPivot: Bool)? in
+                .compactMap { reference in archive[reference].map { (reference.uint(1), $0) } }
+                .filter { $0.1.type == ObjectType.tableInfo }
+                .compactMap { infoIdentifier, info -> (
+                    identifier: UInt64, message: ProtobufMessage, info: ProtobufMessage,
+                    infoIdentifier: UInt64?, isPivot: Bool
+                )? in
                     guard let identifier = info.message.message(2)?.uint(1),
                           let model = archive[identifier]?.message else { return nil }
-                    return (identifier, model, info.message, info.message.bool(16))
+                    return (identifier, model, info.message, infoIdentifier, info.message.bool(16))
                 }
 
             var placed: [Worksheet.ID] = []
@@ -119,6 +122,7 @@ public enum NumbersReader {
                 readers[worksheet.id] = reader
                 tables[worksheet.id] = NumbersSource.Table(
                     modelIdentifier: model.identifier,
+                    infoIdentifier: model.infoIdentifier,
                     sheetIdentifier: sheetReference.uint(1),
                     sharesSheet: models.count > 1,
                     sheetName: sheetName,
@@ -357,7 +361,8 @@ public enum NumbersReader {
 
     // MARK: - Format constants
 
-    /// Fields of a `TST.TableModelArchive` read only for drawing previews.
+    /// Fields of a `TST.TableModelArchive` read for drawing previews and
+    /// laying tables out, and written back when the layout changes.
     public enum TableField {
         public static let nameShown = 22
         public static let defaultRowHeight = 16
@@ -399,6 +404,8 @@ public final class NumbersSource: @unchecked Sendable {
     public struct Table: Sendable {
         /// The `TST.TableModelArchive` it came from.
         public var modelIdentifier: UInt64
+        /// The `TST.TableInfoArchive` drawable placing it on its sheet.
+        public var infoIdentifier: UInt64?
         /// The `TN.SheetArchive` it is on, and whether other tables are too.
         public var sheetIdentifier: UInt64?
         public var sharesSheet = false

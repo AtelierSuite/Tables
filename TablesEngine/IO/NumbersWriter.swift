@@ -132,11 +132,61 @@ public enum NumbersWriter {
             guard renamedBack != imported else { continue }
             try TableWriter(sheet: sheet, imported: imported, table: table, sheetNames: sheetNames).write(into: &patch)
         }
+        try writeCanvases(of: workbook, source: source, into: &patch)
         guard !patch.isEmpty else { return nil }
         try patch.countFormulas()
         if patch.changedValues { try patch.markFormulasForRecalculation() }
         try patch.updateMetadata()
         return patch.entries(from: source.entries)
+    }
+}
+
+extension NumbersWriter {
+    /// How the tables sit on their sheets: where each one is, its name and
+    /// whether Numbers shows it, and the sheet's own name. Which tables a
+    /// sheet holds can't change; see `NumbersEditPolicy`.
+    fileprivate static func writeCanvases(of workbook: Workbook, source: NumbersSource, into patch: inout Patch) throws {
+        for canvas in workbook.canvases {
+            guard let original = source.imported.canvases.first(where: { $0.id == canvas.id }) else { continue }
+            if canvas.name != original.name, let first = canvas.tables.first,
+               let identifier = source.tables[first.sheetID]?.sheetIdentifier, var sheet = patch[identifier] {
+                sheet.set(1, bytes: Array(canvas.name.utf8))
+                try patch.change(identifier, to: sheet)
+            }
+            for table in canvas.tables {
+                guard let before = original.table(for: table.sheetID), table != before,
+                      let read = source.tables[table.sheetID] else { continue }
+                if table.x != before.x || table.y != before.y, let identifier = read.infoIdentifier,
+                   var info = patch[identifier], let moved = placing(info, atX: table.x, y: table.y) {
+                    info = moved
+                    try patch.change(identifier, to: info)
+                }
+                if table.showsName != before.showsName || table.name != before.name,
+                   var model = patch[read.modelIdentifier] {
+                    if table.showsName != before.showsName {
+                        model.set(NumbersReader.TableField.nameShown, bool: table.showsName)
+                    }
+                    if table.name != before.name, let name = table.name, !name.isEmpty {
+                        model.set(8, bytes: Array(name.utf8))
+                    }
+                    try patch.change(read.modelIdentifier, to: model)
+                }
+            }
+        }
+    }
+
+    /// A `TST.TableInfoArchive` with its drawable's position moved, or nil
+    /// when it records none to move.
+    static func placing(_ info: ProtobufMessage, atX x: Double, y: Double) -> ProtobufMessage? {
+        guard var drawable = info.message(1), var geometry = drawable.message(1),
+              var position = geometry.message(1) else { return nil }
+        position.set(1, float: Float(x))
+        position.set(2, float: Float(y))
+        geometry.set(1, message: position)
+        drawable.set(1, message: geometry)
+        var info = info
+        info.set(1, message: drawable)
+        return info
     }
 }
 
