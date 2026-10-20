@@ -6,17 +6,21 @@ import TablesEngine
 ///
 /// The table being worked on is the grid itself, carried to its place on
 /// the page; the others are drawn around it, read-only, until one is
-/// clicked. A table is picked up to be moved by its name, by the round
-/// grip outside its top-left corner, or by the edge just outside its
-/// cells: all of them on the page, never on a cell, so clicking and
-/// dragging cells is left to the grid. It snaps into line with the tables
-/// around it as it comes close, with guides to show it.
+/// clicked. The table worked on has column letters and row numbers round
+/// it, which fade in as it is picked, into room every table keeps for them
+/// so nothing moves. A table is picked up to be moved by the corner where
+/// its headers meet, by its name, or by the edge just outside its cells:
+/// all of them on the page, never on a cell, so clicking and dragging
+/// cells is left to the grid. It snaps into line with the tables around it
+/// as it comes close, with guides to show it.
 @MainActor
 final class CanvasView: NSView {
     weak var document: WorkbookDocument?
     weak var grid: GridView?
     /// Builds the menu for a right-click on a table's name.
     var tableMenu: ((Worksheet.ID) -> NSMenu?)?
+    /// Builds the menu for a right-click on a column's or row's header.
+    var lineMenu: ((_ isColumn: Bool) -> NSMenu?)?
 
     private struct Placed {
         var sheet: Worksheet
@@ -30,6 +34,11 @@ final class CanvasView: NSView {
     /// The table being dragged: where the drag started, and how far it has
     /// come once kept on the page and snapped into line.
     private var drag: (id: Worksheet.ID, start: CGPoint, offset: CGSize)?
+    /// Whether the drag began on the corner of the headers, which selects
+    /// the whole table when it is let go without moving.
+    private var isDraggingFromCorner = false
+    /// The active table's headers.
+    private var headerView: CanvasHeaderView?
     /// The lines showing what the dragged table is lined up with, drawn
     /// over everything, the grid included.
     private let guideView = CanvasGuideView()
@@ -67,7 +76,35 @@ final class CanvasView: NSView {
         if let frame = placed.first(where: { $0.sheet.id == active })?.frame, grid.frame.origin != frame.origin {
             grid.setFrameOrigin(frame.origin)
         }
+        showHeaders(for: active)
         needsDisplay = true
+    }
+
+    /// Puts the headers round the active table, fading the last table's
+    /// out and the new one's in when another is picked.
+    private func showHeaders(for active: Worksheet.ID) {
+        guard let frame = activeFrame else { return }
+        if let headerView, headerView.sheetID == active {
+            headerView.place(around: frame)
+            return
+        }
+        if let old = headerView {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = CanvasChrome.fadeDuration
+                old.animator().alphaValue = 0
+            }, completionHandler: { old.removeFromSuperview() })
+        }
+        let headers = CanvasHeaderView(sheetID: active)
+        headers.document = document
+        headers.lineMenu = { [weak self] isColumn in self?.lineMenu?(isColumn) }
+        headers.alphaValue = 0
+        addSubview(headers, positioned: .below, relativeTo: guideView)
+        headers.place(around: frame)
+        headerView = headers
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = CanvasChrome.fadeDuration
+            headers.animator().alphaValue = 1
+        }
     }
 
     /// Grows the page to hold every table with room to spare, and to fill
@@ -84,15 +121,17 @@ final class CanvasView: NSView {
     /// Where the active table sits on the page.
     var activeFrame: CGRect? { placed.first { $0.sheet.id == activeID }?.frame }
 
-    /// The round grip outside the active table's top-left corner.
-    private func gripRect(of table: Placed) -> CGRect {
-        CGRect(x: table.frame.minX - 24, y: table.frame.minY - 24, width: 20, height: 20)
+    /// The corner where the active table's headers meet: its handle.
+    private func cornerRect(of table: Placed) -> CGRect {
+        let width = CanvasChrome.rowHeaderWidth(rowCount: table.sheet.rowCount)
+        let height = CanvasChrome.columnHeaderHeight
+        return CGRect(x: table.frame.minX - width, y: table.frame.minY - height, width: width, height: height)
     }
 
-    private var showsGrip: Bool { document?.state.allowsLayingOutTables == true }
-
+    /// A table's name, above the room kept for its column letters.
     private func nameRect(of table: Placed) -> CGRect {
-        CGRect(x: table.frame.minX, y: table.frame.minY - nameHeight, width: max(table.frame.width, 120), height: nameHeight)
+        CGRect(x: table.frame.minX, y: table.frame.minY - CanvasChrome.nameReach(zoom: zoom),
+               width: max(table.frame.width, 120), height: nameHeight)
     }
 
     // MARK: - Drawing
@@ -119,23 +158,7 @@ final class CanvasView: NSView {
             if let name = table.name {
                 drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID)
             }
-            if table.sheet.id == activeID, showsGrip { drawGrip(in: gripRect(of: table)) }
         }
-    }
-
-    /// The grip: the move arrows on a disc of the accent colour, as a
-    /// handle for carrying something about reads anywhere on the Mac.
-    private func drawGrip(in rect: CGRect) {
-        NSColor.controlAccentColor.setFill()
-        NSBezierPath(ovalIn: rect).fill()
-        let configuration = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
-            .applying(.init(paletteColors: [.white]))
-        guard let arrows = NSImage(systemSymbolName: "arrow.up.and.down.and.arrow.left.and.right",
-                                   accessibilityDescription: nil)?.withSymbolConfiguration(configuration) else { return }
-        let size = arrows.size
-        arrows.draw(in: CGRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2,
-                               width: size.width, height: size.height),
-                    from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
     }
 
     private func drawName(_ name: String, in rect: CGRect, isActive: Bool) {
@@ -158,12 +181,17 @@ final class CanvasView: NSView {
         placed.last { $0.name != nil && nameRect(of: $0).contains(point) }
     }
 
-    /// The table a drag starting here would pick up: by its name, by the
-    /// active table's grip, or by the edge just outside its cells.
+    /// Whether a point is on the corner of the active table's headers.
+    private func isOnCorner(_ point: CGPoint) -> Bool {
+        placed.first { $0.sheet.id == activeID }.map { cornerRect(of: $0).contains(point) } ?? false
+    }
+
+    /// The table a drag starting here would pick up: by the corner of the
+    /// active table's headers, by its name, or by the edge just outside
+    /// its cells.
     private func grabbable(at point: CGPoint) -> Placed? {
+        if isOnCorner(point) { return placed.first { $0.sheet.id == activeID } }
         if let table = tableName(at: point) { return table }
-        if showsGrip, let active = placed.first(where: { $0.sheet.id == activeID }),
-           gripRect(of: active).insetBy(dx: -4, dy: -4).contains(point) { return active }
         return placed.last { $0.frame.insetBy(dx: -5, dy: -5).contains(point) && !$0.frame.contains(point) }
     }
 
@@ -171,10 +199,13 @@ final class CanvasView: NSView {
         guard let document else { return }
         let point = convert(event.locationInWindow, from: nil)
         if let table = grabbable(at: point) {
+            isDraggingFromCorner = isOnCorner(point)
             if table.sheet.id != activeID { document.selectSheet(table.sheet.id) }
             if document.state.allowsLayingOutTables {
                 drag = (table.sheet.id, point, .zero)
                 NSCursor.closedHand.set()
+            } else if isDraggingFromCorner {
+                selectWholeTable(in: document)
             }
             return
         }
@@ -200,7 +231,8 @@ final class CanvasView: NSView {
         let resting = CGRect(x: table.x * zoom, y: table.y * zoom, width: moving.frame.width, height: moving.frame.height)
         let proposed = resting.offsetBy(dx: point.x - drag.start.x, dy: point.y - drag.start.y)
         let others = placed.filter { $0.sheet.id != drag.id }.map(\.frame)
-        let snapped = CanvasSnapping.snap(proposed, among: others, minimum: CanvasSnapping.minimumOrigin(zoom: zoom))
+        let snapped = CanvasSnapping.snap(
+            proposed, among: others, minimum: CanvasSnapping.minimumOrigin(zoom: zoom, rowCount: moving.sheet.rowCount))
         drag.offset = CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY)
         self.drag = drag
         guideView.guides = snapped.guides
@@ -214,6 +246,8 @@ final class CanvasView: NSView {
         guideView.guides = []
         NSCursor.openHand.set()
         guard drag.offset != .zero, let table = document.workbook.canvas(containing: drag.id)?.table(for: drag.id) else {
+            // A click on the corner, rather than a drag, selects the table.
+            if isDraggingFromCorner { return selectWholeTable(in: document) }
             return document.notify()
         }
         let zoom = self.zoom
@@ -222,6 +256,12 @@ final class CanvasView: NSView {
             state.moveTable(drag.id, toX: (table.x + drag.offset.width / zoom).rounded(),
                             y: (table.y + drag.offset.height / zoom).rounded(), in: &$0)
         }
+    }
+
+    private func selectWholeTable(in document: WorkbookDocument) {
+        document.state.selectAll(in: document.activeSheet)
+        document.notify()
+        if let grid { window?.makeFirstResponder(grid) }
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {

@@ -144,6 +144,7 @@ final class WorkbookViewController: NSViewController {
         grid.document = document
         canvasView.document = document
         canvasView.tableMenu = { [weak self] _ in self?.canvasTableMenu() }
+        canvasView.lineMenu = { [weak self] isColumn in self?.headerMenu(forColumns: isColumn) }
         formulaBar.document = document
         findBar.document = document
         tabBar.document = document
@@ -206,14 +207,15 @@ final class WorkbookViewController: NSViewController {
             let switched = shownTableID != document?.activeSheet.id
             shownTableID = document?.activeSheet.id
             if entering, let frame = canvasView.activeFrame {
-                // The table's name too, above it.
-                let reach = SheetCanvas.nameHeight * (document?.state.zoom ?? 1)
-                // The grip outside its corner, as well.
-                canvasView.scroll(CGPoint(x: max(0, frame.minX - reach - 24), y: max(0, frame.minY - reach * 2)))
+                // Its headers and name too.
+                let reach = CanvasChrome.nameReach(zoom: document?.state.zoom ?? 1)
+                let rows = CanvasChrome.rowHeaderWidth(rowCount: document?.activeSheet.rowCount ?? 1)
+                canvasView.scroll(CGPoint(x: max(0, frame.minX - rows - 24), y: max(0, frame.minY - reach - 20)))
             } else if switched, let frame = canvasView.activeFrame {
                 // A table just picked or added comes into view, name and all.
-                let reach = SheetCanvas.nameHeight * (document?.state.zoom ?? 1)
-                let head = CGRect(x: frame.minX - 24, y: frame.minY - reach, width: min(frame.width, 400) + 24,
+                let reach = CanvasChrome.nameReach(zoom: document?.state.zoom ?? 1)
+                let rows = CanvasChrome.rowHeaderWidth(rowCount: document?.activeSheet.rowCount ?? 1)
+                let head = CGRect(x: frame.minX - rows, y: frame.minY - reach, width: min(frame.width, 400) + rows,
                                   height: min(frame.height, 200) + reach)
                 canvasView.scrollToVisible(head.insetBy(dx: -12, dy: -12))
             }
