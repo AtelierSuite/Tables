@@ -392,8 +392,17 @@ struct SheetGridView: View {
                     }
                 }
             }
+            // What a dragged table passes over shows through its headers.
+            .opacity(isMovingTable ? CanvasChrome.draggingOpacity : 1)
             .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: active)
+            .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: isMovingTable)
         }
+    }
+
+    /// Whether a table is being dragged away from where it rests.
+    private var isMovingTable: Bool {
+        guard let tableDrag else { return false }
+        return tableDrag.offset != .zero
     }
 
     /// The column letters and row numbers round the table being worked on,
