@@ -26,6 +26,8 @@ final class WorkbookViewController: NSViewController {
     private let frozenPanes = [FrozenPaneView(part: .corner), FrozenPaneView(part: .rows), FrozenPaneView(part: .columns)]
     private let frozenPaneContainer = FrozenPaneContainer()
     private var rowHeader: HeaderRulerView?
+    /// The table last shown on a canvas, to tell when another is picked.
+    private var shownTableID: Worksheet.ID?
     /// The last error shown, so one is not raised twice.
     private var presentedError: String?
     /// What the shared colour panel is picking a colour for.
@@ -201,12 +203,21 @@ final class WorkbookViewController: NSViewController {
                 grid.isOnCanvas = true
             }
             canvasView.refresh(canvas, visible: scrollView.contentSize)
+            let switched = shownTableID != document?.activeSheet.id
+            shownTableID = document?.activeSheet.id
             if entering, let frame = canvasView.activeFrame {
                 // The table's name too, above it.
                 let reach = SheetCanvas.nameHeight * (document?.state.zoom ?? 1)
                 canvasView.scroll(CGPoint(x: max(0, frame.minX - reach), y: max(0, frame.minY - reach * 2)))
+            } else if switched, let frame = canvasView.activeFrame {
+                // A table just picked or added comes into view, name and all.
+                let reach = SheetCanvas.nameHeight * (document?.state.zoom ?? 1)
+                let head = CGRect(x: frame.minX, y: frame.minY - reach, width: min(frame.width, 400),
+                                  height: min(frame.height, 200) + reach)
+                canvasView.scrollToVisible(head.insetBy(dx: -12, dy: -12))
             }
         } else if scrollView.documentView !== grid {
+            shownTableID = nil
             grid.removeFromSuperview()
             grid.setFrameOrigin(.zero)
             grid.isOnCanvas = false
