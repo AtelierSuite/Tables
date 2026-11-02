@@ -357,7 +357,8 @@ struct CellRenderer {
         _ lineStyle: BorderLineStyle, colorHex: String?, context: CGContext, segments: (Double) -> [CGPoint]
     ) {
         let zoom = metrics.zoom
-        let color = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true).map { NSColor($0) } ?? .secondaryLabelColor
+        let color = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true).map { NSColor($0) }
+            ?? Self.automaticBorderColor
         context.saveGState()
         context.setStrokeColor(color.cgColor)
         context.setLineWidth(lineStyle.lineWidth * zoom)
@@ -367,6 +368,12 @@ struct CellRenderer {
             context.strokeLineSegments(between: segments(offset))
         }
         context.restoreGState()
+    }
+
+    /// Excel's automatic border colour: black on paper, and the label colour
+    /// on screen so it follows dark mode.
+    private static var automaticBorderColor: NSColor {
+        NSGraphicsContext.current?.isDrawingToScreen == false ? .black : .labelColor
     }
 
     // MARK: - Comments
