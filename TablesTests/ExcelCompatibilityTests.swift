@@ -148,6 +148,24 @@ struct ExcelCompatibilityTests {
         #expect(read[CellAddress(a1: "B3")!].value == .number(60))
     }
 
+    @Test("Column runs past our last column are dropped, not read")
+    func columnsBeyondGrid() throws {
+        // Excel's grid runs to XFD; a sheet can style columns we never hold.
+        let sheet = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols>\
+        <col min="2" max="2" width="20" customWidth="1"/>\
+        <col min="16131" max="16131" width="15" customWidth="1"/>\
+        <col min="16133" max="16384" width="8" hidden="1"/>\
+        </cols><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>
+        """
+        let read = try XLSXReader.workbook(from: package(sheet: sheet)).sheets[0]
+
+        #expect(read.columnWidths[1] != nil)
+        #expect(read.columnWidths.keys.allSatisfy { $0 < Worksheet.maximumColumnCount })
+        #expect(read.hiddenColumns.isEmpty)
+    }
+
     @Test("Filling a formula moves relative references only")
     func translation() {
         #expect(FormulaReferenceShifter.translated("A1*2", rowDelta: 2, columnDelta: 0) == "A3*2")
