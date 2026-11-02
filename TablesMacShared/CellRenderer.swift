@@ -250,20 +250,31 @@ struct CellRenderer {
             measured = text.size()
         }
 
-        let width = min(measured.width, wraps ? box.width : room)
-        let x: Double
+        // Wrapped text is laid out across the whole box, its paragraph style
+        // doing the horizontal alignment, so the box itself must not move.
+        let size = CGSize(width: wraps ? box.width : min(measured.width, room), height: measured.height)
+        // Turned text is aligned by the box it covers once turned, so a
+        // vertical label sits on the cell's bottom rather than hanging out of it.
+        let angle = style.rotationDegrees * .pi / 180
+        let extent = CGSize(
+            width: abs(size.width * cos(angle)) + abs(size.height * sin(angle)),
+            height: abs(size.width * sin(angle)) + abs(size.height * cos(angle))
+        )
+        let midX: Double
         switch horizontal {
-        case .trailing: x = box.maxX - width
-        case .center: x = box.midX - width / 2
-        default: x = box.minX
+        case .trailing: midX = box.maxX - extent.width / 2
+        case .center: midX = box.midX
+        default: midX = box.minX + extent.width / 2
         }
-        let y: Double
+        let midY: Double
         switch style.verticalAlignment {
-        case .top: y = box.minY
-        case .middle: y = box.midY - measured.height / 2
-        case .bottom: y = box.maxY - measured.height
+        case .top: midY = box.minY + extent.height / 2
+        case .middle: midY = box.midY
+        case .bottom: midY = box.maxY - extent.height / 2
         }
-        let target = CGRect(x: x, y: y, width: wraps ? box.width : width, height: measured.height)
+        let target = CGRect(
+            x: midX - size.width / 2, y: midY - size.height / 2, width: size.width, height: size.height
+        )
 
         context.saveGState()
         context.clip(to: overflow.map { $0.union(frame) } ?? frame)
