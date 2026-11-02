@@ -231,6 +231,16 @@ struct StyleFidelityTests {
         #expect(style.diagonalBorder == nil)
     }
 
+    // MARK: - Vertical alignment
+
+    @Test("A missing vertical attribute reads as bottom, the OOXML default")
+    func verticalAlignmentDefaultsToBottom() throws {
+        #expect(try readStyle(alignment: "horizontal=\"left\"").verticalAlignment == .bottom)
+        #expect(try readStyle(alignment: "vertical=\"bottom\"").verticalAlignment == .bottom)
+        #expect(try readStyle(alignment: "vertical=\"top\"").verticalAlignment == .top)
+        #expect(try readStyle(alignment: "vertical=\"center\"").verticalAlignment == .middle)
+    }
+
     // MARK: - Indent and rotation
 
     @Test("Indent and rotation are read from the alignment element")

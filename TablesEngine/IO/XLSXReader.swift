@@ -463,8 +463,9 @@ public enum XLSXReader {
                 }
                 switch alignment.attribute("vertical") {
                 case "top": style.verticalAlignment = .top
-                case "bottom": style.verticalAlignment = .bottom
-                default: style.verticalAlignment = .middle
+                case "center", "justify", "distributed": style.verticalAlignment = .middle
+                // OOXML's default for a missing or unrecognised `vertical` is bottom.
+                default: style.verticalAlignment = .bottom
                 }
                 style.wrapsText = alignment.attribute("wrapText") == "1"
                 style.indent = alignment.attribute("indent").flatMap(Int.init).map { max(0, $0) } ?? 0
