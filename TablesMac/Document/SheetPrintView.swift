@@ -30,8 +30,9 @@ final class SheetPrintView: NSView {
         appearance.performAsCurrentDrawingAppearance {
             NSColor.white.setFill()
             dirtyRect.fill()
-            CellRenderer(sheet: sheet, metrics: metrics, appearance: appearance)
-                .draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: appearance))
+            var renderer = CellRenderer(sheet: sheet, metrics: metrics, appearance: appearance)
+            renderer.shownArea = bounds
+            renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: appearance))
         }
     }
 }
