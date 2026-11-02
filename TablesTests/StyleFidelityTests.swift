@@ -241,6 +241,44 @@ struct StyleFidelityTests {
         #expect(try readStyle(alignment: "vertical=\"center\"").verticalAlignment == .middle)
     }
 
+    // MARK: - Boolean attributes
+
+    @Test("wrapText accepts both xsd:boolean spellings")
+    func wrapTextAcceptsTrue() throws {
+        #expect(try readStyle(alignment: "wrapText=\"true\"").wrapsText)
+        #expect(try readStyle(alignment: "wrapText=\"1\"").wrapsText)
+        #expect(try !readStyle(alignment: "wrapText=\"false\"").wrapsText)
+        #expect(try !readStyle(alignment: "wrapText=\"0\"").wrapsText)
+    }
+
+    @Test("Diagonal directions accept true as well as 1")
+    func diagonalDirectionsAcceptTrue() throws {
+        let style = try readStyle(
+            borderBody: "diagonalUp=\"true\" diagonalDown=\"false\"><diagonal style=\"thin\"/></border>"
+        )
+        #expect(style.diagonalBorder?.goesUp == true)
+        #expect(style.diagonalBorder?.goesDown == false)
+    }
+
+    @Test("Row and column flags accept true as well as 1")
+    func rowAndColumnFlagsAcceptTrue() throws {
+        let sheetXML = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\
+        <cols><col min="1" max="1" width="30" customWidth="true"/>\
+        <col min="2" max="2" width="10" hidden="true"/></cols><sheetData>\
+        <row r="1" ht="40" customHeight="true"><c r="A1" t="inlineStr"><is><t>x</t></is></c></row>\
+        <row r="2" hidden="true"><c r="A2" t="inlineStr"><is><t>y</t></is></c></row>\
+        </sheetData></worksheet>
+        """
+        let data = try packaged(sheet: sheetXML, styles: styleSheet())
+        let sheet = try XLSXReader.workbook(from: data).sheets[0]
+        #expect(sheet.columnWidths[0] != nil)
+        #expect(sheet.hiddenColumns.contains(1))
+        #expect(sheet.rowHeights[0] == 40)
+        #expect(sheet.hiddenRows.contains(1))
+    }
+
     // MARK: - Indent and rotation
 
     @Test("Indent and rotation are read from the alignment element")
