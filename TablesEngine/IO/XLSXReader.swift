@@ -24,7 +24,7 @@ public enum XLSXReader {
         // Workbooks written on the classic Mac epoch count days from 1904.
         // Serials are normalized to the 1900 system on the way in so nothing
         // downstream has to know which system the file used.
-        let usesMacEpoch = workbookXML.firstChild(named: "workbookPr")?.attribute("date1904") == "1"
+        let usesMacEpoch = isTrue(workbookXML.firstChild(named: "workbookPr")?.attribute("date1904"))
 
         var sheets: [Worksheet] = []
         var sheetPaths: [String] = []
@@ -412,8 +412,8 @@ public enum XLSXReader {
 
                 // The directions live on <border>, the style on <diagonal>; a
                 // file may carry one without the other and means nothing by it.
-                let goesUp = element.attribute("diagonalUp") == "1"
-                let goesDown = element.attribute("diagonalDown") == "1"
+                let goesUp = isTrue(element.attribute("diagonalUp"))
+                let goesDown = isTrue(element.attribute("diagonalDown"))
                 if let diagonal = element.firstChild(named: "diagonal"),
                    let style = diagonal.attribute("style"), style != "none", goesUp || goesDown {
                     spec.diagonal = DiagonalBorder(
@@ -463,10 +463,11 @@ public enum XLSXReader {
                 }
                 switch alignment.attribute("vertical") {
                 case "top": style.verticalAlignment = .top
-                case "bottom": style.verticalAlignment = .bottom
-                default: style.verticalAlignment = .middle
+                case "center", "justify", "distributed": style.verticalAlignment = .middle
+                // OOXML's default for a missing or unrecognised `vertical` is bottom.
+                default: style.verticalAlignment = .bottom
                 }
-                style.wrapsText = alignment.attribute("wrapText") == "1"
+                style.wrapsText = isTrue(alignment.attribute("wrapText"))
                 style.indent = alignment.attribute("indent").flatMap(Int.init).map { max(0, $0) } ?? 0
                 if let rotation = alignment.attribute("textRotation").flatMap(Int.init),
                    rotation == CellStyle.stackedTextRotation || (0...180).contains(rotation) {
@@ -475,6 +476,11 @@ public enum XLSXReader {
             }
             return style
         }
+    }
+
+    /// Reads an `xsd:boolean` attribute, which may be written as `1` or `true`.
+    private static func isTrue(_ value: String?) -> Bool {
+        value == "1" || value == "true"
     }
 
     // MARK: - Sheet content
@@ -496,14 +502,14 @@ public enum XLSXReader {
             // last column we hold; there is nothing of it to keep.
             let upper = min(last, Worksheet.maximumColumnCount)
             guard first <= upper else { continue }
-            let hidden = column.attribute("hidden") == "1"
+            let hidden = isTrue(column.attribute("hidden"))
             // OOXML column width counts characters; convert to points.
             let width = column.attribute("width").flatMap(Double.init)
                 .map { Worksheet.columnWidthPoints(characters: $0) }
             for index in first...upper {
                 let zeroBased = index - 1
                 if hidden { sheet.hiddenColumns.insert(zeroBased) }
-                if let width, width > 0, column.attribute("customWidth") == "1" {
+                if let width, width > 0, isTrue(column.attribute("customWidth")) {
                     sheet.columnWidths[zeroBased] = width
                 }
             }
@@ -514,11 +520,11 @@ public enum XLSXReader {
             let rowIndex = rowNumber - 1
             maximumRow = max(maximumRow, rowNumber)
 
-            if rowElement.attribute("hidden") == "1" { sheet.hiddenRows.insert(rowIndex) }
+            if isTrue(rowElement.attribute("hidden")) { sheet.hiddenRows.insert(rowIndex) }
             // `ht` is already in points, the same unit as our geometry, and the
             // resize floor is an interaction limit that must not rewrite a file.
             if let height = rowElement.attribute("ht").flatMap(Double.init), height > 0 {
-                if rowElement.attribute("customHeight") == "1" {
+                if isTrue(rowElement.attribute("customHeight")) {
                     sheet.rowHeights[rowIndex] = height
                 } else if height > Worksheet.defaultRowHeight {
                     // Excel fitted the row to large or wrapped text. Anything
