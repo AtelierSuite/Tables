@@ -16,6 +16,10 @@ struct CellRenderer {
     /// whose author made it dark.
     let scheme: ColorScheme
     var drawsGridlines = true
+    /// The part of the sheet on show, when that stops short of all of it, as
+    /// a printout or preview of the cells in use does. Borders on its edges
+    /// are kept inside it.
+    var shownArea: CGRect?
 
     init(sheet: Worksheet, metrics: SheetMetrics, appearance: NSAppearance, drawsGridlines: Bool = true) {
         self.sheet = sheet
@@ -41,11 +45,20 @@ struct CellRenderer {
             start: CellAddress(row: rows.lowerBound, column: columns.lowerBound),
             end: CellAddress(row: rows.upperBound - 1, column: columns.upperBound - 1)
         )
-        let merges = sheet.mergedRanges.map(\.normalized).filter { $0.intersects(window) }
+        // Borders are centred on the gridlines, so the cells just outside
+        // `rect` reach into it with theirs.
+        let borderRows = metrics.rowsBordering(rows)
+        let borderColumns = metrics.columnsBordering(columns)
+        let reach = CellRange(
+            start: CellAddress(row: borderRows.lowerBound, column: borderColumns.lowerBound),
+            end: CellAddress(row: borderRows.upperBound - 1, column: borderColumns.upperBound - 1)
+        )
+        let nearby = sheet.mergedRanges.map(\.normalized).filter { $0.intersects(reach) }
+        let merges = nearby.filter { $0.intersects(window) }
         var covered = Set<CellAddress>()
-        for merge in merges {
-            for row in max(merge.start.row, rows.lowerBound)...min(merge.end.row, rows.upperBound - 1) {
-                for column in max(merge.start.column, columns.lowerBound)...min(merge.end.column, columns.upperBound - 1) {
+        for merge in nearby {
+            for row in max(merge.start.row, borderRows.lowerBound)...min(merge.end.row, borderRows.upperBound - 1) {
+                for column in max(merge.start.column, borderColumns.lowerBound)...min(merge.end.column, borderColumns.upperBound - 1) {
                     covered.insert(CellAddress(row: row, column: column))
                 }
             }
@@ -84,10 +97,7 @@ struct CellRenderer {
         for entry in painted {
             drawText(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow, context: context)
         }
-        for entry in own {
-            drawBorders(entry.cell.style, in: metrics.frame(for: entry.address), context: context)
-        }
-        // Last, so a merge covers the hairlines of the cells beneath it.
+        // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in merges {
             let frame = metrics.frame(for: merge)
             let cell = sheet[merge.start]
@@ -97,8 +107,23 @@ struct CellRenderer {
             context.restoreGState()
             fill(cell, in: frame, context: context, gridLineColor: gridLineColor, openEdge: false)
             drawText(of: cell, in: frame, overflow: nil, context: context)
-            drawBorders(cell.style, in: frame, context: context)
         }
+        // Last, so no fill covers the half of a border that falls in the
+        // neighbouring cell. The cells around `rect` draw only as far as it:
+        // the rest of their borders is drawn with them.
+        context.saveGState()
+        context.clip(to: rect)
+        for row in borderRows where !sheet.hiddenRows.contains(row) {
+            for column in borderColumns where !sheet.hiddenColumns.contains(column) {
+                let address = CellAddress(row: row, column: column)
+                guard !covered.contains(address), let cell = sheet.cells[address] else { continue }
+                drawBorders(cell.style, in: metrics.frame(for: address), context: context)
+            }
+        }
+        for merge in nearby {
+            drawBorders(sheet[merge.start].style, in: metrics.frame(for: merge), context: context)
+        }
+        context.restoreGState()
         drawCommentMarks(rows: rows, columns: columns, context: context)
     }
 
@@ -326,15 +351,10 @@ struct CellRenderer {
         for edge in BorderEdge.allCases {
             guard let side = style.borderSides[edge] else { continue }
             stroke(side.lineStyle, colorHex: side.colorHex, context: context) { offset in
-                let width = side.lineStyle.lineWidth * zoom
-                let inward = width / 2 + offset + abs(offset)
-                let outward = -width / 2 + offset - abs(offset)
-                switch edge {
-                case .top: return [CGPoint(x: frame.minX, y: frame.minY + inward), CGPoint(x: frame.maxX, y: frame.minY + inward)]
-                case .bottom: return [CGPoint(x: frame.minX, y: frame.maxY + outward), CGPoint(x: frame.maxX, y: frame.maxY + outward)]
-                case .leading: return [CGPoint(x: frame.minX + inward, y: frame.minY), CGPoint(x: frame.minX + inward, y: frame.maxY)]
-                case .trailing: return [CGPoint(x: frame.maxX + outward, y: frame.minY), CGPoint(x: frame.maxX + outward, y: frame.maxY)]
-                }
+                let (start, end) = metrics.borderSegment(
+                    edge, of: frame, lineWidth: side.lineStyle.lineWidth * zoom, offset: offset, shown: shownArea
+                )
+                return [start, end]
             }
         }
         if let diagonal = style.diagonalBorder, diagonal.isVisible {
