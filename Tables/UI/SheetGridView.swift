@@ -480,6 +480,8 @@ struct SheetGridView: View {
                     beginRenamingTable(sheet.id)
                 }
                 .contextMenu { HeaderActionMenu(actions: tableActions(for: sheet)) }
+                // Light on a dark page, whatever the appearance.
+                .environment(\.colorScheme, sheet.isBackgroundDark ? .dark : colorScheme)
         }
     }
 

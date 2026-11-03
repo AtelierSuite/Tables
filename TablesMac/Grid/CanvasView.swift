@@ -174,7 +174,11 @@ final class CanvasView: NSView {
             NSColor.separatorColor.setStroke()
             NSBezierPath(rect: table.frame.insetBy(dx: -0.5, dy: -0.5)).stroke()
             if let name = table.name, table.sheet.id != editingNameID {
-                drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID)
+                // Light on a dark page, whatever the appearance.
+                let appearance = table.sheet.isBackgroundDark ? NSAppearance(named: .darkAqua) : nil
+                (appearance ?? effectiveAppearance).performAsCurrentDrawingAppearance {
+                    drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID)
+                }
             }
         }
     }
