@@ -108,6 +108,7 @@ public enum NumbersReader {
                 let reader = try TableReader(table: model.message, archive: archive)
                 var worksheet = reader.worksheet
                 worksheet.mergedRanges += mergeOwners.ranges(for: model.message)
+                Self.fitRows(of: &worksheet, to: model.info)
                 // A sheet's one table goes by the sheet's name, as people think
                 // of it; several are told apart by their own names as well.
                 let tableName = model.message.string(8) ?? ""
@@ -351,6 +352,46 @@ public enum NumbersReader {
         return false
     }
 
+    /// Sizes the rows Numbers leaves unsized, which it fits to their text.
+    ///
+    /// Numbers keeps the heights it fitted them to with the table's drawable,
+    /// a row apiece, and those are used where they are there. Otherwise a row
+    /// is as tall as a line of the table's most common font and the padding
+    /// round it. The table's default row height is not what Numbers draws
+    /// them at, and the tables on a sheet are placed by what it does draw.
+    private static func fitRows(of worksheet: inout Worksheet, to info: ProtobufMessage) {
+        let fitted = info.message(TableInfoField.fittedRowHeights)?.message(1)?.messages(1)
+            .compactMap { $0.float(2).map(Double.init) } ?? []
+        guard fitted.count == worksheet.rowCount, fitted.allSatisfy({ $0 > 0 }) else {
+            worksheet.standardRowHeight = singleLineRowHeight(of: worksheet)
+            return
+        }
+        // The usual height is the standard one, kept off each row so evenly
+        // spaced rows stay on the grid's fast path.
+        let rounded = fitted.map { ($0 * 4).rounded() / 4 }
+        let counts = Dictionary(rounded.map { ($0, 1) }, uniquingKeysWith: +)
+        let usual = counts.max { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }?.key
+            ?? NumbersSource.defaultRowHeight
+        worksheet.standardRowHeight = usual
+        for (row, height) in rounded.enumerated() where worksheet.rowHeights[row] == nil && height != usual {
+            worksheet.rowHeights[row] = height
+        }
+    }
+
+    /// How tall Numbers fits a row of one line of text: the line, at the
+    /// size most of the table's cells are in, and the padding above and
+    /// below it.
+    static func singleLineRowHeight(of worksheet: Worksheet) -> Double {
+        let sizes = worksheet.cells.values.lazy.filter { !$0.isBlank }.prefix(1_000).map(\.style.fontSize)
+        let counts = Dictionary(sizes.map { ($0, 1) }, uniquingKeysWith: +)
+        let size = counts.max { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }?.key
+            ?? numbersFontSize
+        return (size * 1.2 + 6).rounded()
+    }
+
+    /// The size of Numbers' text when a table's styles don't say.
+    static let numbersFontSize = 10.0
+
     /// Where a table's top-left corner sits on its sheet, from the geometry
     /// of the `TST.TableInfoArchive` drawable that places it.
     private static func canvasOrigin(of info: ProtobufMessage) -> CGPoint? {
@@ -363,6 +404,12 @@ public enum NumbersReader {
 
     /// Fields of a `TST.TableModelArchive` read for drawing previews and
     /// laying tables out, and written back when the layout changes.
+    /// Fields of a `TST.TableInfoArchive`, the drawable placing a table.
+    enum TableInfoField {
+        /// The heights Numbers last fitted each row to.
+        static let fittedRowHeights = 14
+    }
+
     public enum TableField {
         public static let nameShown = 22
         public static let defaultRowHeight = 16
@@ -667,14 +714,11 @@ private struct TableReader {
     /// Numbers records only where they differ from the table's defaults.
     ///
     /// The default column width comes across, since Numbers' columns are
-    /// wider than ours and text would otherwise be cut short. So does the
-    /// default row height, as the sheet's standard one: Numbers places the
-    /// tables on a sheet by their sizes at it, and taller rows would run each
-    /// into the next.
+    /// wider than ours and text would otherwise be cut short. The rows
+    /// Numbers leaves unsized are fitted to their text there, which
+    /// `fitRows(to:)` does once the table's drawable is known.
     private mutating func readHeaders(_ store: ProtobufMessage, table: ProtobufMessage, archive: IWAArchive) {
         let defaultWidth = table.double(17) ?? 0
-        worksheet.standardRowHeight = table.double(NumbersReader.TableField.defaultRowHeight)
-            .flatMap { $0 > 0 ? $0 : nil } ?? NumbersSource.defaultRowHeight
         let rowBuckets = store.message(1)?.messages(2).compactMap { archive[$0]?.message } ?? []
 
         for header in rowBuckets.flatMap({ $0.messages(2) }) {

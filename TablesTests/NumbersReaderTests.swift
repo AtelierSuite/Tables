@@ -114,24 +114,40 @@ struct NumbersReaderTests {
         #expect(sheet.columnWidths[0] == NumbersDocumentBuilder.defaultColumnWidth, "the table's own default width")
         #expect(sheet.rowHeights[2] == 40)
         #expect(sheet.rowHeights[0] == nil, "rows of the default height are left unsized")
-        #expect(sheet.height(ofRow: 0) == NumbersSource.defaultRowHeight, "and are Numbers' height, not ours")
+        #expect(sheet.height(ofRow: 0) < Worksheet.defaultRowHeight, "and are fitted as Numbers does, not ours")
         #expect(sheet.hiddenRows == [3])
         #expect(sheet.hiddenColumns == [2])
         #expect(Set(sheet.mergedRanges.map(\.a1)) == ["A1:B1", "C2:C3"])
     }
 
-    @Test("A table's own default row height sizes the rows it leaves unsized")
-    func defaultRowHeight() throws {
+    @Test("Unsized rows are as tall as Numbers fitted them, not the table's default row height")
+    func fittedRowHeights() throws {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("A")], [], [], []])
+        table.defaultRowHeight = 23
+        table.rowSizes = [3: 40]
+        table.fittedRowHeights = [18, 17.99999, 30, 40]
+        document.addSheet("Sheet 1", tables: [table])
+        let sheet = try NumbersReader.workbook(from: document.singleFile()).sheets[0]
+
+        #expect(sheet.standardRowHeight == 18, "the usual fitted height")
+        #expect(sheet.rowHeights == [2: 30, 3: 40], "only the rows that differ are sized")
+        #expect(sheet.totalHeight == 18 + 18 + 30 + 40)
+        #expect(SheetMetrics(sheet: sheet).totalHeight == sheet.totalHeight)
+    }
+
+    @Test("Without fitted heights, unsized rows fit a line of the table's text")
+    func singleLineRows() throws {
         var document = NumbersDocumentBuilder()
         var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("A")], [], []])
-        table.defaultRowHeight = 18
+        table.defaultRowHeight = 23
+        table.hasStyles = true
         document.addSheet("Sheet 1", tables: [table])
         let sheet = try NumbersReader.workbook(from: document.singleFile()).sheets[0]
 
         #expect(sheet.rowHeights.isEmpty)
-        #expect(sheet.height(ofRow: 1) == 18)
+        #expect(sheet.standardRowHeight == 18, "a line of 10-point text and its padding")
         #expect(sheet.totalHeight == 18 * Double(sheet.rowCount))
-        #expect(SheetMetrics(sheet: sheet).totalHeight == sheet.totalHeight)
     }
 
     @Test("Rows and columns hidden by hand or filtered out, which Numbers keeps by UUID")
@@ -353,6 +369,9 @@ struct NumbersDocumentBuilder {
         var showsName = false
         /// The table's default row height, when it records one.
         var defaultRowHeight: Double?
+        /// The heights Numbers last fitted each row to, which its drawable
+        /// keeps, when it has.
+        var fittedRowHeights: [Float]?
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -587,7 +606,12 @@ struct NumbersDocumentBuilder {
                 .message(1, ProtobufWriter().float(1, origin.x).float(2, origin.y))
                 .message(2, ProtobufWriter().float(1, 300).float(2, 200)))
         } ?? ProtobufWriter()
-        return add(type: 6000, ProtobufWriter().message(1, drawable).message(2, Self.reference(modelIdentifier)))
+        var info = ProtobufWriter().message(1, drawable).message(2, Self.reference(modelIdentifier))
+        if let fitted = table.fittedRowHeights {
+            let rows = fitted.reduce(ProtobufWriter()) { $0.message(1, ProtobufWriter().varint(1, 0).float(2, $1)) }
+            info = info.message(14, ProtobufWriter().message(1, rows))
+        }
+        return add(type: 6000, info)
     }
 
     /// Identifiers for each row and column, numbered so their order differs
