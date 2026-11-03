@@ -102,6 +102,13 @@ enum CanvasChrome {
         columnHeaderHeight + SheetCanvas.nameHeight * zoom
     }
 
+    /// How far above a table's first cell the top of its name is drawn:
+    /// past the column bar on the table being worked on, and straight on
+    /// top of any other, which shows no bar, as Numbers draws it.
+    static func nameOffset(zoom: Double, showsHeaders: Bool) -> CGFloat {
+        showsHeaders ? nameReach(zoom: zoom) : SheetCanvas.nameHeight * zoom
+    }
+
     /// How long headers take to fade in or out as tables are picked.
     static let fadeDuration = 0.18
 

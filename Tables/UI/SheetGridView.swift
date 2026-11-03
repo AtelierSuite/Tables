@@ -377,7 +377,8 @@ struct SheetGridView: View {
                         .allowsHitTesting(false)
                     if table.showsName {
                         tableName(of: sheet, isActive: sheet.id == active, zoom: zoom)
-                            .offset(x: origin.x, y: origin.y - CanvasChrome.nameReach(zoom: zoom))
+                            .offset(x: origin.x,
+                                    y: origin.y - CanvasChrome.nameOffset(zoom: zoom, showsHeaders: sheet.id == active))
                     }
                 }
             }

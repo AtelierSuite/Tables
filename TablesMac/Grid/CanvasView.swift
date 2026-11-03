@@ -144,10 +144,12 @@ final class CanvasView: NSView {
         return CGRect(x: table.frame.minX - width, y: table.frame.minY - height, width: width, height: height)
     }
 
-    /// A table's name, above the room kept for its column letters.
+    /// A table's name: above its column letters on the active table, and
+    /// straight on top of any other.
     private func nameRect(of table: Placed) -> CGRect {
-        CGRect(x: table.frame.minX, y: table.frame.minY - CanvasChrome.nameReach(zoom: zoom),
-               width: max(table.frame.width, 120), height: nameHeight)
+        let reach = CanvasChrome.nameOffset(zoom: zoom, showsHeaders: table.sheet.id == activeID)
+        return CGRect(x: table.frame.minX, y: table.frame.minY - reach,
+                      width: max(table.frame.width, 120), height: nameHeight)
     }
 
     // MARK: - Drawing
