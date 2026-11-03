@@ -177,7 +177,9 @@ struct CellInspector: View {
 
     private var bordersSection: some View {
         InspectorSection("Format.Section.Borders") {
-            BorderBoxPicker(style: style) { target in toggle(target) }
+            BorderBoxPicker(
+                style: style, width: 150, height: 60, outward: 12, inward: 8, diagonalSize: 30
+            ) { target in toggle(target) }
                 .frame(maxWidth: .infinity)
 
             InspectorRow("Format.Border.ApplyTo") {
