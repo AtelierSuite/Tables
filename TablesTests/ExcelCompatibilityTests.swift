@@ -107,13 +107,16 @@ struct ExcelCompatibilityTests {
         let styles = """
         <?xml version="1.0" encoding="UTF-8"?>
         <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\
-        <numFmts count="1"><numFmt numFmtId="164" formatCode="yyyy-mm-dd"/></numFmts>\
+        <numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy-mm-dd"/>\
+        <numFmt numFmtId="165" formatCode="[Red]0.00"/></numFmts>\
         <fonts count="1"><font><sz val="11"/></font></fonts>\
         <fills count="1"><fill><patternFill patternType="none"/></fill></fills>\
         <borders count="1"><border/></borders>\
         <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>\
-        <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>\
-        <xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>\
+        <cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>\
+        <xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>\
+        <xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>\
+        <xf numFmtId="38" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>\
         </styleSheet>
         """
         return try ZipArchive.archive(entries: [
@@ -204,6 +207,40 @@ struct ExcelCompatibilityTests {
         #expect(!CellFormatter.isDateFormat("#,##0.00"))
         #expect(!CellFormatter.isDateFormat("0.00E+00"))
         #expect(!CellFormatter.isDateFormat("@"))
+    }
+
+    @Test("Colour codes and conditions in brackets are not date tokens")
+    func bracketedSectionsAreNotDates() {
+        #expect(!CellFormatter.isDateFormat("[Red]0.00"))
+        #expect(!CellFormatter.isDateFormat("#,##0;[Red](#,##0)"))
+        #expect(!CellFormatter.isDateFormat("[Magenta]0"))
+        #expect(!CellFormatter.isDateFormat("[White]#,##0.00"))
+        #expect(!CellFormatter.isDateFormat("[Color10]0"))
+        #expect(!CellFormatter.isDateFormat("[>100]0;0"))
+        #expect(!CellFormatter.isDateFormat("[$-409]#,##0"))
+        #expect(CellFormatter.isDateFormat("[h]:mm:ss"))
+        #expect(CellFormatter.isDateFormat("[hh]:mm"))
+        #expect(CellFormatter.isDateFormat("[m]:ss"))
+        #expect(CellFormatter.isDateFormat("[mm]:ss"))
+        #expect(CellFormatter.isDateFormat("[s]"))
+        #expect(CellFormatter.isDateFormat("[ss]"))
+        #expect(CellFormatter.isDateFormat("[Red]yyyy-mm-dd"))
+        #expect(CellFormatter.isDateFormat("[$-409]mmm d, yyyy"))
+    }
+
+    @Test("The 1904 epoch leaves colour-coded numbers alone")
+    func macEpochIgnoresColourCodes() throws {
+        // s="2" is [Red]0.00 and s="3" is built-in 38, #,##0;[Red](#,##0).
+        let sheet = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>\
+        <row r="1"><c r="A1" s="2"><v>12.5</v></c><c r="B1" s="3"><v>-7</v></c></row>\
+        </sheetData></worksheet>
+        """
+        let mac = try XLSXReader.workbook(from: package(sheet: sheet,
+                                                        workbookProperties: "<workbookPr date1904=\"1\"/>"))
+        #expect(mac.sheets[0][CellAddress(a1: "A1")!].value == .number(12.5))
+        #expect(mac.sheets[0][CellAddress(a1: "B1")!].value == .number(-7))
     }
 
     // MARK: - Other real-world constructs

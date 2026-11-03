@@ -130,9 +130,24 @@ public enum CellFormatter {
     private static func containsDateTokens(_ pattern: String) -> Bool {
         var inQuotes = false
         var previous: Character?
+        var bracket: String?
         for character in pattern {
             if character == "\"" { inQuotes.toggle(); continue }
             if inQuotes { continue }
+            // Bracketed sections are colours (`[Red]`, `[Color10]`), conditions
+            // (`[>100]`) or locales (`[$-409]`), none of which make a date. Only
+            // the elapsed-time tokens `[h]`, `[mm]`, `[ss]` and the like do.
+            if var section = bracket {
+                if character == "]" {
+                    bracket = nil
+                    if isElapsedTimeToken(section) { return true }
+                } else {
+                    section.append(character)
+                    bracket = section
+                }
+                continue
+            }
+            if character == "[" { bracket = ""; continue }
             switch character {
             case "y", "Y", "d", "D", "h", "H", "s", "S":
                 return true
@@ -147,6 +162,14 @@ public enum CellFormatter {
             previous = character
         }
         return false
+    }
+
+    /// Whether a bracketed section is an elapsed-time token: one or more of the
+    /// same `h`, `m` or `s`, as in `[h]`, `[mm]` or `[ss]`.
+    private static func isElapsedTimeToken(_ section: String) -> Bool {
+        let lowered = section.lowercased()
+        guard let first = lowered.first, "hms".contains(first) else { return false }
+        return lowered.allSatisfy { $0 == first }
     }
 
     // MARK: - Numeric patterns
