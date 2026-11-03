@@ -667,11 +667,14 @@ private struct TableReader {
     /// Numbers records only where they differ from the table's defaults.
     ///
     /// The default column width comes across, since Numbers' columns are
-    /// wider than ours and text would otherwise be cut short; the default row
-    /// height does not, as setting it on every row would cost the grid its
-    /// fast path for evenly spaced rows.
+    /// wider than ours and text would otherwise be cut short. So does the
+    /// default row height, as the sheet's standard one: Numbers places the
+    /// tables on a sheet by their sizes at it, and taller rows would run each
+    /// into the next.
     private mutating func readHeaders(_ store: ProtobufMessage, table: ProtobufMessage, archive: IWAArchive) {
         let defaultWidth = table.double(17) ?? 0
+        worksheet.standardRowHeight = table.double(NumbersReader.TableField.defaultRowHeight)
+            .flatMap { $0 > 0 ? $0 : nil } ?? NumbersSource.defaultRowHeight
         let rowBuckets = store.message(1)?.messages(2).compactMap { archive[$0]?.message } ?? []
 
         for header in rowBuckets.flatMap({ $0.messages(2) }) {

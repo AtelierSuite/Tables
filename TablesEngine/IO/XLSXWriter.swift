@@ -529,7 +529,7 @@ public enum XLSXWriter {
 
         // Our defaults differ from Excel's, so state them: otherwise every row
         // and column we did not size explicitly would render at Excel's size.
-        var xml = "<sheetFormatPr defaultRowHeight=\"\(format(Worksheet.defaultRowHeight))\""
+        var xml = "<sheetFormatPr defaultRowHeight=\"\(format(sheet.standardRowHeight))\""
         xml += " defaultColWidth=\"\(format(Worksheet.columnWidthCharacters(points: Worksheet.defaultColumnWidth)))\"/>"
         add("sheetFormatPr", xml)
 

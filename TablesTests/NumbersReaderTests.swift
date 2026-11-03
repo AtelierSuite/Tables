@@ -113,10 +113,25 @@ struct NumbersReaderTests {
         #expect(sheet.columnWidths[1] == 150)
         #expect(sheet.columnWidths[0] == NumbersDocumentBuilder.defaultColumnWidth, "the table's own default width")
         #expect(sheet.rowHeights[2] == 40)
-        #expect(sheet.rowHeights[0] == nil, "rows of the default height keep ours")
+        #expect(sheet.rowHeights[0] == nil, "rows of the default height are left unsized")
+        #expect(sheet.height(ofRow: 0) == NumbersSource.defaultRowHeight, "and are Numbers' height, not ours")
         #expect(sheet.hiddenRows == [3])
         #expect(sheet.hiddenColumns == [2])
         #expect(Set(sheet.mergedRanges.map(\.a1)) == ["A1:B1", "C2:C3"])
+    }
+
+    @Test("A table's own default row height sizes the rows it leaves unsized")
+    func defaultRowHeight() throws {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("A")], [], []])
+        table.defaultRowHeight = 18
+        document.addSheet("Sheet 1", tables: [table])
+        let sheet = try NumbersReader.workbook(from: document.singleFile()).sheets[0]
+
+        #expect(sheet.rowHeights.isEmpty)
+        #expect(sheet.height(ofRow: 1) == 18)
+        #expect(sheet.totalHeight == 18 * Double(sheet.rowCount))
+        #expect(SheetMetrics(sheet: sheet).totalHeight == sheet.totalHeight)
     }
 
     @Test("Rows and columns hidden by hand or filtered out, which Numbers keeps by UUID")
@@ -336,6 +351,8 @@ struct NumbersDocumentBuilder {
         /// Where the table sits on its sheet, as its drawable records it.
         var origin: (x: Float, y: Float)?
         var showsName = false
+        /// The table's default row height, when it records one.
+        var defaultRowHeight: Double?
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -540,6 +557,7 @@ struct NumbersDocumentBuilder {
             .double(16, 20)
             .double(17, Self.defaultColumnWidth)
         if table.showsName { model = model.bool(22, true) }
+        if let height = table.defaultRowHeight { model = model.double(16, height) }
         if table.headerRows > 0 { model = model.varint(9, table.headerRows) }
         if table.headerColumns > 0 { model = model.varint(10, table.headerColumns) }
         if table.footerRows > 0 { model = model.varint(11, table.footerRows) }

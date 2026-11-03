@@ -40,7 +40,7 @@ public struct SheetMetrics: Equatable, Sendable {
             columnOffsets = Self.offsets(count: sheet.columnCount, zoom: zoom, size: sheet.width(ofColumn:))
         }
         if sheet.hasUniformRowHeights {
-            uniformRowHeight = Worksheet.defaultRowHeight * zoom
+            uniformRowHeight = sheet.standardRowHeight * zoom
         } else {
             rowOffsets = Self.offsets(count: sheet.rowCount, zoom: zoom, size: sheet.height(ofRow:))
         }
