@@ -345,9 +345,10 @@ enum CellPainter {
         let horizontal = style.horizontalAlignment == .automatic
             ? CellFormatter.naturalAlignment(for: cell.value)
             : style.horizontalAlignment
-        let color: Color = cell.value.errorValue != nil
-            ? .red
-            : (style.textColor(for: scheme) ?? .primary)
+        // An error takes the cell's own text colour when it has one, like
+        // Excel; red is only the default.
+        let color: Color = style.textColor(for: scheme)
+            ?? (cell.value.errorValue != nil ? .red : .primary)
 
         let make: (String) -> Text = { text in
             var run = Text(verbatim: text)

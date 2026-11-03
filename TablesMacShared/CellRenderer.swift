@@ -220,9 +220,10 @@ struct CellRenderer {
         let horizontal = style.horizontalAlignment == .automatic
             ? CellFormatter.naturalAlignment(for: cell.value)
             : style.horizontalAlignment
-        let color: NSColor = cell.value.errorValue != nil
-            ? .systemRed
-            : style.textColor(for: scheme).map { NSColor($0) } ?? .labelColor
+        // An error takes the cell's own text colour when it has one, like
+        // Excel; red is only the default.
+        let color: NSColor = style.textColor(for: scheme).map { NSColor($0) }
+            ?? (cell.value.errorValue != nil ? .systemRed : .labelColor)
 
         var attributes: [NSAttributedString.Key: Any] = [
             .font: Self.font(for: style, zoom: zoom), .foregroundColor: color,

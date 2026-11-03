@@ -284,8 +284,8 @@ private struct PreviewCanvas {
             font = NSFont(descriptor: font.fontDescriptor.withSymbolicTraits(traits), size: style.fontSize) ?? font
         }
         #endif
-        let color: PreviewColor = cell.value.errorValue != nil
-            ? .systemRed : style.textColor(for: scheme).map { PreviewColor($0) } ?? ink
+        let color: PreviewColor = style.textColor(for: scheme).map { PreviewColor($0) }
+            ?? (cell.value.errorValue != nil ? .systemRed : ink)
 
         let paragraph = NSMutableParagraphStyle()
         let horizontal = style.horizontalAlignment == .automatic
