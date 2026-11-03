@@ -283,6 +283,9 @@ struct SheetGridView: View {
             if let canvas { canvasTables(canvas) }
         }
         .overlay(alignment: .topLeading) {
+            if let canvas { canvasHeaderLayer(canvas) }
+        }
+        .overlay(alignment: .topLeading) {
             if !canvasGuides.isEmpty { guideLines }
         }
         // The page between the tables, and past the sheet's last row and
@@ -394,21 +397,39 @@ struct SheetGridView: View {
                     }
                 }
             }
-            // A layer of their own, so only the headers fade as tables are picked.
-            ZStack(alignment: .topLeading) {
-                ForEach(workbook.sheets(on: canvas)) { sheet in
-                    if sheet.id == active, canvas.table(for: sheet.id) != nil {
-                        canvasHeaders(for: sheet)
-                            .offset(x: gridOrigin.x, y: gridOrigin.y)
-                            .transition(.opacity)
-                    }
+        }
+    }
+
+    /// The headers round the table being worked on, in a layer of their own
+    /// so only they fade as tables are picked. They go over the grid, as a
+    /// sheet's own do, so the selection's grip on a cell beside them can't
+    /// take a drag meant for the line between two of them.
+    private func canvasHeaderLayer(_ canvas: SheetCanvas) -> some View {
+        let active = activeSheet.id
+        return ZStack(alignment: .topLeading) {
+            ForEach(workbook.sheets(on: canvas)) { sheet in
+                if sheet.id == active, canvas.table(for: sheet.id) != nil {
+                    canvasHeaders(for: sheet)
+                        .offset(x: gridOrigin.x, y: gridOrigin.y)
+                        .transition(.opacity)
                 }
             }
-            // What a dragged table passes over shows through its headers.
-            .opacity(isMovingTable ? CanvasChrome.draggingOpacity : 1)
-            .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: active)
-            .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: isMovingTable)
         }
+        // What a dragged table passes over shows through its headers.
+        .opacity(isMovingTable ? CanvasChrome.draggingOpacity : 1)
+        .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: active)
+        .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: isMovingTable)
+    }
+
+    /// Resizes the nearest shown line before `index`, for the grip on the
+    /// leading edge of its header; nil when there is none.
+    private func resizer(
+        forLineBefore index: Int, hidden: Set<Int>, resize: @escaping (Int, Double) -> Void
+    ) -> ((Double) -> Void)? {
+        var line = index - 1
+        while line >= 0, hidden.contains(line) { line -= 1 }
+        guard line >= 0 else { return nil }
+        return { [line] delta in resize(line, delta) }
     }
 
     /// Whether a table is being dragged away from where it rests.
@@ -443,6 +464,9 @@ struct SheetGridView: View {
                     onResize: { delta in
                         state.resizeColumn(column, to: (metrics.width(ofColumn: column) + delta) / metrics.zoom, in: &workbook)
                     },
+                    onResizePrevious: resizer(forLineBefore: column, hidden: sheet.hiddenColumns) { line, delta in
+                        state.resizeColumn(line, to: (metrics.width(ofColumn: line) + delta) / metrics.zoom, in: &workbook)
+                    },
                     onFit: { state.fitColumn(column, in: &workbook) },
                     actions: {
                         HeaderMenuBuilder(axis: .column, index: column, workbook: $workbook, state: state).actions()
@@ -459,6 +483,9 @@ struct SheetGridView: View {
                     onSelect: { state.selectEntireRows(row...row, in: activeSheet) },
                     onResize: { delta in
                         state.resizeRow(row, to: (metrics.height(ofRow: row) + delta) / metrics.zoom, in: &workbook)
+                    },
+                    onResizePrevious: resizer(forLineBefore: row, hidden: sheet.hiddenRows) { line, delta in
+                        state.resizeRow(line, to: (metrics.height(ofRow: line) + delta) / metrics.zoom, in: &workbook)
                     },
                     actions: {
                         HeaderMenuBuilder(axis: .row, index: row, workbook: $workbook, state: state).actions()
@@ -1459,6 +1486,9 @@ struct SheetGridView: View {
                                 in: &workbook
                             )
                         },
+                        onResizePrevious: resizer(forLineBefore: column, hidden: activeSheet.hiddenColumns) { line, delta in
+                            state.resizeColumn(line, to: (metrics.width(ofColumn: line) + delta) / metrics.zoom, in: &workbook)
+                        },
                         onFit: { state.fitColumn(column, in: &workbook) },
                         actions: {
                             HeaderMenuBuilder(
@@ -1505,6 +1535,9 @@ struct SheetGridView: View {
                                 to: (metrics.height(ofRow: row) + delta) / metrics.zoom,
                                 in: &workbook
                             )
+                        },
+                        onResizePrevious: resizer(forLineBefore: row, hidden: activeSheet.hiddenRows) { line, delta in
+                            state.resizeRow(line, to: (metrics.height(ofRow: line) + delta) / metrics.zoom, in: &workbook)
                         },
                         actions: {
                             HeaderMenuBuilder(
