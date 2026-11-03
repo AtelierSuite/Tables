@@ -84,7 +84,8 @@ struct SheetGridView: View {
             return CGPoint(x: rowHeaderWidth, y: columnHeaderHeight)
         }
         let dragged = tableDrag?.id == activeSheet.id ? tableDrag?.offset ?? .zero : .zero
-        return CGPoint(x: table.x * state.zoom + dragged.width, y: table.y * state.zoom + dragged.height)
+        let page = CanvasSnapping.pageInset(zoom: state.zoom)
+        return CGPoint(x: page.x + table.x * state.zoom + dragged.width, y: page.y + table.y * state.zoom + dragged.height)
     }
 
     /// How much of the top and leading edges the pinned headers cover.
@@ -100,11 +101,12 @@ struct SheetGridView: View {
                           height: columnHeaderHeight + metrics.totalHeight + bottomPadding)
         }
         let zoom = state.zoom
-        var extent = CGSize.zero
+        let page = CanvasSnapping.pageInset(zoom: zoom)
+        var extent = CGSize(width: page.x, height: page.y)
         for sheet in workbook.sheets(on: canvas) {
             guard let table = canvas.table(for: sheet.id) else { continue }
-            extent.width = max(extent.width, (table.x + sheet.totalWidth) * zoom)
-            extent.height = max(extent.height, (table.y + sheet.totalHeight) * zoom)
+            extent.width = max(extent.width, page.x + (table.x + sheet.totalWidth) * zoom)
+            extent.height = max(extent.height, page.y + (table.y + sheet.totalHeight) * zoom)
         }
         return CGSize(width: extent.width + trailingPadding, height: extent.height + bottomPadding)
     }
@@ -359,11 +361,12 @@ struct SheetGridView: View {
     private func canvasTables(_ canvas: SheetCanvas) -> some View {
         let zoom = state.zoom
         let active = activeSheet.id
+        let page = CanvasSnapping.pageInset(zoom: zoom)
         return ZStack(alignment: .topLeading) {
             ForEach(workbook.sheets(on: canvas)) { sheet in
                 if let table = canvas.table(for: sheet.id) {
                     let dragged = tableDrag?.id == sheet.id ? tableDrag?.offset ?? .zero : .zero
-                    let origin = CGPoint(x: table.x * zoom + dragged.width, y: table.y * zoom + dragged.height)
+                    let origin = CGPoint(x: page.x + table.x * zoom + dragged.width, y: page.y + table.y * zoom + dragged.height)
                     if sheet.id != active {
                         canvasTable(sheet, at: origin, zoom: zoom)
                     }
@@ -537,16 +540,18 @@ struct SheetGridView: View {
             .onChanged { value in
                 guard state.allowsLayingOutTables, let canvas = workbook.canvas(containing: sheet.id),
                       let table = canvas.table(for: sheet.id) else { return }
-                let resting = CGRect(x: table.x * zoom, y: table.y * zoom,
+                // On screen, as the guides are drawn, and never past the page's corner.
+                let page = CanvasSnapping.pageInset(zoom: zoom)
+                let resting = CGRect(x: page.x + table.x * zoom, y: page.y + table.y * zoom,
                                      width: sheet.totalWidth * zoom, height: sheet.totalHeight * zoom)
                 let others = workbook.sheets(on: canvas).compactMap { other -> CGRect? in
                     guard other.id != sheet.id, let placed = canvas.table(for: other.id) else { return nil }
-                    return CGRect(x: placed.x * zoom, y: placed.y * zoom,
+                    return CGRect(x: page.x + placed.x * zoom, y: page.y + placed.y * zoom,
                                   width: other.totalWidth * zoom, height: other.totalHeight * zoom)
                 }
                 let snapped = CanvasSnapping.snap(
                     resting.offsetBy(dx: value.translation.width, dy: value.translation.height), among: others,
-                    minimum: CanvasSnapping.minimumOrigin(zoom: zoom, rowCount: sheet.rowCount))
+                    minimum: page)
                 tableDrag = (sheet.id, CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY))
                 canvasGuides = snapped.guides
             }

@@ -63,10 +63,12 @@ final class CanvasView: NSView {
         let zoom = self.zoom
         let active = document.activeSheet.id
         activeID = active
+        let page = CanvasSnapping.pageInset(zoom: zoom)
         placed = document.workbook.sheets(on: canvas).compactMap { sheet in
             guard let table = canvas.table(for: sheet.id) else { return nil }
             let metrics = sheet.id == active ? document.state.metrics : SheetMetrics(sheet: sheet, zoom: zoom)
-            var frame = CGRect(x: table.x * zoom, y: table.y * zoom, width: metrics.totalWidth, height: metrics.totalHeight)
+            var frame = CGRect(x: page.x + table.x * zoom, y: page.y + table.y * zoom,
+                               width: metrics.totalWidth, height: metrics.totalHeight)
             if let drag, drag.id == sheet.id { frame = frame.offsetBy(dx: drag.offset.width, dy: drag.offset.height) }
             return Placed(sheet: sheet, metrics: metrics, frame: frame,
                           name: table.showsName ? document.workbook.tableName(of: sheet.id) : nil)
@@ -256,11 +258,13 @@ final class CanvasView: NSView {
         // Measured from where the table was, so the page and the tables
         // round it decide where it lands, however far the pointer goes.
         let zoom = self.zoom
-        let resting = CGRect(x: table.x * zoom, y: table.y * zoom, width: moving.frame.width, height: moving.frame.height)
+        let page = CanvasSnapping.pageInset(zoom: zoom)
+        let resting = CGRect(x: page.x + table.x * zoom, y: page.y + table.y * zoom,
+                             width: moving.frame.width, height: moving.frame.height)
         let proposed = resting.offsetBy(dx: point.x - drag.start.x, dy: point.y - drag.start.y)
         let others = placed.filter { $0.sheet.id != drag.id }.map(\.frame)
         let snapped = CanvasSnapping.snap(
-            proposed, among: others, minimum: CanvasSnapping.minimumOrigin(zoom: zoom, rowCount: moving.sheet.rowCount))
+            proposed, among: others, minimum: page)
         drag.offset = CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY)
         self.drag = drag
         if drag.offset != .zero { fadeHeaders(to: CanvasChrome.draggingOpacity) }
