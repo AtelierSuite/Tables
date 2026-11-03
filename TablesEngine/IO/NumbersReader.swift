@@ -83,6 +83,7 @@ public enum NumbersReader {
         }
 
         let mergeOwners = MergeOwners(archive: archive)
+        let language = Self.language(of: document.message)
         var workbook = Workbook()
         workbook.sheets = []
         var tables: [Worksheet.ID: NumbersSource.Table] = [:]
@@ -106,7 +107,7 @@ public enum NumbersReader {
 
             var placed: [Worksheet.ID] = []
             for model in models {
-                let reader = try TableReader(table: model.message, archive: archive)
+                let reader = try TableReader(table: model.message, archive: archive, language: language)
                 var worksheet = reader.worksheet
                 worksheet.mergedRanges += mergeOwners.ranges(for: model.message)
                 Self.fitRows(of: &worksheet, to: model.info)
@@ -365,6 +366,12 @@ public enum NumbersReader {
         return color
     }
 
+    /// The document's language, as the locale it was written in names it:
+    /// `ja_JP`, say. It names the months in the dates the document shows.
+    private static func language(of document: ProtobufMessage) -> String? {
+        document.message(DocumentField.base)?.message(1)?.string(DocumentField.locale)
+    }
+
     /// Sizes the rows Numbers leaves unsized, which it fits to their text.
     ///
     /// Numbers keeps the heights it fitted them to with the table's drawable,
@@ -417,6 +424,13 @@ public enum NumbersReader {
 
     /// Fields of a `TST.TableModelArchive` read for drawing previews and
     /// laying tables out, and written back when the layout changes.
+    /// Fields of a `TN.DocumentArchive`, in the `TSA.DocumentArchive` it
+    /// extends.
+    enum DocumentField {
+        static let base = 8
+        static let locale = 4
+    }
+
     /// Fields of a `TN.SheetArchive` and of its `TN.SheetStyleArchive`.
     enum SheetField {
         static let style = 22
@@ -572,7 +586,7 @@ private struct TableReader {
     private(set) var hidden = NumbersHiddenStates.Hidden()
     private(set) var hasRichText = false
 
-    init(table: ProtobufMessage, archive: IWAArchive) throws {
+    init(table: ProtobufMessage, archive: IWAArchive, language: String? = nil) throws {
         worksheet = Worksheet(name: table.string(8) ?? "")
         let rowCount = table.int(6) ?? 0
         let columnCount = table.int(7) ?? 0
@@ -584,6 +598,13 @@ private struct TableReader {
         let richText = Self.dataList(store.message(17), in: archive) { Self.text(ofRichTextPayload: $0.message(9), in: archive) }
         let formulaNodes = Self.dataList(store.message(6), in: archive) { $0.message(5)?.message(1)?.messages(1) ?? [] }
         let styles = Self.dataList(store.message(5), in: archive) { $0.message(4)?.uint(1) }
+        // Numbers 10 moved the formats to a list of their own, leaving the
+        // old one empty; a file may have either.
+        let formats = Self.dataList(store.message(TableStoreField.formats), in: archive) { entry in
+            entry.message(6).flatMap { NumbersFormats.code(for: $0, language: language) }
+        }.merging(Self.dataList(store.message(TableStoreField.legacyFormats), in: archive) { entry in
+            entry.message(6).flatMap { NumbersFormats.code(for: $0, language: language) }
+        }) { current, _ in current }
         var formatting = Formatting(regions: NumbersStyles.Regions(model: table), rowCount: rowCount, archive: archive)
 
         // Rows are stored in tiles of a fixed number of rows each.
@@ -617,6 +638,10 @@ private struct TableReader {
                             cell: parsed.key(of: NumbersStyles.Field.cellStyle).flatMap { styles[$0] ?? nil },
                             base: base
                         )
+                        if let field = NumbersFormats.storageField(forCellType: parsed.type),
+                           let key = parsed.key(of: field), let code = formats[key] ?? nil {
+                            cell?.style.numberFormat = code
+                        }
                     }
                     if formulas[address] != nil { results[address] = cell ?? Cell() }
                     guard row < worksheet.rowCount, column < worksheet.columnCount, let cell, !cell.isEmptyEntirely else { continue }
@@ -629,6 +654,12 @@ private struct TableReader {
         readHeaders(store, table: table, archive: archive)
         worksheet.mergedRanges = Self.mergedRanges(store, in: archive)
         readHiddenStates(table, archive: archive)
+    }
+
+    /// Fields of a `TST.DataStore`, the lists a table's cells keep keys into.
+    private enum TableStoreField {
+        static let legacyFormats = 11
+        static let formats = 22
     }
 
     /// What the styles of each part of a table and of each cell come to.
