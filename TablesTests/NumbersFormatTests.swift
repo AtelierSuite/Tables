@@ -34,6 +34,23 @@ struct NumbersFormatTests {
         #expect(try shown(1234.5, dollars) == "$1234.50")
     }
 
+    @Test("An accounting format puts its currency symbol at the cell's left edge and the amount at its right")
+    func accounting() throws {
+        let yen = format(NumbersFormats.FormatType.currency) {
+            $0.set(2, uint: 0)
+            $0.set(3, bytes: Array("JPY".utf8))
+            $0.set(5, uint: 1)
+            $0.set(6, uint: 1)
+        }
+        var cell = Cell(value: .number(24_524), formula: nil, style: .default)
+        cell.style.numberFormat = try #require(NumbersFormats.code(for: yen, language: nil))
+        let parts = try #require(CellFormatter.filledText(for: cell))
+        #expect(parts.leading == "¥")
+        #expect(parts.trailing == "24,524")
+        cell.style.numberFormat = "\"¥\"#,##0"
+        #expect(CellFormatter.filledText(for: cell) == nil)
+    }
+
     @Test("Numbers keep the decimal places they are given, or as many as they need")
     func decimals() throws {
         let fixed = format(NumbersFormats.FormatType.decimal) {

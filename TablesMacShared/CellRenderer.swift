@@ -348,6 +348,21 @@ struct CellRenderer {
             x: midX - size.width / 2, y: midY - size.height / 2, width: size.width, height: size.height
         )
 
+        // A format's fill spreads the text across the cell: an accounting
+        // format's symbol at the left edge, the amount at the right.
+        if !wraps, style.rotationDegrees == 0, measured.width <= box.width,
+           let parts = CellFormatter.filledText(for: cell) {
+            let leading = NSAttributedString(string: parts.leading, attributes: attributes)
+            let trailing = NSAttributedString(string: parts.trailing, attributes: attributes)
+            let trailingWidth = trailing.size().width
+            context.saveGState()
+            context.clip(to: frame)
+            leading.draw(at: CGPoint(x: box.minX, y: target.minY))
+            trailing.draw(at: CGPoint(x: box.maxX - trailingWidth, y: target.minY))
+            context.restoreGState()
+            return
+        }
+
         context.saveGState()
         context.clip(to: overflow.map { $0.union(frame) } ?? frame)
         if style.rotationDegrees != 0 {

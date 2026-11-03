@@ -434,6 +434,22 @@ enum CellPainter {
         }
         let target = CGRect(x: x, y: y, width: width, height: measured.height)
 
+        // A format's fill spreads the text across the cell: an accounting
+        // format's symbol at the left edge, the amount at the right.
+        if !wraps, style.rotationDegrees == 0, measured.width <= box.width,
+           let parts = CellFormatter.filledText(for: cell) {
+            let leading = context.resolve(make(parts.leading))
+            let trailing = context.resolve(make(parts.trailing))
+            let leadingSize = leading.measure(in: CGSize(width: unbounded, height: unbounded))
+            let trailingSize = trailing.measure(in: CGSize(width: unbounded, height: unbounded))
+            context.drawLayer { layer in
+                layer.clip(to: Path(frame))
+                layer.draw(leading, in: CGRect(origin: CGPoint(x: box.minX, y: y), size: leadingSize))
+                layer.draw(trailing, in: CGRect(origin: CGPoint(x: box.maxX - trailingSize.width, y: y), size: trailingSize))
+            }
+            return
+        }
+
         context.drawLayer { layer in
             // A font taller than the row, a rotated run, or wrapped text with
             // more lines than fit all draw outside the cell otherwise — over the
