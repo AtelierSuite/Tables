@@ -141,11 +141,11 @@ final class GridView: NSView, NSTextFieldDelegate {
     /// and for the frozen panes, which show parts of it in place.
     func drawSheet(_ dirtyRect: NSRect, in context: CGContext) {
         guard let document else { return }
-        NSColor.textBackgroundColor.setFill()
-        dirtyRect.fill()
         let renderer = CellRenderer(
             sheet: document.activeSheet, metrics: document.state.metrics, appearance: effectiveAppearance
         )
+        renderer.paper.setFill()
+        dirtyRect.fill()
         renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: effectiveAppearance))
         drawReferences(in: document, context: context)
         drawSelection(in: document, context: context)

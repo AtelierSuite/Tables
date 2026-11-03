@@ -29,6 +29,14 @@ struct CellRenderer {
         self.drawsGridlines = drawsGridlines
     }
 
+    /// What the cells without a fill of their own show through to: the
+    /// sheet's background colour, or the system's paper.
+    var paper: NSColor {
+        sheet.backgroundColorHex == nil ? .textBackgroundColor
+            : AdaptiveColor.resolve(hex: sheet.backgroundColorHex, for: scheme, isText: false).map { NSColor($0) }
+                ?? .textBackgroundColor
+    }
+
     static func gridLineColor(for appearance: NSAppearance) -> NSColor {
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             ? NSColor(white: 1, alpha: 0.32)
@@ -102,7 +110,7 @@ struct CellRenderer {
             let frame = metrics.frame(for: merge)
             let cell = sheet[merge.start]
             context.saveGState()
-            NSColor.textBackgroundColor.setFill()
+            paper.setFill()
             context.fill(frame)
             if let fill = cell.style.fillColor(for: scheme) {
                 context.setFillColor(NSColor(fill).cgColor)

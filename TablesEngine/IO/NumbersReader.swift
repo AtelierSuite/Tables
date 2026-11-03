@@ -91,6 +91,7 @@ public enum NumbersReader {
         for sheetReference in document.message.messages(1) {
             guard let sheet = archive[sheetReference]?.message else { continue }
             let sheetName = sheet.string(1) ?? ""
+            let background = Self.backgroundColor(of: sheet, in: archive)
             let models = sheet.messages(2)
                 .compactMap { reference in archive[reference].map { (reference.uint(1), $0) } }
                 .filter { $0.1.type == ObjectType.tableInfo }
@@ -109,6 +110,7 @@ public enum NumbersReader {
                 var worksheet = reader.worksheet
                 worksheet.mergedRanges += mergeOwners.ranges(for: model.message)
                 Self.fitRows(of: &worksheet, to: model.info)
+                worksheet.backgroundColorHex = background
                 // A sheet's one table goes by the sheet's name, as people think
                 // of it; several are told apart by their own names as well.
                 let tableName = model.message.string(8) ?? ""
@@ -352,6 +354,17 @@ public enum NumbersReader {
         return false
     }
 
+    /// The colour a sheet's style fills its page with, under every table on
+    /// it; nil for white, or for a fill that isn't a colour.
+    private static func backgroundColor(of sheet: ProtobufMessage, in archive: IWAArchive) -> String? {
+        let resolver = NumbersStyles.Resolver { archive[$0]?.message }
+        let fill: String?? = resolver.value(sheet.message(SheetField.style)?.uint(1), properties: SheetField.styleProperties) {
+            $0.message(SheetField.fill).map { $0.message(1).flatMap(NumbersStyles.color) }
+        }
+        guard let color = fill ?? nil, color != "FFFFFFFF", !color.hasPrefix("00") else { return nil }
+        return color
+    }
+
     /// Sizes the rows Numbers leaves unsized, which it fits to their text.
     ///
     /// Numbers keeps the heights it fitted them to with the table's drawable,
@@ -404,6 +417,13 @@ public enum NumbersReader {
 
     /// Fields of a `TST.TableModelArchive` read for drawing previews and
     /// laying tables out, and written back when the layout changes.
+    /// Fields of a `TN.SheetArchive` and of its `TN.SheetStyleArchive`.
+    enum SheetField {
+        static let style = 22
+        static let styleProperties = 3
+        static let fill = 1
+    }
+
     /// Fields of a `TST.TableInfoArchive`, the drawable placing a table.
     enum TableInfoField {
         /// The heights Numbers last fitted each row to.

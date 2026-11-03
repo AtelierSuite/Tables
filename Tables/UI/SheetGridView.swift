@@ -174,7 +174,7 @@ struct SheetGridView: View {
             // Canvas, not paper: the sheet paints its own extent, so anything
             // past the last row and column reads as the space around the sheet
             // rather than as grid that failed to draw.
-            .background(canvas == nil ? Color.sheetCanvas : Color.sheetBackground)
+            .background(canvas == nil ? Color.sheetCanvas : paper(of: activeSheet))
             // `contentOffset` is measured from the scroll view's origin, which
             // sits above the navigation bar's content inset — so it is already
             // negative at rest. Adding the insets back gives distance scrolled
@@ -249,6 +249,11 @@ struct SheetGridView: View {
         return Array(0..<min(frozen, metrics.columnCount)) + visibleColumns.filter { $0 >= frozen }
     }
 
+    /// What a sheet's cells without a fill of their own show through to.
+    private func paper(of sheet: Worksheet) -> Color {
+        sheet.backgroundColor(for: colorScheme) ?? .sheetBackground
+    }
+
     private var visibleColumns: Range<Int> {
         let left = state.scrollOffset.x - gridOrigin.x + headerInsets.width - rowHeaderWidth
         let width = max(state.viewportSize.width, 200)
@@ -260,7 +265,7 @@ struct SheetGridView: View {
     private var content: some View {
         ZStack(alignment: .topLeading) {
             Rectangle()
-                .fill(Color.sheetBackground)
+                .fill(paper(of: activeSheet))
                 .frame(width: metrics.totalWidth, height: metrics.totalHeight)
 
             tiles
@@ -632,7 +637,7 @@ struct SheetGridView: View {
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
-                .fill(Color.sheetBackground)
+                .fill(paper(of: sheet))
                 .frame(width: metrics.totalWidth, height: metrics.totalHeight)
             ForEach(plans) { plan in
                 let frame = metrics.frame(for: plan.range)
@@ -1565,7 +1570,7 @@ struct SheetGridView: View {
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
-                .fill(Color.sheetBackground)
+                .fill(paper(of: sheet))
                 .frame(width: metrics.totalWidth, height: metrics.totalHeight)
             ForEach(plans) { plan in
                 let frame = metrics.frame(for: plan.range)

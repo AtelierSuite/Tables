@@ -166,6 +166,10 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// sheet by it goes on finding the same one.
     public var fileSheetID: Int?
     public var tabColorHex: String?
+    /// The colour of the page under the sheet's cells, as `AARRGGBB`, or nil
+    /// for plain paper. A Numbers sheet can be given one, which shows
+    /// through every cell without a fill of its own.
+    public var backgroundColorHex: String?
     /// The name the workbook's macros know this sheet by — `Sheet1` in
     /// `Sheet1.Range("A1")` — which stays put when the tab is renamed. It is
     /// what ties the sheet to its document module, so it has to survive a save

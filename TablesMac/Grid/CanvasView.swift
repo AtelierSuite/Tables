@@ -152,7 +152,11 @@ final class CanvasView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
-        NSColor.textBackgroundColor.setFill()
+        // The tables share their sheet's page, and its colour.
+        let page = placed.first.map {
+            CellRenderer(sheet: $0.sheet, metrics: $0.metrics, appearance: effectiveAppearance).paper
+        }
+        (page ?? .textBackgroundColor).setFill()
         dirtyRect.fill()
         let lines = CellRenderer.gridLineColor(for: effectiveAppearance)
         for table in placed {
