@@ -295,7 +295,7 @@ struct SheetGridView: View {
         // tile holds depends only on which tile it is. A merge found only once
         // the window had scrolled onto it would leave the tile's cached drawing
         // showing the cells underneath instead of the merge.
-        let merges = visibleMerges(in: sheet, coveredBy: plans)
+        let merges = visibleMerges(in: sheet, coveredBy: plans, metrics: metrics)
         let scheme = sheet.colorScheme(for: colorScheme)
 
         return ZStack(alignment: .topLeading) {
@@ -627,7 +627,7 @@ struct SheetGridView: View {
         let rows = metrics.rows(in: max(0, top)...max(0, top + height))
         let columns = metrics.columns(in: max(0, left)...max(0, left + width))
         let plans = top + height < 0 || left + width < 0 ? [] : tilePlans(rows: rows, columns: columns, metrics: metrics)
-        let merges = visibleMerges(in: sheet, coveredBy: plans)
+        let merges = visibleMerges(in: sheet, coveredBy: plans, metrics: metrics)
         let scheme = sheet.colorScheme(for: colorScheme)
 
         return ZStack(alignment: .topLeading) {
@@ -764,6 +764,7 @@ struct SheetGridView: View {
             }
             spillsFromOutside(row: row, of: plan, in: sheet, metrics: metrics, into: &painted)
         }
+        neighbourBorders(of: plan, in: sheet, merges: merges, metrics: metrics, into: &painted)
         for (address, comment) in sheet.comments
         where plan.rows.contains(address.row) && plan.columns.contains(address.column)
             && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
@@ -775,6 +776,36 @@ struct SheetGridView: View {
                 address: address, frame: frame, kind: comment.kind, isResolved: comment.isResolved))
         }
         return painted
+    }
+
+    /// The borders of the cells and merges around a tile. Each is centred on
+    /// a gridline, so half of one on the tile's edge falls inside the tile.
+    private func neighbourBorders(
+        of plan: TilePlan, in sheet: Worksheet, merges: [CellRange], metrics: SheetMetrics,
+        into painted: inout TileContents
+    ) {
+        let rows = metrics.rowsBordering(plan.rows)
+        let columns = metrics.columnsBordering(plan.columns)
+        let reach = CellRange(
+            start: CellAddress(row: rows.lowerBound, column: columns.lowerBound),
+            end: CellAddress(row: rows.upperBound - 1, column: columns.upperBound - 1)
+        )
+        let nearby = merges.map(\.normalized).filter { $0.intersects(reach) }
+        for merge in nearby where !merge.intersects(plan.range) {
+            let style = sheet[merge.start].style
+            guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { continue }
+            painted.neighbourBorders.append(PaintedBorders(frame: metrics.frame(for: merge), style: style))
+        }
+        for row in rows where !sheet.hiddenRows.contains(row) {
+            for column in columns where !sheet.hiddenColumns.contains(column) {
+                guard !plan.rows.contains(row) || !plan.columns.contains(column) else { continue }
+                let address = CellAddress(row: row, column: column)
+                guard let cell = sheet.cells[address],
+                      !cell.style.borderSides.isEmpty || cell.style.diagonalBorder != nil,
+                      !nearby.contains(where: { $0.contains(address) }) else { continue }
+                painted.neighbourBorders.append(PaintedBorders(frame: metrics.frame(for: address), style: cell.style))
+            }
+        }
     }
 
     /// How far a cell's text spills, as a frame, noting the cell edges it
@@ -824,14 +855,17 @@ struct SheetGridView: View {
     /// rest of the region falls in, and the region still has to draw. Testing
     /// the whole rectangle against the window — not just its origin — is what
     /// makes that case work.
-    private func visibleMerges(in sheet: Worksheet, coveredBy plans: [TilePlan]) -> [CellRange] {
+    private func visibleMerges(in sheet: Worksheet, coveredBy plans: [TilePlan], metrics: SheetMetrics) -> [CellRange] {
         // The bands run row-major, so the first and last plans are opposite
         // corners of everything they cover between them.
         guard !sheet.mergedRanges.isEmpty,
               let first = plans.first, let last = plans.last else { return [] }
+        // Widened to the lines around them, whose borders reach in.
+        let rows = metrics.rowsBordering(first.rows.lowerBound..<last.rows.upperBound)
+        let columns = metrics.columnsBordering(first.columns.lowerBound..<last.columns.upperBound)
         let window = CellRange(
-            start: CellAddress(row: first.rows.lowerBound, column: first.columns.lowerBound),
-            end: CellAddress(row: last.rows.upperBound - 1, column: last.columns.upperBound - 1)
+            start: CellAddress(row: rows.lowerBound, column: columns.lowerBound),
+            end: CellAddress(row: rows.upperBound - 1, column: columns.upperBound - 1)
         )
         return sheet.mergedRanges.filter { $0.intersects(window) }
     }
@@ -1525,7 +1559,7 @@ struct SheetGridView: View {
     private func frozenPane(rows: Range<Int>, columns: Range<Int>, shift: CGPoint) -> some View {
         let sheet = activeSheet
         let plans = tilePlans(rows: rows, columns: columns, metrics: metrics)
-        let merges = visibleMerges(in: sheet, coveredBy: plans)
+        let merges = visibleMerges(in: sheet, coveredBy: plans, metrics: metrics)
         let scheme = sheet.colorScheme(for: colorScheme)
         let selection = metrics.frame(for: sheet.expandedToMerges(state.selection))
 

@@ -30,6 +30,13 @@ struct PaintedMerge: Equatable, Sendable {
     var ownsElement: Bool
 }
 
+/// The borders of a cell or merge outside a tile, whose halves on the
+/// gridlines it shares with the tile fall inside it.
+struct PaintedBorders: Equatable, Sendable {
+    var frame: CGRect
+    var style: CellStyle
+}
+
 /// Everything a tile draws, gathered by the grid before the tile is built.
 ///
 /// Only cells with something to show are listed: a sheet is mostly empty, and
@@ -44,6 +51,8 @@ struct TileContents: Equatable, Sendable {
     var overflowEdges: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
+    /// Borders of the cells and merges just outside the tile.
+    var neighbourBorders: [PaintedBorders] = []
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -92,7 +101,10 @@ struct GridTileView: View, Equatable {
         let covered = contents.covered
 
         return ZStack(alignment: .topLeading) {
-            Canvas(rendersAsynchronously: false) { context, _ in
+            Canvas(rendersAsynchronously: false) { context, size in
+                // Borders from the cells around the tile reach past it, and
+                // the tiles beside it draw those parts.
+                context.clip(to: Path(CGRect(origin: .zero, size: size)))
                 CellPainter.paint(
                     contents: contents,
                     rows: rows, columns: columns,
@@ -209,12 +221,20 @@ enum CellPainter {
         for cell in contents.cells {
             paintText(cell.cell, in: cell.frame, overflow: cell.overflow, zoom: metrics.zoom, scheme: scheme, into: &context)
         }
-        for cell in own {
-            paintBorders(cell.cell.style, in: cell.frame, zoom: metrics.zoom, scheme: scheme, into: &context)
-        }
-        // Last, so a merge covers the hairlines of the cells beneath it.
+        // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in contents.merges {
             paint(merge.cell, in: merge.frame, zoom: metrics.zoom, scheme: scheme, into: &context)
+        }
+        // Last, so no fill covers the half of a border that falls in the
+        // neighbouring cell.
+        for cell in own {
+            paintBorders(cell.cell.style, in: cell.frame, metrics: metrics, scheme: scheme, into: &context)
+        }
+        for merge in contents.merges {
+            paintBorders(merge.cell.style, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
+        }
+        for neighbour in contents.neighbourBorders {
+            paintBorders(neighbour.style, in: neighbour.frame, metrics: metrics, scheme: scheme, into: &context)
         }
         for mark in contents.comments {
             paintCommentMark(mark, zoom: metrics.zoom, into: &context)
@@ -282,7 +302,8 @@ enum CellPainter {
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - inset))
     }
 
-    /// A whole cell in one go, for merges, which nothing spills across.
+    /// A merge's fill and text, which nothing spills across. Its borders are
+    /// drawn with everyone else's.
     private static func paint(
         _ cell: Cell, in frame: CGRect, zoom: Double, scheme: ColorScheme,
         into context: inout GraphicsContext
@@ -290,7 +311,6 @@ enum CellPainter {
         guard frame.width > 0, frame.height > 0 else { return }
         paintBackground(cell, in: frame, openEdge: false, into: &context, scheme: scheme)
         paintText(cell, in: frame, overflow: nil, zoom: zoom, scheme: scheme, into: &context)
-        paintBorders(cell.style, in: frame, zoom: zoom, scheme: scheme, into: &context)
     }
 
     private static func paintBackground(
@@ -325,9 +345,10 @@ enum CellPainter {
         let horizontal = style.horizontalAlignment == .automatic
             ? CellFormatter.naturalAlignment(for: cell.value)
             : style.horizontalAlignment
-        let color: Color = cell.value.errorValue != nil
-            ? .red
-            : (style.textColor(for: scheme) ?? .primary)
+        // An error takes the cell's own text colour when it has one, like
+        // Excel; red is only the default.
+        let color: Color = style.textColor(for: scheme)
+            ?? (cell.value.errorValue != nil ? .red : .primary)
 
         let make: (String) -> Text = { text in
             var run = Text(verbatim: text)
@@ -452,9 +473,10 @@ enum CellPainter {
     // MARK: - Borders
 
     private static func paintBorders(
-        _ style: CellStyle, in frame: CGRect, zoom: Double, scheme: ColorScheme,
+        _ style: CellStyle, in frame: CGRect, metrics: SheetMetrics, scheme: ColorScheme,
         into context: inout GraphicsContext
     ) {
+        let zoom = metrics.zoom
         guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { return }
 
         // Each edge gets its own stroke because line width, dash pattern and
@@ -462,7 +484,7 @@ enum CellPainter {
         for edge in BorderEdge.allCases {
             guard let side = style.borderSides[edge] else { continue }
             stroke(side.lineStyle, colorHex: side.colorHex, zoom: zoom, scheme: scheme, into: &context) {
-                edgePath(edge, in: frame, width: side.lineStyle.lineWidth * zoom, offset: $0)
+                edgePath(edge, in: frame, width: side.lineStyle.lineWidth * zoom, offset: $0, metrics: metrics)
             }
         }
         if let diagonal = style.diagonalBorder, diagonal.isVisible {
@@ -477,7 +499,7 @@ enum CellPainter {
         _ lineStyle: BorderLineStyle, colorHex: String?, zoom: Double, scheme: ColorScheme,
         into context: inout GraphicsContext, path: (Double) -> Path
     ) {
-        let paint = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true) ?? .secondary
+        let paint = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true) ?? .primary
         let style = StrokeStyle(
             lineWidth: lineStyle.lineWidth * zoom,
             dash: lineStyle.dashPattern.map { CGFloat($0 * zoom) }
@@ -488,31 +510,15 @@ enum CellPainter {
         }
     }
 
-    /// One edge of the cell rectangle.
-    ///
-    /// The stroke is held a half-width inside the rectangle so that it lands
-    /// entirely within the cell — and so within one tile — and `offset` nudges a
-    /// double rule's two passes further in from there.
+    /// One edge of a cell or merge, centred on its gridline. `offset` moves
+    /// one pass of a double rule to either side.
     private static func edgePath(
-        _ edge: BorderEdge, in rect: CGRect, width: Double, offset: Double
+        _ edge: BorderEdge, in rect: CGRect, width: Double, offset: Double, metrics: SheetMetrics
     ) -> Path {
-        let inward = width / 2 + offset + abs(offset)
-        let outward = -width / 2 + offset - abs(offset)
+        let (start, end) = metrics.borderSegment(edge, of: rect, lineWidth: width, offset: offset)
         return Path { path in
-            switch edge {
-            case .top:
-                path.move(to: CGPoint(x: rect.minX, y: rect.minY + inward))
-                path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + inward))
-            case .bottom:
-                path.move(to: CGPoint(x: rect.minX, y: rect.maxY + outward))
-                path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY + outward))
-            case .leading:
-                path.move(to: CGPoint(x: rect.minX + inward, y: rect.minY))
-                path.addLine(to: CGPoint(x: rect.minX + inward, y: rect.maxY))
-            case .trailing:
-                path.move(to: CGPoint(x: rect.maxX + outward, y: rect.minY))
-                path.addLine(to: CGPoint(x: rect.maxX + outward, y: rect.maxY))
-            }
+            path.move(to: start)
+            path.addLine(to: end)
         }
     }
 

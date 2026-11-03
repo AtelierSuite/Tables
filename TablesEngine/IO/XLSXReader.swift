@@ -498,11 +498,15 @@ public enum XLSXReader {
         for column in root.firstChild(named: "cols")?.children(named: "col") ?? [] {
             guard let first = column.attribute("min").flatMap(Int.init),
                   let last = column.attribute("max").flatMap(Int.init), first <= last else { continue }
+            // Excel's grid is wider than ours, so a run can start past the
+            // last column we hold; there is nothing of it to keep.
+            let upper = min(last, Worksheet.maximumColumnCount)
+            guard first <= upper else { continue }
             let hidden = isTrue(column.attribute("hidden"))
             // OOXML column width counts characters; convert to points.
             let width = column.attribute("width").flatMap(Double.init)
                 .map { Worksheet.columnWidthPoints(characters: $0) }
-            for index in first...min(last, Worksheet.maximumColumnCount) {
+            for index in first...upper {
                 let zeroBased = index - 1
                 if hidden { sheet.hiddenColumns.insert(zeroBased) }
                 if let width, width > 0, isTrue(column.attribute("customWidth")) {
