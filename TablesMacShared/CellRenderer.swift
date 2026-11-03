@@ -104,8 +104,18 @@ struct CellRenderer {
             context.saveGState()
             NSColor.textBackgroundColor.setFill()
             context.fill(frame)
+            if let fill = cell.style.fillColor(for: scheme) {
+                context.setFillColor(NSColor(fill).cgColor)
+                context.fill(frame)
+            }
+            // The merge's own trailing and bottom gridlines, filled or not,
+            // since the background above covered the ones beneath it.
+            if drawsGridlines {
+                context.setStrokeColor(gridLineColor.cgColor)
+                context.setLineWidth(1)
+                strokeHairlines(of: frame, openEdge: false, in: context)
+            }
             context.restoreGState()
-            fill(cell, in: frame, context: context, gridLineColor: gridLineColor, openEdge: false)
             drawText(of: cell, in: frame, overflow: nil, context: context)
         }
         // Last, so no fill covers the half of a border that falls in the
