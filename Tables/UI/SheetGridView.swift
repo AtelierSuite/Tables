@@ -285,6 +285,18 @@ struct SheetGridView: View {
         .overlay(alignment: .topLeading) {
             if !canvasGuides.isEmpty { guideLines }
         }
+        // The page between the tables, and past the sheet's last row and
+        // column. The cells and names take their own taps first.
+        .contentShape(.rect)
+        .onTapGesture { tapOutsideCells() }
+    }
+
+    /// A tap where there is no cell puts away whatever is being typed: the
+    /// cell being edited, which keeps what was typed, or a table's new name.
+    private func tapOutsideCells() {
+        lastTap = nil
+        endRenamingTable()
+        if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
     }
 
     /// The drawn grid, plus the one tap and one long press that serve all of it.
