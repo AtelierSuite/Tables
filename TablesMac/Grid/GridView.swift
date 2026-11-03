@@ -304,6 +304,14 @@ final class GridView: NSView, NSTextFieldDelegate {
         }
         window?.makeFirstResponder(self)
 
+        // A click on a checkbox ticks it or clears it, and selects its cell.
+        let clicked = sheet[address]
+        if event.clickCount == 1, event.modifierFlags.isDisjoint(with: [.shift, .command]), clicked.style.showsCheckbox,
+           clicked.style.checkboxFrame(in: state.metrics.frame(for: address), zoom: state.metrics.zoom)
+               .insetBy(dx: -3, dy: -3).contains(point) {
+            document.edit { state.toggleCheckbox(at: address, in: &$0) }
+        }
+
         if event.clickCount == 1, event.modifierFlags.isDisjoint(with: [.shift, .command]),
            offersSelectionHandles(in: document) {
             if fillHandleRect(in: document).insetBy(dx: -3, dy: -3).contains(point) {

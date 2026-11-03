@@ -956,6 +956,8 @@ struct SheetGridView: View {
         lastTap = (address, .now)
         state.selectChart(nil)
         if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
+        // A tap on a checkbox ticks it or clears it, and selects its cell.
+        if activeSheet[address].style.showsCheckbox { state.toggleCheckbox(at: address, in: &workbook) }
         #if os(macOS)
         state.select(address, extending: NSEvent.modifierFlags.contains(.shift), in: activeSheet)
         #else

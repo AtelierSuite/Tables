@@ -331,11 +331,32 @@ enum CellPainter {
     /// text is still aligned to its own cell — Excel's centred title stays
     /// centred on its cell however far it spills — but it is measured, cut
     /// short and clipped against the larger stretch.
+    /// A Numbers checkbox: an empty box, or a filled one with a tick.
+    private static func paintCheckbox(
+        _ isOn: Bool, in box: CGRect, color: Color, zoom: Double, into context: inout GraphicsContext
+    ) {
+        guard box.width > 0 else { return }
+        let shape = Path(roundedRect: box, cornerRadius: 2.5 * zoom)
+        guard isOn else {
+            context.stroke(shape, with: .color(color.opacity(0.6)), lineWidth: max(1, zoom))
+            return
+        }
+        context.fill(shape, with: .color(.accentColor))
+        var tick = Path()
+        tick.addLines(CellStyle.checkmark(in: box))
+        context.stroke(tick, with: .color(.white),
+                       style: StrokeStyle(lineWidth: max(1.5, 1.8 * zoom), lineCap: .round, lineJoin: .round))
+    }
+
     private static func paintText(
         _ cell: Cell, in frame: CGRect, overflow: CGRect?, zoom: Double, scheme: ColorScheme,
         into context: inout GraphicsContext
     ) {
         let style = cell.style
+        if style.showsCheckbox, case .boolean(let isOn) = cell.value {
+            let color = style.textColor(for: scheme) ?? .primary
+            return paintCheckbox(isOn, in: style.checkboxFrame(in: frame, zoom: zoom), color: color, zoom: zoom, into: &context)
+        }
         var string = CellFormatter.displayText(for: cell)
         guard !string.isEmpty else { return }
         // Stacked text is drawn as one glyph per line rather than by rotating

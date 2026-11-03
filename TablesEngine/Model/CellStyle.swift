@@ -238,6 +238,10 @@ public struct CellStyle: Hashable, Sendable {
     /// OOXML text rotation: 0–90 is counter-clockwise degrees, 91–180 is
     /// clockwise as `value - 90`, and 255 means the glyphs stack vertically.
     public var textRotation: Int = 0
+    /// Draws the cell's TRUE or FALSE as a box, ticked or not, which a tap
+    /// turns on and off: a Numbers checkbox. Excel has none, and shows the
+    /// value as it is.
+    public var showsCheckbox = false
 
     /// The rotation value OOXML reserves for stacked (top-to-bottom) text.
     public static let stackedTextRotation = 255
@@ -497,5 +501,40 @@ extension Color {
         #endif
         let components = [alpha, red, green, blue].map { UInt8(max(0, min(1, $0)) * 255) }
         return components.map { String(format: "%02X", $0) }.joined()
+    }
+}
+
+extension CellStyle {
+    /// How big a checkbox is, in points at 100%.
+    public static let checkboxSize = 12.0
+
+    /// Where a checkbox sits in its cell: a square, centred unless the cell
+    /// is aligned to one side, and never larger than the cell leaves room for.
+    public func checkboxFrame(in frame: CGRect, zoom: Double) -> CGRect {
+        let padding = 6 * zoom
+        let side = min(Self.checkboxSize * zoom, frame.height - 4 * zoom, frame.width - 2 * padding)
+        guard side > 0 else { return .zero }
+        let x: Double
+        switch horizontalAlignment {
+        case .leading: x = frame.minX + padding
+        case .trailing: x = frame.maxX - padding - side
+        default: x = frame.midX - side / 2
+        }
+        let y: Double
+        switch verticalAlignment {
+        case .top: y = frame.minY + 2 * zoom
+        case .bottom: y = frame.maxY - 2 * zoom - side
+        default: y = frame.midY - side / 2
+        }
+        return CGRect(x: x, y: y, width: side, height: side)
+    }
+
+    /// The tick in a checkbox at `box`, as the points of its two strokes.
+    public static func checkmark(in box: CGRect) -> [CGPoint] {
+        [
+            CGPoint(x: box.minX + box.width * 0.24, y: box.minY + box.height * 0.52),
+            CGPoint(x: box.minX + box.width * 0.42, y: box.minY + box.height * 0.72),
+            CGPoint(x: box.minX + box.width * 0.78, y: box.minY + box.height * 0.30),
+        ]
     }
 }

@@ -1,8 +1,10 @@
 import Foundation
 import Testing
+@testable import Tables
 @testable import TablesEngine
 
 @Suite("Numbers number formats")
+@MainActor
 struct NumbersFormatTests {
     private func format(_ type: UInt64, _ build: (inout ProtobufMessage) -> Void = { _ in }) -> ProtobufMessage {
         var message = ProtobufMessage()
@@ -54,5 +56,27 @@ struct NumbersFormatTests {
         #expect(NumbersFormats.excelDateCode(fromUnicodePattern: "y/MM/dd", language: nil) == "yyyy/mm/dd")
         #expect(NumbersFormats.excelDateCode(fromUnicodePattern: "H:mm", language: nil) == "h:mm")
         #expect(NumbersFormats.excelDateCode(fromUnicodePattern: "d MMMM yyyy", language: "en_GB") == "d mmmm yyyy")
+    }
+
+    @Test("A tap on a checkbox ticks it or clears it, and leaves one showing a formula's result alone")
+    func checkbox() {
+        var sheet = Worksheet(name: "Sheet")
+        var box = Cell(value: .boolean(false))
+        box.style.showsCheckbox = true
+        sheet[CellAddress(row: 0, column: 0)] = box
+        var computed = Cell(value: .boolean(true), formula: "TRUE()")
+        computed.style.showsCheckbox = true
+        sheet[CellAddress(row: 1, column: 0)] = computed
+        sheet[CellAddress(row: 2, column: 0)] = Cell(value: .boolean(false))
+        var book = Workbook(sheets: [sheet])
+        let state = EditorState()
+        state.activeSheetID = book.sheets[0].id
+
+        state.toggleCheckbox(at: CellAddress(row: 0, column: 0), in: &book)
+        #expect(book.sheets[0][CellAddress(row: 0, column: 0)].value == .boolean(true))
+        state.toggleCheckbox(at: CellAddress(row: 1, column: 0), in: &book)
+        #expect(book.sheets[0][CellAddress(row: 1, column: 0)].value == .boolean(true))
+        state.toggleCheckbox(at: CellAddress(row: 2, column: 0), in: &book)
+        #expect(book.sheets[0][CellAddress(row: 2, column: 0)].value == .boolean(false), "not a checkbox")
     }
 }

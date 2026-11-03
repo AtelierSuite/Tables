@@ -83,6 +83,16 @@ extension EditorState {
         }
     }
 
+    /// Ticks a checkbox, or clears it. A checkbox showing what a formula
+    /// came to is the formula's to change.
+    func toggleCheckbox(at address: CellAddress, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let cell = workbook.sheets[index][address]
+        guard cell.style.showsCheckbox, cell.formula == nil, case .boolean(let isOn) = cell.value else { return }
+        workbook.sheets[index][address].value = .boolean(!isOn)
+        workbook.recalculate()
+    }
+
     /// Replaces the contents of every selected cell, keeping formatting.
     func clearContents(in workbook: inout Workbook) {
         let index = activeIndex(in: workbook)

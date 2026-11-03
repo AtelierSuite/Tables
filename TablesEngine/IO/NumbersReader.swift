@@ -642,6 +642,11 @@ private struct TableReader {
                            let key = parsed.key(of: field), let code = formats[key] ?? nil {
                             cell?.style.numberFormat = code
                         }
+                        // The one control a TRUE or FALSE is set with is a checkbox.
+                        if parsed.type == NumbersCellStorage.CellType.boolean,
+                           parsed.field(NumbersCellStorage.Field.control) != nil {
+                            cell?.style.showsCheckbox = true
+                        }
                     }
                     if formulas[address] != nil { results[address] = cell ?? Cell() }
                     guard row < worksheet.rowCount, column < worksheet.columnCount, let cell, !cell.isEmptyEntirely else { continue }

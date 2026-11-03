@@ -228,8 +228,36 @@ struct CellRenderer {
     /// `overflow` is the stretch of the row the text may run across. The
     /// text is still aligned to its own cell, but measured and clipped
     /// against the larger stretch.
+    /// A Numbers checkbox: an empty box, or a filled one with a tick.
+    private func drawCheckbox(_ isOn: Bool, in box: CGRect, color: NSColor) {
+        guard box.width > 0 else { return }
+        let zoom = metrics.zoom
+        let shape = NSBezierPath(roundedRect: box, xRadius: 2.5 * zoom, yRadius: 2.5 * zoom)
+        guard isOn else {
+            color.withAlphaComponent(0.6).setStroke()
+            shape.lineWidth = max(1, zoom)
+            shape.stroke()
+            return
+        }
+        NSColor.controlAccentColor.setFill()
+        shape.fill()
+        let tick = NSBezierPath()
+        let points = CellStyle.checkmark(in: box)
+        tick.move(to: points[0])
+        points.dropFirst().forEach { tick.line(to: $0) }
+        tick.lineWidth = max(1.5, 1.8 * zoom)
+        tick.lineCapStyle = .round
+        tick.lineJoinStyle = .round
+        NSColor.white.setStroke()
+        tick.stroke()
+    }
+
     private func drawText(of cell: Cell, in frame: CGRect, overflow: CGRect?, context: CGContext) {
         let style = cell.style
+        if style.showsCheckbox, case .boolean(let isOn) = cell.value {
+            let color = style.textColor(for: scheme).map { NSColor($0) } ?? .labelColor
+            return drawCheckbox(isOn, in: style.checkboxFrame(in: frame, zoom: metrics.zoom), color: color)
+        }
         var string = CellFormatter.displayText(for: cell)
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
         if style.isTextStacked { string = string.map(String.init).joined(separator: "\n") }
