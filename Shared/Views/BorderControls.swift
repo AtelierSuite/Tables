@@ -68,18 +68,36 @@ struct BorderBoxPicker: View {
     @Environment(\.colorScheme) private var colorScheme
 
     /// The cell face.
-    private let side: Double = 112
+    private let width: Double
+    private let height: Double
     /// How far a side's tap target reaches outside the box, and inside it. Most
     /// of the target sits outside, so aiming at an edge never means aiming into
     /// the middle, where the diagonals live.
-    private let outward: Double = 24
-    private let inward: Double = 10
+    private let outward: Double
+    private let inward: Double
+    /// The side of each diagonal's button.
+    private let diagonalSize: Double
+
+    /// A square box with room for a finger by default; the Mac, aimed at with
+    /// a pointer, draws a flatter one shaped more like a cell.
+    init(
+        style: CellStyle, width: Double = 112, height: Double = 112, outward: Double = 24,
+        inward: Double = 10, diagonalSize: Double = 40, onToggle: @escaping (BorderTarget) -> Void
+    ) {
+        self.style = style
+        self.width = width
+        self.height = height
+        self.outward = outward
+        self.inward = inward
+        self.diagonalSize = diagonalSize
+        self.onToggle = onToggle
+    }
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(Color.primary.opacity(0.04))
-                .frame(width: side, height: side)
+                .frame(width: width, height: height)
 
             diagonals
 
@@ -87,7 +105,7 @@ struct BorderBoxPicker: View {
                 edgeButton(edge)
             }
         }
-        .frame(width: side + outward * 2, height: side + outward * 2)
+        .frame(width: width + outward * 2, height: height + outward * 2)
         .accessibilityElement(children: .contain)
     }
 
@@ -97,6 +115,7 @@ struct BorderBoxPicker: View {
         let isVertical = edge == .leading || edge == .trailing
         let drawn = style.borderSides[edge]
         let thickness = outward + inward
+        let length = isVertical ? height : width
 
         return Button { onToggle(.edge(edge)) } label: {
             ZStack {
@@ -108,25 +127,25 @@ struct BorderBoxPicker: View {
                         isVertical: isVertical,
                         weight: 1.6
                     )
-                    .frame(width: isVertical ? 6 : side, height: isVertical ? side : 6)
+                    .frame(width: isVertical ? 6 : length, height: isVertical ? length : 6)
                 } else {
                     // Something faint to aim at: an edge you cannot see is an
                     // edge you cannot guess is tappable.
                     Capsule()
                         .fill(Color.secondary.opacity(0.28))
-                        .frame(width: isVertical ? 1.5 : side, height: isVertical ? side : 1.5)
+                        .frame(width: isVertical ? 1.5 : length, height: isVertical ? length : 1.5)
                 }
             }
             .frame(
-                width: isVertical ? thickness : side,
-                height: isVertical ? side : thickness
+                width: isVertical ? thickness : length,
+                height: isVertical ? length : thickness
             )
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .offset(
-            x: isVertical ? (edge == .leading ? -side / 2 : side / 2) : 0,
-            y: isVertical ? 0 : (edge == .top ? -side / 2 : side / 2)
+            x: isVertical ? (edge == .leading ? -width / 2 : width / 2) : 0,
+            y: isVertical ? 0 : (edge == .top ? -height / 2 : height / 2)
         )
         .accessibilityIdentifier("border.\(edge.rawValue)")
         .accessibilityLabel(BorderScope(edge).label)
@@ -153,15 +172,17 @@ struct BorderBoxPicker: View {
 
         return Button { onToggle(target) } label: {
             let rule = BorderRule(lineStyle: diagonal?.lineStyle ?? .thin, weight: isOn ? 1.6 : 1)
+            let inset = diagonalSize * 0.15
+            let far = diagonalSize - inset
             Path { path in
-                path.move(to: CGPoint(x: 6, y: goesUp ? 34 : 6))
-                path.addLine(to: CGPoint(x: 34, y: goesUp ? 6 : 34))
+                path.move(to: CGPoint(x: inset, y: goesUp ? far : inset))
+                path.addLine(to: CGPoint(x: far, y: goesUp ? inset : far))
             }
             .stroke(tint, style: rule.strokeStyle)
-            .frame(width: 40, height: 40)
+            .frame(width: diagonalSize, height: diagonalSize)
             .background(
                 isOn ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.04),
-                in: .rect(cornerRadius: 8, style: .continuous)
+                in: .rect(cornerRadius: diagonalSize / 5, style: .continuous)
             )
             .contentShape(.rect)
         }
