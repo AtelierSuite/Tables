@@ -498,7 +498,7 @@ enum CellPainter {
         _ lineStyle: BorderLineStyle, colorHex: String?, zoom: Double, scheme: ColorScheme,
         into context: inout GraphicsContext, path: (Double) -> Path
     ) {
-        let paint = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true) ?? .secondary
+        let paint = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true) ?? .primary
         let style = StrokeStyle(
             lineWidth: lineStyle.lineWidth * zoom,
             dash: lineStyle.dashPattern.map { CGFloat($0 * zoom) }
