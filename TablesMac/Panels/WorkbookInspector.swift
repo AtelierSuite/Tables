@@ -3,7 +3,8 @@ import TablesEngine
 
 /// The inspector at the window's trailing edge, as Numbers has: how the
 /// selected cells look and how their numbers read, or, with a chart picked
-/// out, the chart's own settings. The panels are the iPhone and iPad's.
+/// out, the chart's own settings. The cell panels are laid out for the Mac;
+/// the chart's are the iPhone and iPad's.
 struct WorkbookInspector: View {
     let model: HostedWorkbook
     @Bindable var state: EditorState
@@ -18,6 +19,9 @@ struct WorkbookInspector: View {
         Group {
             if state.selectedChart(in: model.workbook) != nil {
                 ChartPanel(workbook: model.binding, state: state)
+                    .formStyle(.grouped)
+                    // A grouped form in the inspector otherwise runs edge to edge.
+                    .contentMargins(.horizontal, 14, for: .scrollContent)
             } else if state.formatting.isEmpty {
                 ContentUnavailableView(
                     "Mac.Inspector.NoFormatting.Title", systemImage: "paintbrush",
@@ -26,9 +30,6 @@ struct WorkbookInspector: View {
                 cellPanels
             }
         }
-        .formStyle(.grouped)
-        // A grouped form in the inspector otherwise runs edge to edge.
-        .contentMargins(.horizontal, 14, for: .scrollContent)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -43,12 +44,15 @@ struct WorkbookInspector: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .padding(.horizontal, 16)
+                .fixedSize()
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, InspectorMetrics.horizontalPadding)
                 .padding(.top, 12)
+                .padding(.bottom, 4)
             }
             switch tabs.contains(tab) ? tab : tabs[0] {
-            case .cell: FormatPanel(workbook: model.binding, state: state)
-            case .numberFormat: NumberFormatPanel(workbook: model.binding, state: state)
+            case .cell: CellInspector(workbook: model.binding, state: state)
+            case .numberFormat: NumberFormatInspector(workbook: model.binding, state: state)
             }
         }
     }
