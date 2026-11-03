@@ -12,6 +12,10 @@ struct ColumnHeaderCell: View {
     let isHiddenNeighbor: Bool
     let onSelect: () -> Void
     let onResize: (Double) -> Void
+    /// Resizes the column before this one, from a grip on this one's leading
+    /// edge: the line between two columns can be caught from either side.
+    /// Nil for the first column.
+    var onResizePrevious: ((Double) -> Void)? = nil
     let onFit: () -> Void
     /// Built on demand rather than handed over ready-made: the grid rebuilds
     /// every visible header on each scroll frame, and a menu's worth of
@@ -37,6 +41,9 @@ struct ColumnHeaderCell: View {
             .overlay(alignment: .trailing) {
                 ResizeGrip(isVertical: true, extent: width, onResize: onResize, onDoubleTap: onFit)
             }
+            .overlay(alignment: .leading) {
+                if let onResizePrevious { ResizeGrip(isVertical: true, extent: width, onResize: onResizePrevious) }
+            }
             .accessibilityLabel(title)
             .accessibilityAddTraits(.isButton)
     }
@@ -51,6 +58,9 @@ struct RowHeaderCell: View {
     let isHiddenNeighbor: Bool
     let onSelect: () -> Void
     let onResize: (Double) -> Void
+    /// Resizes the row above, from a grip on this one's top edge, for the
+    /// reason `ColumnHeaderCell.onResizePrevious` gives. Nil for the first row.
+    var onResizePrevious: ((Double) -> Void)? = nil
     /// Built on demand, for the reason `ColumnHeaderCell.actions` gives.
     let actions: () -> [HeaderMenuAction]
 
@@ -71,6 +81,9 @@ struct RowHeaderCell: View {
             .overlay(alignment: .bottom) { HiddenSeam(isVertical: false, isVisible: isHiddenNeighbor) }
             .overlay(alignment: .bottom) {
                 ResizeGrip(isVertical: false, extent: height, onResize: onResize)
+            }
+            .overlay(alignment: .top) {
+                if let onResizePrevious { ResizeGrip(isVertical: false, extent: height, onResize: onResizePrevious) }
             }
             .accessibilityLabel(String(format: Self.labelFormat, title))
             .accessibilityAddTraits(.isButton)

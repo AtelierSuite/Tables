@@ -84,7 +84,8 @@ struct SheetGridView: View {
             return CGPoint(x: rowHeaderWidth, y: columnHeaderHeight)
         }
         let dragged = tableDrag?.id == activeSheet.id ? tableDrag?.offset ?? .zero : .zero
-        return CGPoint(x: table.x * state.zoom + dragged.width, y: table.y * state.zoom + dragged.height)
+        let page = CanvasSnapping.pageInset(zoom: state.zoom)
+        return CGPoint(x: page.x + table.x * state.zoom + dragged.width, y: page.y + table.y * state.zoom + dragged.height)
     }
 
     /// How much of the top and leading edges the pinned headers cover.
@@ -100,11 +101,12 @@ struct SheetGridView: View {
                           height: columnHeaderHeight + metrics.totalHeight + bottomPadding)
         }
         let zoom = state.zoom
-        var extent = CGSize.zero
+        let page = CanvasSnapping.pageInset(zoom: zoom)
+        var extent = CGSize(width: page.x, height: page.y)
         for sheet in workbook.sheets(on: canvas) {
             guard let table = canvas.table(for: sheet.id) else { continue }
-            extent.width = max(extent.width, (table.x + sheet.totalWidth) * zoom)
-            extent.height = max(extent.height, (table.y + sheet.totalHeight) * zoom)
+            extent.width = max(extent.width, page.x + (table.x + sheet.totalWidth) * zoom)
+            extent.height = max(extent.height, page.y + (table.y + sheet.totalHeight) * zoom)
         }
         return CGSize(width: extent.width + trailingPadding, height: extent.height + bottomPadding)
     }
@@ -174,7 +176,7 @@ struct SheetGridView: View {
             // Canvas, not paper: the sheet paints its own extent, so anything
             // past the last row and column reads as the space around the sheet
             // rather than as grid that failed to draw.
-            .background(canvas == nil ? Color.sheetCanvas : Color.sheetBackground)
+            .background(canvas == nil ? Color.sheetCanvas : paper(of: activeSheet))
             // `contentOffset` is measured from the scroll view's origin, which
             // sits above the navigation bar's content inset — so it is already
             // negative at rest. Adding the insets back gives distance scrolled
@@ -249,6 +251,11 @@ struct SheetGridView: View {
         return Array(0..<min(frozen, metrics.columnCount)) + visibleColumns.filter { $0 >= frozen }
     }
 
+    /// What a sheet's cells without a fill of their own show through to.
+    private func paper(of sheet: Worksheet) -> Color {
+        sheet.backgroundColor(for: colorScheme) ?? .sheetBackground
+    }
+
     private var visibleColumns: Range<Int> {
         let left = state.scrollOffset.x - gridOrigin.x + headerInsets.width - rowHeaderWidth
         let width = max(state.viewportSize.width, 200)
@@ -260,7 +267,7 @@ struct SheetGridView: View {
     private var content: some View {
         ZStack(alignment: .topLeading) {
             Rectangle()
-                .fill(Color.sheetBackground)
+                .fill(paper(of: activeSheet))
                 .frame(width: metrics.totalWidth, height: metrics.totalHeight)
 
             tiles
@@ -276,8 +283,23 @@ struct SheetGridView: View {
             if let canvas { canvasTables(canvas) }
         }
         .overlay(alignment: .topLeading) {
+            if let canvas { canvasHeaderLayer(canvas) }
+        }
+        .overlay(alignment: .topLeading) {
             if !canvasGuides.isEmpty { guideLines }
         }
+        // The page between the tables, and past the sheet's last row and
+        // column. The cells and names take their own taps first.
+        .contentShape(.rect)
+        .onTapGesture { tapOutsideCells() }
+    }
+
+    /// A tap where there is no cell puts away whatever is being typed: the
+    /// cell being edited, which keeps what was typed, or a table's new name.
+    private func tapOutsideCells() {
+        lastTap = nil
+        endRenamingTable()
+        if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
     }
 
     /// The drawn grid, plus the one tap and one long press that serve all of it.
@@ -354,11 +376,12 @@ struct SheetGridView: View {
     private func canvasTables(_ canvas: SheetCanvas) -> some View {
         let zoom = state.zoom
         let active = activeSheet.id
+        let page = CanvasSnapping.pageInset(zoom: zoom)
         return ZStack(alignment: .topLeading) {
             ForEach(workbook.sheets(on: canvas)) { sheet in
                 if let table = canvas.table(for: sheet.id) {
                     let dragged = tableDrag?.id == sheet.id ? tableDrag?.offset ?? .zero : .zero
-                    let origin = CGPoint(x: table.x * zoom + dragged.width, y: table.y * zoom + dragged.height)
+                    let origin = CGPoint(x: page.x + table.x * zoom + dragged.width, y: page.y + table.y * zoom + dragged.height)
                     if sheet.id != active {
                         canvasTable(sheet, at: origin, zoom: zoom)
                     }
@@ -369,25 +392,44 @@ struct SheetGridView: View {
                         .allowsHitTesting(false)
                     if table.showsName {
                         tableName(of: sheet, isActive: sheet.id == active, zoom: zoom)
-                            .offset(x: origin.x, y: origin.y - CanvasChrome.nameReach(zoom: zoom))
+                            .offset(x: origin.x,
+                                    y: origin.y - CanvasChrome.nameOffset(zoom: zoom, showsHeaders: sheet.id == active))
                     }
                 }
             }
-            // A layer of their own, so only the headers fade as tables are picked.
-            ZStack(alignment: .topLeading) {
-                ForEach(workbook.sheets(on: canvas)) { sheet in
-                    if sheet.id == active, canvas.table(for: sheet.id) != nil {
-                        canvasHeaders(for: sheet)
-                            .offset(x: gridOrigin.x, y: gridOrigin.y)
-                            .transition(.opacity)
-                    }
-                }
-            }
-            // What a dragged table passes over shows through its headers.
-            .opacity(isMovingTable ? CanvasChrome.draggingOpacity : 1)
-            .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: active)
-            .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: isMovingTable)
         }
+    }
+
+    /// The headers round the table being worked on, in a layer of their own
+    /// so only they fade as tables are picked. They go over the grid, as a
+    /// sheet's own do, so the selection's grip on a cell beside them can't
+    /// take a drag meant for the line between two of them.
+    private func canvasHeaderLayer(_ canvas: SheetCanvas) -> some View {
+        let active = activeSheet.id
+        return ZStack(alignment: .topLeading) {
+            ForEach(workbook.sheets(on: canvas)) { sheet in
+                if sheet.id == active, canvas.table(for: sheet.id) != nil {
+                    canvasHeaders(for: sheet)
+                        .offset(x: gridOrigin.x, y: gridOrigin.y)
+                        .transition(.opacity)
+                }
+            }
+        }
+        // What a dragged table passes over shows through its headers.
+        .opacity(isMovingTable ? CanvasChrome.draggingOpacity : 1)
+        .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: active)
+        .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: isMovingTable)
+    }
+
+    /// Resizes the nearest shown line before `index`, for the grip on the
+    /// leading edge of its header; nil when there is none.
+    private func resizer(
+        forLineBefore index: Int, hidden: Set<Int>, resize: @escaping (Int, Double) -> Void
+    ) -> ((Double) -> Void)? {
+        var line = index - 1
+        while line >= 0, hidden.contains(line) { line -= 1 }
+        guard line >= 0 else { return nil }
+        return { [line] delta in resize(line, delta) }
     }
 
     /// Whether a table is being dragged away from where it rests.
@@ -422,6 +464,9 @@ struct SheetGridView: View {
                     onResize: { delta in
                         state.resizeColumn(column, to: (metrics.width(ofColumn: column) + delta) / metrics.zoom, in: &workbook)
                     },
+                    onResizePrevious: resizer(forLineBefore: column, hidden: sheet.hiddenColumns) { line, delta in
+                        state.resizeColumn(line, to: (metrics.width(ofColumn: line) + delta) / metrics.zoom, in: &workbook)
+                    },
                     onFit: { state.fitColumn(column, in: &workbook) },
                     actions: {
                         HeaderMenuBuilder(axis: .column, index: column, workbook: $workbook, state: state).actions()
@@ -438,6 +483,9 @@ struct SheetGridView: View {
                     onSelect: { state.selectEntireRows(row...row, in: activeSheet) },
                     onResize: { delta in
                         state.resizeRow(row, to: (metrics.height(ofRow: row) + delta) / metrics.zoom, in: &workbook)
+                    },
+                    onResizePrevious: resizer(forLineBefore: row, hidden: sheet.hiddenRows) { line, delta in
+                        state.resizeRow(line, to: (metrics.height(ofRow: line) + delta) / metrics.zoom, in: &workbook)
                     },
                     actions: {
                         HeaderMenuBuilder(axis: .row, index: row, workbook: $workbook, state: state).actions()
@@ -475,6 +523,8 @@ struct SheetGridView: View {
                     beginRenamingTable(sheet.id)
                 }
                 .contextMenu { HeaderActionMenu(actions: tableActions(for: sheet)) }
+                // Light on a dark page, whatever the appearance.
+                .environment(\.colorScheme, sheet.isBackgroundDark ? .dark : colorScheme)
         }
     }
 
@@ -530,16 +580,18 @@ struct SheetGridView: View {
             .onChanged { value in
                 guard state.allowsLayingOutTables, let canvas = workbook.canvas(containing: sheet.id),
                       let table = canvas.table(for: sheet.id) else { return }
-                let resting = CGRect(x: table.x * zoom, y: table.y * zoom,
+                // On screen, as the guides are drawn, and never past the page's corner.
+                let page = CanvasSnapping.pageInset(zoom: zoom)
+                let resting = CGRect(x: page.x + table.x * zoom, y: page.y + table.y * zoom,
                                      width: sheet.totalWidth * zoom, height: sheet.totalHeight * zoom)
                 let others = workbook.sheets(on: canvas).compactMap { other -> CGRect? in
                     guard other.id != sheet.id, let placed = canvas.table(for: other.id) else { return nil }
-                    return CGRect(x: placed.x * zoom, y: placed.y * zoom,
+                    return CGRect(x: page.x + placed.x * zoom, y: page.y + placed.y * zoom,
                                   width: other.totalWidth * zoom, height: other.totalHeight * zoom)
                 }
                 let snapped = CanvasSnapping.snap(
                     resting.offsetBy(dx: value.translation.width, dy: value.translation.height), among: others,
-                    minimum: CanvasSnapping.minimumOrigin(zoom: zoom, rowCount: sheet.rowCount))
+                    minimum: page)
                 tableDrag = (sheet.id, CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY))
                 canvasGuides = snapped.guides
             }
@@ -632,7 +684,7 @@ struct SheetGridView: View {
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
-                .fill(Color.sheetBackground)
+                .fill(paper(of: sheet))
                 .frame(width: metrics.totalWidth, height: metrics.totalHeight)
             ForEach(plans) { plan in
                 let frame = metrics.frame(for: plan.range)
@@ -904,6 +956,8 @@ struct SheetGridView: View {
         lastTap = (address, .now)
         state.selectChart(nil)
         if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
+        // A tap on a checkbox ticks it or clears it, and selects its cell.
+        if activeSheet[address].style.showsCheckbox { state.toggleCheckbox(at: address, in: &workbook) }
         #if os(macOS)
         state.select(address, extending: NSEvent.modifierFlags.contains(.shift), in: activeSheet)
         #else
@@ -1434,6 +1488,9 @@ struct SheetGridView: View {
                                 in: &workbook
                             )
                         },
+                        onResizePrevious: resizer(forLineBefore: column, hidden: activeSheet.hiddenColumns) { line, delta in
+                            state.resizeColumn(line, to: (metrics.width(ofColumn: line) + delta) / metrics.zoom, in: &workbook)
+                        },
                         onFit: { state.fitColumn(column, in: &workbook) },
                         actions: {
                             HeaderMenuBuilder(
@@ -1480,6 +1537,9 @@ struct SheetGridView: View {
                                 to: (metrics.height(ofRow: row) + delta) / metrics.zoom,
                                 in: &workbook
                             )
+                        },
+                        onResizePrevious: resizer(forLineBefore: row, hidden: activeSheet.hiddenRows) { line, delta in
+                            state.resizeRow(line, to: (metrics.height(ofRow: line) + delta) / metrics.zoom, in: &workbook)
                         },
                         actions: {
                             HeaderMenuBuilder(
@@ -1565,7 +1625,7 @@ struct SheetGridView: View {
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
-                .fill(Color.sheetBackground)
+                .fill(paper(of: sheet))
                 .frame(width: metrics.totalWidth, height: metrics.totalHeight)
             ForEach(plans) { plan in
                 let frame = metrics.frame(for: plan.range)

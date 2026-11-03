@@ -120,6 +120,8 @@ struct WorkbookView: View {
         }
         #if os(iOS)
         .toolbar { editorToolbar }
+        // The title sits over the page, so on a dark one it is drawn light.
+        .toolbarColorScheme(activeSheet.isBackgroundDark ? .dark : nil, for: .navigationBar)
         .sheet(isPresented: $state.isShowingUnsupportedFeatureNotice) {
             UnsupportedFeatureNotice(report: document.unsupportedFeatures)
                 .presentationDetents([.medium])

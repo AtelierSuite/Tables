@@ -1,6 +1,7 @@
 import CoreGraphics
 import Testing
 @testable import Tables
+import TablesEngine
 
 @Suite("Lining tables up on a canvas")
 struct CanvasSnappingTests {
@@ -36,10 +37,11 @@ struct CanvasSnappingTests {
     func staysOnThePage() {
         let dragged = CGRect(x: -900, y: -40, width: 120, height: 80)
         #expect(CanvasSnapping.snap(dragged, among: []).origin == .zero)
-        // With room left for its headers and its name.
-        let minimum = CanvasSnapping.minimumOrigin(zoom: 1, rowCount: 20)
-        #expect(minimum == CGPoint(x: CanvasChrome.rowHeaderWidth(rowCount: 20) + 4,
-                                   y: CanvasChrome.columnHeaderHeight + 26 + 4))
-        #expect(CanvasSnapping.snap(dragged, among: [], minimum: minimum).origin == minimum)
+        // On screen, the page starts in from the corner, by room for any
+        // table's headers and its name.
+        let inset = CanvasSnapping.pageInset(zoom: 1)
+        #expect(inset.x >= CanvasChrome.rowHeaderWidth(rowCount: Worksheet.maximumRowCount))
+        #expect(inset.y >= CanvasChrome.columnHeaderHeight + 26)
+        #expect(CanvasSnapping.snap(dragged, among: [], minimum: inset).origin == inset)
     }
 }

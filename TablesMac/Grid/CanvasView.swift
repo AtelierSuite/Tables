@@ -63,10 +63,12 @@ final class CanvasView: NSView {
         let zoom = self.zoom
         let active = document.activeSheet.id
         activeID = active
+        let page = CanvasSnapping.pageInset(zoom: zoom)
         placed = document.workbook.sheets(on: canvas).compactMap { sheet in
             guard let table = canvas.table(for: sheet.id) else { return nil }
             let metrics = sheet.id == active ? document.state.metrics : SheetMetrics(sheet: sheet, zoom: zoom)
-            var frame = CGRect(x: table.x * zoom, y: table.y * zoom, width: metrics.totalWidth, height: metrics.totalHeight)
+            var frame = CGRect(x: page.x + table.x * zoom, y: page.y + table.y * zoom,
+                               width: metrics.totalWidth, height: metrics.totalHeight)
             if let drag, drag.id == sheet.id { frame = frame.offsetBy(dx: drag.offset.width, dy: drag.offset.height) }
             return Placed(sheet: sheet, metrics: metrics, frame: frame,
                           name: table.showsName ? document.workbook.tableName(of: sheet.id) : nil)
@@ -142,17 +144,23 @@ final class CanvasView: NSView {
         return CGRect(x: table.frame.minX - width, y: table.frame.minY - height, width: width, height: height)
     }
 
-    /// A table's name, above the room kept for its column letters.
+    /// A table's name: above its column letters on the active table, and
+    /// straight on top of any other.
     private func nameRect(of table: Placed) -> CGRect {
-        CGRect(x: table.frame.minX, y: table.frame.minY - CanvasChrome.nameReach(zoom: zoom),
-               width: max(table.frame.width, 120), height: nameHeight)
+        let reach = CanvasChrome.nameOffset(zoom: zoom, showsHeaders: table.sheet.id == activeID)
+        return CGRect(x: table.frame.minX, y: table.frame.minY - reach,
+                      width: max(table.frame.width, 120), height: nameHeight)
     }
 
     // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
-        NSColor.textBackgroundColor.setFill()
+        // The tables share their sheet's page, and its colour.
+        let page = placed.first.map {
+            CellRenderer(sheet: $0.sheet, metrics: $0.metrics, appearance: effectiveAppearance).paper
+        }
+        (page ?? .textBackgroundColor).setFill()
         dirtyRect.fill()
         let lines = CellRenderer.gridLineColor(for: effectiveAppearance)
         for table in placed {
@@ -170,7 +178,11 @@ final class CanvasView: NSView {
             NSColor.separatorColor.setStroke()
             NSBezierPath(rect: table.frame.insetBy(dx: -0.5, dy: -0.5)).stroke()
             if let name = table.name, table.sheet.id != editingNameID {
-                drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID)
+                // Light on a dark page, whatever the appearance.
+                let appearance = table.sheet.isBackgroundDark ? NSAppearance(named: .darkAqua) : nil
+                (appearance ?? effectiveAppearance).performAsCurrentDrawingAppearance {
+                    drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID)
+                }
             }
         }
     }
@@ -248,11 +260,13 @@ final class CanvasView: NSView {
         // Measured from where the table was, so the page and the tables
         // round it decide where it lands, however far the pointer goes.
         let zoom = self.zoom
-        let resting = CGRect(x: table.x * zoom, y: table.y * zoom, width: moving.frame.width, height: moving.frame.height)
+        let page = CanvasSnapping.pageInset(zoom: zoom)
+        let resting = CGRect(x: page.x + table.x * zoom, y: page.y + table.y * zoom,
+                             width: moving.frame.width, height: moving.frame.height)
         let proposed = resting.offsetBy(dx: point.x - drag.start.x, dy: point.y - drag.start.y)
         let others = placed.filter { $0.sheet.id != drag.id }.map(\.frame)
         let snapped = CanvasSnapping.snap(
-            proposed, among: others, minimum: CanvasSnapping.minimumOrigin(zoom: zoom, rowCount: moving.sheet.rowCount))
+            proposed, among: others, minimum: page)
         drag.offset = CGSize(width: snapped.origin.x - resting.minX, height: snapped.origin.y - resting.minY)
         self.drag = drag
         if drag.offset != .zero { fadeHeaders(to: CanvasChrome.draggingOpacity) }

@@ -165,7 +165,8 @@ extension Worksheet {
 
     /// Whether the sheet's author already made it dark: most of the cells
     /// that show anything sit on a dark fill. A cell with content and no fill
-    /// counts as light, since that is the white paper it was written on.
+    /// counts as the page under it: white paper, unless the sheet has a
+    /// background colour.
     public var isAuthoredDark: Bool {
         var dark = 0
         var light = 0
@@ -173,10 +174,23 @@ extension Worksheet {
             if let isDark = AdaptiveColor.isDarkFill(hex: cell.style.fillColorHex) {
                 if isDark { dark += 1 } else { light += 1 }
             } else if !cell.isBlank {
-                light += 1
+                if isBackgroundDark { dark += 1 } else { light += 1 }
             }
         }
-        return dark > light
+        // A dark page with nothing on it yet is dark all the same.
+        return dark > light || (dark == light && isBackgroundDark)
+    }
+
+    /// Whether the sheet's background colour is dark, so what is drawn
+    /// straight on its page, a table's name, wants to be light.
+    public var isBackgroundDark: Bool {
+        AdaptiveColor.isDarkFill(hex: backgroundColorHex) ?? false
+    }
+
+    /// The sheet's background colour, adapted like a fill for the
+    /// appearance it is drawn in; nil for plain paper.
+    public func backgroundColor(for viewer: ColorScheme) -> Color? {
+        AdaptiveColor.resolve(hex: backgroundColorHex, for: colorScheme(for: viewer), isText: false)
     }
 
     /// The appearance to adapt this sheet's colours for: the viewer's, unless

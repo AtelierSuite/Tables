@@ -30,6 +30,9 @@ public struct NumbersCellStorage: Hashable, Sendable {
         public static let string: UInt32 = 0x8
         public static let richText: UInt32 = 0x10
         public static let formula: UInt32 = 0x200
+        /// A key into the table's controls: a checkbox, stepper, slider or
+        /// pop-up menu the cell's value is set with.
+        public static let control: UInt32 = 0x400
         public static let formulaError: UInt32 = 0x800
 
         /// The fields that hold a value, all replaced when it changes.

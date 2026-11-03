@@ -21,11 +21,14 @@ enum CanvasSnapping {
     /// another's to snap to it.
     static let threshold: CGFloat = 6
 
-    /// The nearest a table's first cell may come to the page's top-left, on
-    /// screen: room for its headers and its name, so its handle stays on
-    /// the page.
-    static func minimumOrigin(zoom: Double, rowCount: Int) -> CGPoint {
-        CGPoint(x: CanvasChrome.rowHeaderWidth(rowCount: rowCount) + 4, y: CanvasChrome.nameReach(zoom: zoom) + 4)
+    /// Where the page's top-left corner sits on screen, in from the
+    /// canvas's by room for a table's row numbers, column letters and name.
+    /// A table may sit right at the page's edge, as Numbers lets it, and
+    /// still show them, and the room is the same however the tables move,
+    /// so the page never shifts under them.
+    static func pageInset(zoom: Double) -> CGPoint {
+        CGPoint(x: CanvasChrome.rowHeaderWidth(rowCount: Worksheet.maximumRowCount) + 4,
+                y: CanvasChrome.nameReach(zoom: zoom) + 4)
     }
 
     /// Where `frame` lands among `others`, never nearer the page's top-left
@@ -97,6 +100,13 @@ enum CanvasChrome {
     /// column bar, kept for it even while it isn't shown.
     static func nameReach(zoom: Double) -> CGFloat {
         columnHeaderHeight + SheetCanvas.nameHeight * zoom
+    }
+
+    /// How far above a table's first cell the top of its name is drawn:
+    /// past the column bar on the table being worked on, and straight on
+    /// top of any other, which shows no bar, as Numbers draws it.
+    static func nameOffset(zoom: Double, showsHeaders: Bool) -> CGFloat {
+        showsHeaders ? nameReach(zoom: zoom) : SheetCanvas.nameHeight * zoom
     }
 
     /// How long headers take to fade in or out as tables are picked.

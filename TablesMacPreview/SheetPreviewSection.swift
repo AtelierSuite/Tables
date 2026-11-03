@@ -133,9 +133,9 @@ final class SheetPreviewGrid: NSView {
         context.saveGState()
         context.translateBy(x: gutter, y: header)
         context.clip(to: cells)
-        NSColor.textBackgroundColor.setFill()
-        cells.fill()
         var renderer = CellRenderer(sheet: sheet, metrics: metrics, appearance: effectiveAppearance)
+        renderer.paper.setFill()
+        cells.fill()
         renderer.shownArea = cells
         let area = dirtyRect.offsetBy(dx: -gutter, dy: -header).intersection(cells)
         if !area.isEmpty {

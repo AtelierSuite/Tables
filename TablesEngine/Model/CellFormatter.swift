@@ -12,6 +12,26 @@ public enum CellFormatter {
     }
 
     public static func displayText(for value: CellValue, format formatCode: String) -> String {
+        let text = marked(value, format: formatCode)
+        return text.contains(fillMark) ? text.replacingOccurrences(of: String(fillMark), with: "") : text
+    }
+
+    /// What `cell` shows split where its format's `*` fill falls, or nil
+    /// when its format has none. The fill takes up whatever room the cell
+    /// has, so the first part sits at the cell's leading edge and the second
+    /// at its trailing one — an accounting format's currency symbol at the
+    /// left and the amount at the right.
+    public static func filledText(for cell: Cell) -> (leading: String, trailing: String)? {
+        let text = marked(cell.value, format: cell.style.numberFormat)
+        guard let mark = text.firstIndex(of: fillMark) else { return nil }
+        let strip = { (part: Substring) in part.replacingOccurrences(of: String(fillMark), with: "") }
+        return (strip(text[..<mark]), strip(text[text.index(after: mark)...]))
+    }
+
+    /// Stands where a format's `*` fill goes in the text it renders.
+    private static let fillMark: Character = "\u{1F}"
+
+    private static func marked(_ value: CellValue, format formatCode: String) -> String {
         switch value {
         case .empty:
             return ""
@@ -104,7 +124,10 @@ public enum CellFormatter {
             } else {
                 switch character {
                 case "@": result += text
-                case "_", "*": index += 1
+                case "_": index += 1
+                case "*":
+                    index += 1
+                    result.append(fillMark)
                 case "\\":
                     index += 1
                     if index < characters.count { result.append(characters[index]) }
@@ -245,7 +268,8 @@ public enum CellFormatter {
             case "_":
                 index += 1  // Reserve-width token: skip the following character.
             case "*":
-                index += 1  // Fill token: not reproduced.
+                index += 1  // Fill token: marked, for the renderer to spread.
+                if seenDigit { result.suffix.append(fillMark) } else { result.prefix.append(fillMark) }
             case "[":
                 while index < characters.count, characters[index] != "]" { index += 1 }
             default:

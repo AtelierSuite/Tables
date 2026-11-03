@@ -29,6 +29,14 @@ struct CellRenderer {
         self.drawsGridlines = drawsGridlines
     }
 
+    /// What the cells without a fill of their own show through to: the
+    /// sheet's background colour, or the system's paper.
+    var paper: NSColor {
+        sheet.backgroundColorHex == nil ? .textBackgroundColor
+            : AdaptiveColor.resolve(hex: sheet.backgroundColorHex, for: scheme, isText: false).map { NSColor($0) }
+                ?? .textBackgroundColor
+    }
+
     static func gridLineColor(for appearance: NSAppearance) -> NSColor {
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             ? NSColor(white: 1, alpha: 0.32)
@@ -102,7 +110,7 @@ struct CellRenderer {
             let frame = metrics.frame(for: merge)
             let cell = sheet[merge.start]
             context.saveGState()
-            NSColor.textBackgroundColor.setFill()
+            paper.setFill()
             context.fill(frame)
             if let fill = cell.style.fillColor(for: scheme) {
                 context.setFillColor(NSColor(fill).cgColor)
@@ -220,8 +228,36 @@ struct CellRenderer {
     /// `overflow` is the stretch of the row the text may run across. The
     /// text is still aligned to its own cell, but measured and clipped
     /// against the larger stretch.
+    /// A Numbers checkbox: an empty box, or a filled one with a tick.
+    private func drawCheckbox(_ isOn: Bool, in box: CGRect, color: NSColor) {
+        guard box.width > 0 else { return }
+        let zoom = metrics.zoom
+        let shape = NSBezierPath(roundedRect: box, xRadius: 2.5 * zoom, yRadius: 2.5 * zoom)
+        guard isOn else {
+            color.withAlphaComponent(0.6).setStroke()
+            shape.lineWidth = max(1, zoom)
+            shape.stroke()
+            return
+        }
+        NSColor.controlAccentColor.setFill()
+        shape.fill()
+        let tick = NSBezierPath()
+        let points = CellStyle.checkmark(in: box)
+        tick.move(to: points[0])
+        points.dropFirst().forEach { tick.line(to: $0) }
+        tick.lineWidth = max(1.5, 1.8 * zoom)
+        tick.lineCapStyle = .round
+        tick.lineJoinStyle = .round
+        NSColor.white.setStroke()
+        tick.stroke()
+    }
+
     private func drawText(of cell: Cell, in frame: CGRect, overflow: CGRect?, context: CGContext) {
         let style = cell.style
+        if style.showsCheckbox, case .boolean(let isOn) = cell.value {
+            let color = style.textColor(for: scheme).map { NSColor($0) } ?? .labelColor
+            return drawCheckbox(isOn, in: style.checkboxFrame(in: frame, zoom: metrics.zoom), color: color)
+        }
         var string = CellFormatter.displayText(for: cell)
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
         if style.isTextStacked { string = string.map(String.init).joined(separator: "\n") }
@@ -311,6 +347,21 @@ struct CellRenderer {
         let target = CGRect(
             x: midX - size.width / 2, y: midY - size.height / 2, width: size.width, height: size.height
         )
+
+        // A format's fill spreads the text across the cell: an accounting
+        // format's symbol at the left edge, the amount at the right.
+        if !wraps, style.rotationDegrees == 0, measured.width <= box.width,
+           let parts = CellFormatter.filledText(for: cell) {
+            let leading = NSAttributedString(string: parts.leading, attributes: attributes)
+            let trailing = NSAttributedString(string: parts.trailing, attributes: attributes)
+            let trailingWidth = trailing.size().width
+            context.saveGState()
+            context.clip(to: frame)
+            leading.draw(at: CGPoint(x: box.minX, y: target.minY))
+            trailing.draw(at: CGPoint(x: box.maxX - trailingWidth, y: target.minY))
+            context.restoreGState()
+            return
+        }
 
         context.saveGState()
         context.clip(to: overflow.map { $0.union(frame) } ?? frame)

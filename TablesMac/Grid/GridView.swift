@@ -141,11 +141,11 @@ final class GridView: NSView, NSTextFieldDelegate {
     /// and for the frozen panes, which show parts of it in place.
     func drawSheet(_ dirtyRect: NSRect, in context: CGContext) {
         guard let document else { return }
-        NSColor.textBackgroundColor.setFill()
-        dirtyRect.fill()
         let renderer = CellRenderer(
             sheet: document.activeSheet, metrics: document.state.metrics, appearance: effectiveAppearance
         )
+        renderer.paper.setFill()
+        dirtyRect.fill()
         renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: effectiveAppearance))
         drawReferences(in: document, context: context)
         drawSelection(in: document, context: context)
@@ -303,6 +303,14 @@ final class GridView: NSView, NSTextFieldDelegate {
             state.selectDrawing(nil)
         }
         window?.makeFirstResponder(self)
+
+        // A click on a checkbox ticks it or clears it, and selects its cell.
+        let clicked = sheet[address]
+        if event.clickCount == 1, event.modifierFlags.isDisjoint(with: [.shift, .command]), clicked.style.showsCheckbox,
+           clicked.style.checkboxFrame(in: state.metrics.frame(for: address), zoom: state.metrics.zoom)
+               .insetBy(dx: -3, dy: -3).contains(point) {
+            document.edit { state.toggleCheckbox(at: address, in: &$0) }
+        }
 
         if event.clickCount == 1, event.modifierFlags.isDisjoint(with: [.shift, .command]),
            offersSelectionHandles(in: document) {

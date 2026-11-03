@@ -141,6 +141,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public var columnCount: Int = Worksheet.defaultColumnCount
     public var columnWidths: [Int: Double] = [:]
     public var rowHeights: [Int: Double] = [:]
+    /// How tall a row is when `rowHeights` doesn't say. Ours by default; a
+    /// Numbers table brings its own, and its place on a canvas assumes it.
+    public var standardRowHeight: Double = Worksheet.defaultRowHeight
     /// Rows whose height in `rowHeights` is one Excel fitted to their text
     /// rather than one somebody set. Excel only writes those down when the
     /// text needs more room than usual, so they are honoured — and written
@@ -163,6 +166,10 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// sheet by it goes on finding the same one.
     public var fileSheetID: Int?
     public var tabColorHex: String?
+    /// The colour of the page under the sheet's cells, as `AARRGGBB`, or nil
+    /// for plain paper. A Numbers sheet can be given one, which shows
+    /// through every cell without a fill of its own.
+    public var backgroundColorHex: String?
     /// The name the workbook's macros know this sheet by — `Sheet1` in
     /// `Sheet1.Range("A1")` — which stays put when the tab is renamed. It is
     /// what ties the sheet to its document module, so it has to survive a save
@@ -302,7 +309,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     }
 
     public func height(ofRow row: Int) -> Double {
-        hiddenRows.contains(row) ? 0 : (rowHeights[row] ?? Self.defaultRowHeight)
+        hiddenRows.contains(row) ? 0 : (rowHeights[row] ?? standardRowHeight)
     }
 
     /// True while nothing on the axis departs from the default size, which lets
@@ -317,7 +324,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     }
 
     public var totalHeight: Double {
-        guard !hasUniformRowHeights else { return Double(rowCount) * Self.defaultRowHeight }
+        guard !hasUniformRowHeights else { return Double(rowCount) * standardRowHeight }
         return (0..<rowCount).reduce(0) { $0 + height(ofRow: $1) }
     }
 

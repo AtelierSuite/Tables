@@ -113,10 +113,56 @@ struct NumbersReaderTests {
         #expect(sheet.columnWidths[1] == 150)
         #expect(sheet.columnWidths[0] == NumbersDocumentBuilder.defaultColumnWidth, "the table's own default width")
         #expect(sheet.rowHeights[2] == 40)
-        #expect(sheet.rowHeights[0] == nil, "rows of the default height keep ours")
+        #expect(sheet.rowHeights[0] == nil, "rows of the default height are left unsized")
+        #expect(sheet.height(ofRow: 0) < Worksheet.defaultRowHeight, "and are fitted as Numbers does, not ours")
         #expect(sheet.hiddenRows == [3])
         #expect(sheet.hiddenColumns == [2])
         #expect(Set(sheet.mergedRanges.map(\.a1)) == ["A1:B1", "C2:C3"])
+    }
+
+    @Test("Unsized rows are as tall as Numbers fitted them, not the table's default row height")
+    func fittedRowHeights() throws {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("A")], [], [], []])
+        table.defaultRowHeight = 23
+        table.rowSizes = [3: 40]
+        table.fittedRowHeights = [18, 17.99999, 30, 40]
+        document.addSheet("Sheet 1", tables: [table])
+        let sheet = try NumbersReader.workbook(from: document.singleFile()).sheets[0]
+
+        #expect(sheet.standardRowHeight == 18, "the usual fitted height")
+        #expect(sheet.rowHeights == [2: 30, 3: 40], "only the rows that differ are sized")
+        #expect(sheet.totalHeight == 18 + 18 + 30 + 40)
+        #expect(SheetMetrics(sheet: sheet).totalHeight == sheet.totalHeight)
+    }
+
+    @Test("A sheet's background colour, set by the style its own is a variation of, goes under its tables")
+    func sheetBackground() throws {
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Dark", tables: [.init(name: "Table 1", rows: [[.text("A")]])], background: (0, 0, 0, 1))
+        document.addSheet("White", tables: [.init(name: "Table 1", rows: [[.text("B")]])], background: (1, 1, 1, 1))
+        document.addSheet("Plain", tables: [.init(name: "Table 1", rows: [[.text("C")]])])
+        let sheets = try NumbersReader.workbook(from: document.singleFile()).sheets
+
+        #expect(sheets[0].backgroundColorHex == "FF000000")
+        #expect(sheets[0].isAuthoredDark, "text on the black page with no fill of its own reads as a dark sheet")
+        #expect(sheets[1].backgroundColorHex == nil, "white is plain paper")
+        #expect(sheets[2].backgroundColorHex == nil)
+        #expect(!sheets[2].isAuthoredDark)
+    }
+
+    @Test("Without fitted heights, unsized rows fit a line of the table's text")
+    func singleLineRows() throws {
+        var document = NumbersDocumentBuilder()
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [[.text("A")], [], []])
+        table.defaultRowHeight = 23
+        table.hasStyles = true
+        document.addSheet("Sheet 1", tables: [table])
+        let sheet = try NumbersReader.workbook(from: document.singleFile()).sheets[0]
+
+        #expect(sheet.rowHeights.isEmpty)
+        #expect(sheet.standardRowHeight == 18, "a line of 10-point text and its padding")
+        #expect(sheet.totalHeight == 18 * Double(sheet.rowCount))
     }
 
     @Test("Rows and columns hidden by hand or filtered out, which Numbers keeps by UUID")
@@ -336,6 +382,11 @@ struct NumbersDocumentBuilder {
         /// Where the table sits on its sheet, as its drawable records it.
         var origin: (x: Float, y: Float)?
         var showsName = false
+        /// The table's default row height, when it records one.
+        var defaultRowHeight: Double?
+        /// The heights Numbers last fitted each row to, which its drawable
+        /// keeps, when it has.
+        var fittedRowHeights: [Float]?
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -374,10 +425,22 @@ struct NumbersDocumentBuilder {
     static let staleOwnerListIdentifier: UInt64 = 4
     static let saveToken: UInt64 = 7
 
-    mutating func addSheet(_ name: String, tables: [Table]) {
+    /// `background` fills the sheet's page, red, green, blue and alpha from
+    /// 0 to 1, set by a style the sheet's own style is a variation of.
+    mutating func addSheet(_ name: String, tables: [Table], background: (Float, Float, Float, Float)? = nil) {
         var infos: [UInt64] = []
         for table in tables { infos.append(addTable(table)) }
-        let sheet = infos.reduce(ProtobufWriter().string(1, name)) { $0.message(2, Self.reference($1)) }
+        var sheet = infos.reduce(ProtobufWriter().string(1, name)) { $0.message(2, Self.reference($1)) }
+        if let (red, green, blue, alpha) = background {
+            let color = ProtobufWriter().varint(1, 1).float(3, red).float(4, green).float(5, blue).float(6, alpha)
+            let parent = add(type: 12050, ProtobufWriter()
+                .message(1, ProtobufWriter().string(2, "sheet-0-sheetStyle"))
+                .message(3, ProtobufWriter().message(1, ProtobufWriter().message(1, color))))
+            let style = add(type: 12050, ProtobufWriter()
+                .message(1, ProtobufWriter().message(3, Self.reference(parent)).varint(4, 1))
+                .message(3, ProtobufWriter()))
+            sheet = sheet.message(22, Self.reference(style))
+        }
         sheetIdentifiers.append(add(type: 2, sheet))
     }
 
@@ -540,6 +603,7 @@ struct NumbersDocumentBuilder {
             .double(16, 20)
             .double(17, Self.defaultColumnWidth)
         if table.showsName { model = model.bool(22, true) }
+        if let height = table.defaultRowHeight { model = model.double(16, height) }
         if table.headerRows > 0 { model = model.varint(9, table.headerRows) }
         if table.headerColumns > 0 { model = model.varint(10, table.headerColumns) }
         if table.footerRows > 0 { model = model.varint(11, table.footerRows) }
@@ -569,7 +633,12 @@ struct NumbersDocumentBuilder {
                 .message(1, ProtobufWriter().float(1, origin.x).float(2, origin.y))
                 .message(2, ProtobufWriter().float(1, 300).float(2, 200)))
         } ?? ProtobufWriter()
-        return add(type: 6000, ProtobufWriter().message(1, drawable).message(2, Self.reference(modelIdentifier)))
+        var info = ProtobufWriter().message(1, drawable).message(2, Self.reference(modelIdentifier))
+        if let fitted = table.fittedRowHeights {
+            let rows = fitted.reduce(ProtobufWriter()) { $0.message(1, ProtobufWriter().varint(1, 0).float(2, $1)) }
+            info = info.message(14, ProtobufWriter().message(1, rows))
+        }
+        return add(type: 6000, info)
     }
 
     /// Identifiers for each row and column, numbered so their order differs

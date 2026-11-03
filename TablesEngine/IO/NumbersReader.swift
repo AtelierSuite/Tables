@@ -83,6 +83,7 @@ public enum NumbersReader {
         }
 
         let mergeOwners = MergeOwners(archive: archive)
+        let language = Self.language(of: document.message)
         var workbook = Workbook()
         workbook.sheets = []
         var tables: [Worksheet.ID: NumbersSource.Table] = [:]
@@ -91,6 +92,7 @@ public enum NumbersReader {
         for sheetReference in document.message.messages(1) {
             guard let sheet = archive[sheetReference]?.message else { continue }
             let sheetName = sheet.string(1) ?? ""
+            let background = Self.backgroundColor(of: sheet, in: archive)
             let models = sheet.messages(2)
                 .compactMap { reference in archive[reference].map { (reference.uint(1), $0) } }
                 .filter { $0.1.type == ObjectType.tableInfo }
@@ -105,9 +107,11 @@ public enum NumbersReader {
 
             var placed: [Worksheet.ID] = []
             for model in models {
-                let reader = try TableReader(table: model.message, archive: archive)
+                let reader = try TableReader(table: model.message, archive: archive, language: language)
                 var worksheet = reader.worksheet
                 worksheet.mergedRanges += mergeOwners.ranges(for: model.message)
+                Self.fitRows(of: &worksheet, to: model.info)
+                worksheet.backgroundColorHex = background
                 // A sheet's one table goes by the sheet's name, as people think
                 // of it; several are told apart by their own names as well.
                 let tableName = model.message.string(8) ?? ""
@@ -351,6 +355,63 @@ public enum NumbersReader {
         return false
     }
 
+    /// The colour a sheet's style fills its page with, under every table on
+    /// it; nil for white, or for a fill that isn't a colour.
+    private static func backgroundColor(of sheet: ProtobufMessage, in archive: IWAArchive) -> String? {
+        let resolver = NumbersStyles.Resolver { archive[$0]?.message }
+        let fill: String?? = resolver.value(sheet.message(SheetField.style)?.uint(1), properties: SheetField.styleProperties) {
+            $0.message(SheetField.fill).map { $0.message(1).flatMap(NumbersStyles.color) }
+        }
+        guard let color = fill ?? nil, color != "FFFFFFFF", !color.hasPrefix("00") else { return nil }
+        return color
+    }
+
+    /// The document's language, as the locale it was written in names it:
+    /// `ja_JP`, say. It names the months in the dates the document shows.
+    private static func language(of document: ProtobufMessage) -> String? {
+        document.message(DocumentField.base)?.message(1)?.string(DocumentField.locale)
+    }
+
+    /// Sizes the rows Numbers leaves unsized, which it fits to their text.
+    ///
+    /// Numbers keeps the heights it fitted them to with the table's drawable,
+    /// a row apiece, and those are used where they are there. Otherwise a row
+    /// is as tall as a line of the table's most common font and the padding
+    /// round it. The table's default row height is not what Numbers draws
+    /// them at, and the tables on a sheet are placed by what it does draw.
+    private static func fitRows(of worksheet: inout Worksheet, to info: ProtobufMessage) {
+        let fitted = info.message(TableInfoField.fittedRowHeights)?.message(1)?.messages(1)
+            .compactMap { $0.float(2).map(Double.init) } ?? []
+        guard fitted.count == worksheet.rowCount, fitted.allSatisfy({ $0 > 0 }) else {
+            worksheet.standardRowHeight = singleLineRowHeight(of: worksheet)
+            return
+        }
+        // The usual height is the standard one, kept off each row so evenly
+        // spaced rows stay on the grid's fast path.
+        let rounded = fitted.map { ($0 * 4).rounded() / 4 }
+        let counts = Dictionary(rounded.map { ($0, 1) }, uniquingKeysWith: +)
+        let usual = counts.max { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }?.key
+            ?? NumbersSource.defaultRowHeight
+        worksheet.standardRowHeight = usual
+        for (row, height) in rounded.enumerated() where worksheet.rowHeights[row] == nil && height != usual {
+            worksheet.rowHeights[row] = height
+        }
+    }
+
+    /// How tall Numbers fits a row of one line of text: the line, at the
+    /// size most of the table's cells are in, and the padding above and
+    /// below it.
+    static func singleLineRowHeight(of worksheet: Worksheet) -> Double {
+        let sizes = worksheet.cells.values.lazy.filter { !$0.isBlank }.prefix(1_000).map(\.style.fontSize)
+        let counts = Dictionary(sizes.map { ($0, 1) }, uniquingKeysWith: +)
+        let size = counts.max { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }?.key
+            ?? numbersFontSize
+        return (size * 1.2 + 6).rounded()
+    }
+
+    /// The size of Numbers' text when a table's styles don't say.
+    static let numbersFontSize = 10.0
+
     /// Where a table's top-left corner sits on its sheet, from the geometry
     /// of the `TST.TableInfoArchive` drawable that places it.
     private static func canvasOrigin(of info: ProtobufMessage) -> CGPoint? {
@@ -363,6 +424,26 @@ public enum NumbersReader {
 
     /// Fields of a `TST.TableModelArchive` read for drawing previews and
     /// laying tables out, and written back when the layout changes.
+    /// Fields of a `TN.DocumentArchive`, in the `TSA.DocumentArchive` it
+    /// extends.
+    enum DocumentField {
+        static let base = 8
+        static let locale = 4
+    }
+
+    /// Fields of a `TN.SheetArchive` and of its `TN.SheetStyleArchive`.
+    enum SheetField {
+        static let style = 22
+        static let styleProperties = 3
+        static let fill = 1
+    }
+
+    /// Fields of a `TST.TableInfoArchive`, the drawable placing a table.
+    enum TableInfoField {
+        /// The heights Numbers last fitted each row to.
+        static let fittedRowHeights = 14
+    }
+
     public enum TableField {
         public static let nameShown = 22
         public static let defaultRowHeight = 16
@@ -505,7 +586,7 @@ private struct TableReader {
     private(set) var hidden = NumbersHiddenStates.Hidden()
     private(set) var hasRichText = false
 
-    init(table: ProtobufMessage, archive: IWAArchive) throws {
+    init(table: ProtobufMessage, archive: IWAArchive, language: String? = nil) throws {
         worksheet = Worksheet(name: table.string(8) ?? "")
         let rowCount = table.int(6) ?? 0
         let columnCount = table.int(7) ?? 0
@@ -517,6 +598,13 @@ private struct TableReader {
         let richText = Self.dataList(store.message(17), in: archive) { Self.text(ofRichTextPayload: $0.message(9), in: archive) }
         let formulaNodes = Self.dataList(store.message(6), in: archive) { $0.message(5)?.message(1)?.messages(1) ?? [] }
         let styles = Self.dataList(store.message(5), in: archive) { $0.message(4)?.uint(1) }
+        // Numbers 10 moved the formats to a list of their own, leaving the
+        // old one empty; a file may have either.
+        let formats = Self.dataList(store.message(TableStoreField.formats), in: archive) { entry in
+            entry.message(6).flatMap { NumbersFormats.code(for: $0, language: language) }
+        }.merging(Self.dataList(store.message(TableStoreField.legacyFormats), in: archive) { entry in
+            entry.message(6).flatMap { NumbersFormats.code(for: $0, language: language) }
+        }) { current, _ in current }
         var formatting = Formatting(regions: NumbersStyles.Regions(model: table), rowCount: rowCount, archive: archive)
 
         // Rows are stored in tiles of a fixed number of rows each.
@@ -550,6 +638,15 @@ private struct TableReader {
                             cell: parsed.key(of: NumbersStyles.Field.cellStyle).flatMap { styles[$0] ?? nil },
                             base: base
                         )
+                        if let field = NumbersFormats.storageField(forCellType: parsed.type),
+                           let key = parsed.key(of: field), let code = formats[key] ?? nil {
+                            cell?.style.numberFormat = code
+                        }
+                        // The one control a TRUE or FALSE is set with is a checkbox.
+                        if parsed.type == NumbersCellStorage.CellType.boolean,
+                           parsed.field(NumbersCellStorage.Field.control) != nil {
+                            cell?.style.showsCheckbox = true
+                        }
                     }
                     if formulas[address] != nil { results[address] = cell ?? Cell() }
                     guard row < worksheet.rowCount, column < worksheet.columnCount, let cell, !cell.isEmptyEntirely else { continue }
@@ -562,6 +659,12 @@ private struct TableReader {
         readHeaders(store, table: table, archive: archive)
         worksheet.mergedRanges = Self.mergedRanges(store, in: archive)
         readHiddenStates(table, archive: archive)
+    }
+
+    /// Fields of a `TST.DataStore`, the lists a table's cells keep keys into.
+    private enum TableStoreField {
+        static let legacyFormats = 11
+        static let formats = 22
     }
 
     /// What the styles of each part of a table and of each cell come to.
@@ -667,9 +770,9 @@ private struct TableReader {
     /// Numbers records only where they differ from the table's defaults.
     ///
     /// The default column width comes across, since Numbers' columns are
-    /// wider than ours and text would otherwise be cut short; the default row
-    /// height does not, as setting it on every row would cost the grid its
-    /// fast path for evenly spaced rows.
+    /// wider than ours and text would otherwise be cut short. The rows
+    /// Numbers leaves unsized are fitted to their text there, which
+    /// `fitRows(to:)` does once the table's drawable is known.
     private mutating func readHeaders(_ store: ProtobufMessage, table: ProtobufMessage, archive: IWAArchive) {
         let defaultWidth = table.double(17) ?? 0
         let rowBuckets = store.message(1)?.messages(2).compactMap { archive[$0]?.message } ?? []

@@ -331,11 +331,32 @@ enum CellPainter {
     /// text is still aligned to its own cell — Excel's centred title stays
     /// centred on its cell however far it spills — but it is measured, cut
     /// short and clipped against the larger stretch.
+    /// A Numbers checkbox: an empty box, or a filled one with a tick.
+    private static func paintCheckbox(
+        _ isOn: Bool, in box: CGRect, color: Color, zoom: Double, into context: inout GraphicsContext
+    ) {
+        guard box.width > 0 else { return }
+        let shape = Path(roundedRect: box, cornerRadius: 2.5 * zoom)
+        guard isOn else {
+            context.stroke(shape, with: .color(color.opacity(0.6)), lineWidth: max(1, zoom))
+            return
+        }
+        context.fill(shape, with: .color(.accentColor))
+        var tick = Path()
+        tick.addLines(CellStyle.checkmark(in: box))
+        context.stroke(tick, with: .color(.white),
+                       style: StrokeStyle(lineWidth: max(1.5, 1.8 * zoom), lineCap: .round, lineJoin: .round))
+    }
+
     private static func paintText(
         _ cell: Cell, in frame: CGRect, overflow: CGRect?, zoom: Double, scheme: ColorScheme,
         into context: inout GraphicsContext
     ) {
         let style = cell.style
+        if style.showsCheckbox, case .boolean(let isOn) = cell.value {
+            let color = style.textColor(for: scheme) ?? .primary
+            return paintCheckbox(isOn, in: style.checkboxFrame(in: frame, zoom: zoom), color: color, zoom: zoom, into: &context)
+        }
         var string = CellFormatter.displayText(for: cell)
         guard !string.isEmpty else { return }
         // Stacked text is drawn as one glyph per line rather than by rotating
@@ -412,6 +433,22 @@ enum CellPainter {
         case .bottom: y = box.maxY - measured.height
         }
         let target = CGRect(x: x, y: y, width: width, height: measured.height)
+
+        // A format's fill spreads the text across the cell: an accounting
+        // format's symbol at the left edge, the amount at the right.
+        if !wraps, style.rotationDegrees == 0, measured.width <= box.width,
+           let parts = CellFormatter.filledText(for: cell) {
+            let leading = context.resolve(make(parts.leading))
+            let trailing = context.resolve(make(parts.trailing))
+            let leadingSize = leading.measure(in: CGSize(width: unbounded, height: unbounded))
+            let trailingSize = trailing.measure(in: CGSize(width: unbounded, height: unbounded))
+            context.drawLayer { layer in
+                layer.clip(to: Path(frame))
+                layer.draw(leading, in: CGRect(origin: CGPoint(x: box.minX, y: y), size: leadingSize))
+                layer.draw(trailing, in: CGRect(origin: CGPoint(x: box.maxX - trailingSize.width, y: y), size: trailingSize))
+            }
+            return
+        }
 
         context.drawLayer { layer in
             // A font taller than the row, a rotated run, or wrapped text with
