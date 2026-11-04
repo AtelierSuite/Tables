@@ -191,6 +191,8 @@ public final class CalculationEngine: FormulaContext {
         var styles: [CellAddress: ConditionalStyle] = [:]
         var stopped = Set<CellAddress>()
         for rule in sheet.conditionalRules {
+            guard let base = rule.base else { continue }
+            let fill = conditionalFill(of: rule, from: base)
             for range in rule.ranges {
                 let box = range.normalized
                 guard box.start.row < sheet.rowCount, box.start.column < sheet.columnCount else { continue }
@@ -199,14 +201,34 @@ public final class CalculationEngine: FormulaContext {
                     column: min(box.end.column, sheet.columnCount - 1)
                 ))
                 shown.forEachAddress { address in
-                    guard !stopped.contains(address), let test = rule.testFormula(at: address),
-                          Self.passes(evaluate(body: test, sheetIndex: sheetIndex, at: address)) else { return }
+                    guard !stopped.contains(address) else { return }
+                    let result: FormulaValue
+                    if let node = fill?.node(
+                        rowDelta: address.row - base.row, columnDelta: address.column - base.column
+                    ) {
+                        result = evaluate(node: node, sheetIndex: sheetIndex, at: address)
+                    } else if let test = rule.testFormula(at: address) {
+                        result = evaluate(body: test, sheetIndex: sheetIndex, at: address)
+                    } else {
+                        return
+                    }
+                    guard Self.passes(result) else { return }
                     styles[address, default: ConditionalStyle()].adopt(rule.style)
                     if rule.stopsIfTrue { stopped.insert(address) }
                 }
             }
         }
         return styles
+    }
+
+    /// A rule's test parsed once for all its cells, or nil when it can only
+    /// be had cell by cell.
+    private func conditionalFill(of rule: ConditionalRule, from base: CellAddress) -> FormulaFill? {
+        let next = CellAddress(row: base.row + 1, column: base.column + 1)
+        guard let origin = rule.testFormula(at: base), let probe = rule.testFormula(at: next),
+              case .success(let originNode) = parsed(origin),
+              case .success(let probeNode) = parsed(probe) else { return nil }
+        return FormulaFill(origin: originNode, probe: probeNode)
     }
 
     /// Whether a rule's result counts as true. Text and errors do not.
@@ -608,11 +630,15 @@ public final class CalculationEngine: FormulaContext {
         case .failure:
             return .failure(.nameError)
         case .success(let node):
-            let previousSheet = activeSheetIndex
-            activeSheetIndex = sheetIndex
-            defer { activeSheetIndex = previousSheet }
-            return FormulaEvaluator(context: self, currentAddress: address).evaluate(node)
+            return evaluate(node: node, sheetIndex: sheetIndex, at: address)
         }
+    }
+
+    private func evaluate(node: FormulaNode, sheetIndex: Int, at address: CellAddress?) -> FormulaValue {
+        let previousSheet = activeSheetIndex
+        activeSheetIndex = sheetIndex
+        defer { activeSheetIndex = previousSheet }
+        return FormulaEvaluator(context: self, currentAddress: address).evaluate(node)
     }
 
     private func parsed(_ body: String) -> Result<FormulaNode, FormulaParseFailure> {

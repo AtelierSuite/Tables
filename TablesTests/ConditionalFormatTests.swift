@@ -225,6 +225,68 @@ struct ConditionalFormatTests {
         #expect(book.sheets[0].conditionalRules.isEmpty)
     }
 
+    // MARK: - Filling a parsed test
+
+    private func fill(of formula: String) throws -> FormulaFill? {
+        let probe = FormulaReferenceShifter.translated(formula, rowDelta: 1, columnDelta: 1)
+        return FormulaFill(origin: try FormulaParser.parse(formula), probe: try FormulaParser.parse(probe))
+    }
+
+    @Test(
+        "A filled test is what parsing the filled text gives",
+        arguments: [
+            "A1>5", "$A1>5", "A$1>5", "$A$1>5", "(A1)>(100)", "-A1%", "SUM(A1:B2)>0", "SUM($A$1:B2)>0",
+            "SUM($A1:B$2)>0", "COUNTIF($A$1:$A$100,A1)>1", "COUNTIF(A:A,A1)>1", "SUM($A:B)>0", "SUM(1:2)>0",
+            "SUM($1:2)>0", "Other!A1>0", "'My Sheet'!$B2=A1", "SUM(Jan:Mar!B2)>0", "SUM(Jan:Mar!$B$2:C3)>0",
+            "AND(A1>=(5),A1<=(10))", "NOT(ISERROR(SEARCH(\"x\",A1)))", "LEN(TRIM(A1))=0", "$B1=\"late\"",
+            "ROW()>1", "MOD(ROW(),2)=0", "TRUE", "1", "IF(A1,,2)", "{1,2;3,A1}=1", "SUM((A1:A3,C1:C3))>0",
+            "LET(x,A1,x>1)", "LAMBDA(x,x+A1)(2)>0", "SomeName>A1", "@A1:A5>0", "A1#>0", "A1:INDEX(B:B,3)",
+            "A1 B1", "XFD1>0", "A1048576>0", "$XFD$1048576>0", "#REF!>0",
+        ]
+    )
+    func filledMatchesParsedText(formula: String) throws {
+        guard let fill = try fill(of: formula) else { return }
+        for (rows, columns) in [(0, 0), (1, 0), (0, 1), (1, 1), (7, 3), (250, 40), (100_000, 2_000), (2_000_000, 20_000)] {
+            guard let node = fill.node(rowDelta: rows, columnDelta: columns) else { continue }
+            let text = FormulaReferenceShifter.translated(formula, rowDelta: rows, columnDelta: columns)
+            #expect(node == (try FormulaParser.parse(text)), "\(formula) by \(rows), \(columns) is \(text)")
+        }
+    }
+
+    @Test("A fill stands aside where only the text can say")
+    func fillFallsBack() throws {
+        let edge = try #require(try fill(of: "XFD1>0"))
+        #expect(edge.node(rowDelta: 0, columnDelta: 0) != nil)
+        #expect(edge.node(rowDelta: 0, columnDelta: 1) == nil)
+        let crossing = try #require(try fill(of: "SUM($A1:A$5)>0"))
+        #expect(crossing.node(rowDelta: 4, columnDelta: 0) != nil)
+        #expect(crossing.node(rowDelta: 10, columnDelta: 0) == nil)
+    }
+
+    @Test("Cells past where a fill can go are still tested")
+    func testedWithoutAFill() throws {
+        // Filled down, the range's ends cross: `$A4:A$3` must read as rows 3 and 4.
+        let book = try workbook(
+            cells: ["A1": .number(1), "A2": .number(1), "A3": .number(1), "A4": .number(1)],
+            formats: [format("B1:B4", rule("expression", "SUM($A1:A$2)=2"))]
+        )
+        #expect(try fill("B1", in: book) == Self.red)
+        #expect(try fill("B2", in: book) == nil)
+        #expect(try fill("B3", in: book) == Self.red)
+        #expect(try fill("B4", in: book) == nil)
+    }
+
+    @Test("ROW reports each cell a rule is tested at")
+    func rowInATest() throws {
+        let book = try workbook(
+            cells: ["A1": .number(1)], formats: [format("A1:A4", rule("expression", "MOD(ROW(),2)=0"))]
+        )
+        #expect(try fill("A1", in: book) == nil)
+        #expect(try fill("A2", in: book) == Self.red)
+        #expect(try fill("A3", in: book) == nil)
+        #expect(try fill("A4", in: book) == Self.red)
+    }
+
     // MARK: - Structural edits
 
     @Test("An inserted row moves the rule on screen and in the save")
