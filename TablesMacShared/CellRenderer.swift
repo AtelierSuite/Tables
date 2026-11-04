@@ -78,7 +78,9 @@ struct CellRenderer {
         for row in rows where !sheet.hiddenRows.contains(row) {
             for column in columns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
-                guard !covered.contains(address), let cell = sheet.cells[address], !cell.isEmptyEntirely else { continue }
+                guard !covered.contains(address) else { continue }
+                let cell = sheet.displayedCell(at: address)
+                guard !cell.isEmptyEntirely else { continue }
                 painted.append((address, cell, overflow(of: address, edges: &openEdges)))
             }
             painted += spills(into: row, columns: columns, edges: &openEdges)
@@ -108,7 +110,7 @@ struct CellRenderer {
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in merges {
             let frame = metrics.frame(for: merge)
-            let cell = sheet[merge.start]
+            let cell = sheet.displayedCell(at: merge.start)
             context.saveGState()
             paper.setFill()
             context.fill(frame)
@@ -173,7 +175,8 @@ struct CellRenderer {
         for candidates in [Array(before), Array(after)] {
             for column in candidates {
                 let address = CellAddress(row: row, column: column)
-                guard let cell = sheet.cells[address], !cell.isBlank else { continue }
+                let cell = sheet.displayedCell(at: address)
+                guard !cell.isBlank else { continue }
                 if let span = sheet.overflowSpan(of: address, reach: reach),
                    span.overlaps(columns.lowerBound...(columns.upperBound - 1)) {
                     found.append((address, cell, overflow(of: address, edges: &edges)))

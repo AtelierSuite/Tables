@@ -20,6 +20,7 @@ public enum XLSXReader {
         let styles = parseStyles(entries["xl/styles.xml"], theme: theme)
         let styleSheetElements = preservedStyleSheetElements(entries["xl/styles.xml"])
         let hasDifferentialFormats = styleSheetElements.contains { $0.name == "dxfs" }
+        let differentialStyles = parseDifferentialStyles(entries["xl/styles.xml"], theme: theme)
 
         // Workbooks written on the classic Mac epoch count days from 1904.
         // Serials are normalized to the 1900 system on the way in so nothing
@@ -69,7 +70,8 @@ public enum XLSXReader {
             } else {
                 sheet = parseSheet(
                     sheetXML, name: name, sharedStrings: sharedStrings, styles: styles,
-                    usesMacEpoch: usesMacEpoch, hasDifferentialFormats: hasDifferentialFormats
+                    usesMacEpoch: usesMacEpoch, hasDifferentialFormats: hasDifferentialFormats,
+                    differentialStyles: differentialStyles
                 )
             }
             // The drawing is regenerated from the model on every save, so the
@@ -487,7 +489,7 @@ public enum XLSXReader {
 
     private static func parseSheet(
         _ root: XMLElement, name: String, sharedStrings: [String], styles: [CellStyle],
-        usesMacEpoch: Bool, hasDifferentialFormats: Bool
+        usesMacEpoch: Bool, hasDifferentialFormats: Bool, differentialStyles: [ConditionalStyle]
     ) -> Worksheet {
         var sheet = Worksheet(name: name)
         var maximumRow = 0
@@ -592,8 +594,75 @@ public enum XLSXReader {
         sheet.preservedElements = preservedChildren(
             of: root, hasDifferentialFormats: hasDifferentialFormats
         )
+        sheet.conditionalRules = conditionalRules(in: root, styles: differentialStyles)
         readFrozenPanes(into: &sheet)
         return sheet
+    }
+
+    /// The `<dxfs>` table, in the order rules index into it.
+    ///
+    /// A differential fill keeps its colour in `bgColor`, the reverse of a
+    /// cell fill's `fgColor`: with no pattern named, it is solid in that colour.
+    private static func parseDifferentialStyles(_ data: Data?, theme: ThemeColorScheme) -> [ConditionalStyle] {
+        guard let data, let root = try? XMLLite.parse(data) else { return [] }
+        func flag(_ name: String, in font: XMLElement?) -> Bool? {
+            guard let element = font?.firstChild(named: name) else { return nil }
+            guard let value = element.attribute("val") else { return true }
+            return isTrue(value)
+        }
+        return (root.firstChild(named: "dxfs")?.children(named: "dxf") ?? []).map { element in
+            var style = ConditionalStyle()
+            if let pattern = element.firstChild(named: "fill")?.firstChild(named: "patternFill"),
+               pattern.attribute("patternType") != "none" {
+                style.fillColorHex = ThemeColorPalette.resolvedARGB(from: pattern.firstChild(named: "bgColor"), theme: theme)
+                    ?? ThemeColorPalette.resolvedARGB(from: pattern.firstChild(named: "fgColor"), theme: theme)
+            }
+            let font = element.firstChild(named: "font")
+            style.textColorHex = ThemeColorPalette.resolvedARGB(from: font?.firstChild(named: "color"), theme: theme)
+            style.isBold = flag("b", in: font)
+            style.isItalic = flag("i", in: font)
+            style.isStruckThrough = flag("strike", in: font)
+            if let underline = font?.firstChild(named: "u") {
+                style.isUnderlined = underline.attribute("val") != "none"
+            }
+            return style
+        }
+    }
+
+    /// Rule types whose `<formula>` is the whole test. Excel writes one out
+    /// for each of these, the text and date rules included.
+    private static let formulaRuleTypes: Set<String> = [
+        "expression", "containsText", "notContainsText", "beginsWith", "endsWith",
+        "containsBlanks", "notContainsBlanks", "containsErrors", "notContainsErrors", "timePeriod",
+    ]
+
+    /// The sheet's rules that style a cell and can be tested, highest priority
+    /// first. Rules of other kinds are left to the kept XML.
+    private static func conditionalRules(in root: XMLElement, styles: [ConditionalStyle]) -> [ConditionalRule] {
+        var rules: [ConditionalRule] = []
+        for element in root.children(named: "conditionalFormatting") {
+            let ranges = ConditionalRule.ranges(sqref: element.attribute("sqref") ?? "")
+            guard !ranges.isEmpty else { continue }
+            for rule in element.children(named: "cfRule") {
+                guard let type = rule.attribute("type"),
+                      let index = rule.attribute("dxfId").flatMap(Int.init), styles.indices.contains(index),
+                      let priority = rule.attribute("priority").flatMap(Int.init) else { continue }
+                let formulas = rule.children(named: "formula").map(\.text)
+                var comparison: ConditionalRule.Comparison?
+                if type == "cellIs" {
+                    guard let parsed = rule.attribute("operator").flatMap(ConditionalRule.Comparison.init(rawValue:)),
+                          formulas.count >= parsed.operandCount else { continue }
+                    comparison = parsed
+                } else {
+                    guard formulaRuleTypes.contains(type), !formulas.isEmpty else { continue }
+                }
+                rules.append(ConditionalRule(
+                    ranges: ranges, comparison: comparison, formulas: formulas, priority: priority,
+                    stopsIfTrue: isTrue(rule.attribute("stopIfTrue")), style: styles[index]
+                ))
+            }
+        }
+        return rules.sorted { $0.priority < $1.priority }
     }
 
     /// Reads a frozen pane off the sheet's first view, and takes it — with
