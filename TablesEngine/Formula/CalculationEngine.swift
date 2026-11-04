@@ -170,8 +170,52 @@ public final class CalculationEngine: FormulaContext {
                 }
             }
             if result.sheets[sheetIndex].spills != spills { result.sheets[sheetIndex].spills = spills }
+
+            let styles = conditionalStyles(of: result.sheets[sheetIndex], sheetIndex: sheetIndex)
+            if result.sheets[sheetIndex].conditionalStyles != styles {
+                result.sheets[sheetIndex].conditionalStyles = styles
+            }
         }
         return result
+    }
+
+    // MARK: - Conditional formats
+
+    /// What the sheet's rules settle on for each cell they reach.
+    ///
+    /// Blank cells are tested too, since a rule can style them. A range runs
+    /// no further than the sheet: Excel writes a whole column out to its last
+    /// row, far past anything here that could be drawn.
+    private func conditionalStyles(of sheet: Worksheet, sheetIndex: Int) -> [CellAddress: ConditionalStyle] {
+        guard !sheet.conditionalRules.isEmpty else { return [:] }
+        var styles: [CellAddress: ConditionalStyle] = [:]
+        var stopped = Set<CellAddress>()
+        for rule in sheet.conditionalRules {
+            for range in rule.ranges {
+                let box = range.normalized
+                guard box.start.row < sheet.rowCount, box.start.column < sheet.columnCount else { continue }
+                let shown = CellRange(start: box.start, end: CellAddress(
+                    row: min(box.end.row, sheet.rowCount - 1),
+                    column: min(box.end.column, sheet.columnCount - 1)
+                ))
+                shown.forEachAddress { address in
+                    guard !stopped.contains(address), let test = rule.testFormula(at: address),
+                          Self.passes(evaluate(body: test, sheetIndex: sheetIndex, at: address)) else { return }
+                    styles[address, default: ConditionalStyle()].adopt(rule.style)
+                    if rule.stopsIfTrue { stopped.insert(address) }
+                }
+            }
+        }
+        return styles
+    }
+
+    /// Whether a rule's result counts as true. Text and errors do not.
+    private static func passes(_ result: FormulaValue) -> Bool {
+        switch result.single {
+        case .boolean(let flag): return flag
+        case .number(let number): return number != 0
+        default: return false
+        }
     }
 
     // MARK: - Spilling

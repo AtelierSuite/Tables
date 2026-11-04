@@ -789,7 +789,7 @@ struct SheetGridView: View {
             painted.merges.append(PaintedMerge(
                 range: box,
                 frame: metrics.frame(for: box),
-                cell: sheet[box.start],
+                cell: sheet.displayedCell(at: box.start),
                 ownsElement: plan.rows.contains(box.start.row)
                     && plan.columns.contains(box.start.column)
             ))
@@ -808,8 +808,9 @@ struct SheetGridView: View {
         for row in plan.rows where !sheet.hiddenRows.contains(row) {
             for column in plan.columns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
-                guard !painted.covered.contains(address),
-                      let cell = sheet.cells[address], !cell.isEmptyEntirely else { continue }
+                guard !painted.covered.contains(address) else { continue }
+                let cell = sheet.displayedCell(at: address)
+                guard !cell.isEmptyEntirely else { continue }
                 var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
                 entry.overflow = overflow(of: address, in: sheet, metrics: metrics, edges: &painted.overflowEdges)
                 painted.cells.append(entry)
@@ -887,7 +888,8 @@ struct SheetGridView: View {
         for columns in [AnySequence(before), AnySequence(after)] {
             for column in columns {
                 let address = CellAddress(row: row, column: column)
-                guard let cell = sheet.cells[address], !cell.isBlank else { continue }
+                let cell = sheet.displayedCell(at: address)
+                guard !cell.isBlank else { continue }
                 if let span = sheet.overflowSpan(of: address, reach: reach),
                    span.overlaps(plan.columns.lowerBound...(plan.columns.upperBound - 1)) {
                     var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
