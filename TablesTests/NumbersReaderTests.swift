@@ -337,6 +337,26 @@ struct NumbersDocumentBuilder {
         /// Text in a bold variation of the body's text style, as Numbers
         /// makes one, in a table with styles.
         case boldText(String)
+        /// A number, text or blank naming the table's highlighting rules, with
+        /// no rule recorded as applied.
+        case highlightedNumber(Int64)
+        case highlightedText(String)
+        case highlightedEmpty
+    }
+
+    /// A conditional highlighting rule comparing a cell with a number.
+    struct HighlightRule {
+        /// The predicate type, which is the comparison's formula node: 7 for
+        /// greater than, 9 for less than.
+        var comparison: Int
+        var number: Double
+        var textColor: (Float, Float, Float)?
+        var fill: (Float, Float, Float)?
+        var isBold = false
+        /// A formula node Tables doesn't know.
+        var isUnreadable = false
+        /// How far the cell it tests is from the one highlighted.
+        var targetRowOffset = 0
     }
 
     struct Table {
@@ -352,6 +372,7 @@ struct NumbersDocumentBuilder {
         var hiddenColumns: Set<Int> = []
         /// Merges as older versions record them, with the table.
         var mergeRegions: [CellRange] = []
+        var highlightRules: [HighlightRule] = []
         /// Merges as newer versions record them, with the calculation engine.
         var mergeOwnerRanges: [CellRange] = []
         var isPreBNC = false
@@ -543,6 +564,13 @@ struct NumbersDocumentBuilder {
             case .styledText(let text, let style):
                 strings.append(text)
                 return Self.cellStorage(type: 3, flags: 0x8 | 0x20, Self.littleEndian(UInt32(strings.count)) + Self.littleEndian(style))
+            case .highlightedNumber(let value):
+                return Self.cellStorage(type: 2, flags: 0x1 | 0x80 | 0x100, Self.decimal128(value, exponent: 0) + Self.highlightFields)
+            case .highlightedText(let text):
+                strings.append(text)
+                return Self.cellStorage(type: 3, flags: 0x8 | 0x80 | 0x100, Self.littleEndian(UInt32(strings.count)) + Self.highlightFields)
+            case .highlightedEmpty:
+                return Self.cellStorage(type: 0, flags: 0x80 | 0x100, Self.highlightFields)
             }
         }
 
@@ -586,6 +614,11 @@ struct NumbersDocumentBuilder {
                     .message(2, ProtobufWriter().fixed32(1, UInt32(range.columnRange.count << 16 | range.rowRange.count))))
             }
             store = store.message(13, Self.reference(add(type: 6144, map)))
+        }
+
+        if !table.highlightRules.isEmpty {
+            let set = addHighlightSet(table.highlightRules)
+            store = store.message(18, Self.reference(add(type: 6005, dataList([ProtobufWriter().message(4, Self.reference(set))]))))
         }
 
         let styles = table.hasStyles ? addStyles() : nil
@@ -639,6 +672,41 @@ struct NumbersDocumentBuilder {
             info = info.message(14, ProtobufWriter().message(1, rows))
         }
         return add(type: 6000, info)
+    }
+
+    /// A cell's key into the rule sets, and the rule applied: 15, for none.
+    private static let highlightFields = littleEndian(UInt32(1)) + littleEndian(UInt32(15))
+
+    private mutating func addHighlightSet(_ rules: [HighlightRule]) -> UInt64 {
+        func color(_ color: (Float, Float, Float)) -> ProtobufWriter {
+            ProtobufWriter().varint(1, 1).float(3, color.0).float(4, color.1).float(5, color.2).float(6, 1)
+        }
+        var list = ProtobufWriter()
+        for rule in rules {
+            let nodes = [
+                ProtobufWriter().varint(1, 63),
+                ProtobufWriter().varint(1, 17).double(4, rule.number),
+                ProtobufWriter().varint(1, rule.isUnreadable ? 200 : rule.comparison),
+            ].reduce(ProtobufWriter()) { $0.message(1, $1) }
+            let target = ProtobufWriter().varint(1, 4)
+                .message(4, ProtobufWriter().varint(1, rule.targetRowOffset).varint(2, 0))
+            let predicate = ProtobufWriter()
+                .varint(1, rule.comparison).varint(2, 0).varint(3, 0)
+                .message(4, target)
+                .message(5, ProtobufWriter().varint(1, 1).message(2, ProtobufWriter().double(1, rule.number)))
+                .message(7, ProtobufWriter().message(1, nodes))
+                .bool(8, true)
+            var character = ProtobufWriter()
+            if rule.isBold { character = character.bool(1, true) }
+            if let textColor = rule.textColor { character = character.message(7, color(textColor)) }
+            var cell = ProtobufWriter()
+            if let fill = rule.fill { cell = cell.message(1, ProtobufWriter().message(1, color(fill))) }
+            let text = add(type: 2022, ProtobufWriter().message(11, character))
+            let style = add(type: 6004, ProtobufWriter().message(11, cell))
+            list = list.message(1, ProtobufWriter()
+                .message(1, predicate).message(2, Self.reference(style)).message(3, Self.reference(text)))
+        }
+        return add(type: 6010, ProtobufWriter().varint(1, rules.count).message(3, list))
     }
 
     /// Identifiers for each row and column, numbered so their order differs

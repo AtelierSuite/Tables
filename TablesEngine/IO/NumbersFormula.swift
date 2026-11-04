@@ -25,6 +25,9 @@ public enum NumbersFormula {
         public var hostTable: MergeOwners.UUID?
         /// The name each table's worksheet goes by.
         public var sheetNames: [MergeOwners.UUID: String]
+        /// Whether a linked cell, the cell a highlighting rule is testing, is
+        /// `host`. A cell's own formula has no such thing to refer to.
+        public var readsLinkedCell = false
 
         public func table(named name: String) -> MergeOwners.UUID? {
             sheetNames.first { $0.value.caseInsensitiveCompare(name) == .orderedSame }?.key
@@ -68,6 +71,7 @@ public enum NumbersFormula {
         public static let endThunk = 35
         public static let cellReference = 36
         public static let referenceErrorWithUIDs = 46
+        public static let linkedCell = 63
         public static let colonTract = 67
     }
 
@@ -228,6 +232,9 @@ public enum NumbersFormula {
                 push("(" + items.joined(separator: ",") + ")", Self.atom)
             case NodeType.cellReference:
                 return cellReference(node)
+            case NodeType.linkedCell:
+                guard context.readsLinkedCell else { return false }
+                push(context.host.a1, Self.atom)
             case NodeType.colon, NodeType.colonWithUIDs:
                 return colon()
             case NodeType.colonTract:

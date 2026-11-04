@@ -186,6 +186,30 @@ public enum NumbersStyles {
             return style
         }
 
+        /// What a conditional highlighting rule's styles change. They hold
+        /// only that, so what they don't say is left to the cell.
+        public func conditionalStyle(text: UInt64?, cell: UInt64?) -> ConditionalStyle {
+            func character<T>(_ read: (ProtobufMessage) -> T?) -> T? {
+                value(text, properties: Number.characterProperties, read)
+            }
+            let fill: String?? = value(cell, properties: Number.cellProperties) { properties in
+                properties.message(Number.fill).map { $0.message(1).flatMap(NumbersStyles.color) }
+            }
+            return ConditionalStyle(
+                fillColorHex: fill ?? nil,
+                textColorHex: character(textColor),
+                isBold: character(flag(Number.bold)),
+                isItalic: character(flag(Number.italic)),
+                isUnderlined: character { $0.uint(Number.underline) }.map { $0 != 0 },
+                isStruckThrough: character { $0.uint(Number.strikethrough) }.map { $0 != 0 }
+            )
+        }
+
+        private func textColor(_ properties: ProtobufMessage) -> String? {
+            properties.message(Number.fontColor).flatMap(NumbersStyles.color)
+                ?? properties.message(Number.textFill)?.message(1).flatMap(NumbersStyles.color)
+        }
+
         private func flag(_ number: Int) -> (ProtobufMessage) -> Bool? {
             { $0.has(number) ? $0.bool(number) : nil }
         }
@@ -199,10 +223,7 @@ public enum NumbersStyles {
             style.isUnderlined = (character { $0.uint(Number.underline) } ?? 0) != 0
             style.isStruckThrough = (character { $0.uint(Number.strikethrough) } ?? 0) != 0
             if let size = character({ $0.float(Number.fontSize) }), size > 0 { style.fontSize = Double(size) }
-            let color = character { properties in
-                properties.message(Number.fontColor).flatMap(NumbersStyles.color)
-                    ?? properties.message(Number.textFill)?.message(1).flatMap(NumbersStyles.color)
-            }
+            let color = character(textColor)
             // Black is what text is drawn in when nothing says otherwise.
             style.textColorHex = color == "FF000000" ? nil : color
             let alignment = value(text, properties: Number.paragraphProperties) { $0.uint(Number.alignment) }

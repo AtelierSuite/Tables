@@ -193,6 +193,14 @@ public enum NumbersReader {
                 workbook.sheets[index][address].formula = formula
                 tables[id]?.protectedCells.remove(address)
             }
+            tables[id]?.hasHighlighting = !reader.highlightedCells.isEmpty
+            let styles = NumbersStyles.Resolver { archive[$0]?.message }
+            for (key, cells) in reader.highlightedCells.sorted(by: { $0.key < $1.key }) {
+                guard let set = reader.highlightSets[key] ?? nil else { continue }
+                workbook.sheets[index].conditionalRules += NumbersHighlighting.rules(
+                    of: set, at: cells, table: table.uuid, sheetNames: sheetNames, styles: styles
+                )
+            }
         }
         if workbook.sheets.isEmpty {
             workbook.sheets = [Worksheet(name: Workbook.defaultSheetName(1))]
@@ -337,6 +345,7 @@ public enum NumbersReader {
         if tables.values.contains(where: { !$0.protectedCells.isEmpty }) {
             report.record(.unreadFormulas, isPreserved: true)
         }
+        if tables.values.contains(where: \.hasHighlighting) { report.record(.conditionalFormatting, isPreserved: true) }
         return report
     }
 
@@ -524,6 +533,8 @@ public final class NumbersSource: @unchecked Sendable {
         /// Whether any cell holds rich text, whose runs keep their own text
         /// formatting.
         public var hasRichText = false
+        /// Whether any cell has conditional highlighting.
+        public var hasHighlighting = false
         /// Whether anything saving a change to the table rewrites is stored
         /// as a base and collaboration's patches over it, which saving can't
         /// put back together. Tables reads only the base, too.
@@ -585,6 +596,10 @@ private struct TableReader {
     private(set) var identifiers: (rows: [MergeOwners.UUID], columns: [MergeOwners.UUID]) = ([], [])
     private(set) var hidden = NumbersHiddenStates.Hidden()
     private(set) var hasRichText = false
+    /// The conditional highlighting rule sets, by the key cells name them by.
+    private(set) var highlightSets: [UInt64: ProtobufMessage?] = [:]
+    /// The cells naming each rule set.
+    private(set) var highlightedCells: [UInt64: [CellAddress]] = [:]
 
     init(table: ProtobufMessage, archive: IWAArchive, language: String? = nil) throws {
         worksheet = Worksheet(name: table.string(8) ?? "")
@@ -598,6 +613,7 @@ private struct TableReader {
         let richText = Self.dataList(store.message(17), in: archive) { Self.text(ofRichTextPayload: $0.message(9), in: archive) }
         let formulaNodes = Self.dataList(store.message(6), in: archive) { $0.message(5)?.message(1)?.messages(1) ?? [] }
         let styles = Self.dataList(store.message(5), in: archive) { $0.message(4)?.uint(1) }
+        highlightSets = Self.dataList(store.message(TableStoreField.highlighting), in: archive) { archive[$0.message(4)]?.message }
         // Numbers 10 moved the formats to a list of their own, leaving the
         // old one empty; a file may have either.
         let formats = Self.dataList(store.message(TableStoreField.formats), in: archive) { entry in
@@ -630,6 +646,10 @@ private struct TableReader {
                     if parsed?.hasFormula ?? true { protectedCells.insert(address) }
                     if let key = parsed?.formulaKey, let nodes = formulaNodes[key] { formulas[address] = nodes }
                     if parsed?.type == NumbersCellStorage.CellType.richText { hasRichText = true }
+                    if row < worksheet.rowCount, column < worksheet.columnCount,
+                       let key = parsed?.key(of: NumbersCellStorage.Field.conditionalStyle) {
+                        highlightedCells[key, default: []].append(address)
+                    }
                     var cell = parsed.map { $0.cell(strings: strings, richText: richText) ?? Cell() }
                     if let parsed, let base = cell?.style {
                         cell?.style = formatting.style(
@@ -664,6 +684,7 @@ private struct TableReader {
     /// Fields of a `TST.DataStore`, the lists a table's cells keep keys into.
     private enum TableStoreField {
         static let legacyFormats = 11
+        static let highlighting = 18
         static let formats = 22
     }
 

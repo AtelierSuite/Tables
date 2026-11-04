@@ -29,6 +29,10 @@ public struct NumbersCellStorage: Hashable, Sendable {
         public static let seconds: UInt32 = 0x4
         public static let string: UInt32 = 0x8
         public static let richText: UInt32 = 0x10
+        /// A key into the table's conditional highlighting rule sets. The
+        /// field after it, `0x100`, records which of the rules Numbers last
+        /// applied, 15 for none.
+        public static let conditionalStyle: UInt32 = 0x80
         public static let formula: UInt32 = 0x200
         /// A key into the table's controls: a checkbox, stepper, slider or
         /// pop-up menu the cell's value is set with.
