@@ -189,6 +189,17 @@ struct NumbersConditionalFormatTests {
         #expect(style("A1", in: reopened.sheets[0]).fillColorHex == Self.red)
     }
 
+    @Test("Highlighting is in the notice of what is kept but can't be edited")
+    func notice() throws {
+        let label = UnsupportedFeature.conditionalFormatting.label
+        let (_, with) = try NumbersReader.document(from: document(
+            [[.highlighted(150, ruleSet: 1)]], ruleSets: [[Rule(nodes: Self.above(100), fill: Self.red)]]
+        ))
+        #expect(with.features.noticeMessage.contains(label))
+        let (_, without) = try NumbersReader.document(from: document([[.number(150, exponent: 0)]], ruleSets: []))
+        #expect(!without.features.noticeMessage.contains(label))
+    }
+
     @Test("Scattered cells come to few ranges covering exactly them")
     func ranges() {
         func cell(_ reference: String) -> CellAddress { CellAddress(a1: reference)! }

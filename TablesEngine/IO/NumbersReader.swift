@@ -340,6 +340,9 @@ public enum NumbersReader {
         if tables.values.contains(where: { !$0.protectedCells.isEmpty }) {
             report.record(.unreadFormulas, isPreserved: true)
         }
+        if !archive.identifiers(ofType: NumbersConditionalFormats.ObjectType.ruleSet).isEmpty {
+            report.record(.conditionalFormatting, isPreserved: true)
+        }
         return report
     }
 
