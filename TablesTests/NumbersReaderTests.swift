@@ -337,6 +337,20 @@ struct NumbersDocumentBuilder {
         /// Text in a bold variation of the body's text style, as Numbers
         /// makes one, in a table with styles.
         case boldText(String)
+        /// A number using the table's `ruleSets`, counting from 1.
+        case highlighted(Int64, ruleSet: UInt32)
+        /// Text doing the same.
+        case highlightedText(String, ruleSet: UInt32)
+        /// A cell with nothing in it doing the same.
+        case highlightedBlank(ruleSet: UInt32)
+    }
+
+    /// A rule of a table's conditional highlighting.
+    struct HighlightRule {
+        var nodes: [ProtobufMessage]
+        var fill: String?
+        var textColor: String?
+        var isBold: Bool?
     }
 
     struct Table {
@@ -387,6 +401,8 @@ struct NumbersDocumentBuilder {
         /// The heights Numbers last fitted each row to, which its drawable
         /// keeps, when it has.
         var fittedRowHeights: [Float]?
+        /// The table's conditional highlighting.
+        var ruleSets: [[HighlightRule]] = []
 
         init(name: String, rows: [[Cell]]) {
             self.name = name
@@ -543,6 +559,13 @@ struct NumbersDocumentBuilder {
             case .styledText(let text, let style):
                 strings.append(text)
                 return Self.cellStorage(type: 3, flags: 0x8 | 0x20, Self.littleEndian(UInt32(strings.count)) + Self.littleEndian(style))
+            case .highlighted(let value, let ruleSet):
+                return Self.cellStorage(type: 2, flags: 0x1 | 0x80, Self.decimal128(value, exponent: 0) + Self.littleEndian(ruleSet))
+            case .highlightedText(let text, let ruleSet):
+                strings.append(text)
+                return Self.cellStorage(type: 3, flags: 0x8 | 0x80, Self.littleEndian(UInt32(strings.count)) + Self.littleEndian(ruleSet))
+            case .highlightedBlank(let ruleSet):
+                return Self.cellStorage(type: 0, flags: 0x80, Self.littleEndian(ruleSet))
             }
         }
 
@@ -586,6 +609,11 @@ struct NumbersDocumentBuilder {
                     .message(2, ProtobufWriter().fixed32(1, UInt32(range.columnRange.count << 16 | range.rowRange.count))))
             }
             store = store.message(13, Self.reference(add(type: 6144, map)))
+        }
+
+        if !table.ruleSets.isEmpty {
+            let sets = table.ruleSets.map { ProtobufWriter().message(4, Self.reference(addRuleSet($0))) }
+            store = store.message(18, Self.reference(add(type: 6005, dataList(sets))))
         }
 
         let styles = table.hasStyles ? addStyles() : nil
@@ -760,6 +788,37 @@ struct NumbersDocumentBuilder {
         }
         add(type: 4008, ProtobufWriter().varint(3, 5).message(5, dependencies))
         return haunted
+    }
+
+    private mutating func addRuleSet(_ rules: [HighlightRule]) -> UInt64 {
+        var set = ProtobufWriter().varint(1, rules.count)
+        for rule in rules {
+            var array = ProtobufMessage()
+            array.set(1, messages: rule.nodes)
+            var formula = ProtobufMessage()
+            formula.set(1, message: array)
+            var predicate = ProtobufMessage()
+            predicate.set(1, message: formula)
+
+            var cell = ProtobufWriter()
+            if let fill = rule.fill {
+                var color = ProtobufMessage()
+                color.set(1, message: NumbersStyles.colorMessage(fill))
+                cell = cell.bytes(1, color.encoded())
+            }
+            var character = ProtobufWriter()
+            if let isBold = rule.isBold { character = character.bool(1, isBold) }
+            if let textColor = rule.textColor {
+                character = character.bytes(7, NumbersStyles.colorMessage(textColor).encoded())
+            }
+            let cellStyle = add(type: 6004, ProtobufWriter().message(11, cell))
+            let textStyle = add(type: 2022, ProtobufWriter().message(11, character))
+            set = set.message(2, ProtobufWriter()
+                .bytes(1, predicate.encoded())
+                .message(2, Self.reference(cellStyle))
+                .message(3, Self.reference(textStyle)))
+        }
+        return add(type: 6010, set)
     }
 
     private func dataList(_ entries: [ProtobufWriter]) -> ProtobufWriter {

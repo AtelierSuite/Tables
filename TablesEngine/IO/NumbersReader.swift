@@ -193,6 +193,9 @@ public enum NumbersReader {
                 workbook.sheets[index][address].formula = formula
                 tables[id]?.protectedCells.remove(address)
             }
+            workbook.sheets[index].conditionalRules = NumbersConditionalFormats.rules(
+                cells: reader.conditionalCells, archive: archive, hostTable: table.uuid, sheetNames: sheetNames
+            )
         }
         if workbook.sheets.isEmpty {
             workbook.sheets = [Worksheet(name: Workbook.defaultSheetName(1))]
@@ -336,6 +339,9 @@ public enum NumbersReader {
         }
         if tables.values.contains(where: { !$0.protectedCells.isEmpty }) {
             report.record(.unreadFormulas, isPreserved: true)
+        }
+        if !archive.identifiers(ofType: NumbersConditionalFormats.ObjectType.ruleSet).isEmpty {
+            report.record(.conditionalFormatting, isPreserved: true)
         }
         return report
     }
@@ -582,6 +588,8 @@ private struct TableReader {
     private(set) var formulas: [CellAddress: [ProtobufMessage]] = [:]
     /// What each formula came to when Numbers last worked it out.
     private(set) var results: [CellAddress: Cell] = [:]
+    /// The cells with conditional highlighting, by the rule set they use.
+    private(set) var conditionalCells: [UInt64: [CellAddress]] = [:]
     private(set) var identifiers: (rows: [MergeOwners.UUID], columns: [MergeOwners.UUID]) = ([], [])
     private(set) var hidden = NumbersHiddenStates.Hidden()
     private(set) var hasRichText = false
@@ -598,6 +606,7 @@ private struct TableReader {
         let richText = Self.dataList(store.message(17), in: archive) { Self.text(ofRichTextPayload: $0.message(9), in: archive) }
         let formulaNodes = Self.dataList(store.message(6), in: archive) { $0.message(5)?.message(1)?.messages(1) ?? [] }
         let styles = Self.dataList(store.message(5), in: archive) { $0.message(4)?.uint(1) }
+        let ruleSets = Self.dataList(store.message(TableStoreField.ruleSets), in: archive) { $0.message(4)?.uint(1) }
         // Numbers 10 moved the formats to a list of their own, leaving the
         // old one empty; a file may have either.
         let formats = Self.dataList(store.message(TableStoreField.formats), in: archive) { entry in
@@ -630,6 +639,9 @@ private struct TableReader {
                     if parsed?.hasFormula ?? true { protectedCells.insert(address) }
                     if let key = parsed?.formulaKey, let nodes = formulaNodes[key] { formulas[address] = nodes }
                     if parsed?.type == NumbersCellStorage.CellType.richText { hasRichText = true }
+                    if let key = parsed?.key(of: NumbersConditionalFormats.cellField), let set = ruleSets[key] ?? nil {
+                        conditionalCells[set, default: []].append(address)
+                    }
                     var cell = parsed.map { $0.cell(strings: strings, richText: richText) ?? Cell() }
                     if let parsed, let base = cell?.style {
                         cell?.style = formatting.style(
@@ -664,6 +676,7 @@ private struct TableReader {
     /// Fields of a `TST.DataStore`, the lists a table's cells keep keys into.
     private enum TableStoreField {
         static let legacyFormats = 11
+        static let ruleSets = 18
         static let formats = 22
     }
 

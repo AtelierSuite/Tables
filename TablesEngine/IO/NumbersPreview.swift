@@ -245,7 +245,7 @@ private struct PreviewCanvas {
         }
 
         for box in boxes {
-            if let fill = sheet[box.address].style.fillColor(for: palette) {
+            if let fill = sheet.displayedCell(at: box.address).style.fillColor(for: palette) {
                 context.setFillColor(PreviewColor(fill).cgColor)
                 context.fill(box.frame)
             }
@@ -258,7 +258,7 @@ private struct PreviewCanvas {
         context.stroke(CGRect(x: table.origin.x, y: table.origin.y, width: right - table.origin.x, height: bottom - table.origin.y))
 
         for box in boxes {
-            let cell = sheet[box.address]
+            let cell = sheet.displayedCell(at: box.address)
             drawText(of: cell, in: box.frame, ink: ink, scheme: palette, context: context)
             drawBorders(of: cell.style, in: box.frame, ink: ink, scheme: palette, context: context)
         }
