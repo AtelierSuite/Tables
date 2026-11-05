@@ -47,8 +47,9 @@ public struct ConditionalStyle: Hashable, Sendable {
 
 /// One rule that styles the cells of its ranges when its test passes.
 ///
-/// Rules are a reading of the `<conditionalFormatting>` kept in
-/// `Worksheet.preservedElements`, which remains what a save writes. Colour
+/// Rules are a reading of what the file holds, which remains what a save
+/// writes: the `<conditionalFormatting>` kept in
+/// `Worksheet.preservedElements`, or a Numbers document's rule sets. Colour
 /// scales, data bars, icon sets and the ranking rules have no reading here.
 public struct ConditionalRule: Hashable, Sendable {
     /// How a cell's own value is compared with a rule's formulas.

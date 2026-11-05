@@ -25,6 +25,9 @@ public enum NumbersFormula {
         public var hostTable: MergeOwners.UUID?
         /// The name each table's worksheet goes by.
         public var sheetNames: [MergeOwners.UUID: String]
+        /// Whether this is a conditional highlighting rule's test, which
+        /// can name the cell it tests: `host`.
+        public var readsRuleSubject = false
 
         public func table(named name: String) -> MergeOwners.UUID? {
             sheetNames.first { $0.value.caseInsensitiveCompare(name) == .orderedSame }?.key
@@ -69,6 +72,8 @@ public enum NumbersFormula {
         public static let cellReference = 36
         public static let referenceErrorWithUIDs = 46
         public static let colonTract = 67
+        /// The cell a conditional highlighting rule is testing.
+        public static let ruleSubject = 63
     }
 
     /// The fields of a `TSCE.ASTNodeArrayArchive.ASTNodeArchive`.
@@ -228,6 +233,9 @@ public enum NumbersFormula {
                 push("(" + items.joined(separator: ",") + ")", Self.atom)
             case NodeType.cellReference:
                 return cellReference(node)
+            case NodeType.ruleSubject:
+                guard context.readsRuleSubject else { return false }
+                return pushReference(context.host.a1, table: nil)
             case NodeType.colon, NodeType.colonWithUIDs:
                 return colon()
             case NodeType.colonTract:
