@@ -214,17 +214,7 @@ export class WorkbookWindow {
         this.grid.focus();
       });
     }
-    this.toolbarOverflow = attachToolbarOverflow(toolbar, { label: t("Toolbar.More"), before: toolbar.querySelector("#inspector-toggle") });
-    // Added after the overflow is set up, so it never moves into the » menu
-    // and stays hidden until offerUpdate() shows it.
-    const update = document.createElement("button");
-    update.type = "button";
-    update.className = "ds-button ds-button--bordered ds-button--xs app__update";
-    update.textContent = t("Web.Update.Button");
-    update.title = t("Web.Update.Available");
-    update.hidden = true;
-    toolbar.append(update);
-    this.updateButton = update;
+    attachToolbarOverflow(toolbar, { label: t("Toolbar.More"), before: toolbar.querySelector("#inspector-toggle") });
   }
 
   buildFormulaBar() {
@@ -422,7 +412,18 @@ export class WorkbookWindow {
       { label: t("Mac.Menu.Help"), get items() { return self.items("about"); } },
     ];
     void appearance;
-    attachMenuBar(this.root.querySelector("#menu-bar"), menus, { label: t("Web.Menu.Label"), overflowLabel: t("Toolbar.More") });
+    const bar = this.root.querySelector("#menu-bar");
+    this.menuBarOverflow = attachMenuBar(bar, menus, { label: t("Web.Menu.Label"), overflowLabel: t("Toolbar.More") });
+    // At the menu bar's trailing end. Added after the menus, so it never moves
+    // into the » menu, and hidden until offerUpdate() shows it.
+    const update = document.createElement("button");
+    update.type = "button";
+    update.className = "ds-button ds-button--bordered ds-button--xs app__update";
+    update.textContent = t("Web.Update.Button");
+    update.title = t("Web.Update.Available");
+    update.hidden = true;
+    bar.append(update);
+    this.updateButton = update;
   }
 
   fileMenu() {
@@ -1053,7 +1054,7 @@ export class WorkbookWindow {
    */
   offerUpdate(download) {
     this.updateButton.hidden = false;
-    this.toolbarOverflow.layout();
+    this.menuBarOverflow.layout();
     this.updateButton.onclick = () => this.showUpdate(download);
   }
 
