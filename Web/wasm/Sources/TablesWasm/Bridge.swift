@@ -40,6 +40,9 @@ final class Bridge {
         switch command {
         case "init":
             if let strings = r["strings"] as? [String: String] { PortableStrings.load(strings) }
+            if let locale = r["locale"] as? String {
+                PortableStrings.localeIdentifier = locale.replacingOccurrences(of: "-", with: "_")
+            }
             return nil
         case "new":
             let name = r["name"] as? String ?? "Untitled"
@@ -60,6 +63,9 @@ final class Bridge {
         case "rename":
             if let name = r["name"] as? String { session.document.fileName = name }
             return info()
+        case "environment":
+            // The locale and time zone the engine works in, for diagnostics.
+            return ["locale": PortableStrings.localeIdentifier, "timeZone": TimeZone.current.identifier]
         case "info":
             return info()
         case "layout":
@@ -173,7 +179,7 @@ final class Bridge {
         case "renameSheet":
             if let id = sheetID(r), let name = r["name"] as? String {
                 let sanitized = Worksheet.sanitizedName(name)
-                guard !sanitized.isEmpty else { throw Failure(message: "A sheet needs a name.") }
+                guard !sanitized.isEmpty else { throw Failure(message: String(localized: "Web.Error.SheetName")) }
                 session.renameSheet(id, to: sanitized)
             }
         case "hideSheet": if let id = sheetID(r) { session.setSheet(id, hidden: r["hidden"] as? Bool ?? true) }

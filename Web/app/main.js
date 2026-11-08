@@ -11,7 +11,8 @@ const root = document.getElementById("app");
 async function start() {
   const strings = await loadStrings();
   const engine = new EngineClient();
-  await engine.call("init", { strings });
+  const locale = new URLSearchParams(location.search).get("lang") || navigator.language || "en-US";
+  await engine.call("init", { strings, locale });
   const app = new WorkbookWindow(root, engine);
   app.showStart();
   registerServiceWorker(app);
@@ -59,7 +60,9 @@ start().catch((error) => {
   const message = document.createElement("div");
   message.className = "app__failure ds-notification ds-notification--error";
   message.setAttribute("role", "alert");
-  message.textContent = `Tables couldn't start: ${error.message}`;
+  // The strings may not have loaded, so this one message carries its own English.
+  const localized = t("Web.Error.Start", error.message);
+  message.textContent = localized.startsWith("Web.Error.Start") ? `Tables couldn't start: ${error.message}` : localized;
   root.append(message);
   console.error(error);
 });

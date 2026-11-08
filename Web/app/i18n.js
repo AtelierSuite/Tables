@@ -6,7 +6,9 @@ export let language = "en";
 
 /** The supported language closest to the browser's preferences. */
 function pickLanguage(available) {
-  for (const preferred of navigator.languages ?? [navigator.language]) {
+  // ?lang=ja picks a language for this visit, for checking translations.
+  const requested = new URLSearchParams(location.search).get("lang");
+  for (const preferred of [...(requested ? [requested] : []), ...(navigator.languages ?? [navigator.language])]) {
     const tag = preferred.toLowerCase();
     if (tag.startsWith("zh")) {
       const traditional = /hant|tw|hk|mo/.test(tag);

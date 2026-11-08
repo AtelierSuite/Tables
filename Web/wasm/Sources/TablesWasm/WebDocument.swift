@@ -94,10 +94,10 @@ struct WebDocument {
         case .numbers:
             // Only into the document it came from: Tables can patch a Numbers
             // document but can't make one.
-            guard let numbersSource else { throw Failure(errorDescription: "Only a Numbers document can be saved as Numbers.") }
+            guard let numbersSource else { throw Failure(errorDescription: String(localized: "Web.Error.NumbersOnly")) }
             let wrapper = try NumbersWriter.fileWrapper(for: workbook, source: numbersSource, existing: nil)
             guard let contents = wrapper.regularFileContents else {
-                throw Failure(errorDescription: "This Numbers document is a package, which can't be saved here.")
+                throw Failure(errorDescription: String(localized: "Web.Error.NumbersPackage"))
             }
             return contents
         case .tsv:

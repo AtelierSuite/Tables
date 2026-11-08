@@ -18,11 +18,17 @@
 </head>
 <body>
 <div id="app" class="app ds-window">
-  <div class="app__loading" role="status">
+  <div class="app__loading" role="status" aria-label="Tables">
     <div class="ds-spinner"></div>
-    <span class="ds-caption">Loading Tables…</span>
+    <span class="ds-caption">Tables</span>
   </div>
 </div>
-<noscript><p class="app__noscript">Tables needs JavaScript and WebAssembly.</p></noscript>
+<noscript>
+  <p class="app__noscript" lang="en">Tables needs JavaScript and WebAssembly.</p>
+  <p class="app__noscript" lang="ja">Tables を使うには JavaScript と WebAssembly が必要です。</p>
+  <p class="app__noscript" lang="ko">Tables를 사용하려면 JavaScript와 WebAssembly가 필요합니다.</p>
+  <p class="app__noscript" lang="zh-Hans">Tables 需要 JavaScript 和 WebAssembly。</p>
+  <p class="app__noscript" lang="zh-Hant">Tables 需要 JavaScript 和 WebAssembly。</p>
+</noscript>
 </body>
 </html>

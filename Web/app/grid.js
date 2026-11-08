@@ -56,6 +56,7 @@ export class GridView extends EventTarget {
 
     this.addRowButton.addEventListener("click", () => this.engine.call("addRows", { count: 1 }));
     this.addColumnButton.addEventListener("click", () => this.engine.call("addColumns", { count: 1 }));
+    this.editor.ariaLabel = options.t("Mac.Inspector.Cell");
     this.addRowButton.title = this.addRowButton.ariaLabel = options.t("HeaderMenu.Row.AddAtEnd");
     this.addColumnButton.title = this.addColumnButton.ariaLabel = options.t("HeaderMenu.Column.AddAtEnd");
 

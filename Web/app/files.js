@@ -2,9 +2,11 @@
 // System Access API, documents save back in place; elsewhere they open through
 // a file picker and save as downloads.
 
-const OPEN_TYPES = [
+import { t } from "./i18n.js";
+
+const openTypes = () => [
   {
-    description: "Spreadsheets",
+    description: t("Web.FileType.Spreadsheets"),
     accept: {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
       "application/vnd.ms-excel.sheet.macroEnabled.12": [".xlsm"],
@@ -17,11 +19,11 @@ const OPEN_TYPES = [
 ];
 
 export const SAVE_TYPES = {
-  xlsx: { description: "Excel Workbook", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", extension: ".xlsx" },
-  xlsm: { description: "Excel Macro-Enabled Workbook", mime: "application/vnd.ms-excel.sheet.macroEnabled.12", extension: ".xlsm" },
-  numbers: { description: "Numbers Document", mime: "application/vnd.apple.numbers", extension: ".numbers" },
-  csv: { description: "Comma-Separated Values", mime: "text/csv", extension: ".csv" },
-  tsv: { description: "Tab-Separated Values", mime: "text/tab-separated-values", extension: ".tsv" },
+  xlsx: { descriptionKey: "Web.FileType.Workbook", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", extension: ".xlsx" },
+  xlsm: { descriptionKey: "Web.FileType.MacroWorkbook", mime: "application/vnd.ms-excel.sheet.macroEnabled.12", extension: ".xlsm" },
+  numbers: { descriptionKey: "Web.FileType.Numbers", mime: "application/vnd.apple.numbers", extension: ".numbers" },
+  csv: { descriptionKey: "Web.FileType.CSV", mime: "text/csv", extension: ".csv" },
+  tsv: { descriptionKey: "Web.FileType.TSV", mime: "text/tab-separated-values", extension: ".tsv" },
 };
 
 export const canSaveInPlace = typeof window.showSaveFilePicker === "function";
@@ -33,7 +35,7 @@ export const canSaveInPlace = typeof window.showSaveFilePicker === "function";
 export async function pickFile() {
   if (typeof window.showOpenFilePicker === "function") {
     try {
-      const [handle] = await window.showOpenFilePicker({ types: OPEN_TYPES, excludeAcceptAllOption: false, multiple: false });
+      const [handle] = await window.showOpenFilePicker({ types: openTypes(), excludeAcceptAllOption: false, multiple: false });
       return readHandle(handle);
     } catch (error) {
       if (error?.name === "AbortError") return null;
@@ -43,7 +45,7 @@ export async function pickFile() {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = Object.values(OPEN_TYPES[0].accept).flat().join(",");
+    input.accept = Object.values(openTypes()[0].accept).flat().join(",");
     input.addEventListener("change", async () => {
       const file = input.files?.[0];
       resolve(file ? { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) } : null);
@@ -83,7 +85,7 @@ export async function saveFileAs(bytes, suggestedName, format) {
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName,
-        types: [{ description: type.description, accept: { [type.mime]: [type.extension] } }],
+        types: [{ description: t(type.descriptionKey), accept: { [type.mime]: [type.extension] } }],
       });
       await writeHandle(handle, bytes);
       return { name: handle.name, handle };
