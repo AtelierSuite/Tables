@@ -1,0 +1,8 @@
+{
+  "name": "tables-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint:design": "node design/lint.mjs"
+  }
+}
