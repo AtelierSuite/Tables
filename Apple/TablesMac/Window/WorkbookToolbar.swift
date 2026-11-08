@@ -63,6 +63,9 @@ final class WorkbookToolbar: NSObject, NSToolbarDelegate {
                 target: self, action: #selector(styleGroupChanged(_:))
             )
             group.label = String(localized: "Mac.Toolbar.Style")
+            // Shown when the toolbar is too narrow and the group collapses
+            // into a pull-down; without it the pull-down is an empty pill.
+            group.image = NSImage(systemSymbolName: "textformat", accessibilityDescription: group.label)
             styleGroup = group
             return group
         case Item.alignment:
@@ -77,6 +80,9 @@ final class WorkbookToolbar: NSObject, NSToolbarDelegate {
                 target: self, action: #selector(alignmentGroupChanged(_:))
             )
             group.label = String(localized: "Format.Section.Alignment")
+            // Collapsed, the pull-down shows the selected alignment; this
+            // covers the moment before refresh() has selected one.
+            group.image = NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: group.label)
             alignmentGroup = group
             return group
         case Item.fill:
