@@ -32,8 +32,19 @@ export function readPalette(element = document.documentElement) {
   };
 }
 
+/** A family name quoted for a CSS font string. */
+export function quoteFamily(name) {
+  return `"${String(name).replace(/["\\]/g, "\\$&")}"`;
+}
+
+/** The family list for a cell: its own, falling back to the system font when not installed. */
+export function familyFor(family) {
+  return family ? `${quoteFamily(family)}, ${FONT_STACK}` : FONT_STACK;
+}
+
+/** The canvas font for a text operation: the cell's family, size, bold and italic. */
 export function fontFor(op) {
-  return `${op.i ? "italic " : ""}${op.b ? "600 " : ""}${op.fs}px ${FONT_STACK}`;
+  return `${op.i ? "italic " : ""}${op.b ? "bold " : ""}${op.fs}px ${familyFor(op.ff)}`;
 }
 
 function intersect(a, b) {

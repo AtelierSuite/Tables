@@ -5,7 +5,7 @@
 // Events: "edit" (editing started or text changed), "editend", "message".
 
 import { SheetMetrics, columnName } from "./metrics.js";
-import { paint, readPalette, fontFor } from "./paint.js";
+import { paint, readPalette, fontFor, familyFor } from "./paint.js";
 import { attachContextMenu } from "../design/menus.js";
 
 const TILE = 256;
@@ -667,7 +667,8 @@ export class GridView extends EventTarget {
     style.minWidth = `${Math.round(frame.width)}px`;
     style.minHeight = `${Math.round(frame.height)}px`;
     style.fontSize = `${(state.style.fontSize ?? 12) * z}px`;
-    style.fontWeight = state.style.bold ? "600" : "400";
+    style.fontWeight = state.style.bold ? "bold" : "normal";
+    style.fontFamily = state.style.fontName ? familyFor(state.style.fontName) : "";
     style.fontStyle = state.style.italic ? "italic" : "normal";
     if (this.editing) {
       // Grow with the text, as far as the window allows.
@@ -1039,7 +1040,7 @@ export class GridView extends EventTarget {
     const ctx = this.ctx;
     let widest = 0;
     for (const entry of texts ?? []) {
-      ctx.font = fontFor({ fs: entry.fs, b: entry.b, i: entry.i });
+      ctx.font = fontFor({ fs: entry.fs, b: entry.b, i: entry.i, ff: entry.ff });
       for (const line of entry.t.split("\n")) widest = Math.max(widest, ctx.measureText(line).width);
     }
     await this.engine.call("fitColumn", { column, width: widest });

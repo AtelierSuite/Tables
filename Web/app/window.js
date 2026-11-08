@@ -9,6 +9,7 @@ import * as files from "./files.js";
 import * as storage from "./storage.js";
 import { attachMenuBar, attachToolbarOverflow, openMenu } from "../design/menus.js";
 import { dismissSheet } from "../design/sheets.js";
+import * as fonts from "./fonts.js";
 
 const isApple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const AUTOSAVE_DELAY = 1500;
@@ -282,6 +283,7 @@ export class WorkbookWindow {
       italic: { label: t("Toolbar.Italic"), shortcut: shortcut("I"), enabled: formatting.styles, checked: state?.style.italic, run: () => this.style({ toggle: "italic" }) },
       underline: { label: t("Toolbar.Underline"), shortcut: shortcut("U"), enabled: formatting.styles, checked: state?.style.underline, run: () => this.style({ toggle: "underline" }) },
       strike: { label: t("Mac.Toolbar.Strikethrough"), enabled: formatting.styles, checked: state?.style.strike, run: () => this.style({ toggle: "strike" }) },
+      showFonts: { label: t("Mac.Menu.ShowFonts"), shortcut: shortcut("T"), enabled: Boolean(formatting.fonts), run: () => this.showFonts() },
       bigger: { label: t("Mac.Menu.Bigger"), shortcut: shortcut("+"), enabled: formatting.styles, run: () => this.style({ fontSizeDelta: 1 }) },
       smaller: { label: t("Mac.Menu.Smaller"), shortcut: shortcut("-"), enabled: formatting.styles, run: () => this.style({ fontSizeDelta: -1 }) },
       wrap: { label: t("Format.Alignment.WrapText"), enabled: formatting.styles, checked: state?.style.wrap, run: () => this.style({ toggle: "wrap" }) },
@@ -451,7 +453,7 @@ export class WorkbookWindow {
     const state = this.engine.state;
     const presets = info?.numberFormats ?? [];
     return [
-      { label: t("Mac.Menu.Font"), submenu: this.items("bold", "italic", "underline", "strike", "-", "bigger", "smaller") },
+      { label: t("Mac.Menu.Font"), submenu: this.items("showFonts", "-", "bold", "italic", "underline", "strike", "-", "bigger", "smaller") },
       { label: t("Mac.Menu.Alignment"), submenu: [
         ...["automatic", "leading", "center", "trailing"].map((h) => ({
           label: t(`Alignment.Horizontal.${{ automatic: "Automatic", leading: "Left", center: "Center", trailing: "Right" }[h]}`),
@@ -563,6 +565,7 @@ export class WorkbookWindow {
               <button class="ds-segmented__segment" data-command="italic" aria-pressed="false" title="${escapeHTML(t("Toolbar.Italic"))}"><em>I</em></button>
               <button class="ds-segmented__segment" data-command="underline" aria-pressed="false" title="${escapeHTML(t("Toolbar.Underline"))}"><u>U</u></button>
               <button class="ds-segmented__segment" data-command="strike" aria-pressed="false" title="${escapeHTML(t("Toolbar.Strikethrough"))}"><s>S</s></button></span>`)
+            + row("Format.Text.Font", popup("app__font", t("Format.Text.Font"), ""))
             + row("Format.Text.Size", `${stepper("app__font-size", t("Format.Text.Size"))}<span class="ds-caption">pt</span>`)
             + row("Mac.Inspector.Color", `<input type="color" class="ds-color-well app__text-color" aria-label="${escapeHTML(t("Mac.Menu.TextColor"))}">
               <button class="ds-button ds-button--bordered ds-button--xs app__text-color-none">${escapeHTML(t("Mac.Inspector.Color.None"))}</button>`))}
@@ -597,6 +600,20 @@ export class WorkbookWindow {
       for (const body of inspector.querySelectorAll("[data-pane-body]")) body.hidden = body.dataset.paneBody !== tab.dataset.pane;
     }));
     inspector.querySelectorAll("[data-command]").forEach((button) => button.addEventListener("click", () => this.run(button.dataset.command)));
+
+    const fontPopup = inspector.querySelector(".app__font");
+    fontPopup.addEventListener("change", async () => {
+      const value = fontPopup.value;
+      if (value === "__all") {
+        // Choosing it is the user action the browser asks for before listing fonts.
+        await fonts.listAllFonts();
+        await this.updateFontPopup();
+        fontPopup.focus();
+        return;
+      }
+      await this.style({ fontName: value || null });
+      this.grid.focus();
+    });
     inspector.querySelectorAll("[data-border]").forEach((button) => button.addEventListener("click", () => this.applyBorder(button.dataset.border)));
     inspector.querySelectorAll("[data-h]").forEach((button) => button.addEventListener("click", () => this.style({ h: button.dataset.h })));
     inspector.querySelectorAll("[data-v]").forEach((button) => button.addEventListener("click", () => this.style({ v: button.dataset.v })));
@@ -672,6 +689,7 @@ export class WorkbookWindow {
     inspector.querySelector(".app__wrap").checked = style.wrap;
     const fontSize = inspector.querySelector(".app__font-size input");
     if (document.activeElement !== fontSize) fontSize.value = style.fontSize;
+    this.updateFontPopup();
     inspector.querySelector('[data-command="merge"]').disabled = !state.canMerge;
     inspector.querySelector('[data-command="unmerge"]').disabled = !state.canUnmerge;
 
@@ -688,6 +706,54 @@ export class WorkbookWindow {
     }
     for (const selector of [".app__frozen-rows", ".app__frozen-columns"]) {
       for (const control of inspector.querySelectorAll(`${selector} input, ${selector} button`)) control.disabled = !info.allowsFreeze;
+    }
+  }
+
+  /**
+   * Fills the font pop-up: the system font, the families the document uses,
+   * those installed here, and, where the browser can list every installed
+   * font, a way to ask for that. Names are set in the system font, as all
+   * interface text is.
+   */
+  async updateFontPopup() {
+    const popup = this.inspector.querySelector(".app__font");
+    const state = this.engine.state;
+    const info = this.engine.info;
+    if (!popup || !state || !info) return;
+    const current = state.style.fontName ?? "";
+    const version = this.engine.versions.content;
+    if (this.documentFonts?.version !== version) {
+      // A read-only query: send, not call, so it doesn't publish state and refresh this pop-up again.
+      const previous = this.documentFonts?.families ?? [];
+      this.documentFonts = { version, families: previous };
+      const { response } = await this.engine.send({ cmd: "documentFonts" }).catch(() => ({ response: {} }));
+      if (this.documentFonts.version === version) this.documentFonts.families = response.result ?? [];
+    }
+    const inDocument = this.documentFonts.families;
+    const installed = fonts.installedFamilies().filter((family) => !inDocument.includes(family));
+    const option = (value, label) => `<option value="${escapeHTML(value)}">${escapeHTML(label)}</option>`;
+    const key = JSON.stringify([current, inDocument, installed.length, fonts.hasListedAllFonts()]);
+    if (popup.dataset.key !== key) {
+      popup.dataset.key = key;
+      popup.innerHTML = option("", t("Format.Text.Font.System"))
+        + (inDocument.length ? `<optgroup label="${escapeHTML(t("Web.Font.InDocument"))}">${inDocument.map((f) => option(f, f)).join("")}</optgroup>` : "")
+        + (installed.length ? `<optgroup label="${escapeHTML(t("Web.Font.OnDevice"))}">${installed.map((f) => option(f, f)).join("")}</optgroup>` : "")
+        + (fonts.canListAllFonts && !fonts.hasListedAllFonts() ? option("__all", t("Web.Font.ShowAll")) : "");
+    }
+    if (document.activeElement !== popup) popup.value = current;
+    popup.disabled = !info.formatting.fonts;
+  }
+
+  /** The web's "Show Fonts": the inspector's font pop-up, opened. */
+  showFonts() {
+    this.setInspectorVisible(true);
+    this.inspector.querySelector('.ds-inspector__switcher [data-pane="text"]').click();
+    const popup = this.inspector.querySelector(".app__font");
+    popup.focus();
+    try {
+      popup.showPicker();
+    } catch {
+      // Focused is as far as some browsers let a page open a pop-up.
     }
   }
 
@@ -1026,7 +1092,7 @@ export class WorkbookWindow {
         || (event.target === this.grid.editor && this.grid.isEditing);
       const map = {
         n: event.shiftKey ? "newSheet" : "new", o: "open", s: event.shiftKey ? "saveAs" : "save", w: "close",
-        z: event.shiftKey ? "redo" : "undo", y: "redo", b: "bold", i: "italic", u: "underline",
+        z: event.shiftKey ? "redo" : "undo", y: "redo", b: "bold", i: "italic", u: "underline", t: "showFonts",
         "=": "zoomIn", "+": "zoomIn", "-": event.altKey ? "zoomOut" : "smaller", "0": "actualSize", a: "selectAll",
       };
       const command = map[key];
