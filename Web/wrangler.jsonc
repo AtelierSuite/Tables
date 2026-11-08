@@ -6,7 +6,7 @@
 // Pushes to main deploy from GitHub Actions (.github/workflows/web.yml).
 {
   "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
-  "name": "atelier-tables",
+  "name": "tables",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./dist",
@@ -17,7 +17,7 @@
     { "pattern": "tables.atelier.ktgk.app", "custom_domain": true }
   ],
   // Workers Logs and traces, every request kept, in the dashboard under
-  // Workers & Pages › atelier-tables › Observability.
+  // Workers & Pages › tables › Observability.
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
