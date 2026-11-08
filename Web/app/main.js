@@ -2,7 +2,7 @@
 // that keeps everything available offline.
 
 import "../design/base.js";
-import { loadStrings, t } from "./i18n.js";
+import { loadStrings, t, language } from "./i18n.js";
 import { EngineClient } from "./engine-client.js";
 import { WorkbookWindow } from "./window.js";
 
@@ -24,13 +24,17 @@ async function start() {
   registerServiceWorker(app);
 }
 
-// The spinner becomes a progress bar while the engine downloads, and comes
-// back while it compiles. Not when it loads at once, from the offline cache.
+// The spinner becomes a progress bar over the percentage while the engine
+// downloads, and comes back while it compiles. Not when it loads at once, from
+// the offline cache.
 function showEngineProgress(engine) {
   const loading = root.querySelector(".app__loading");
   const spinner = loading?.querySelector(".ds-spinner");
   const bar = loading?.querySelector(".app__loading-progress");
+  const caption = loading?.querySelector(".ds-caption");
   if (!bar) return;
+  const name = caption.textContent;
+  const format = new Intl.NumberFormat(language, { style: "percent" });
   let latest = null;
   let shown = false;
   const render = () => {
@@ -38,7 +42,13 @@ function showEngineProgress(engine) {
     const downloading = latest.loaded < latest.total;
     spinner.hidden = downloading;
     bar.hidden = !downloading;
-    const percent = Math.round((latest.loaded / latest.total) * 100);
+    loading.classList.toggle("is-downloading", downloading);
+    const fraction = Math.floor((latest.loaded / latest.total) * 100) / 100;
+    caption.textContent = downloading ? format.format(fraction) : name;
+    // The bar already tells assistive technology how far along it is.
+    if (downloading) caption.setAttribute("aria-hidden", "true");
+    else caption.removeAttribute("aria-hidden");
+    const percent = Math.round(fraction * 100);
     bar.style.setProperty("--ds-progress", `${percent}%`);
     bar.setAttribute("aria-valuenow", String(percent));
   };

@@ -46,6 +46,15 @@ body {
   width: 120px;
 }
 
+/* While the engine downloads: the bar, with the percentage under it. */
+.app__loading.is-downloading {
+  flex-direction: column;
+}
+
+.app__loading.is-downloading .ds-caption {
+  font-variant-numeric: tabular-nums;
+}
+
 .app__noscript {
   padding: var(--ds-spacing-06);
 }
