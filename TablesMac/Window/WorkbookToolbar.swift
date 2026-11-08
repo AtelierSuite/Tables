@@ -80,6 +80,9 @@ final class WorkbookToolbar: NSObject, NSToolbarDelegate {
                 target: self, action: #selector(alignmentGroupChanged(_:))
             )
             group.label = String(localized: "Format.Section.Alignment")
+            // Collapsed, the pull-down shows the selected alignment; this
+            // covers the moment before refresh() has selected one.
+            group.image = NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: group.label)
             alignmentGroup = group
             return group
         case Item.fill:
