@@ -353,6 +353,35 @@ struct FindRowsIntent: AppIntent {
     }
 }
 
+struct GetLastRowIntent: AppIntent {
+    static let title: LocalizedStringResource = "Intent.GetLastRow.Title"
+    static let description = IntentDescription("Intent.GetLastRow.Description")
+
+    @Parameter(title: "Intent.Parameter.Workbook")
+    var workbook: WorkbookEntity
+
+    @Parameter(title: "Intent.Parameter.Column")
+    var column: String?
+
+    @Parameter(title: "Intent.Parameter.Sheet")
+    var sheet: String?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Intent.GetLastRow.Summary \(\.$workbook)") {
+            \.$column
+            \.$sheet
+        }
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<Int> {
+        let book = try workbook.load()
+        let index = try WorkbookAutomation.sheetIndex(sheet, in: book)
+        let trimmed = column?.trimmingCharacters(in: .whitespaces) ?? ""
+        let columnIndex = trimmed.isEmpty ? nil : try WorkbookAutomation.column(trimmed)
+        return .result(value: WorkbookAutomation.lastRow(in: book.sheets[index], column: columnIndex))
+    }
+}
+
 struct EvaluateFormulaIntent: AppIntent {
     static let title: LocalizedStringResource = "Intent.Evaluate.Title"
     static let description = IntentDescription("Intent.Evaluate.Description")
