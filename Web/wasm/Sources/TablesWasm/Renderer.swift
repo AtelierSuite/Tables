@@ -205,6 +205,7 @@ struct Renderer {
             "h": horizontal == .trailing ? "r" : horizontal == .center ? "c" : "l",
             "v": style.verticalAlignment == .top ? "t" : style.verticalAlignment == .bottom ? "b" : "m",
         ]
+        if let family = style.displayFontName { operation["ff"] = family }
         if style.isBold { operation["b"] = true }
         if style.isItalic { operation["i"] = true }
         if style.isUnderlined { operation["u"] = true }

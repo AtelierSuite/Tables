@@ -66,6 +66,15 @@ final class Bridge {
         case "environment":
             // The locale and time zone the engine works in, for diagnostics.
             return ["locale": PortableStrings.localeIdentifier, "timeZone": TimeZone.current.identifier]
+        case "documentFonts":
+            // The families the workbook's cells use, for the font pop-up.
+            var families = Set<String>()
+            for sheet in session.workbook.sheets {
+                for cell in sheet.cells.values {
+                    if let family = cell.style.displayFontName { families.insert(family) }
+                }
+            }
+            return families.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         case "info":
             return info()
         case "layout":
@@ -148,7 +157,9 @@ final class Bridge {
                 guard address.column == column, !sheet.hiddenRows.contains(address.row) else { return nil }
                 let text = CellFormatter.displayText(for: cell)
                 guard !text.isEmpty else { return nil }
-                return ["t": text, "fs": cell.style.fontSize, "b": cell.style.isBold, "i": cell.style.isItalic]
+                var entry: [String: Any] = ["t": text, "fs": cell.style.fontSize, "b": cell.style.isBold, "i": cell.style.isItalic]
+                if let family = cell.style.displayFontName { entry["ff"] = family }
+                return entry
             }
         case "merge": session.mergeSelection()
         case "unmerge": session.unmergeSelection()
@@ -249,6 +260,11 @@ final class Bridge {
             if r.keys.contains("textColor") { session.applyStyle { $0.textColorHex = Self.argb(r["textColor"] as? String) } }
             if r.keys.contains("fill") { session.applyStyle { $0.fillColorHex = Self.argb(r["fill"] as? String) } }
         }
+        if formatting.contains(.fonts), r.keys.contains("fontName") {
+            // A family name, or null for the system font.
+            let family = (r["fontName"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+            session.applyStyle { $0.fontName = family.isEmpty ? CellStyle.systemFontName : family }
+        }
         if formatting.contains(.numberFormats), let code = r["numberFormat"] as? String {
             session.applyStyle { $0.numberFormat = code }
         }
@@ -344,6 +360,7 @@ final class Bridge {
                 "v": style.verticalAlignment.rawValue, "wrap": style.wrapsText, "fontSize": style.fontSize,
                 "textColor": style.textColorHex.map(Self.css) ?? NSNull(), "fill": style.fillColorHex.map(Self.css) ?? NSNull(),
                 "numberFormat": style.numberFormat, "indent": style.indent, "checkbox": style.showsCheckbox,
+                "fontName": style.displayFontName ?? NSNull(),
             ] as [String: Any],
             "status": ["count": count, "numbers": numbers, "sum": sum, "average": numbers > 0 ? sum / Double(numbers) : 0],
             "canMerge": session.canMergeSelection,
@@ -384,6 +401,7 @@ final class Bridge {
                 "numberFormats": formatting.contains(.numberFormats), "styles": formatting.contains(.styles),
                 "borders": formatting.contains(.borders), "indents": formatting.contains(.indents),
                 "rotation": formatting.contains(.rotation), "merging": formatting.contains(.merging),
+                "fonts": formatting.contains(.fonts),
             ],
             "allowsFreeze": session.allowsFreezingPanes,
             "allowsInsertDelete": session.allowsInsertingAndDeleting,
