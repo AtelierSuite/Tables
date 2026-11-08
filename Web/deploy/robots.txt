@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tables.atelier.ktgk.app/sitemap.xml

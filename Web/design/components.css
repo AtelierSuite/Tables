@@ -1,0 +1,1538 @@
+/*
+ * Tables components.
+ *
+ * The component set is taken from macOS (AppKit controls and window anatomy);
+ * the styling is IBM Carbon. Every rule here must pass `node Web/design/lint.mjs`.
+ * Requires tokens.css.
+ */
+
+/* ---------------------------------------------------------------- Base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  cursor: default;
+}
+
+html {
+  font: var(--ds-type-body);
+  letter-spacing: 0;
+  text-transform: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ds-background);
+  color: var(--ds-text-primary);
+  font: var(--ds-type-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Form controls do not inherit fonts by default; make them use the system font. */
+button,
+input,
+select,
+textarea,
+optgroup {
+  font: inherit;
+  color: inherit;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+/*
+ * UI text is never selectable and UI images never drag, as in a native app.
+ * Only what the user edits or authored is selectable: text fields, editable
+ * regions and document content rendered as HTML (.ds-document-content).
+ */
+html {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+img,
+svg,
+picture,
+video,
+canvas {
+  -webkit-user-drag: none;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input:not([type]),
+textarea,
+[contenteditable="true"],
+.ds-document-content {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input:not([type]),
+textarea,
+[contenteditable="true"] {
+  cursor: text;
+}
+
+/* The one exception to the cursor policy: a real hyperlink. */
+a[href] {
+  color: var(--ds-link-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+a[href]:hover {
+  color: var(--ds-link-primary-hover);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Present for assistive technology and showPicker(), invisible on screen. */
+.ds-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ds-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: currentColor;
+}
+
+.ds-icon--20 {
+  width: 20px;
+  height: 20px;
+}
+
+.ds-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- Type */
+
+.ds-heading-04 { font: var(--ds-type-heading-04); margin: 0; }
+.ds-heading-03 { font: var(--ds-type-heading-03); margin: 0; }
+.ds-heading-02 { font: var(--ds-type-heading-02); margin: 0; }
+.ds-heading-compact { font: var(--ds-type-heading-compact); margin: 0; }
+.ds-body { font: var(--ds-type-body); margin: 0; }
+.ds-body-compact { font: var(--ds-type-body-compact); margin: 0; }
+.ds-caption { font: var(--ds-type-caption); color: var(--ds-text-helper); margin: 0; }
+
+/* ---------------------------------------------------------------- Window */
+
+/* macOS document window: unified toolbar, content, optional sidebar and inspector. */
+.ds-window {
+  display: grid;
+  grid-template-rows: auto var(--ds-toolbar-height) auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "menubar menubar menubar"
+    "toolbar toolbar toolbar"
+    "sidebar accessory inspector"
+    "sidebar content inspector"
+    "sidebar status inspector";
+  height: 100%;
+  min-height: 0;
+  background: var(--ds-background);
+  border: 1px solid var(--ds-border-subtle-01);
+  overflow: hidden;
+}
+
+.ds-window > .ds-menu-bar { grid-area: menubar; }
+.ds-window > .ds-toolbar { grid-area: toolbar; min-width: 0; }
+.ds-window > .ds-source-list { grid-area: sidebar; }
+.ds-window > .ds-window__accessory { grid-area: accessory; }
+.ds-window > .ds-window__content { grid-area: content; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+.ds-window > .ds-inspector { grid-area: inspector; }
+.ds-window > .ds-status-bar { grid-area: status; }
+
+/* ---------------------------------------------------------------- Toolbar */
+
+.ds-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-02);
+  height: var(--ds-toolbar-height);
+  padding: 0 var(--ds-spacing-03);
+  background: var(--ds-layer-01);
+  border-bottom: 1px solid var(--ds-border-subtle-01);
+  overflow: hidden;
+}
+
+/* Items keep their size; when they no longer fit, menus.js moves them into the » menu. */
+.ds-toolbar > * {
+  flex: none;
+}
+
+.ds-toolbar__title {
+  flex: 0 1 auto;
+  min-width: 96px;
+  font: var(--ds-type-heading-compact);
+  padding: 0 var(--ds-spacing-04);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-toolbar__subtitle {
+  display: block;
+  font: var(--ds-type-caption);
+  color: var(--ds-text-helper);
+}
+
+.ds-toolbar > .ds-toolbar__spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.ds-toolbar__separator {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--ds-spacing-04) var(--ds-spacing-02);
+  background: var(--ds-border-subtle-01);
+}
+
+/* ---------------------------------------------------------------- Buttons */
+
+/* Push button. Neutral by default; --primary is the window's default (Return) button. */
+.ds-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-spacing-03);
+  height: var(--ds-control-sm);
+  min-width: 80px;
+  padding: 0 var(--ds-spacing-05);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius);
+  background: var(--ds-button-secondary);
+  color: var(--ds-text-on-color);
+  font: var(--ds-type-body-compact);
+  white-space: nowrap;
+  transition: background-color var(--ds-duration-fast-01) var(--ds-ease-standard);
+}
+
+.ds-button:hover { background: var(--ds-button-secondary-hover); }
+.ds-button:active { background: var(--ds-button-secondary-active); }
+
+.ds-button:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 3px var(--ds-focus-inset);
+}
+
+.ds-button--primary { background: var(--ds-button-primary); }
+.ds-button--primary:hover { background: var(--ds-button-primary-hover); }
+.ds-button--primary:active { background: var(--ds-button-primary-active); }
+
+.ds-button--danger { background: var(--ds-button-danger); }
+.ds-button--danger:hover { background: var(--ds-button-danger-hover); }
+.ds-button--danger:active { background: var(--ds-button-danger-active); }
+
+/* Bordered: Carbon tertiary, used for secondary actions inside panels. */
+.ds-button--bordered {
+  background: transparent;
+  border-color: var(--ds-border-strong-01);
+  color: var(--ds-text-primary);
+}
+.ds-button--bordered:hover { background: var(--ds-background-hover); }
+.ds-button--bordered:active { background: var(--ds-background-active); }
+
+/* Borderless: toolbar items and icon buttons (macOS textured/borderless style). */
+.ds-button--ghost {
+  background: transparent;
+  color: var(--ds-text-primary);
+  min-width: 0;
+  padding: 0 var(--ds-spacing-04);
+}
+.ds-button--ghost:hover { background: var(--ds-background-hover); }
+.ds-button--ghost:active { background: var(--ds-background-active); }
+.ds-button--ghost[aria-pressed="true"] {
+  background: var(--ds-background-selected);
+}
+
+.ds-button--icon {
+  width: var(--ds-control-sm);
+  min-width: 0;
+  padding: 0;
+}
+
+.ds-button--xs {
+  height: var(--ds-control-xs);
+  font: var(--ds-type-label);
+  padding: 0 var(--ds-spacing-03);
+}
+
+.ds-button--xs.ds-button--icon {
+  width: var(--ds-control-xs);
+  padding: 0;
+}
+
+.ds-button:disabled,
+.ds-button[aria-disabled="true"] {
+  background: var(--ds-button-disabled);
+  color: var(--ds-text-disabled);
+  border-color: transparent;
+}
+
+.ds-button--ghost:disabled,
+.ds-button--bordered:disabled {
+  background: transparent;
+  color: var(--ds-text-disabled);
+}
+
+/* Help button: the macOS "?" button that opens help for the surrounding panel, squared like every button. */
+.ds-help-button {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--ds-border-strong-01);
+  border-radius: var(--ds-radius);
+  background: var(--ds-layer-02);
+  color: var(--ds-text-primary);
+  font: var(--ds-type-heading-compact);
+}
+.ds-help-button:hover { background: var(--ds-layer-hover-02); }
+
+/* ---------------------------------------------------------------- Segmented control */
+
+/* NSSegmentedControl. Selected segment uses Carbon's inverse fill. */
+.ds-segmented {
+  display: inline-flex;
+  border: 1px solid var(--ds-border-strong-01);
+  background: var(--ds-layer-01);
+}
+
+.ds-segmented__segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-spacing-02);
+  min-width: var(--ds-control-sm);
+  height: calc(var(--ds-control-sm) - 2px);
+  padding: 0 var(--ds-spacing-04);
+  border: 0;
+  border-inline-end: 1px solid var(--ds-border-subtle-01);
+  background: transparent;
+  color: var(--ds-text-secondary);
+  font: var(--ds-type-body-compact);
+  white-space: nowrap;
+}
+
+.ds-segmented__segment:last-child {
+  border-inline-end: 0;
+}
+
+.ds-segmented__segment:hover {
+  background: var(--ds-layer-hover-01);
+  color: var(--ds-text-primary);
+}
+
+.ds-segmented__segment[aria-pressed="true"],
+.ds-segmented__segment[aria-selected="true"],
+.ds-segmented__segment[aria-checked="true"] {
+  background: var(--ds-background-inverse);
+  color: var(--ds-text-inverse);
+}
+
+.ds-segmented--xs .ds-segmented__segment {
+  height: calc(var(--ds-control-xs) - 2px);
+  min-width: var(--ds-control-xs);
+  padding: 0 var(--ds-spacing-03);
+  font: var(--ds-type-label);
+}
+
+/* Icon or single-glyph segments are square: as wide as they are tall, plus the 1px divider. */
+.ds-segmented--icons .ds-segmented__segment {
+  width: calc(var(--ds-control-sm) - 1px);
+  min-width: 0;
+  padding: 0;
+}
+
+.ds-segmented--icons .ds-segmented__segment:last-child {
+  width: calc(var(--ds-control-sm) - 2px);
+}
+
+.ds-segmented--icons.ds-segmented--xs .ds-segmented__segment {
+  width: calc(var(--ds-control-xs) - 1px);
+}
+
+.ds-segmented--icons.ds-segmented--xs .ds-segmented__segment:last-child {
+  width: calc(var(--ds-control-xs) - 2px);
+}
+
+.ds-segmented--fill {
+  display: flex;
+}
+
+.ds-segmented--fill .ds-segmented__segment {
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------- Fields */
+
+.ds-field {
+  display: grid;
+  gap: var(--ds-spacing-02);
+}
+
+.ds-field__label {
+  font: var(--ds-type-label);
+  color: var(--ds-text-secondary);
+}
+
+.ds-field__helper {
+  font: var(--ds-type-caption);
+  color: var(--ds-text-helper);
+}
+
+.ds-field__error {
+  font: var(--ds-type-caption);
+  color: var(--ds-text-error);
+}
+
+/* Text field: Carbon field fill with a 1px neutral underline. */
+.ds-text-input {
+  width: 100%;
+  height: var(--ds-control-sm);
+  padding: 0 var(--ds-spacing-04);
+  border: 0;
+  border-bottom: 1px solid var(--ds-border-strong-01);
+  border-radius: var(--ds-radius);
+  background: var(--ds-field-01);
+  color: var(--ds-text-primary);
+  font: var(--ds-type-body-compact);
+}
+
+.ds-text-input::placeholder { color: var(--ds-text-placeholder); }
+.ds-text-input:hover { background: var(--ds-field-hover-01); }
+
+.ds-text-input:focus,
+.ds-text-input:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+
+.ds-text-input[aria-invalid="true"] {
+  outline: 2px solid var(--ds-support-error);
+  outline-offset: -2px;
+}
+
+.ds-text-input:disabled {
+  color: var(--ds-text-disabled);
+  border-bottom-color: transparent;
+  background: var(--ds-field-01);
+}
+
+.ds-text-input--xs {
+  height: var(--ds-control-xs);
+  padding: 0 var(--ds-spacing-03);
+  font: var(--ds-type-label);
+}
+
+/* On a layer-01 surface (inspectors, sheets), fields use field-02 to stay visible. */
+.ds-on-layer .ds-text-input,
+.ds-on-layer .ds-popup__select,
+.ds-on-layer .ds-search__input,
+.ds-on-layer .ds-stepper {
+  background: var(--ds-field-02);
+}
+
+textarea.ds-text-input {
+  height: auto;
+  min-height: 80px;
+  padding: var(--ds-spacing-03) var(--ds-spacing-04);
+  resize: vertical;
+}
+
+/* Search field (NSSearchField): magnifier, field, clear button. */
+.ds-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ds-search__icon {
+  position: absolute;
+  inset-inline-start: var(--ds-spacing-04);
+  color: var(--ds-icon-secondary);
+  pointer-events: none;
+}
+
+.ds-search__input {
+  width: 100%;
+  height: var(--ds-control-sm);
+  padding: 0 var(--ds-control-sm) 0 calc(var(--ds-spacing-04) + 16px + var(--ds-spacing-03));
+  border: 0;
+  border-bottom: 1px solid var(--ds-border-strong-01);
+  border-radius: var(--ds-radius);
+  background: var(--ds-field-01);
+  font: var(--ds-type-body-compact);
+  cursor: text;
+}
+
+.ds-search__input::-webkit-search-cancel-button { display: none; }
+
+.ds-search__clear {
+  position: absolute;
+  inset-inline-end: 0;
+  width: var(--ds-control-sm);
+  height: var(--ds-control-sm);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-icon-secondary);
+}
+
+.ds-search__clear:hover { background: var(--ds-field-hover-01); color: var(--ds-icon-primary); }
+
+.ds-search--xs .ds-search__input,
+.ds-search--xs .ds-search__clear {
+  height: var(--ds-control-xs);
+}
+
+.ds-search--xs .ds-search__clear { width: var(--ds-control-xs); }
+
+/* ---------------------------------------------------------------- Pop-up button */
+
+/* NSPopUpButton: a native <select>, so the OS draws the menu. */
+.ds-popup {
+  position: relative;
+  display: inline-flex;
+  min-width: 120px;
+}
+
+.ds-popup__select {
+  width: 100%;
+  height: var(--ds-control-sm);
+  padding: 0 calc(var(--ds-spacing-04) + 16px + var(--ds-spacing-03)) 0 var(--ds-spacing-04);
+  border: 0;
+  border-bottom: 1px solid var(--ds-border-strong-01);
+  border-radius: var(--ds-radius);
+  background: var(--ds-field-01);
+  color: var(--ds-text-primary);
+  font: var(--ds-type-body-compact);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.ds-popup__select:hover { background: var(--ds-field-hover-01); }
+
+.ds-popup__chevron {
+  position: absolute;
+  inset-inline-end: var(--ds-spacing-04);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ds-icon-primary);
+  pointer-events: none;
+}
+
+.ds-popup--xs .ds-popup__select {
+  height: var(--ds-control-xs);
+  padding-inline-start: var(--ds-spacing-03);
+  font: var(--ds-type-label);
+}
+
+.ds-popup--xs .ds-popup__chevron { inset-inline-end: var(--ds-spacing-03); }
+
+/* ---------------------------------------------------------------- Stepper */
+
+/* NSTextField + NSStepper pair. */
+.ds-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--ds-control-sm);
+  background: var(--ds-field-01);
+  border-bottom: 1px solid var(--ds-border-strong-01);
+}
+
+.ds-stepper__input {
+  width: 64px;
+  min-width: 0;
+  padding: 0 var(--ds-spacing-03);
+  border: 0;
+  background: transparent;
+  font: var(--ds-type-body-compact);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  -moz-appearance: textfield;
+}
+
+.ds-stepper__input::-webkit-inner-spin-button,
+.ds-stepper__input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ds-stepper__arrows {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  border-inline-start: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-stepper__arrow {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-icon-primary);
+}
+
+.ds-stepper__arrow + .ds-stepper__arrow {
+  border-top: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-stepper__arrow:hover { background: var(--ds-field-hover-01); }
+.ds-stepper__arrow:active { background: var(--ds-layer-active-01); }
+.ds-stepper__arrow .ds-icon { width: 10px; height: 10px; }
+
+.ds-stepper--xs { height: var(--ds-control-xs); }
+.ds-stepper--xs .ds-stepper__input { font: var(--ds-type-label); width: 48px; }
+
+/* ---------------------------------------------------------------- Checkbox, radio, switch */
+
+.ds-check,
+.ds-radio,
+.ds-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-03);
+  min-height: var(--ds-control-xs);
+  font: var(--ds-type-body-compact);
+}
+
+.ds-check input,
+.ds-radio input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--ds-icon-primary);
+  background: transparent;
+}
+
+.ds-check input {
+  border-radius: var(--ds-radius-checkbox);
+}
+
+.ds-check input:checked,
+.ds-check input:indeterminate {
+  background: var(--ds-icon-primary);
+}
+
+.ds-check input:checked::after {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background: var(--ds-background);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.2 4.8 9 10 3.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.2 4.8 9 10 3.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.ds-check input:indeterminate::after {
+  content: "";
+  width: 8px;
+  height: 1.5px;
+  background: var(--ds-background);
+}
+
+.ds-radio input {
+  border-radius: var(--ds-radius-round);
+}
+
+.ds-radio input:checked::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--ds-radius-round);
+  background: var(--ds-icon-primary);
+}
+
+.ds-check input:focus-visible,
+.ds-radio input:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
+
+.ds-check input:disabled,
+.ds-radio input:disabled {
+  border-color: var(--ds-icon-disabled);
+}
+
+.ds-check:has(input:disabled),
+.ds-radio:has(input:disabled),
+.ds-switch:has(input:disabled) {
+  color: var(--ds-text-disabled);
+}
+
+/* macOS switch, Carbon toggle colours. */
+.ds-switch input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 16px;
+  margin: 0;
+  border-radius: var(--ds-radius-round);
+  background: var(--ds-border-strong-01);
+  transition: background-color var(--ds-duration-fast-02) var(--ds-ease-standard);
+}
+
+.ds-switch input::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--ds-radius-round);
+  background: var(--ds-icon-on-color);
+  transition: transform var(--ds-duration-fast-02) var(--ds-ease-standard);
+}
+
+.ds-switch input:checked {
+  background: var(--ds-interactive);
+}
+
+.ds-switch input:checked::after {
+  transform: translateX(16px);
+}
+
+.ds-switch input:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------- Slider */
+
+.ds-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-04);
+  font: var(--ds-type-body-compact);
+}
+
+.ds-slider input[type="range"] {
+  flex: 1;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.ds-slider input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--ds-border-subtle-01);
+}
+
+.ds-slider input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--ds-border-subtle-01);
+}
+
+.ds-slider input[type="range"]::-moz-range-progress {
+  height: 2px;
+  background: var(--ds-icon-primary);
+}
+
+.ds-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  border-radius: var(--ds-radius-round);
+  background: var(--ds-icon-primary);
+}
+
+.ds-slider input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: var(--ds-radius-round);
+  background: var(--ds-icon-primary);
+}
+
+/* ---------------------------------------------------------------- Colour well */
+
+/*
+ * NSColorWell: a framed swatch. It is an <input type="color">, so choosing it opens the
+ * operating system's colour picker where the browser provides one (the Colours panel on macOS).
+ */
+.ds-color-well {
+  width: 44px;
+  height: var(--ds-control-xs);
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--ds-border-strong-01);
+  border-radius: var(--ds-radius);
+  background: var(--ds-layer-02);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ds-color-well::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.ds-color-well::-webkit-color-swatch {
+  border: 0;
+  border-radius: var(--ds-radius);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.ds-color-well::-moz-color-swatch {
+  border: 0;
+  border-radius: var(--ds-radius);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.ds-color-well:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
+
+.ds-color-well:hover { background: var(--ds-layer-hover-02); }
+
+/* ---------------------------------------------------------------- Disclosure */
+
+/* Disclosure triangle with a title, as used in macOS inspectors. */
+.ds-disclosure {
+  border-bottom: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-03);
+  height: var(--ds-control-sm);
+  padding: 0 var(--ds-spacing-05) 0 var(--ds-spacing-04);
+  font: var(--ds-type-heading-compact);
+  list-style: none;
+}
+
+.ds-disclosure > summary::-webkit-details-marker { display: none; }
+.ds-disclosure > summary:hover { background: var(--ds-layer-hover-01); }
+
+.ds-disclosure > summary .ds-disclosure__triangle {
+  transition: transform var(--ds-duration-fast-02) var(--ds-ease-standard);
+  color: var(--ds-icon-secondary);
+}
+
+.ds-disclosure[open] > summary .ds-disclosure__triangle {
+  transform: rotate(90deg);
+}
+
+/* 8px under the title row: with the row's own space below its text this matches the 16px at the bottom. */
+.ds-disclosure__body {
+  padding: var(--ds-spacing-03) var(--ds-spacing-05) var(--ds-spacing-05);
+}
+
+/* ---------------------------------------------------------------- Group box */
+
+/* NSBox: a titled group of related controls on a raised layer. */
+.ds-group-box {
+  margin: 0;
+  padding: var(--ds-spacing-05);
+  border: 0;
+  background: var(--ds-layer-01);
+}
+
+.ds-group-box > legend,
+.ds-group-box__title {
+  float: left;
+  width: 100%;
+  margin: 0 0 var(--ds-spacing-04);
+  padding: 0;
+  font: var(--ds-type-heading-compact);
+}
+
+.ds-group-box > legend + * {
+  clear: both;
+}
+
+/* ---------------------------------------------------------------- Form rows */
+
+/* macOS inspector/preferences layout: right-aligned labels, controls to the right. */
+.ds-form {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: var(--ds-spacing-03) var(--ds-spacing-04);
+}
+
+.ds-form__label {
+  justify-self: end;
+  font: var(--ds-type-body-compact);
+  color: var(--ds-text-secondary);
+}
+
+.ds-form__control {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-03);
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- Source list */
+
+/* Sidebar source list. Selection is a full-row fill, never an edge strip. */
+.ds-source-list {
+  width: 220px;
+  padding: var(--ds-spacing-03) 0;
+  overflow: auto;
+  background: var(--ds-layer-01);
+  border-inline-end: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-source-list__section + .ds-source-list__section {
+  margin-top: var(--ds-spacing-05);
+}
+
+.ds-source-list__heading {
+  margin: 0;
+  padding: var(--ds-spacing-02) var(--ds-spacing-05);
+  font: var(--ds-type-heading-compact);
+  color: var(--ds-text-secondary);
+}
+
+.ds-source-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-03);
+  width: 100%;
+  height: var(--ds-control-sm);
+  padding: 0 var(--ds-spacing-05);
+  border: 0;
+  background: transparent;
+  color: var(--ds-text-primary);
+  font: var(--ds-type-body-compact);
+  text-align: start;
+}
+
+.ds-source-list__item:hover { background: var(--ds-layer-hover-01); }
+
+.ds-source-list__item[aria-current="true"],
+.ds-source-list__item[aria-selected="true"] {
+  background: var(--ds-layer-selected-01);
+  font-weight: 600;
+}
+
+.ds-source-list__count {
+  margin-inline-start: auto;
+  font: var(--ds-type-caption);
+  color: var(--ds-text-helper);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- Inspector */
+
+.ds-inspector {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  min-height: 0;
+  background: var(--ds-layer-01);
+  border-inline-start: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-inspector__switcher {
+  padding: var(--ds-spacing-03);
+  border-bottom: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-inspector__body {
+  flex: 1;
+  overflow: auto;
+}
+
+.ds-inspector__section {
+  padding: var(--ds-spacing-05);
+  border-bottom: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-inspector__section-title {
+  margin: 0 0 var(--ds-spacing-04);
+  font: var(--ds-type-heading-compact);
+}
+
+/* ---------------------------------------------------------------- Formula bar */
+
+.ds-formula-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-03);
+  height: 40px;
+  padding: 0 var(--ds-spacing-03);
+  background: var(--ds-background);
+  border-bottom: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-formula-bar__name {
+  width: 96px;
+  min-width: 0;
+}
+
+.ds-formula-bar__fx {
+  padding: 0 var(--ds-spacing-02);
+  color: var(--ds-icon-secondary);
+}
+
+.ds-formula-bar__input {
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------- Grid */
+
+/* Spreadsheet grid specimen. The app draws this on <canvas> with the same tokens. */
+.ds-grid {
+  display: grid;
+  grid-template-columns: 40px repeat(var(--ds-grid-columns, 6), minmax(88px, 1fr));
+  grid-auto-rows: 24px;
+  font: var(--ds-type-body-compact);
+  font-variant-numeric: tabular-nums;
+  background: var(--ds-background);
+  overflow: hidden;
+}
+
+.ds-grid__corner,
+.ds-grid__col-header,
+.ds-grid__row-header {
+  display: grid;
+  place-items: center;
+  background: var(--ds-grid-header);
+  color: var(--ds-text-secondary);
+  font: var(--ds-type-label);
+  border-right: 1px solid var(--ds-grid-line);
+  border-bottom: 1px solid var(--ds-grid-line);
+}
+
+.ds-grid__col-header[aria-selected="true"],
+.ds-grid__row-header[aria-selected="true"] {
+  background: var(--ds-grid-header-selected);
+  color: var(--ds-text-primary);
+}
+
+.ds-grid__cell {
+  position: relative;
+  padding: 0 var(--ds-spacing-02);
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 23px;
+  border-right: 1px solid var(--ds-grid-line);
+  border-bottom: 1px solid var(--ds-grid-line);
+}
+
+.ds-grid__cell--number { text-align: end; }
+.ds-grid__cell--bold { font-weight: 600; }
+.ds-grid__cell--in-range { background: var(--ds-grid-selection-fill); }
+
+.ds-grid__cell--active {
+  outline: 2px solid var(--ds-grid-selection-border);
+  outline-offset: -2px;
+}
+
+.ds-grid__fill-handle {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 6px;
+  height: 6px;
+  background: var(--ds-grid-selection-border);
+  box-shadow: 0 0 0 1px var(--ds-background);
+  cursor: crosshair;
+}
+
+/* ---------------------------------------------------------------- Sheet tab bar */
+
+/*
+ * Bottom sheet tabs, after macOS window tabs. A sheet colour tints the whole tab.
+ * Tabs keep their own width and scroll sideways in __strip when there are more
+ * than fit; __actions (add, list of all sheets) stay pinned at the end.
+ */
+.ds-sheet-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 32px;
+  background: var(--ds-layer-01);
+  border-top: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-sheet-tabs__strip {
+  display: flex;
+  align-items: stretch;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.ds-sheet-tabs__strip::-webkit-scrollbar {
+  display: none;
+}
+
+.ds-sheet-tabs__actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--ds-spacing-02);
+  padding: 0 var(--ds-spacing-03) 0 var(--ds-spacing-02);
+}
+
+.ds-sheet-tabs__tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  max-width: 200px;
+  padding: 0 var(--ds-spacing-05);
+  border: 0;
+  border-inline-end: 1px solid var(--ds-border-subtle-01);
+  background: color-mix(in srgb, var(--ds-tab-tint, transparent) 22%, transparent);
+  color: var(--ds-text-secondary);
+  font: var(--ds-type-body-compact);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-sheet-tabs__tab:hover {
+  background: color-mix(in srgb, var(--ds-tab-tint, var(--ds-layer-hover-01)) 34%, var(--ds-layer-hover-01));
+  color: var(--ds-text-primary);
+}
+
+.ds-sheet-tabs__tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--ds-tab-tint, var(--ds-background)) 30%, var(--ds-background));
+  color: var(--ds-text-primary);
+  font-weight: 600;
+}
+
+.ds-sheet-tabs__add {
+  align-self: center;
+}
+
+/* ---------------------------------------------------------------- Status bar */
+
+.ds-status-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-06);
+  height: 24px;
+  padding: 0 var(--ds-spacing-04);
+  background: var(--ds-layer-01);
+  border-top: 1px solid var(--ds-border-subtle-01);
+  font: var(--ds-type-caption);
+  color: var(--ds-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-status-bar__spacer { flex: 1; }
+
+/* ---------------------------------------------------------------- Menu bar */
+
+/* The in-window menu bar. Titles that don't fit move into the trailing » menu. */
+.ds-menu-bar {
+  display: flex;
+  align-items: stretch;
+  height: 28px;
+  padding: 0 var(--ds-spacing-02);
+  background: var(--ds-layer-01);
+  border-bottom: 1px solid var(--ds-border-subtle-01);
+  overflow: hidden;
+}
+
+.ds-menu-bar__item {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 0 var(--ds-spacing-04);
+  border: 0;
+  border-radius: var(--ds-radius);
+  background: transparent;
+  color: var(--ds-text-primary);
+  font: var(--ds-type-body-compact);
+  white-space: nowrap;
+}
+
+.ds-menu-bar__item:hover { background: var(--ds-background-hover); }
+
+.ds-menu-bar__item[aria-expanded="true"] {
+  background: var(--ds-button-primary);
+  color: var(--ds-text-on-color);
+}
+
+.ds-menu-bar__overflow {
+  padding: 0 var(--ds-spacing-03);
+}
+
+/* ---------------------------------------------------------------- Menu */
+
+/* NSMenu: context menus and pull-down menus. */
+.ds-menu {
+  min-width: min(200px, 100vw - 16px);
+  max-width: calc(100vw - 16px);
+  margin: 0;
+  padding: var(--ds-spacing-02) 0;
+  list-style: none;
+  background: var(--ds-layer-02);
+  box-shadow: var(--ds-shadow-float);
+  border: 1px solid var(--ds-border-subtle-01);
+  font: var(--ds-type-body-compact);
+}
+
+/* A menu opened by menus.js: fixed to the viewport, never wider or taller than the window. */
+.ds-menu--floating {
+  position: fixed;
+  z-index: 1000;
+  max-height: calc(100dvh - 16px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ds-menu--floating:focus-visible {
+  outline: none;
+}
+
+.ds-menu__item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: var(--ds-spacing-03);
+  height: var(--ds-control-xs);
+  padding: 0 var(--ds-spacing-03);
+  color: var(--ds-text-primary);
+}
+
+.ds-menu__item[data-highlighted] {
+  background: var(--ds-button-primary);
+  color: var(--ds-text-on-color);
+}
+
+.ds-menu__item[data-highlighted] .ds-menu__shortcut {
+  color: var(--ds-text-on-color);
+}
+
+/* Long titles ellipsise instead of pushing the menu past the window edge. */
+.ds-menu__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-menu__arrow {
+  width: 12px;
+  height: 12px;
+}
+
+.ds-menu__item[aria-disabled="true"] {
+  color: var(--ds-text-disabled);
+  background: transparent;
+}
+
+.ds-menu__check { visibility: hidden; }
+.ds-menu__item[aria-checked="true"] .ds-menu__check { visibility: visible; }
+
+/* Keyboard shortcuts are system-font text, not monospace keycaps. */
+.ds-menu__shortcut {
+  white-space: nowrap;
+  color: var(--ds-text-helper);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-menu__separator {
+  height: 1px;
+  margin: var(--ds-spacing-02) 0;
+  background: var(--ds-border-subtle-01);
+}
+
+.ds-menu__header {
+  padding: var(--ds-spacing-02) var(--ds-spacing-03) var(--ds-spacing-02) calc(var(--ds-spacing-03) * 2 + 16px);
+  font: var(--ds-type-heading-compact);
+  color: var(--ds-text-secondary);
+}
+
+/* ---------------------------------------------------------------- Popover */
+
+.ds-popover {
+  position: relative;
+  width: 280px;
+  padding: var(--ds-spacing-05);
+  background: var(--ds-layer-02);
+  box-shadow: var(--ds-shadow-float);
+  border: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-popover::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: var(--ds-popover-arrow, 24px);
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border-top: 1px solid var(--ds-border-subtle-01);
+  border-left: 1px solid var(--ds-border-subtle-01);
+  transform: rotate(45deg);
+}
+
+.ds-popover__title {
+  margin: 0 0 var(--ds-spacing-04);
+  font: var(--ds-type-heading-compact);
+}
+
+/* Swatch grid inside the colour popover. */
+.ds-swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 24px);
+  gap: var(--ds-spacing-02);
+}
+
+.ds-swatches__swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: var(--ds-swatch);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.ds-swatches__swatch[aria-checked="true"] {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------- Sheet and alert */
+
+/* A macOS sheet slides down from under the toolbar and is window-modal. */
+.ds-sheet-backdrop {
+  position: absolute;
+  inset: var(--ds-toolbar-height) 0 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: var(--ds-overlay);
+  animation: ds-fade-in var(--ds-duration-moderate-02) var(--ds-ease-entrance);
+}
+
+/* Closing: the sheet slides back up under the toolbar as the backdrop fades.
+   Add .is-closing, then remove the backdrop when it ends (design/sheets.js). */
+.ds-sheet-backdrop.is-closing {
+  pointer-events: none;
+  animation: ds-fade-out var(--ds-duration-moderate-01) var(--ds-ease-exit) forwards;
+}
+
+.ds-sheet-backdrop.is-closing .ds-sheet {
+  animation: ds-sheet-out var(--ds-duration-moderate-01) var(--ds-ease-exit) forwards;
+}
+
+.ds-sheet {
+  width: min(480px, 100% - 32px);
+  background: var(--ds-layer-01);
+  box-shadow: var(--ds-shadow-float);
+  animation: ds-sheet-in var(--ds-duration-moderate-02) var(--ds-ease-entrance);
+}
+
+@keyframes ds-sheet-in {
+  from { transform: translateY(-16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes ds-sheet-out {
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(-16px); opacity: 0; }
+}
+
+@keyframes ds-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes ds-fade-out {
+  to { opacity: 0; }
+}
+
+.ds-sheet__body {
+  padding: var(--ds-spacing-06) var(--ds-spacing-06) var(--ds-spacing-05);
+}
+
+.ds-sheet__title {
+  margin: 0 0 var(--ds-spacing-03);
+  font: var(--ds-type-heading-02);
+}
+
+.ds-sheet__message {
+  margin: 0;
+  font: var(--ds-type-body-compact);
+  color: var(--ds-text-secondary);
+}
+
+/*
+ * Button row, as in a macOS sheet: standard push buttons in the bottom-right
+ * corner, inset from the edges. The default (primary) button sits rightmost,
+ * Cancel to its left.
+ */
+.ds-sheet__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-spacing-03);
+  padding: 0 var(--ds-spacing-06) var(--ds-spacing-06);
+}
+
+/* NSAlert: icon, title, message, buttons. */
+.ds-alert .ds-sheet__body {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: var(--ds-spacing-04) var(--ds-spacing-05);
+}
+
+.ds-alert__icon {
+  width: 32px;
+  height: 32px;
+  fill: var(--ds-support-warning);
+}
+
+/* ---------------------------------------------------------------- Table view */
+
+/* NSTableView. Selected rows are filled; no edge indicators. */
+.ds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--ds-type-body-compact);
+}
+
+.ds-table th {
+  height: var(--ds-control-sm);
+  padding: 0 var(--ds-spacing-05);
+  background: var(--ds-layer-accent-01);
+  font: var(--ds-type-heading-compact);
+  text-align: start;
+}
+
+.ds-table td {
+  height: var(--ds-control-sm);
+  padding: 0 var(--ds-spacing-05);
+  border-bottom: 1px solid var(--ds-border-subtle-01);
+}
+
+.ds-table--zebra tbody tr:nth-child(even) { background: var(--ds-layer-01); }
+.ds-table tbody tr:hover { background: var(--ds-layer-hover-01); }
+
+.ds-table tbody tr[aria-selected="true"] {
+  background: var(--ds-highlight);
+}
+
+.ds-table td.ds-numeric,
+.ds-table th.ds-numeric {
+  text-align: end;
+}
+
+/* ---------------------------------------------------------------- Inline notification */
+
+/* Status is shown with an icon, words and a whole-surface tint. No edge strip. */
+.ds-notification {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: start;
+  gap: var(--ds-spacing-04);
+  padding: var(--ds-spacing-04) var(--ds-spacing-05);
+  font: var(--ds-type-body-compact);
+  color: var(--ds-text-primary);
+  background: var(--ds-notification-info);
+}
+
+.ds-notification > .ds-icon { margin-top: 1px; fill: var(--ds-support-info); }
+.ds-notification--error { background: var(--ds-notification-error); }
+.ds-notification--error > .ds-icon { fill: var(--ds-support-error); }
+.ds-notification--success { background: var(--ds-notification-success); }
+.ds-notification--success > .ds-icon { fill: var(--ds-support-success); }
+.ds-notification--warning { background: var(--ds-notification-warning); }
+.ds-notification--warning > .ds-icon { fill: var(--ds-support-warning); }
+
+.ds-notification__title {
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- Progress */
+
+.ds-progress {
+  height: 4px;
+  background: var(--ds-border-subtle-01);
+  overflow: hidden;
+}
+
+.ds-progress__bar {
+  height: 100%;
+  width: var(--ds-progress, 0%);
+  background: var(--ds-interactive);
+  transition: width var(--ds-duration-moderate-01) var(--ds-ease-standard);
+}
+
+.ds-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--ds-radius-round);
+  background: conic-gradient(var(--ds-interactive) 0 25%, var(--ds-border-subtle-01) 25% 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  animation: ds-spin 690ms linear infinite;
+}
+
+@keyframes ds-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------------------------------------------------------------- Tooltip */
+
+.ds-tooltip {
+  display: inline-block;
+  max-width: 240px;
+  padding: var(--ds-spacing-02) var(--ds-spacing-03);
+  background: var(--ds-background-inverse);
+  color: var(--ds-text-inverse);
+  font: var(--ds-type-caption);
+}

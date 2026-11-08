@@ -1,0 +1,13 @@
+{
+  "name": "tables-web",
+  "version": "1.0.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "./build.sh",
+    "serve": "node design/serve.mjs",
+    "design": "node design/serve.mjs",
+    "lint:design": "node design/lint.mjs",
+    "test": "node wasm/tests/smoke.mjs"
+  }
+}

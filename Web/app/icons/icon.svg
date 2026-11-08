@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- The Tables app icon (Apple/Shared/Resources/AppIcon.icon) for the web: the same table glyph on the app's green. -->
+  <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2BB56E"/><stop offset="1" stop-color="#15864B"/></linearGradient></defs>
+  <rect x="40" y="40" width="944" height="944" rx="212" fill="url(#fill)"/>
+  <g fill="#FFFFFF">
+    <path d="M236 244H504V412H188V292A48 48 0 0 1 236 244Z" opacity="0.95"/>
+    <path d="M520 244H788A48 48 0 0 1 836 292V412H520V244Z" opacity="0.55"/>
+    <path d="M188 428H504V596H188V428Z" opacity="0.72"/>
+    <path d="M520 428H836V596H520V428Z" opacity="0.95"/>
+    <path d="M188 612H504V780H236A48 48 0 0 1 188 732V612Z" opacity="0.45"/>
+    <path d="M520 612H836V732A48 48 0 0 1 788 780H520V612Z" opacity="0.78"/>
+  </g>
+</svg>
