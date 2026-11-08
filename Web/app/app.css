@@ -104,6 +104,7 @@ body {
   background: var(--ds-background);
 }
 
+.app.is-empty #toolbar > :not(.ds-toolbar__title):not(.ds-toolbar__spacer),
 .app.is-empty .app__grid,
 .app.is-empty .app__tabs,
 .app.is-empty .app__accessory,
