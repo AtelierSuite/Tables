@@ -8,12 +8,18 @@ struct FormatPanel: View {
 
     /// Which sides the border line style and colour are aimed at.
     @State private var borderScope: BorderScope = .all
+    @State private var isPickingFont = false
 
     private var style: CellStyle { state.representativeStyle(in: workbook) }
 
     var body: some View {
         Form {
             Section("Format.Section.Text") {
+                #if canImport(UIKit)
+                if state.formatting.contains(.fonts) {
+                    fontRow
+                }
+                #endif
                 HStack(spacing: 12) {
                     styleToggle("bold", label: "Toolbar.Bold", isOn: style.isBold) {
                         state.toggleBold(in: &workbook)
@@ -231,6 +237,46 @@ struct FormatPanel: View {
             .listRowInsets(EdgeInsets())
         }
     }
+
+    #if canImport(UIKit)
+    /// The cell's typeface, chosen with the system font picker. The system font
+    /// is the default, and the way back to it once a family is chosen.
+    private var fontRow: some View {
+        LabeledContent("Format.Text.Font") {
+            HStack(spacing: 12) {
+                if !style.usesSystemFont {
+                    Button {
+                        state.applyStyle(in: &workbook) { $0.fontName = CellStyle.systemFontName }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel("Format.Text.Font.System")
+                    .accessibilityIdentifier("font.system")
+                }
+                Button {
+                    isPickingFont = true
+                } label: {
+                    Group {
+                        if let family = style.displayFontName {
+                            Text(verbatim: family).font(.custom(family, size: 17))
+                        } else {
+                            Text("Format.Text.Font.System")
+                        }
+                    }
+                    .lineLimit(1)
+                }
+                .accessibilityIdentifier("font.choose")
+            }
+            .buttonStyle(.borderless)
+        }
+        .sheet(isPresented: $isPickingFont) {
+            FontPicker { family in
+                state.applyStyle(in: &workbook) { $0.fontName = family }
+            }
+        }
+    }
+    #endif
 
     private func styleToggle(
         _ symbol: String, label: LocalizedStringKey, isOn: Bool, action: @escaping () -> Void
