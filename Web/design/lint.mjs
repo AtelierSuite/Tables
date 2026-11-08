@@ -140,6 +140,12 @@ function lintDeclaration(file, selector, prop, rawValue, line) {
     if (!ok) report(file, line, "square-corners", `${prop}: ${value} on "${selector}"`);
   }
 
+  // Selection: UI text is never selectable; only fields, editable regions and document content are.
+  if ((prop === "user-select" || prop === "-webkit-user-select") && v !== "none") {
+    const ok = selector.split(",").every((s) => /input|textarea|contenteditable|\.ds-document-content/.test(s));
+    if (!ok) report(file, line, "no-selectable-ui-text", `${prop}: ${value} on "${selector}"`);
+  }
+
   // Case: never transform to capitals; never small caps.
   if (prop === "text-transform" && v !== "none") report(file, line, "no-all-caps", `text-transform: ${value}`);
   if ((prop === "font-variant-caps" || prop === "font-variant") && /(small|petite|titling)-caps|unicase/.test(v)) {
@@ -250,6 +256,7 @@ function lintScript(file, js, baseLine = 1) {
     [/(textTransform|text-transform)\s*[:=]\s*["'`](uppercase|capitalize|full-width)/g, "no-all-caps"],
     [/(letterSpacing|letter-spacing)\s*[:=]\s*["'`](?!0(px)?["'`]|normal)/g, "no-wide-kerning"],
     [/monospace/g, "system-font-only"],
+    [/(userSelect|user-select)\s*[:=]\s*["'`](text|all|auto|contain)/g, "no-selectable-ui-text"],
   ];
   for (const [re, rule] of rules) {
     for (const m of js.matchAll(re)) {

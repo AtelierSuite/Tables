@@ -39,7 +39,7 @@ function tidy(items) {
 
 function render(items) {
   const menu = document.createElement("div");
-  menu.className = "ds-menu ds-menu--floating ds-chrome";
+  menu.className = "ds-menu ds-menu--floating";
   menu.setAttribute("role", "menu");
   menu.tabIndex = -1;
   for (const item of tidy(items)) {
@@ -510,7 +510,7 @@ export function attachToolbarOverflow(toolbar, { label = "More Toolbar Items", b
  * while one is open, moving over another title switches to it.
  */
 export function attachMenuBar(bar, menus, { label = "Menus", overflowLabel = "More Menus" } = {}) {
-  bar.classList.add("ds-menu-bar", "ds-chrome");
+  bar.classList.add("ds-menu-bar");
   bar.setAttribute("role", "menubar");
   bar.setAttribute("aria-label", label);
   bar.replaceChildren();

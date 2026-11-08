@@ -136,7 +136,7 @@
       <h1 class="ds-heading-04">Tables design system</h1>
       <p class="specimen__intro ds-body">IBM Carbon styling on macOS components, for the offline Tables web app. Everything on this page is built from <a href="tokens.css">tokens.css</a> and <a href="components.css">components.css</a>; the rules are written up in <a href="DESIGN.md">DESIGN.md</a>.</p>
     </div>
-    <div class="ds-segmented ds-chrome" role="radiogroup" aria-label="Appearance" id="theme-switch">
+    <div class="ds-segmented" role="radiogroup" aria-label="Appearance" id="theme-switch">
       <button class="ds-segmented__segment" role="radio" aria-checked="true" data-theme-value="">System</button>
       <button class="ds-segmented__segment" role="radio" aria-checked="false" data-theme-value="light">Light</button>
       <button class="ds-segmented__segment" role="radio" aria-checked="false" data-theme-value="dark">Dark</button>
@@ -147,7 +147,7 @@
     <h2 class="ds-heading-03" id="window-title">Document window</h2>
     <p class="ds-body">The workbook window as it is assembled from the components below: menu bar, unified toolbar, formula bar, grid, sheet tabs, status bar, and the inspector. Drag the window's bottom-right corner to narrow it: menu titles and toolbar items that no longer fit move into » menus, and the inspector hides. Right-click the grid for a context menu.</p>
     <div class="specimen__window">
-      <div class="ds-window ds-chrome">
+      <div class="ds-window">
         <div class="ds-menu-bar" id="window-menu-bar"></div>
         <div class="ds-toolbar" id="window-toolbar">
           <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Show Sidebar" title="Show Sidebar" data-overflow="never"><svg class="ds-icon"><use href="#i-sidebar"/></svg></button>
@@ -259,12 +259,13 @@
     <h2 class="ds-heading-03" id="rules-title">Rules</h2>
     <p class="ds-body">These are enforced by <a href="lint.mjs">lint.mjs</a> across everything in Web/.</p>
     <div class="specimen__rules">
-      <div class="specimen__rule"><h3 class="ds-heading-compact">System font only</h3><p>Every piece of text uses the operating system's sans-serif through <span class="ds-selectable">--ds-font</span>. No web fonts and no monospace, including formulas and macro code.</p></div>
+      <div class="specimen__rule"><h3 class="ds-heading-compact">System font only</h3><p>Every piece of text uses the operating system's sans-serif through --ds-font. No web fonts and no monospace, including formulas and macro code.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">Default cursor</h3><p>Buttons, tabs, menus and controls keep the arrow cursor. The pointing hand appears only on underlined text links with an href.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">No chips</h3><p>Choices are made with segmented controls, pop-up buttons, checkboxes or lists. No pill-shaped tags, filters or token fields.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">No eyebrow text</h3><p>A heading stands on its own. No small label stacked above a title to categorise it.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">No all caps</h3><p>Text is never transformed to capitals or small caps. Strings appear exactly as written in the string catalogues.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">No wide tracking</h3><p>Letter-spacing is always zero. Numbers line up with tabular figures, not monospace.</p></div>
+      <div class="specimen__rule"><h3 class="ds-heading-compact">No selectable UI text</h3><p>Labels, headings, menus and messages can't be selected. Only text fields, editable regions and document content can.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">Square buttons</h3><p>Every button has square corners, including icon, segmented, help and menu-bar buttons. Only checkboxes, radios, switches and sliders are rounded.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">No fingernail strips</h3><p>No coloured bar along one edge of a card, row, tab or notification. Selection and status fill the whole surface.</p></div>
     </div>
@@ -290,7 +291,7 @@
     </div>
   </section>
 
-  <section class="specimen__section ds-chrome" aria-labelledby="buttons-title">
+  <section class="specimen__section" aria-labelledby="buttons-title">
     <h2 class="ds-heading-03" id="buttons-title">Buttons</h2>
     <p class="ds-body">Push buttons, borderless toolbar buttons and the help button. The default (Return) button is the only one filled with the accent colour in a view.</p>
     <div class="specimen__row">
@@ -311,7 +312,7 @@
     </div>
   </section>
 
-  <section class="specimen__section ds-chrome" aria-labelledby="controls-title">
+  <section class="specimen__section" aria-labelledby="controls-title">
     <h2 class="ds-heading-03" id="controls-title">Selection controls</h2>
     <p class="ds-body">Segmented controls replace tabs and chips. Pop-up buttons are native selects, so the operating system draws their menus.</p>
     <div class="specimen__cols ds-on-layer">
@@ -356,7 +357,7 @@
     </div>
   </section>
 
-  <section class="specimen__section ds-chrome" aria-labelledby="menus-title">
+  <section class="specimen__section" aria-labelledby="menus-title">
     <h2 class="ds-heading-03" id="menus-title">Menus and popovers</h2>
     <p class="ds-body">Menus follow NSMenu: a checkmark column, title, keyboard shortcut in the system font, and a submenu arrow. Open menus always fit the window: they flip above or to the other side at an edge, scroll when taller than the window, and ellipsise titles when narrower. Popovers anchor to the control that opened them.</p>
     <div class="specimen__row specimen__menu-stage ds-on-layer">
@@ -391,7 +392,7 @@
     </div>
   </section>
 
-  <section class="specimen__section ds-chrome" aria-labelledby="sheets-title">
+  <section class="specimen__section" aria-labelledby="sheets-title">
     <h2 class="ds-heading-03" id="sheets-title">Sheets and alerts</h2>
     <p class="ds-body">Window-modal sheets drop from under the toolbar. Buttons run right to left in order of importance: the default action is rightmost.</p>
     <div class="specimen__sheet-stage">
@@ -429,7 +430,7 @@
     </div>
   </section>
 
-  <section class="specimen__section ds-chrome" aria-labelledby="lists-title">
+  <section class="specimen__section" aria-labelledby="lists-title">
     <h2 class="ds-heading-03" id="lists-title">Lists and tables</h2>
     <p class="ds-body">A source list for navigation and a table view for records. Selected rows are filled; nothing marks a single edge.</p>
     <div class="specimen__cols ds-on-layer">

@@ -42,11 +42,15 @@ optgroup {
   margin: 0;
 }
 
-/* Application chrome is not selectable text, as on macOS. Content stays selectable. */
-.ds-chrome,
-.ds-chrome * {
+/*
+ * UI text is never selectable, as in a native app.
+ * Only what the user edits or authored is selectable: text fields, editable
+ * regions and document content rendered as HTML (.ds-document-content).
+ */
+html {
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
 }
 
 input[type="text"],
@@ -57,9 +61,20 @@ input[type="url"],
 input:not([type]),
 textarea,
 [contenteditable="true"],
-.ds-selectable {
+.ds-document-content {
   -webkit-user-select: text;
   user-select: text;
+  -webkit-touch-callout: default;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input:not([type]),
+textarea,
+[contenteditable="true"] {
   cursor: text;
 }
 

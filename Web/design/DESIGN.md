@@ -67,6 +67,12 @@ No coloured bar along a single edge of a card, list row, tab, notification, call
 - Sheet tab colours tint the whole tab (`--ds-tab-tint`), not a stripe under it.
 - Single-edge borders are allowed only when they are 1px and a neutral border token (`--ds-border-subtle-*`, `--ds-border-strong-01`, `--ds-grid-line`): dividers between toolbar and content, and Carbon's field underline. Inset shadows offset to one side are rejected.
 
+### 8. UI text is not selectable
+
+- The whole UI is `user-select: none` from `<html>` down, as in a native app: labels, headings, buttons, menus, tooltips, notifications, alerts and the status bar can't be selected or long-pressed for a callout.
+- Selectable text is limited to what the user edits or authored: text inputs, `<textarea>`, `[contenteditable]`, and document content rendered as HTML, marked `.ds-document-content` (comment bodies, a printed sheet). Grid cells are drawn on a canvas and copied through the app's own copy command, not text selection.
+- Text that people need to copy, such as an error code, gets a Copy button instead of being selectable.
+
 ## Foundations
 
 ### Colour
@@ -176,7 +182,6 @@ Spreadsheet-specific components, built from the same tokens:
 - **Menus always fit the window.** A menu is never wider than the window minus 8px on each side, and long titles ellipsise. A pull-down menu that runs past the bottom flips above its title if there is more room there, otherwise it scrolls. A submenu opens to the right and flips to the left at the window edge. A context menu opens at the pointer and flips left or up to stay inside. Menus close when the window resizes or loses focus, or when the page scrolls under them.
 - **Bars overflow, they don't wrap or clip.** The menu bar and the toolbar recompute as the window width changes (`ResizeObserver`). Whatever no longer fits moves, from the trailing end, into a » menu at the end of that bar, and comes back as space returns. In the toolbar, the document title shrinks with an ellipsis before anything moves, and segmented groups appear in the » menu as checkable items under their group name.
 - **Keyboard shortcuts** use ⌘ on Apple platforms and Ctrl elsewhere, shown in the menu in the system font.
-- **Chrome is not selectable** (`.ds-chrome`); cell contents, fields and messages are.
 - **Context menus** replace the browser's on the grid, sheet tabs and objects; elsewhere the browser's menu stays.
 - **Windows and sheets**: one workbook per browser window or installed-app window. Alerts that need a decision are sheets, not browser `confirm()`.
 - **Accessibility**: WCAG 2.1 AA contrast in both appearances (Carbon's token pairs meet it), full keyboard operation, ARIA roles on every custom control, and a visible focus outline.
