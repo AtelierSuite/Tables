@@ -18,6 +18,22 @@ const NEUTRAL_EDGE = /^(var\(--ds-(border-subtle-0[01]|border-strong-01|border-d
 const FORBIDDEN_NAMES = /(^|[-_])(chips?|pills?|badges?|tags?|tokens?|lozenges?|eyebrows?|overlines?|kickers?)($|[-_])/i;
 const MONO_ELEMENTS = /<(code|pre|kbd|samp|tt|var)[\s>]/i;
 
+// The accent colour must match the Apple app's AccentColor asset.
+const accentAsset = resolve(webRoot, "../Apple/Shared/Resources/Assets.xcassets/AccentColor.colorset/Contents.json");
+const APP_ACCENT = (() => {
+  try {
+    const { colors } = JSON.parse(readFileSync(accentAsset, "utf8"));
+    const c = colors.find((entry) => !entry.appearances)?.color.components;
+    const channel = (v) => {
+      const n = String(v).startsWith("0x") ? parseInt(v, 16) : Math.round(parseFloat(v) * (parseFloat(v) <= 1 ? 255 : 1));
+      return n.toString(16).padStart(2, "0");
+    };
+    return `#${channel(c.red)}${channel(c.green)}${channel(c.blue)}`;
+  } catch {
+    return null;
+  }
+})();
+
 const problems = [];
 const seen = new Set();
 const report = (file, line, rule, detail) => {
@@ -139,6 +155,9 @@ function lintDeclaration(file, selector, prop, rawValue, line) {
   // Fonts: system sans-serif only.
   if (/monospace|courier|menlo|monaco|consolas|sf mono|ui-monospace/.test(v)) {
     report(file, line, "system-font-only", `${prop}: ${value}`);
+  }
+  if (prop === "--ds-accent" && APP_ACCENT && v !== APP_ACCENT) {
+    report(file, line, "app-accent", `--ds-accent is ${value} but the app's AccentColor is ${APP_ACCENT}`);
   }
   if (prop === "--ds-font" && value !== SYSTEM_FONT) report(file, line, "system-font-only", `--ds-font changed to ${value}`);
   if (prop === "font-family" && !/^(inherit|var\(--ds-font\))$/.test(v)) {
