@@ -150,6 +150,7 @@ body {
   position: absolute;
   inset: 0;
   overflow: auto;
+  touch-action: pan-x pan-y;
   outline: none;
   overscroll-behavior: contain;
 }

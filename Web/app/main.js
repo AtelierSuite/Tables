@@ -8,6 +8,11 @@ import { WorkbookWindow } from "./window.js";
 
 const root = document.getElementById("app");
 
+// Safari zooms the whole page on a pinch unless told not to; the grid handles its own.
+for (const type of ["gesturestart", "gesturechange"]) {
+  document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+}
+
 async function start() {
   const strings = await loadStrings();
   const engine = new EngineClient();

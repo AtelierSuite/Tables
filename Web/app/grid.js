@@ -13,6 +13,10 @@ const HEADER_HEIGHT = 24;
 const RESIZE_SLOP = 4;
 const EXTRA_ROOM = 64;
 const TILE_LIMIT = 240;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 3;
+/** How long zooming must pause before tiles are drawn again at the new scale. */
+const ZOOM_SETTLE = 160;
 
 export class GridView extends EventTarget {
   /**
@@ -110,19 +114,54 @@ export class GridView extends EventTarget {
     this.spacer.style.height = `${HEADER_HEIGHT + this.metrics.totalHeight * z + EXTRA_ROOM}px`;
   }
 
-  setZoom(zoom) {
-    const clamped = Math.min(3, Math.max(0.5, Math.round(zoom * 100) / 100));
-    if (clamped === this.zoom) return;
+  /**
+   * Zooms about a point on screen (the pointer or the fingers; the middle of
+   * the grid by default), keeping the part of the sheet under it in place, as
+   * the Apple apps' pinch does. A gesture passes the sheet point it started
+   * over as `pinned`, so rounded scroll positions can't make it drift, and
+   * moving fingers carry the sheet with them.
+   */
+  setZoom(zoom, anchor = null, pinned = null) {
+    if (!this.metrics) return;
+    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+    if (Math.abs(clamped - this.zoom) < 0.0005 && !pinned) return;
     const { width, height } = this.viewport;
-    const centre = this.toSheet(width / 2, height / 2);
+    const point = anchor ?? { x: (this.rowHeaderWidth + width) / 2, y: (HEADER_HEIGHT + height) / 2 };
+    const header = this.rowHeaderWidth;
+    const m = this.metrics;
+    // The sheet point under the anchor, before zooming.
+    const before = pinned ?? this.toSheet(Math.max(point.x, header), Math.max(point.y, HEADER_HEIGHT));
+    const previous = this.zoom;
     this.zoom = clamped;
     this.updateSpacer();
-    if (centre) {
-      this.scroller.scrollLeft = Math.max(0, (centre.x - this.metrics.frozenWidth) * clamped - (width - this.rowHeaderWidth) / 2);
-      this.scroller.scrollTop = Math.max(0, (centre.y - this.metrics.frozenHeight) * clamped - (height - HEADER_HEIGHT) / 2);
-    }
+    // Where that point must scroll to so it lands under the anchor again. In a
+    // frozen pane nothing scrolls, so the rest keeps its proportion.
+    const left = before.x >= m.frozenWidth
+      ? (before.x - m.frozenWidth) * clamped - (point.x - header - m.frozenWidth * clamped)
+      : this.scroller.scrollLeft * clamped / previous;
+    const top = before.y >= m.frozenHeight
+      ? (before.y - m.frozenHeight) * clamped - (point.y - HEADER_HEIGHT - m.frozenHeight * clamped)
+      : this.scroller.scrollTop * clamped / previous;
+    this.scroller.scrollLeft = Math.max(0, left);
+    this.scroller.scrollTop = Math.max(0, top);
+    this.zoomSettling();
     this.requestDraw();
     this.dispatchEvent(new CustomEvent("zoom", { detail: clamped }));
+  }
+
+  /** The sheet point under a screen point, for a gesture to hold under the fingers. */
+  pinnedPoint(point) {
+    return this.toSheet(Math.max(point.x, this.rowHeaderWidth), Math.max(point.y, HEADER_HEIGHT));
+  }
+
+  /** While zooming, existing tiles are stretched; once it pauses they are drawn again sharp. */
+  zoomSettling() {
+    this.isZooming = true;
+    clearTimeout(this.zoomTimer);
+    this.zoomTimer = setTimeout(() => {
+      this.isZooming = false;
+      this.requestDraw();
+    }, ZOOM_SETTLE);
   }
 
   /** Sheet x for a screen x inside the grid, or null over the row header. */
@@ -225,21 +264,28 @@ export class GridView extends EventTarget {
   }
 
   tileKey(tx, ty) {
-    return `${this.dark ? 1 : 0}|${this.zoom}|${tx}|${ty}`;
+    return `${this.dark ? 1 : 0}|${tx}|${ty}`;
   }
 
-  /** The newest bitmap for a tile, requesting a fresh one when it is out of date. */
+  /**
+   * The newest bitmap for a tile, requesting a fresh one when it is out of
+   * date. A tile drawn at another zoom is still returned, and stretched, until
+   * zooming settles: re-rendering every tile on every step of a pinch would
+   * leave the sheet blank while the fingers move.
+   */
   tile(tx, ty) {
     const key = this.tileKey(tx, ty);
     const version = this.engine.versions.content * 100000 + this.engine.versions.layout;
     const cached = this.tiles.get(key);
-    if ((!cached || cached.version !== version) && !this.pendingTiles.has(key)) {
+    const stale = !cached || cached.version !== version || (cached.zoom !== this.zoom && !this.isZooming);
+    if (stale && !this.pendingTiles.has(key)) {
       this.pendingTiles.add(key);
       const dark = this.dark, zoom = this.zoom;
       this.engine.render({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE }, dark).then((list) => {
         this.pendingTiles.delete(key);
-        if (dark !== this.dark || zoom !== this.zoom) return;
-        this.tiles.set(key, { version, canvas: this.rasterize(list, tx, ty) });
+        if (dark !== this.dark) return;
+        this.tiles.delete(key);
+        this.tiles.set(key, { version, zoom, canvas: this.rasterize(list, tx, ty, zoom) });
         if (this.tiles.size > TILE_LIMIT) this.tiles.delete(this.tiles.keys().next().value);
         this.requestDraw();
       }, () => this.pendingTiles.delete(key));
@@ -247,9 +293,9 @@ export class GridView extends EventTarget {
     return cached?.canvas ?? null;
   }
 
-  rasterize(list, tx, ty) {
+  rasterize(list, tx, ty, zoom = this.zoom) {
     const dpr = window.devicePixelRatio || 1;
-    const scale = this.zoom * dpr;
+    const scale = zoom * dpr;
     const size = Math.ceil(TILE * scale);
     const canvas = document.createElement("canvas");
     canvas.width = size;
@@ -679,11 +725,89 @@ export class GridView extends EventTarget {
     el.addEventListener("pointerup", (event) => this.pointerUp(event));
     el.addEventListener("pointercancel", () => this.endDrag());
     el.addEventListener("dblclick", (event) => this.doubleClick(event));
+    this.bindZoomGestures();
+  }
+
+  /**
+   * Pinch and ctrl-scroll zoom the sheet, about the fingers or the pointer.
+   *
+   * - Chrome, Edge and Firefox report a trackpad pinch as wheel events with
+   *   ctrlKey set and small deltas, and ctrl-scroll with a mouse the same way
+   *   with large ones: both scale smoothly by the delta.
+   * - Safari reports pinches (trackpad and touch) as its own gesture events,
+   *   with the scale since the gesture began.
+   * - Elsewhere, two touch pointers on the grid make a pinch.
+   */
+  bindZoomGestures() {
+    const el = this.scroller;
     el.addEventListener("wheel", (event) => {
       if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
-      this.setZoom(this.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1));
+      if (this.gesture) return;
+      const pixels = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * 400 : event.deltaY;
+      const factor = Math.min(1.25, Math.max(0.8, Math.exp(-pixels * 0.01)));
+      // A burst of wheel events is one pinch: it holds the sheet point it began over.
+      const point = this.localPoint(event);
+      const now = performance.now();
+      if (!this.wheelPinch || now - this.wheelPinch.time > 200) this.wheelPinch = { pinned: this.pinnedPoint(point) };
+      this.wheelPinch.time = now;
+      this.setZoom(this.zoom * factor, point, this.wheelPinch.pinned);
     }, { passive: false });
+
+    // Test for the type itself: macOS WebKit has GestureEvent but no ongesturechange property.
+    const hasGestureEvents = typeof window.GestureEvent === "function";
+    if (hasGestureEvents) {
+      el.addEventListener("gesturestart", (event) => {
+        event.preventDefault();
+        this.endDrag();
+        this.gesture = { zoom: this.zoom, pinned: this.pinnedPoint(this.localPoint(event)) };
+      });
+      el.addEventListener("gesturechange", (event) => {
+        event.preventDefault();
+        if (!this.gesture) return;
+        this.setZoom(this.gesture.zoom * event.scale, this.localPoint(event), this.gesture.pinned);
+      });
+      el.addEventListener("gestureend", (event) => {
+        event.preventDefault();
+        this.gesture = null;
+      });
+      return;
+    }
+
+    // Touch pinch from pointers, where the browser has no gesture events.
+    const touches = new Map();
+    const pinchState = () => {
+      const [a, b] = [...touches.values()];
+      return {
+        distance: Math.hypot(a.x - b.x, a.y - b.y),
+        centre: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
+    };
+    el.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== "touch") return;
+      touches.set(event.pointerId, this.localPoint(event));
+      if (touches.size === 2) {
+        this.endDrag();
+        const { distance, centre } = pinchState();
+        this.gesture = { zoom: this.zoom, distance, pinned: this.pinnedPoint(centre) };
+      }
+    }, true);
+    el.addEventListener("pointermove", (event) => {
+      if (!touches.has(event.pointerId)) return;
+      touches.set(event.pointerId, this.localPoint(event));
+      if (!this.gesture || touches.size !== 2) return;
+      event.preventDefault();
+      const { distance, centre } = pinchState();
+      if (this.gesture.distance > 0) {
+        this.setZoom(this.gesture.zoom * distance / this.gesture.distance, centre, this.gesture.pinned);
+      }
+    }, true);
+    const lift = (event) => {
+      touches.delete(event.pointerId);
+      if (touches.size < 2) this.gesture = null;
+    };
+    el.addEventListener("pointerup", lift, true);
+    el.addEventListener("pointercancel", lift, true);
   }
 
   hit(point) {
@@ -729,7 +853,7 @@ export class GridView extends EventTarget {
   }
 
   async pointerDown(event) {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || this.gesture) return;
     const point = this.localPoint(event);
     const hit = this.hit(point);
     const state = this.engine.state;
@@ -797,7 +921,7 @@ export class GridView extends EventTarget {
 
   async pointerMove(event) {
     const drag = this.drag;
-    if (!drag) return;
+    if (!drag || this.gesture) return;
     const point = this.localPoint(event);
     this.autoScroll(point);
     switch (drag.kind) {
