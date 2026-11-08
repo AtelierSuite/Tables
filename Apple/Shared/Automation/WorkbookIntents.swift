@@ -160,6 +160,16 @@ enum RangeLayout: String, AppEnum {
     ]
 }
 
+enum FillContent: String, AppEnum {
+    case value, cell
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Intent.FillContent.Type")
+    static let caseDisplayRepresentations: [FillContent: DisplayRepresentation] = [
+        .value: DisplayRepresentation(title: "Intent.FillContent.Value"),
+        .cell: DisplayRepresentation(title: "Intent.FillContent.Cell"),
+    ]
+}
+
 // MARK: - Files
 
 struct GetWorkbookIntent: AppIntent {
@@ -463,6 +473,54 @@ struct ClearRangeIntent: AppIntent {
         var book = try workbook.load()
         let index = try WorkbookAutomation.sheetIndex(sheet, in: book)
         WorkbookAutomation.clear(try WorkbookAutomation.range(range, in: book.sheets[index]), sheet: index, in: &book)
+        return .result(value: try workbook.replacing(with: book))
+    }
+}
+
+struct FillRangeIntent: AppIntent {
+    static let title: LocalizedStringResource = "Intent.Fill.Title"
+    static let description = IntentDescription("Intent.Fill.Description")
+
+    @Parameter(title: "Intent.Parameter.Workbook")
+    var workbook: WorkbookEntity
+
+    @Parameter(title: "Intent.Parameter.Range", default: "A2:A10")
+    var range: String
+
+    @Parameter(title: "Intent.Parameter.FillContent", default: .value)
+    var content: FillContent
+
+    @Parameter(title: "Intent.Parameter.Value")
+    var value: String?
+
+    @Parameter(title: "Intent.Parameter.SourceCell", default: "A1")
+    var sourceCell: String
+
+    @Parameter(title: "Intent.Parameter.Sheet")
+    var sheet: String?
+
+    static var parameterSummary: some ParameterSummary {
+        When(\.$content, .equalTo, .cell) {
+            Summary("Intent.Fill.CellSummary \(\.$range) \(\.$content) \(\.$sourceCell) \(\.$workbook)") {
+                \.$sheet
+            }
+        } otherwise: {
+            Summary("Intent.Fill.ValueSummary \(\.$range) \(\.$content) \(\.$value) \(\.$workbook)") {
+                \.$sheet
+            }
+        }
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<WorkbookEntity> {
+        var book = try workbook.load()
+        let index = try WorkbookAutomation.sheetIndex(sheet, in: book)
+        let target = try WorkbookAutomation.range(range, in: book.sheets[index])
+        switch content {
+        case .value:
+            try WorkbookAutomation.fill(target, with: value ?? "", sheet: index, in: &book)
+        case .cell:
+            try WorkbookAutomation.fill(target, from: try WorkbookAutomation.address(sourceCell), sheet: index, in: &book)
+        }
         return .result(value: try workbook.replacing(with: book))
     }
 }

@@ -261,3 +261,134 @@ struct SaveAndOpenTests {
     }
     #endif
 }
+
+@Suite("Filling ranges from Shortcuts")
+struct FillRangeTests {
+    private func cell(_ a1: String, in workbook: Workbook) -> Cell {
+        workbook.sheets[0][CellAddress(a1: a1)!]
+    }
+
+    private func range(_ text: String, in workbook: Workbook) throws -> CellRange {
+        try WorkbookAutomation.range(text, in: workbook.sheets[0])
+    }
+
+    @Test("A value is entered into every cell as if typed, each keeping its formatting")
+    func fillsValue() throws {
+        var workbook = Workbook(sheets: [Worksheet(name: "Data")])
+        var bold = CellStyle()
+        bold.isBold = true
+        workbook.sheets[0][CellAddress(a1: "B3")!] = Cell(value: .text("old"), style: bold)
+        try WorkbookAutomation.fill(try range("B2:C4", in: workbook), with: "42", sheet: 0, in: &workbook)
+        for a1 in ["B2", "C2", "B3", "C4"] { #expect(cell(a1, in: workbook).value == .number(42)) }
+        #expect(cell("B3", in: workbook).style.isBold)
+        #expect(!cell("B2", in: workbook).style.isBold)
+        #expect(cell("A2", in: workbook).value == .empty)
+
+        try WorkbookAutomation.fill(try range("A1:A2", in: workbook), with: "hello", sheet: 0, in: &workbook)
+        #expect(cell("A2", in: workbook).value == .text("hello"))
+        try WorkbookAutomation.fill(try range("D1:D2", in: workbook), with: "15%", sheet: 0, in: &workbook)
+        #expect(cell("D2", in: workbook).value == .number(0.15))
+        #expect(cell("D2", in: workbook).style.numberFormat == NumberFormatPreset.percent.code)
+    }
+
+    @Test("A formula value is written in the first cell and moves along the range")
+    func fillsFormulaValue() throws {
+        var workbook = Workbook(sheets: [Worksheet(name: "Data")])
+        for row in 1...4 { try WorkbookAutomation.setCell("\(row)", at: CellAddress(row: row, column: 0), sheet: 0, in: &workbook) }
+        try WorkbookAutomation.fill(try range("B2:B5", in: workbook), with: "=A2*$A$2", sheet: 0, in: &workbook)
+        #expect(cell("B2", in: workbook).formula == "A2*$A$2")
+        #expect(cell("B5", in: workbook).formula == "A5*$A$2")
+        #expect(cell("B5", in: workbook).value == .number(4))
+    }
+
+    @Test("A source cell is copied with relative, absolute and mixed references moving as a fill moves them")
+    func fillsFromCell() throws {
+        var workbook = Workbook(sheets: [Worksheet(name: "Data")])
+        for (a1, text) in [("A1", "1"), ("A2", "2"), ("A3", "3"), ("B1", "10"), ("B2", "20"), ("B3", "30")] {
+            try WorkbookAutomation.setCell(text, at: CellAddress(a1: a1)!, sheet: 0, in: &workbook)
+        }
+        var style = CellStyle()
+        style.isItalic = true
+        style.fillColorHex = "#FFCC00"
+        style.numberFormat = "0.00"
+        workbook.sheets[0][CellAddress(a1: "C1")!] = Cell(value: .empty, formula: "A1+$A$1+A$1+$A1", style: style)
+        workbook.recalculate()
+        try WorkbookAutomation.fill(try range("C2:D3", in: workbook), from: CellAddress(a1: "C1")!, sheet: 0, in: &workbook)
+
+        #expect(cell("C1", in: workbook).formula == "A1+$A$1+A$1+$A1")
+        #expect(cell("C3", in: workbook).formula == "A3+$A$1+A$1+$A3")
+        #expect(cell("D2", in: workbook).formula == "B2+$A$1+B$1+$A2")
+        #expect(cell("C3", in: workbook).value == .number(3 + 1 + 1 + 3))
+        #expect(cell("D3", in: workbook).value == .number(30 + 1 + 10 + 3))
+        #expect(cell("D3", in: workbook).style == style)
+
+        try WorkbookAutomation.fill(try range("E1:E3", in: workbook), from: CellAddress(a1: "A1")!, sheet: 0, in: &workbook)
+        #expect((1...3).allSatisfy { cell("E\($0)", in: workbook).value == .number(1) })
+    }
+
+    @Test("Bad ranges and cells are refused before anything changes, and the sheet grows to fit")
+    func validation() throws {
+        var workbook = Workbook(sheets: [Worksheet(name: "Data")])
+        #expect(throws: WorkbookAutomation.Failure.invalidRange("B2:")) { try range("B2:", in: workbook) }
+        #expect(throws: WorkbookAutomation.Failure.invalidRange("SUM(A1)")) { try range("SUM(A1)", in: workbook) }
+        let tooFar = try range("A99999:A100001", in: workbook)
+        #expect(throws: WorkbookAutomation.Failure.outsideSheet("A100001")) {
+            try WorkbookAutomation.fill(tooFar, with: "1", sheet: 0, in: &workbook)
+        }
+        #expect(workbook.sheets[0].cells.isEmpty)
+        try WorkbookAutomation.fill(try range("Z500:Z501", in: workbook), with: "x", sheet: 0, in: &workbook)
+        #expect(workbook.sheets[0].rowCount >= 501)
+        #expect(workbook.sheets[0].columnCount >= 26)
+    }
+
+    @Test("Filling 2,000 rows from a formula stays quick")
+    func largeRange() throws {
+        var workbook = Workbook(sheets: [Worksheet(name: "Data")])
+        workbook.sheets[0].rowCount = max(workbook.sheets[0].rowCount, 2_000)
+        for row in 0..<2_000 { workbook.sheets[0][CellAddress(row: row, column: 0)] = Cell(value: .number(Double(row + 1))) }
+        try WorkbookAutomation.setCell("=A1*2", at: CellAddress(a1: "B1")!, sheet: 0, in: &workbook)
+        let started = ContinuousClock.now
+        try WorkbookAutomation.fill(try range("B2:B2000", in: workbook), from: CellAddress(a1: "B1")!, sheet: 0, in: &workbook)
+        try WorkbookAutomation.fill(try range("C1:C2000", in: workbook), with: "=B1+1", sheet: 0, in: &workbook)
+        let elapsed = ContinuousClock.now - started
+        #expect(cell("B2000", in: workbook).formula == "A2000*2")
+        #expect(cell("B2000", in: workbook).value == .number(4_000))
+        #expect(cell("C2000", in: workbook).value == .number(4_001))
+        #expect(elapsed < .seconds(2), "Filling 2,000 rows took \(elapsed)")
+    }
+
+    @Test("The action fills from a value or a cell and hands on the changed workbook")
+    func action() async throws {
+        var open = GetWorkbookIntent()
+        open.file = IntentFile(data: Data("Item,Qty\nPen,10\nInk,3\nPad,7\n".utf8), filename: "Orders.csv",
+                               type: .commaSeparatedText)
+        var set = SetCellIntent()
+        set.workbook = try #require(try await open.perform().value)
+        set.cell = "C2"
+        set.value = "=B2*2"
+
+        var fill = FillRangeIntent()
+        fill.workbook = try #require(try await set.perform().value)
+        fill.range = "C3:C4"
+        fill.content = .cell
+        fill.sourceCell = "C2"
+        let copied = try #require(try await fill.perform().value)
+        let book = try copied.load()
+        #expect(book.sheets[0][CellAddress(a1: "C4")!].formula == "B4*2")
+        #expect(book.sheets[0][CellAddress(a1: "C4")!].value == .number(14))
+
+        fill.workbook = copied
+        fill.range = "D2:D4"
+        fill.content = .value
+        fill.value = "done"
+        let filled = try #require(try await fill.perform().value)
+        #expect(try filled.load().sheets[0][CellAddress(a1: "D4")!].value == .text("done"))
+
+        fill.range = "D2:"
+        await #expect(throws: WorkbookAutomation.Failure.invalidRange("D2:")) { _ = try await fill.perform() }
+        fill.range = "D2:D4"
+        fill.content = .cell
+        fill.sourceCell = "Here"
+        await #expect(throws: WorkbookAutomation.Failure.invalidCell("Here")) { _ = try await fill.perform() }
+    }
+}

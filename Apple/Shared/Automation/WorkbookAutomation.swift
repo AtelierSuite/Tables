@@ -221,6 +221,44 @@ enum WorkbookAutomation {
         workbook.recalculate()
     }
 
+    /// Enters text into every cell of a range as if typed, each cell keeping
+    /// its own formatting. A formula is entered as Excel enters one into a
+    /// whole selection: as written in the range's first cell, with relative
+    /// references moving along from there.
+    static func fill(_ range: CellRange, with text: String, sheet: Int, in workbook: inout Workbook) throws {
+        let box = range.normalized
+        try grow(&workbook.sheets[sheet], toReach: box.end)
+        box.forEachAddress { address in
+            var cell = CellInputParser.cell(from: text, inheriting: workbook.sheets[sheet][address].style)
+            if let formula = cell.formula {
+                cell.formula = FormulaReferenceShifter.translated(
+                    formula, rowDelta: address.row - box.start.row, columnDelta: address.column - box.start.column)
+            }
+            workbook.sheets[sheet][address] = cell
+        }
+        workbook.recalculate()
+    }
+
+    /// Copies one cell — value, formula and formatting — into every cell of a
+    /// range, its relative references moving as a fill or paste moves them.
+    static func fill(_ range: CellRange, from source: CellAddress, sheet: Int, in workbook: inout Workbook) throws {
+        let box = range.normalized
+        try grow(&workbook.sheets[sheet], toReach: box.end)
+        var original = workbook.sheets[sheet][source]
+        original.isSpilled = false
+        original.arrayExtent = nil
+        original.savedResultInputs = nil
+        box.forEachAddress { address in
+            var cell = original
+            if let formula = original.formula {
+                cell.formula = FormulaReferenceShifter.translated(
+                    formula, rowDelta: address.row - source.row, columnDelta: address.column - source.column)
+            }
+            workbook.sheets[sheet][address] = cell
+        }
+        workbook.recalculate()
+    }
+
     /// Sorts a range's rows by one of its columns. Cells move whole, style and
     /// all; formulas are kept as written.
     static func sort(
