@@ -168,7 +168,7 @@ Each component is taken from macOS and styled with Carbon tokens. Class names fo
 | Toolbar overflow | NSToolbar overflow (») | `.ds-toolbar__overflow` | `attachToolbarOverflow()`. Items that don't fit move into a » menu, from the trailing end. Mark items that must stay with `data-overflow="never"` |
 | Menu | NSMenu | `.ds-menu`, `.ds-menu--floating` | Checkmark column, title, shortcut, submenu arrow. The highlighted item is filled with `--ds-button-primary`. Opened by `openMenu()` or `attachContextMenu()` |
 | Popover | NSPopover | `.ds-popover` | Anchored with an arrow; closes on Escape or a click outside |
-| Sheet / alert | NSWindow sheet, NSAlert | `.ds-sheet`, `.ds-alert` | Window-modal, enters from under the toolbar. Buttons are right-aligned; the default action is rightmost |
+| Sheet / alert | NSWindow sheet, NSAlert | `.ds-sheet`, `.ds-alert` | Window-modal, enters from under the toolbar. Standard push buttons sit in the bottom-right corner, inset by the sheet's padding, never stretched to its edges; the default action is rightmost |
 | Tooltip | Help tag | `.ds-tooltip` | Inverse fill, shown after a delay like macOS |
 | Notification | Banner | `.ds-notification` | Icon + whole-surface tint, no edge strip |
 | Progress | NSProgressIndicator | `.ds-progress`, `.ds-spinner` | Bar for determinate, spinner for indeterminate |

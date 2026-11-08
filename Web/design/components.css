@@ -1359,17 +1359,17 @@ textarea.ds-text-input {
   color: var(--ds-text-secondary);
 }
 
-/* Button row: the default (primary) button sits rightmost, Cancel to its left. */
+/*
+ * Button row, as in a macOS sheet: standard push buttons in the bottom-right
+ * corner, inset from the edges. The default (primary) button sits rightmost,
+ * Cancel to its left.
+ */
 .ds-sheet__buttons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 1px;
-}
-
-.ds-sheet__buttons .ds-button {
-  flex: 0 1 50%;
-  height: var(--ds-control-md);
-  justify-content: flex-start;
+  gap: var(--ds-spacing-03);
+  padding: 0 var(--ds-spacing-06) var(--ds-spacing-06);
 }
 
 /* NSAlert: icon, title, message, buttons. */
