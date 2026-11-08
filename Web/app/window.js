@@ -1152,7 +1152,7 @@ export class WorkbookWindow {
         </div>
         <div class="ds-sheet__buttons">
           <button class="ds-button" type="button" data-source>${escapeHTML(t("Toolbar.SourceCode"))}</button>
-          <button class="ds-button ds-button--primary" type="button" data-ok>${escapeHTML(t("Common.OK"))}</button>
+          <button class="ds-button ds-button--primary" type="button" data-close>${escapeHTML(t("Common.Close"))}</button>
         </div>
       </div>`;
     backdrop.querySelector("#about-message").textContent = t("Web.About.Message");
@@ -1162,11 +1162,11 @@ export class WorkbookWindow {
       dismissSheet(backdrop);
       this.grid.focus();
     };
-    backdrop.querySelector("[data-ok]").addEventListener("click", close);
+    backdrop.querySelector("[data-close]").addEventListener("click", close);
     backdrop.querySelector("[data-source]").addEventListener("click", () => window.open(SOURCE_CODE_URL, "_blank", "noopener"));
     backdrop.addEventListener("keydown", (event) => event.key === "Escape" && close());
     this.root.append(backdrop);
-    backdrop.querySelector("[data-ok]").focus();
+    backdrop.querySelector("[data-close]").focus();
   }
 
   /**
