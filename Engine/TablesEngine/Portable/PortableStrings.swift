@@ -7,6 +7,20 @@ import Foundation
 /// `String(localized:bundle:)` reads them from here, falling back to the key.
 public enum PortableStrings {
     nonisolated(unsafe) public static var table: [String: String] = [:]
+
+    /// Installs the strings for the user's language.
+    public static func load(_ strings: [String: String]) {
+        table = Int.bitWidth == 64 ? strings : strings.mapValues(nativeIntegers)
+    }
+
+    /// Catalogues write integer placeholders as `%lld`, 64 bits wide. Where
+    /// `Int` is 32 bits (wasm32), `String(format:)` would read past the
+    /// argument, so those become `%ld`, which is the platform's word size.
+    static func nativeIntegers(_ format: String) -> String {
+        format.replacing(/%(\d+\$)?([-+ #0]*\d*(?:\.\d+)?)ll([dux])/) { match in
+            "%\(match.1 ?? "")\(match.2)l\(match.3)"
+        }
+    }
 }
 
 extension String {
