@@ -14,6 +14,7 @@ import * as fonts from "./fonts.js";
 const isApple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 /** Tables for iPhone, iPad and Mac: one App Store listing, opened in the visitor's own storefront. */
 const APP_STORE_URL = "https://apps.apple.com/app/atelier-tables/id6795331043";
+const SOURCE_CODE_URL = "https://github.com/AtelierSuite/Tables";
 /**
  * Which Apple app to offer, from the device the page is open on: "ios" on an
  * iPhone or iPad, "mac" on a Mac, null elsewhere. iPadOS asks for desktop
@@ -1039,7 +1040,10 @@ export class WorkbookWindow {
             <p class="ds-sheet__message app__about-suite"><a href="https://atelier.ktgk.app" target="_blank" rel="noopener"></a></p>
           </div>
         </div>
-        <div class="ds-sheet__buttons"><button class="ds-button ds-button--primary">${escapeHTML(t("Common.OK"))}</button></div>
+        <div class="ds-sheet__buttons">
+          <button class="ds-button" type="button" data-source>${escapeHTML(t("Toolbar.SourceCode"))}</button>
+          <button class="ds-button ds-button--primary" type="button" data-ok>${escapeHTML(t("Common.OK"))}</button>
+        </div>
       </div>`;
     backdrop.querySelector("#about-message").textContent = t("Web.About.Message");
     backdrop.querySelector(".app__about-version").textContent = t("Web.About.Version", self.TABLES_APP_VERSION ?? "");
@@ -1048,10 +1052,11 @@ export class WorkbookWindow {
       dismissSheet(backdrop);
       this.grid.focus();
     };
-    backdrop.querySelector("button").addEventListener("click", close);
+    backdrop.querySelector("[data-ok]").addEventListener("click", close);
+    backdrop.querySelector("[data-source]").addEventListener("click", () => window.open(SOURCE_CODE_URL, "_blank", "noopener"));
     backdrop.addEventListener("keydown", (event) => event.key === "Escape" && close());
     this.root.append(backdrop);
-    backdrop.querySelector("button").focus();
+    backdrop.querySelector("[data-ok]").focus();
   }
 
   /** A window-modal sheet asking for one line of text. Resolves with it, or null on Cancel. */
