@@ -266,7 +266,7 @@ a[href]:hover {
   color: var(--ds-text-disabled);
 }
 
-/* Help button: macOS round "?" button that opens help for the surrounding panel. */
+/* Help button: the macOS "?" button that opens help for the surrounding panel, squared like every button. */
 .ds-help-button {
   display: inline-grid;
   place-items: center;
@@ -274,7 +274,7 @@ a[href]:hover {
   height: 20px;
   padding: 0;
   border: 1px solid var(--ds-border-strong-01);
-  border-radius: var(--ds-radius-round);
+  border-radius: var(--ds-radius);
   background: var(--ds-layer-02);
   color: var(--ds-text-primary);
   font: var(--ds-type-heading-compact);

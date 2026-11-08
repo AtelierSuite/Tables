@@ -103,7 +103,7 @@ Carbon's productive scale, in the system font, weights 400 and 600 only. Sizes a
 
 - Spacing uses Carbon's 2× scale: 2, 4, 8, 12, 16, 24, 32, 40, 48 (`--ds-spacing-01` … `-09`).
 - Control heights: 24 (`xs`, toolbars and inspectors), 32 (`sm`, default), 40 (`md`, sheet buttons). Toolbar 48.
-- Everything is square (`--ds-radius: 0`). Only checkboxes (2px), radio buttons, switches, the help button and the slider thumb are rounded, because their shape is their meaning.
+- Everything is square (`--ds-radius: 0`), and **every button is square**: push, borderless, icon, segmented, stepper, help and menu-bar buttons alike. Only checkboxes (2px), radio buttons, switches, the slider thumb and the spinner are rounded, because their shape is their meaning. `lint.mjs` rejects a rounded corner anywhere else.
 - Elevation: one shadow, `--ds-shadow-float`, for menus, popovers, sheets and tooltips. Everything else is flat and separated by layer colour or a 1px subtle border.
 
 ### Motion
@@ -128,7 +128,7 @@ Each component is taken from macOS and styled with Carbon tokens. Class names fo
 | Toolbar | NSToolbar | `.ds-toolbar` | Borderless icon buttons, separators, flexible space, title with subtitle ("Edited") |
 | Push button | NSButton, push | `.ds-button` | Neutral by default; `--primary` is the default (Return) button, at most one per view; `--danger` for destructive defaults; `--bordered` for secondary actions in panels |
 | Borderless button | NSButton, borderless/toolbar | `.ds-button--ghost`, `--icon` | Toggle state with `aria-pressed` |
-| Help button | NSButton, help | `.ds-help-button` | Opens help for the surrounding panel |
+| Help button | NSButton, help | `.ds-help-button` | Opens help for the surrounding panel. Square, unlike the round macOS original |
 | Segmented control | NSSegmentedControl | `.ds-segmented` | Replaces tabs, filter chips and toggle groups. Selected segment uses the inverse fill. Select-one: `role="radiogroup"` + `aria-checked`, or `role="tablist"` + `aria-selected`. Select-any: `aria-pressed` |
 | Pop-up button | NSPopUpButton | `.ds-popup` | A native `<select>`, so the OS draws the menu and handles accessibility |
 | Text field | NSTextField | `.ds-text-input` | Carbon field fill + 1px neutral underline; `aria-invalid` shows the error outline |
