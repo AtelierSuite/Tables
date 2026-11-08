@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tables</title>
+<meta name="description" content="Spreadsheets with formulas, charts and macros that open Excel, Numbers and CSV files. Works offline.">
+<meta name="theme-color" content="#f4f4f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#262626" media="(prefers-color-scheme: dark)">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="app/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="app/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="design/tokens.css">
+<link rel="stylesheet" href="design/components.css">
+<link rel="stylesheet" href="app/app.css">
+<script type="module" src="app/main.js"></script>
+</head>
+<body>
+<div id="app" class="app ds-window">
+  <div class="app__loading" role="status">
+    <div class="ds-spinner"></div>
+    <span class="ds-caption">Loading Tables…</span>
+  </div>
+</div>
+<noscript><p class="app__noscript">Tables needs JavaScript and WebAssembly.</p></noscript>
+</body>
+</html>
