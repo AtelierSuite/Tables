@@ -231,7 +231,7 @@ export class WorkbookWindow {
         this.grid.focus();
       });
     }
-    attachToolbarOverflow(toolbar, { label: t("Toolbar.More"), before: toolbar.querySelector("#inspector-toggle") });
+    this.toolbarOverflow = attachToolbarOverflow(toolbar, { label: t("Toolbar.More"), before: toolbar.querySelector("#inspector-toggle") });
   }
 
   buildFormulaBar() {
@@ -1317,6 +1317,7 @@ export class WorkbookWindow {
   showStart() {
     this.document = null;
     this.root.classList.add("is-empty");
+    this.toolbarOverflow.layout();
     this.start.hidden = false;
     this.updateTitle();
     this.refreshRecents();
@@ -1373,6 +1374,8 @@ export class WorkbookWindow {
     this.document = record;
     this.keptVersion = this.engine.state?.versions.content;
     this.root.classList.remove("is-empty");
+    // The toolbar's items come back without the toolbar resizing, so its overflow needs laying out again.
+    this.toolbarOverflow.layout();
     this.start.hidden = true;
     this.banners.replaceChildren();
     this.updateTitle();
