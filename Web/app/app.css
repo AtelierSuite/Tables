@@ -388,12 +388,15 @@ body {
 /* MARK: - Narrow windows */
 
 @media (max-width: 720px) {
-  .app__inspector {
-    position: absolute;
-    right: 0;
-    top: calc(var(--ds-toolbar-height) + 28px);
-    bottom: 0;
+  /* The inspector floats over the sheet, below the formula bar and any banners,
+     rather than taking a column of its own. */
+  .app > .app__inspector {
+    grid-column: 2;
+    grid-row: 4;
+    justify-self: end;
+    position: relative;
     z-index: 10;
+    max-width: 100%;
     box-shadow: var(--ds-shadow-float);
   }
 
