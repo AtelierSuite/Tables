@@ -38,6 +38,10 @@ body {
   margin: var(--ds-spacing-05);
 }
 
+.app__loading {
+  gap: var(--ds-spacing-03);
+}
+
 .app__noscript {
   padding: var(--ds-spacing-06);
 }
