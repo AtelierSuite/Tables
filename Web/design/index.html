@@ -90,8 +90,14 @@
     border: 1px solid var(--ds-border-subtle-01);
   }
   .specimen__sheet-stage .ds-toolbar { position: absolute; inset: 0 0 auto 0; }
-  @media (max-width: 760px) {
-    .ds-window { grid-template-columns: 0 1fr 0; }
+  .specimen__window {
+    container-type: inline-size;
+    resize: horizontal;
+    overflow: hidden;
+    min-width: 240px;
+    max-width: 100%;
+  }
+  @container (max-width: 720px) {
     .ds-window > .ds-source-list, .ds-window > .ds-inspector { display: none; }
   }
 </style>
@@ -139,12 +145,13 @@
 
   <section class="specimen__section" aria-labelledby="window-title">
     <h2 class="ds-heading-03" id="window-title">Document window</h2>
-    <p class="ds-body">The workbook window as it is assembled from the components below: unified toolbar, formula bar, grid, sheet tabs, status bar, and the inspector.</p>
+    <p class="ds-body">The workbook window as it is assembled from the components below: menu bar, unified toolbar, formula bar, grid, sheet tabs, status bar, and the inspector. Drag the window's bottom-right corner to narrow it: menu titles and toolbar items that no longer fit move into » menus, and the inspector hides. Right-click the grid for a context menu.</p>
     <div class="specimen__window">
       <div class="ds-window ds-chrome">
-        <div class="ds-toolbar">
-          <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Show Sidebar" title="Show Sidebar"><svg class="ds-icon"><use href="#i-sidebar"/></svg></button>
-          <div class="ds-toolbar__title">Budget 2027.xlsx<span class="ds-toolbar__subtitle">Edited</span></div>
+        <div class="ds-menu-bar" id="window-menu-bar"></div>
+        <div class="ds-toolbar" id="window-toolbar">
+          <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Show Sidebar" title="Show Sidebar" data-overflow="never"><svg class="ds-icon"><use href="#i-sidebar"/></svg></button>
+          <div class="ds-toolbar__title" data-overflow="never">Budget 2027.xlsx<span class="ds-toolbar__subtitle">Edited</span></div>
           <div class="ds-toolbar__separator"></div>
           <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Undo" title="Undo"><svg class="ds-icon"><use href="#i-undo"/></svg></button>
           <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Redo" title="Redo"><svg class="ds-icon"><use href="#i-redo"/></svg></button>
@@ -162,11 +169,8 @@
           <div class="ds-toolbar__spacer"></div>
           <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Insert Chart" title="Insert Chart"><svg class="ds-icon"><use href="#i-chart"/></svg></button>
           <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Add Comment" title="Add Comment"><svg class="ds-icon"><use href="#i-comment"/></svg></button>
-          <div class="ds-search ds-search--xs" style="width: 180px">
-            <svg class="ds-icon ds-search__icon"><use href="#i-search"/></svg>
-            <input class="ds-search__input" type="search" placeholder="Find" aria-label="Find">
-          </div>
-          <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Hide Inspector" aria-pressed="true" title="Hide Inspector"><svg class="ds-icon"><use href="#i-inspector"/></svg></button>
+          <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Find" title="Find"><svg class="ds-icon"><use href="#i-search"/></svg></button>
+          <button class="ds-button ds-button--ghost ds-button--icon" aria-label="Hide Inspector" aria-pressed="true" title="Hide Inspector" data-overflow="never" id="inspector-toggle"><svg class="ds-icon"><use href="#i-inspector"/></svg></button>
         </div>
 
         <div class="ds-window__accessory ds-formula-bar">
@@ -179,7 +183,7 @@
         </div>
 
         <div class="ds-window__content" style="display: flex; flex-direction: column">
-          <div class="ds-grid" style="--ds-grid-columns: 6; flex: 1" role="grid" aria-label="Sheet 1">
+          <div class="ds-grid" id="window-grid" style="--ds-grid-columns: 6; flex: 1" role="grid" aria-label="Sheet 1">
             <div class="ds-grid__corner"></div>
             <div class="ds-grid__col-header">A</div><div class="ds-grid__col-header">B</div><div class="ds-grid__col-header">C</div><div class="ds-grid__col-header" aria-selected="true">D</div><div class="ds-grid__col-header">E</div><div class="ds-grid__col-header">F</div>
             <div class="ds-grid__row-header">1</div><div class="ds-grid__cell ds-grid__cell--bold">Category</div><div class="ds-grid__cell ds-grid__cell--bold ds-grid__cell--number">Q1</div><div class="ds-grid__cell ds-grid__cell--bold ds-grid__cell--number">Q2</div><div class="ds-grid__cell ds-grid__cell--bold ds-grid__cell--number">Total</div><div class="ds-grid__cell"></div><div class="ds-grid__cell"></div>
@@ -207,7 +211,7 @@
 
         <div class="ds-status-bar">
           <span>Sum: 10,529.23</span><span>Average: 3,509.74</span><span>Count: 3</span>
-          <span class="ds-status-bar__spacer"></span><span>Saved on this device</span>
+          <span class="ds-status-bar__spacer"></span><span id="window-status">Saved on this device</span>
         </div>
 
         <aside class="ds-inspector ds-on-layer" aria-label="Inspector">
@@ -354,20 +358,20 @@
 
   <section class="specimen__section ds-chrome" aria-labelledby="menus-title">
     <h2 class="ds-heading-03" id="menus-title">Menus and popovers</h2>
-    <p class="ds-body">Context menus follow NSMenu: a checkmark column, title, keyboard shortcut in the system font, and a submenu arrow. Popovers anchor to the control that opened them.</p>
+    <p class="ds-body">Menus follow NSMenu: a checkmark column, title, keyboard shortcut in the system font, and a submenu arrow. Open menus always fit the window: they flip above or to the other side at an edge, scroll when taller than the window, and ellipsise titles when narrower. Popovers anchor to the control that opened them.</p>
     <div class="specimen__row specimen__menu-stage ds-on-layer">
       <div class="ds-menu" role="menu" aria-label="Cell">
-        <div class="ds-menu__item" role="menuitem"><span class="ds-menu__check"></span><span>Cut</span><span class="ds-menu__shortcut">⌘X</span><span></span></div>
-        <div class="ds-menu__item" role="menuitem" data-highlighted><span class="ds-menu__check"></span><span>Copy</span><span class="ds-menu__shortcut">⌘C</span><span></span></div>
-        <div class="ds-menu__item" role="menuitem"><span class="ds-menu__check"></span><span>Paste</span><span class="ds-menu__shortcut">⌘V</span><span></span></div>
-        <div class="ds-menu__item" role="menuitem" aria-disabled="true"><span class="ds-menu__check"></span><span>Paste Values</span><span class="ds-menu__shortcut">⌥⇧⌘V</span><span></span></div>
+        <div class="ds-menu__item" role="menuitem"><span class="ds-menu__check"></span><span class="ds-menu__label">Cut</span><span class="ds-menu__shortcut">⌘X</span><span></span></div>
+        <div class="ds-menu__item" role="menuitem" data-highlighted><span class="ds-menu__check"></span><span class="ds-menu__label">Copy</span><span class="ds-menu__shortcut">⌘C</span><span></span></div>
+        <div class="ds-menu__item" role="menuitem"><span class="ds-menu__check"></span><span class="ds-menu__label">Paste</span><span class="ds-menu__shortcut">⌘V</span><span></span></div>
+        <div class="ds-menu__item" role="menuitem" aria-disabled="true"><span class="ds-menu__check"></span><span class="ds-menu__label">Paste Values</span><span class="ds-menu__shortcut">⌥⇧⌘V</span><span></span></div>
         <div class="ds-menu__separator" role="separator"></div>
         <div class="ds-menu__header">Insert</div>
-        <div class="ds-menu__item" role="menuitem"><span class="ds-menu__check"></span><span>Row Above</span><span class="ds-menu__shortcut"></span><span></span></div>
-        <div class="ds-menu__item" role="menuitem"><span class="ds-menu__check"></span><span>Column Before</span><span class="ds-menu__shortcut"></span><span></span></div>
+        <div class="ds-menu__item" role="menuitem"><span class="ds-menu__check"></span><span class="ds-menu__label">Row Above</span><span class="ds-menu__shortcut"></span><span></span></div>
+        <div class="ds-menu__item" role="menuitem"><span class="ds-menu__check"></span><span class="ds-menu__label">Column Before</span><span class="ds-menu__shortcut"></span><span></span></div>
         <div class="ds-menu__separator" role="separator"></div>
-        <div class="ds-menu__item" role="menuitemcheckbox" aria-checked="true"><svg class="ds-icon ds-menu__check"><use href="#i-check"/></svg><span>Show Formulas</span><span class="ds-menu__shortcut">⌃`</span><span></span></div>
-        <div class="ds-menu__item" role="menuitem" aria-haspopup="menu"><span class="ds-menu__check"></span><span>Sort</span><span class="ds-menu__shortcut"></span><svg class="ds-icon" style="width: 12px; height: 12px"><use href="#i-chevron-right"/></svg></div>
+        <div class="ds-menu__item" role="menuitemcheckbox" aria-checked="true"><svg class="ds-icon ds-menu__check"><use href="#i-check"/></svg><span class="ds-menu__label">Show Formulas</span><span class="ds-menu__shortcut">⌃`</span><span></span></div>
+        <div class="ds-menu__item" role="menuitem" aria-haspopup="menu"><span class="ds-menu__check"></span><span class="ds-menu__label">Sort</span><span class="ds-menu__shortcut"></span><svg class="ds-icon ds-menu__arrow"><use href="#i-chevron-right"/></svg></div>
       </div>
       <div style="padding-top: 8px">
         <div class="ds-popover" role="dialog" aria-label="Fill Colour">
@@ -456,7 +460,9 @@
   </section>
 </main>
 
-<script>
+<script type="module">
+  import { attachMenuBar, attachToolbarOverflow, attachContextMenu } from "./menus.js";
+
   const root = document.documentElement;
   const switcher = document.getElementById("theme-switch");
   switcher.addEventListener("click", (event) => {
@@ -514,6 +520,78 @@
     b.setAttribute("aria-label", colour);
     b.style.setProperty("--ds-swatch", colour);
     swatchGrid.append(b);
+  }
+  // ---- Menus: data shaped like the Mac app's main menu (strings from its catalogues).
+  const isApple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const key = (k, { shift = false, alt = false } = {}) =>
+    isApple
+      ? `${alt ? "⌥" : ""}${shift ? "⇧" : ""}⌘${k}`
+      : `Ctrl+${shift ? "Shift+" : ""}${alt ? "Alt+" : ""}${k}`;
+  const status = document.getElementById("window-status");
+  const say = (label) => () => { status.textContent = `Chose ${label}`; };
+  const item = (label, shortcut, extra = {}) => ({ label, shortcut, action: say(label), ...extra });
+  const sep = { separator: true };
+  const functions = ["ABS", "AVERAGE", "AVERAGEIF", "AVERAGEIFS", "CEILING", "CHOOSE", "CONCAT", "COUNT", "COUNTA",
+    "COUNTIF", "COUNTIFS", "DATE", "DATEDIF", "DAY", "EDATE", "EOMONTH", "FILTER", "FLOOR", "HLOOKUP", "IF", "IFERROR",
+    "IFS", "INDEX", "INT", "LEFT", "LEN", "LOWER", "MATCH", "MAX", "MAXIFS", "MEDIAN", "MID", "MIN", "MINIFS", "MOD",
+    "MONTH", "NETWORKDAYS", "NOW", "PMT", "PROPER", "RANK", "RIGHT", "ROUND", "ROUNDDOWN", "ROUNDUP", "SORT", "SUBSTITUTE",
+    "SUM", "SUMIF", "SUMIFS", "SUMPRODUCT", "TEXT", "TEXTJOIN", "TODAY", "TRIM", "UNIQUE", "UPPER", "VLOOKUP", "XLOOKUP", "YEAR"];
+
+  const menus = [
+    { label: "File", items: [
+      item("New", key("N")), item("Open…", key("O")),
+      { label: "Open Recent", submenu: [item("Budget 2027.xlsx"), item("Inventory.numbers"), item("Quarterly Sales Forecast for the Northern and Western Regions.xlsx"), sep, item("Clear Menu")] },
+      sep, item("Close", key("W")), item("Save", key("S")), item("Duplicate", key("S", { shift: true })), item("Rename…"),
+      { label: "Revert To", submenu: [item("Last Saved")] },
+      sep, { label: "Export To", submenu: [item("Excel Workbook…"), item("CSV…"), item("TSV…")] },
+      sep, item("Page Setup…", key("P", { shift: true })), item("Print…", key("P")),
+    ] },
+    { label: "Edit", items: [
+      item("Undo", key("Z")), item("Redo", key("Z", { shift: true })), sep,
+      item("Cut", key("X")), item("Copy", key("C")), item("Paste", key("V")), item("Delete"), item("Select All", key("A")), sep,
+      item("Clear Contents"), sep,
+      { label: "Find", submenu: [item("Find…", key("F")), item("Find Next", key("G")), item("Find Previous", key("G", { shift: true })), item("Use Selection for Find", key("E"))] },
+    ] },
+    { label: "Insert", items: [
+      item("Insert Row Above"), item("Insert Row Below"), item("Insert Column Before"), item("Insert Column After"), sep,
+      item("New Sheet", key("N", { shift: true })), sep,
+      { label: "Insert Chart", submenu: ["Column", "Bar", "Line", "Area", "Pie", "Scatter"].map((t) => item(t)) },
+      { label: "Insert a function", submenu: functions.map((f) => item(f)) },
+      sep, item("New Comment", key("M", { alt: true })), item("New Note"),
+    ] },
+    { label: "Format", items: [
+      { label: "Font", submenu: [item("Bold", key("B")), item("Italic", key("I")), item("Underline", key("U")), item("Strikethrough"), sep, item("Bigger", key("+")), item("Smaller", key("-"))] },
+      { label: "Alignment", submenu: [item("Align Left"), item("Centre"), item("Align Right", undefined, { checked: true }), sep, item("Wrap Text", undefined, { checked: false })] },
+      { label: "Number format", submenu: ["Automatic", "Number", "Currency", "Percentage", "Date & Time", "Duration", "Text"].map((t) => item(t, undefined, { checked: t === "Number" })) },
+      sep, item("Fill Color…"), item("No Fill"), sep, item("Merge Cells"), item("Unmerge Cells", undefined, { disabled: true }), sep,
+      item("Reset Formatting"),
+    ] },
+    { label: "Table", items: [
+      item("Delete Row"), item("Delete Column"), sep, item("Hide Row"), item("Hide Column"), item("Unhide All Rows and Columns"), sep, item("Fit to Contents"),
+    ] },
+    { label: "View", items: [
+      item("Zoom In", key("+")), item("Zoom Out", key("-")), item("Actual Size", key("0")), sep,
+      { label: "Freeze Panes", submenu: [item("Freeze Top Row"), item("Freeze First Column"), item("Freeze at Selection"), sep, item("Unfreeze")] },
+      sep, item("Show Inspector", undefined, { checked: true }), item("Show Toolbar", undefined, { checked: true }), sep,
+      item("Enter Full Screen", key("F", { shift: true })),
+    ] },
+    { label: "Tools", items: [item("Macros…"), item("Function Reference")] },
+    { label: "Window", items: [item("Minimise", key("M")), item("Zoom"), sep, item("Budget 2027.xlsx", undefined, { checked: true })] },
+    { label: "Help", items: [item("Tables Help"), item("Function Reference")] },
+  ];
+
+  attachMenuBar(document.getElementById("window-menu-bar"), menus, { label: "Workbook menus" });
+  attachToolbarOverflow(document.getElementById("window-toolbar"), { before: document.getElementById("inspector-toggle") });
+
+  attachContextMenu(document.getElementById("window-grid"), () => [
+    item("Cut", key("X")), item("Copy", key("C")), item("Paste", key("V")), item("Paste Values", key("V", { shift: true, alt: true }), { disabled: true }),
+    sep, { header: "Insert" }, item("Insert Row Above"), item("Insert Column Before"),
+    sep, item("New Comment"), item("Reset Formatting"),
+  ]);
+
+  // Toolbar buttons report what they did, so overflow-menu choices are visible.
+  for (const button of document.querySelectorAll("#window-toolbar button[title]")) {
+    button.addEventListener("click", () => { status.textContent = `Chose ${button.title}`; });
   }
 </script>
 </body>

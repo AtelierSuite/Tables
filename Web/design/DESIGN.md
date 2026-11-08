@@ -6,7 +6,9 @@ The web version of Tables uses **IBM Carbon's visual language** (colour, type sc
 | --- | --- |
 | `tokens.css` | Every colour, type, spacing, size, motion and elevation value as `--ds-*` custom properties, with light and dark appearance. |
 | `components.css` | The component classes (`.ds-*`). Built only from tokens. |
-| `index.html` | A specimen page showing every component and a complete workbook window. Open it directly from disk. |
+| `menus.js` | Menu behaviour: pull-down, context and submenus that always fit the window, the in-window menu bar, and toolbar and menu-bar overflow. An ES module with no dependencies. |
+| `index.html` | A specimen page showing every component and a complete, resizable workbook window. Run `npm run design` in `Web/` and open the printed address (browsers don't load ES modules from `file://`). |
+| `serve.mjs` | The tiny static server behind `npm run design`. |
 | `lint.mjs` | Checks every CSS, HTML and script file in `Web/` against the rules below. Run `node Web/design/lint.mjs`. |
 
 ## Rules
@@ -150,7 +152,9 @@ Each component is taken from macOS and styled with Carbon tokens. Class names fo
 | Source list | NSOutlineView, source list | `.ds-source-list` | Sidebar; selection fills the row |
 | Inspector | Inspector panel (Numbers/Pages) | `.ds-inspector` | Segmented pane switcher on top, disclosure sections |
 | Table view | NSTableView | `.ds-table` | Optional zebra rows; selected rows filled with `--ds-highlight` |
-| Menu | NSMenu | `.ds-menu` | Checkmark column, title, shortcut, submenu arrow. Highlighted item is filled with `--ds-interactive` |
+| Menu bar | The macOS menu bar, drawn in the window | `.ds-menu-bar` | `attachMenuBar()`. Titles that don't fit move into a trailing » menu as submenus |
+| Toolbar overflow | NSToolbar overflow (») | `.ds-toolbar__overflow` | `attachToolbarOverflow()`. Items that don't fit move into a » menu, from the trailing end. Mark items that must stay with `data-overflow="never"` |
+| Menu | NSMenu | `.ds-menu`, `.ds-menu--floating` | Checkmark column, title, shortcut, submenu arrow. The highlighted item is filled with `--ds-button-primary`. Opened by `openMenu()` or `attachContextMenu()` |
 | Popover | NSPopover | `.ds-popover` | Anchored with an arrow; closes on Escape or a click outside |
 | Sheet / alert | NSWindow sheet, NSAlert | `.ds-sheet`, `.ds-alert` | Window-modal, enters from under the toolbar. Buttons are right-aligned; the default action is rightmost |
 | Tooltip | Help tag | `.ds-tooltip` | Inverse fill, shown after a delay like macOS |
@@ -168,7 +172,9 @@ Spreadsheet-specific components, built from the same tokens:
 
 ## Behaviour
 
-- **Menus** open on mouse-down and select on mouse-up, as on macOS. Arrow keys move the highlight, typing jumps to an item, Escape closes. Prefer native `<select>` for pop-up buttons.
+- **Menus** open on mouse-down. A click chooses an item; pressing a title, dragging to an item and releasing also chooses it, as on macOS. Arrow keys move the highlight, Left and Right open and close submenus and move between menu-bar titles, typing a letter jumps to an item, and Escape closes one level. Prefer native `<select>` for pop-up buttons.
+- **Menus always fit the window.** A menu is never wider than the window minus 8px on each side, and long titles ellipsise. A pull-down menu that runs past the bottom flips above its title if there is more room there, otherwise it scrolls. A submenu opens to the right and flips to the left at the window edge. A context menu opens at the pointer and flips left or up to stay inside. Menus close when the window resizes or loses focus, or when the page scrolls under them.
+- **Bars overflow, they don't wrap or clip.** The menu bar and the toolbar recompute as the window width changes (`ResizeObserver`). Whatever no longer fits moves, from the trailing end, into a » menu at the end of that bar, and comes back as space returns. In the toolbar, the document title shrinks with an ellipsis before anything moves, and segmented groups appear in the » menu as checkable items under their group name.
 - **Keyboard shortcuts** use ⌘ on Apple platforms and Ctrl elsewhere, shown in the menu in the system font.
 - **Chrome is not selectable** (`.ds-chrome`); cell contents, fields and messages are.
 - **Context menus** replace the browser's on the grid, sheet tabs and objects; elsewhere the browser's menu stays.
