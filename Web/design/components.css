@@ -1088,7 +1088,11 @@ textarea.ds-text-input {
 
 /* ---------------------------------------------------------------- Sheet tab bar */
 
-/* Bottom sheet tabs, after macOS window tabs. A sheet colour tints the whole tab. */
+/*
+ * Bottom sheet tabs, after macOS window tabs. A sheet colour tints the whole tab.
+ * Tabs keep their own width and scroll sideways in __strip when there are more
+ * than fit; __actions (add, list of all sheets) stay pinned at the end.
+ */
 .ds-sheet-tabs {
   display: flex;
   align-items: stretch;
@@ -1097,8 +1101,31 @@ textarea.ds-text-input {
   border-top: 1px solid var(--ds-border-subtle-01);
 }
 
+.ds-sheet-tabs__strip {
+  display: flex;
+  align-items: stretch;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.ds-sheet-tabs__strip::-webkit-scrollbar {
+  display: none;
+}
+
+.ds-sheet-tabs__actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--ds-spacing-02);
+  padding: 0 var(--ds-spacing-03) 0 var(--ds-spacing-02);
+}
+
 .ds-sheet-tabs__tab {
   display: inline-flex;
+  flex: none;
   align-items: center;
   max-width: 200px;
   padding: 0 var(--ds-spacing-05);
@@ -1125,7 +1152,6 @@ textarea.ds-text-input {
 
 .ds-sheet-tabs__add {
   align-self: center;
-  margin-inline-start: var(--ds-spacing-02);
 }
 
 /* ---------------------------------------------------------------- Status bar */

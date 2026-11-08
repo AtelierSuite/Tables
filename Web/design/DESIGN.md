@@ -179,7 +179,7 @@ Spreadsheet-specific components, built from the same tokens:
 | --- | --- | --- |
 | Formula bar | `.ds-formula-bar` | Name box (pop-up), function icon, formula field (system font, not monospace) |
 | Grid | `.ds-grid` (specimen) | The app draws the grid on `<canvas>` with the same tokens: grid lines, header fills, selection fill and 2px selection border on all sides, square fill handle |
-| Sheet tabs | `.ds-sheet-tabs` | Like macOS window tabs; tab colour tints the whole tab |
+| Sheet tabs | `.ds-sheet-tabs` | Like macOS window tabs; tab colour tints the whole tab. Tabs keep their width (up to 200px, then an ellipsis) and scroll sideways in `__strip`; `__actions` (add, all sheets) stay pinned at the end |
 | Status bar | `.ds-status-bar` | Sum, average, count of the selection; save state |
 
 ## Behaviour
