@@ -48,7 +48,17 @@ On `localhost` the offline service worker only installs when the address has `?o
 The app is published at [tables.atelier.ktgk.app](https://tables.atelier.ktgk.app) as a Cloudflare Worker that serves only static files (`wrangler.jsonc`).
 
 - `build.sh` assembles the site into `dist/`: just the files the page uses, plus `deploy/_headers`. The engine goes up gzipped (`build/tables-engine.wasm.gz`, about 20 MB) because Cloudflare serves files of at most 25 MiB; the worker decompresses it. `build.sh` stops if any file is too large.
-- Every push to `main` that touches `Web/` or `Engine/` builds, tests and deploys through `.github/workflows/web.yml`. Pull requests are built and tested only. The workflow needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- Every push to `main` that touches `Web/` or `Engine/` builds, tests and deploys through Cloudflare Workers Builds. Its build image has no Swift, so `deploy/cloudflare-build.sh` downloads the toolchain and the Swift SDK for WebAssembly each time (about 1.2 GB), builds the site and runs the engine smoke tests. If any step fails, nothing is deployed. The Worker's build settings are:
+
+  | Setting | Value |
+  | --- | --- |
+  | Git repository, branch | `AtelierSuite/Tables`, `main` |
+  | Root directory | `Web` |
+  | Build command | `./deploy/cloudflare-build.sh` |
+  | Deploy command | `npx wrangler deploy` |
+  | Build watch paths | include `Web/*`, `Engine/*` |
+  | Builds for non-production branches | off |
+
 - To deploy by hand from a Mac: `./build.sh && npx wrangler deploy`. Wrangler is only the deploy tool, not part of the app.
 
 Visitors pick up a new build the next time they open the app: the service worker installs it alongside the old one and offers to restart.
