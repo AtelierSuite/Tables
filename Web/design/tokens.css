@@ -1,0 +1,281 @@
+/*
+ * Tables design tokens.
+ *
+ * Colour, type, spacing and motion values follow IBM Carbon (v11): the White
+ * theme for light appearance and the Gray 100 theme for dark appearance.
+ * Every font is the operating system's own sans-serif; Carbon's IBM Plex is
+ * deliberately not used. See DESIGN.md for the rules these tokens serve.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Type: the OS system font only. Never add a family to this stack. */
+  --ds-font: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Carbon productive type scale. Letter-spacing is always 0. */
+  --ds-type-caption: 400 12px/16px var(--ds-font);
+  --ds-type-label: 400 12px/16px var(--ds-font);
+  --ds-type-body-compact: 400 13px/18px var(--ds-font);
+  --ds-type-body: 400 14px/20px var(--ds-font);
+  --ds-type-heading-compact: 600 13px/18px var(--ds-font);
+  --ds-type-heading-02: 600 16px/22px var(--ds-font);
+  --ds-type-heading-03: 400 20px/28px var(--ds-font);
+  --ds-type-heading-04: 400 28px/36px var(--ds-font);
+
+  /* Carbon spacing scale (2× grid). */
+  --ds-spacing-01: 2px;
+  --ds-spacing-02: 4px;
+  --ds-spacing-03: 8px;
+  --ds-spacing-04: 12px;
+  --ds-spacing-05: 16px;
+  --ds-spacing-06: 24px;
+  --ds-spacing-07: 32px;
+  --ds-spacing-08: 40px;
+  --ds-spacing-09: 48px;
+
+  /* Control heights. Desktop-dense: 24 for toolbars and inspectors, 32 default. */
+  --ds-control-xs: 24px;
+  --ds-control-sm: 32px;
+  --ds-control-md: 40px;
+  --ds-toolbar-height: 48px;
+
+  /* Carbon is square. Only checkboxes, radios and switches round off. */
+  --ds-radius: 0;
+  --ds-radius-checkbox: 2px;
+  --ds-radius-round: 999px;
+
+  /* Carbon motion. */
+  --ds-duration-fast-01: 70ms;
+  --ds-duration-fast-02: 110ms;
+  --ds-duration-moderate-01: 150ms;
+  --ds-duration-moderate-02: 240ms;
+  --ds-ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ds-ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --ds-ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
+
+  /* Elevation: one shadow, for things that float above the window. */
+  --ds-shadow-float: 0 2px 6px rgba(0, 0, 0, 0.3);
+
+  /* ---- Light appearance: Carbon White theme ---- */
+  --ds-background: #ffffff;
+  --ds-background-hover: rgba(141, 141, 141, 0.12);
+  --ds-background-active: rgba(141, 141, 141, 0.5);
+  --ds-background-selected: rgba(141, 141, 141, 0.2);
+  --ds-background-inverse: #393939;
+  --ds-background-inverse-hover: #474747;
+  --ds-layer-01: #f4f4f4;
+  --ds-layer-hover-01: #e8e8e8;
+  --ds-layer-active-01: #c6c6c6;
+  --ds-layer-selected-01: #e0e0e0;
+  --ds-layer-02: #ffffff;
+  --ds-layer-hover-02: #e8e8e8;
+  --ds-layer-accent-01: #e0e0e0;
+  --ds-field-01: #f4f4f4;
+  --ds-field-hover-01: #e8e8e8;
+  --ds-field-02: #ffffff;
+  --ds-border-subtle-00: #e0e0e0;
+  --ds-border-subtle-01: #c6c6c6;
+  --ds-border-strong-01: #8d8d8d;
+  --ds-border-interactive: #0f62fe;
+  --ds-border-disabled: #c6c6c6;
+  --ds-text-primary: #161616;
+  --ds-text-secondary: #525252;
+  --ds-text-helper: #6f6f6f;
+  --ds-text-placeholder: rgba(22, 22, 22, 0.4);
+  --ds-text-on-color: #ffffff;
+  --ds-text-inverse: #ffffff;
+  --ds-text-disabled: rgba(22, 22, 22, 0.25);
+  --ds-text-error: #da1e28;
+  --ds-link-primary: #0f62fe;
+  --ds-link-primary-hover: #0043ce;
+  --ds-icon-primary: #161616;
+  --ds-icon-secondary: #525252;
+  --ds-icon-on-color: #ffffff;
+  --ds-icon-disabled: rgba(22, 22, 22, 0.25);
+  --ds-interactive: #0f62fe;
+  --ds-focus: #0f62fe;
+  --ds-focus-inset: #ffffff;
+  --ds-highlight: #d0e2ff;
+  --ds-button-primary: #0f62fe;
+  --ds-button-primary-hover: #0050e6;
+  --ds-button-primary-active: #002d9c;
+  --ds-button-secondary: #393939;
+  --ds-button-secondary-hover: #474747;
+  --ds-button-secondary-active: #6f6f6f;
+  --ds-button-danger: #da1e28;
+  --ds-button-danger-hover: #b81921;
+  --ds-button-danger-active: #750e13;
+  --ds-button-disabled: #c6c6c6;
+  --ds-support-error: #da1e28;
+  --ds-support-success: #24a148;
+  --ds-support-warning: #f1c21b;
+  --ds-support-info: #0043ce;
+  --ds-notification-error: #fff1f1;
+  --ds-notification-success: #defbe6;
+  --ds-notification-warning: #fcf4d6;
+  --ds-notification-info: #edf5ff;
+  --ds-overlay: rgba(22, 22, 22, 0.5);
+  --ds-skeleton: #e8e8e8;
+
+  /* Spreadsheet surface. */
+  --ds-grid-line: #e0e0e0;
+  --ds-grid-header: #f4f4f4;
+  --ds-grid-header-selected: #d0e2ff;
+  --ds-grid-selection-fill: rgba(15, 98, 254, 0.1);
+  --ds-grid-selection-border: #0f62fe;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ds-background: #161616;
+    --ds-background-hover: rgba(141, 141, 141, 0.16);
+    --ds-background-active: rgba(141, 141, 141, 0.4);
+    --ds-background-selected: rgba(141, 141, 141, 0.24);
+    --ds-background-inverse: #f4f4f4;
+    --ds-background-inverse-hover: #e8e8e8;
+    --ds-layer-01: #262626;
+    --ds-layer-hover-01: #333333;
+    --ds-layer-active-01: #525252;
+    --ds-layer-selected-01: #393939;
+    --ds-layer-02: #393939;
+    --ds-layer-hover-02: #474747;
+    --ds-layer-accent-01: #393939;
+    --ds-field-01: #262626;
+    --ds-field-hover-01: #333333;
+    --ds-field-02: #393939;
+    --ds-border-subtle-00: #393939;
+    --ds-border-subtle-01: #525252;
+    --ds-border-strong-01: #8d8d8d;
+    --ds-border-interactive: #4589ff;
+    --ds-border-disabled: rgba(141, 141, 141, 0.5);
+    --ds-text-primary: #f4f4f4;
+    --ds-text-secondary: #c6c6c6;
+    --ds-text-helper: #a8a8a8;
+    --ds-text-placeholder: rgba(244, 244, 244, 0.4);
+    --ds-text-on-color: #ffffff;
+    --ds-text-inverse: #161616;
+    --ds-text-disabled: rgba(244, 244, 244, 0.25);
+    --ds-text-error: #ff8389;
+    --ds-link-primary: #78a9ff;
+    --ds-link-primary-hover: #a6c8ff;
+    --ds-icon-primary: #f4f4f4;
+    --ds-icon-secondary: #c6c6c6;
+    --ds-icon-on-color: #ffffff;
+    --ds-icon-disabled: rgba(244, 244, 244, 0.25);
+    --ds-interactive: #4589ff;
+    --ds-focus: #ffffff;
+    --ds-focus-inset: #161616;
+    --ds-highlight: #002d9c;
+    --ds-button-primary: #0f62fe;
+    --ds-button-primary-hover: #0050e6;
+    --ds-button-primary-active: #002d9c;
+    --ds-button-secondary: #6f6f6f;
+    --ds-button-secondary-hover: #5e5e5e;
+    --ds-button-secondary-active: #393939;
+    --ds-button-danger: #da1e28;
+    --ds-button-danger-hover: #b81921;
+    --ds-button-danger-active: #750e13;
+    --ds-button-disabled: rgba(141, 141, 141, 0.3);
+    --ds-support-error: #fa4d56;
+    --ds-support-success: #42be65;
+    --ds-support-warning: #f1c21b;
+    --ds-support-info: #4589ff;
+    --ds-notification-error: #3b1416;
+    --ds-notification-success: #0e2a17;
+    --ds-notification-warning: #33290b;
+    --ds-notification-info: #0d1d3d;
+    --ds-overlay: rgba(0, 0, 0, 0.65);
+    --ds-skeleton: #333333;
+    --ds-grid-line: #393939;
+    --ds-grid-header: #262626;
+    --ds-grid-header-selected: #002d9c;
+    --ds-grid-selection-fill: rgba(69, 137, 255, 0.16);
+    --ds-grid-selection-border: #4589ff;
+  }
+}
+
+/* Same dark values, forced by the app's appearance setting. Keep in step with the block above. */
+:root[data-theme="dark"] {
+  --ds-background: #161616;
+  --ds-background-hover: rgba(141, 141, 141, 0.16);
+  --ds-background-active: rgba(141, 141, 141, 0.4);
+  --ds-background-selected: rgba(141, 141, 141, 0.24);
+  --ds-background-inverse: #f4f4f4;
+  --ds-background-inverse-hover: #e8e8e8;
+  --ds-layer-01: #262626;
+  --ds-layer-hover-01: #333333;
+  --ds-layer-active-01: #525252;
+  --ds-layer-selected-01: #393939;
+  --ds-layer-02: #393939;
+  --ds-layer-hover-02: #474747;
+  --ds-layer-accent-01: #393939;
+  --ds-field-01: #262626;
+  --ds-field-hover-01: #333333;
+  --ds-field-02: #393939;
+  --ds-border-subtle-00: #393939;
+  --ds-border-subtle-01: #525252;
+  --ds-border-strong-01: #8d8d8d;
+  --ds-border-interactive: #4589ff;
+  --ds-border-disabled: rgba(141, 141, 141, 0.5);
+  --ds-text-primary: #f4f4f4;
+  --ds-text-secondary: #c6c6c6;
+  --ds-text-helper: #a8a8a8;
+  --ds-text-placeholder: rgba(244, 244, 244, 0.4);
+  --ds-text-on-color: #ffffff;
+  --ds-text-inverse: #161616;
+  --ds-text-disabled: rgba(244, 244, 244, 0.25);
+  --ds-text-error: #ff8389;
+  --ds-link-primary: #78a9ff;
+  --ds-link-primary-hover: #a6c8ff;
+  --ds-icon-primary: #f4f4f4;
+  --ds-icon-secondary: #c6c6c6;
+  --ds-icon-on-color: #ffffff;
+  --ds-icon-disabled: rgba(244, 244, 244, 0.25);
+  --ds-interactive: #4589ff;
+  --ds-focus: #ffffff;
+  --ds-focus-inset: #161616;
+  --ds-highlight: #002d9c;
+  --ds-button-primary: #0f62fe;
+  --ds-button-primary-hover: #0050e6;
+  --ds-button-primary-active: #002d9c;
+  --ds-button-secondary: #6f6f6f;
+  --ds-button-secondary-hover: #5e5e5e;
+  --ds-button-secondary-active: #393939;
+  --ds-button-danger: #da1e28;
+  --ds-button-danger-hover: #b81921;
+  --ds-button-danger-active: #750e13;
+  --ds-button-disabled: rgba(141, 141, 141, 0.3);
+  --ds-support-error: #fa4d56;
+  --ds-support-success: #42be65;
+  --ds-support-warning: #f1c21b;
+  --ds-support-info: #4589ff;
+  --ds-notification-error: #3b1416;
+  --ds-notification-success: #0e2a17;
+  --ds-notification-warning: #33290b;
+  --ds-notification-info: #0d1d3d;
+  --ds-overlay: rgba(0, 0, 0, 0.65);
+  --ds-skeleton: #333333;
+  --ds-grid-line: #393939;
+  --ds-grid-header: #262626;
+  --ds-grid-header-selected: #002d9c;
+  --ds-grid-selection-fill: rgba(69, 137, 255, 0.16);
+  --ds-grid-selection-border: #4589ff;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-duration-fast-01: 0ms;
+    --ds-duration-fast-02: 0ms;
+    --ds-duration-moderate-01: 0ms;
+    --ds-duration-moderate-02: 0ms;
+  }
+}
