@@ -118,6 +118,12 @@ function lintDeclaration(file, selector, prop, rawValue, line) {
     if (!ok) report(file, line, "no-pointer-cursor", `cursor: pointer on "${selector}"`);
   }
 
+  // Shape: square everywhere. Only checkboxes, radios, switches, sliders and spinners may round off.
+  if (/^border(-(top|bottom|start|end)-(left|right|start|end))?-radius$/.test(prop) && !/^(0(px)?|var\(--ds-radius\))$/.test(v)) {
+    const ok = selector.split(",").every((s) => /check|radio|switch|slider|range|spinner/.test(s));
+    if (!ok) report(file, line, "square-corners", `${prop}: ${value} on "${selector}"`);
+  }
+
   // Case: never transform to capitals; never small caps.
   if (prop === "text-transform" && v !== "none") report(file, line, "no-all-caps", `text-transform: ${value}`);
   if ((prop === "font-variant-caps" || prop === "font-variant") && /(small|petite|titling)-caps|unicase/.test(v)) {
