@@ -65,7 +65,10 @@ mkdir -p "$WEB/dist"
     mkdir -p "$WEB/dist/$(dirname "$file")"
     cp "$file" "$WEB/dist/$file"
 done
-cp "$WEB/deploy/_headers" "$WEB/dist/_headers"
+cp "$WEB/deploy/_headers" "$WEB/deploy/robots.txt" "$WEB/deploy/sitemap.xml" "$WEB/dist/"
+# For links shared on social sites; not kept offline.
+mkdir -p "$WEB/dist/social"
+cp "$WEB/social/og-image.png" "$WEB/dist/social/"
 # Cloudflare serves files up to 25 MiB.
 TOO_BIG=$(find "$WEB/dist" -type f -size +26214400c)
 if [[ -n "$TOO_BIG" ]]; then
