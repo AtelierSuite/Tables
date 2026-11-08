@@ -945,9 +945,9 @@ export class WorkbookWindow {
     const backdrop = document.createElement("div");
     backdrop.className = "ds-sheet-backdrop app__sheet-backdrop";
     backdrop.innerHTML = `
-      <div class="ds-sheet ds-alert" role="alertdialog" aria-labelledby="about-title" aria-describedby="about-message">
+      <div class="ds-sheet ds-alert app__about" role="alertdialog" aria-labelledby="about-title" aria-describedby="about-message">
         <div class="ds-sheet__body">
-          <svg class="ds-alert__icon app__about-icon" viewBox="0 0 16 16" aria-hidden="true">${ICONS.table}</svg>
+          <img class="app__about-icon" src="app/icons/icon.svg" width="48" height="48" alt="" draggable="false">
           <div>
             <h2 class="ds-sheet__title" id="about-title">Tables</h2>
             <p class="ds-sheet__message" id="about-message"></p>

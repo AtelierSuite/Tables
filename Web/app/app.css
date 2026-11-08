@@ -325,9 +325,15 @@ body {
   margin-top: var(--ds-spacing-03);
 }
 
+/* The About sheet shows the app's own icon, at macOS alert size. */
+.app__about .ds-sheet__body {
+  grid-template-columns: 48px 1fr;
+}
+
 .app__about-icon {
-  fill: none;
-  color: var(--ds-interactive);
+  display: block;
+  width: 48px;
+  height: 48px;
 }
 
 /* MARK: - Narrow windows */
