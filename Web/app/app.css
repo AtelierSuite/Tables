@@ -42,6 +42,10 @@ body {
   gap: var(--ds-spacing-03);
 }
 
+.app__loading-progress {
+  width: 120px;
+}
+
 .app__noscript {
   padding: var(--ds-spacing-06);
 }

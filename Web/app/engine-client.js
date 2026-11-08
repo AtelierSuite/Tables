@@ -6,6 +6,7 @@
 //   engine.addEventListener("content", ...)  // cells changed: redraw
 //   engine.addEventListener("layout", ...)   // rows, columns or the active sheet changed
 //   engine.addEventListener("document", ...) // sheets, file or capabilities changed
+//   engine.addEventListener("progress", ...) // while starting: { loaded, total } bytes of the engine downloaded
 
 export class EngineError extends Error {
   constructor(message, { fatal = false } = {}) {
@@ -34,7 +35,11 @@ export class EngineClient extends EventTarget {
     });
   }
 
-  receive({ id, response, payload, error, fatal }) {
+  receive({ id, response, payload, error, fatal, progress }) {
+    if (progress) {
+      this.dispatchEvent(new CustomEvent("progress", { detail: progress }));
+      return;
+    }
     const entry = this.pending.get(id);
     if (!entry) return;
     this.pending.delete(id);

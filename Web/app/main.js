@@ -16,11 +16,40 @@ for (const type of ["gesturestart", "gesturechange"]) {
 async function start() {
   const strings = await loadStrings();
   const engine = new EngineClient();
+  showEngineProgress(engine);
   const locale = new URLSearchParams(location.search).get("lang") || navigator.language || "en-US";
   await engine.call("init", { strings, locale });
   const app = new WorkbookWindow(root, engine);
   app.showStart();
   registerServiceWorker(app);
+}
+
+// The spinner becomes a progress bar while the engine downloads, and comes
+// back while it compiles. Not when it loads at once, from the offline cache.
+function showEngineProgress(engine) {
+  const loading = root.querySelector(".app__loading");
+  const spinner = loading?.querySelector(".ds-spinner");
+  const bar = loading?.querySelector(".app__loading-progress");
+  if (!bar) return;
+  let latest = null;
+  let shown = false;
+  const render = () => {
+    if (!shown || !latest || !bar.isConnected) return;
+    const downloading = latest.loaded < latest.total;
+    spinner.hidden = downloading;
+    bar.hidden = !downloading;
+    const percent = Math.round((latest.loaded / latest.total) * 100);
+    bar.style.setProperty("--ds-progress", `${percent}%`);
+    bar.setAttribute("aria-valuenow", String(percent));
+  };
+  setTimeout(() => {
+    shown = true;
+    render();
+  }, 300);
+  engine.addEventListener("progress", (event) => {
+    latest = event.detail;
+    render();
+  });
 }
 
 function registerServiceWorker(app) {
