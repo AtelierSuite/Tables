@@ -1,4 +1,6 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#endif
 import Foundation
 
 /// Reading and writing the package parts behind cell comments.
@@ -215,7 +217,11 @@ public enum CommentParts {
 
     /// A stable id for an author, so saving twice does not churn the file.
     public static func personID(for author: String) -> String {
-        let digest = SHA256.hash(data: Data(author.utf8))
+        #if canImport(CryptoKit)
+        let digest = Array(SHA256.hash(data: Data(author.utf8)))
+        #else
+        let digest = SHA256Digest.hash(Data(author.utf8))
+        #endif
         let hex = digest.prefix(16).map { String(format: "%02X", $0) }.joined()
         let parts = [hex.prefix(8), hex.dropFirst(8).prefix(4), hex.dropFirst(12).prefix(4),
                      hex.dropFirst(16).prefix(4), hex.dropFirst(20).prefix(12)]
