@@ -8,6 +8,7 @@ import { t, language } from "./i18n.js";
 import * as files from "./files.js";
 import * as storage from "./storage.js";
 import { attachMenuBar, attachToolbarOverflow, openMenu } from "../design/menus.js";
+import { dismissSheet } from "../design/sheets.js";
 
 const isApple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const AUTOSAVE_DELAY = 1500;
@@ -958,7 +959,10 @@ export class WorkbookWindow {
       </div>`;
     backdrop.querySelector("#about-message").textContent = t("Web.About.Message");
     backdrop.querySelector(".app__about-suite a").textContent = t("Web.About.Suite");
-    const close = () => backdrop.remove();
+    const close = () => {
+      dismissSheet(backdrop);
+      this.grid.focus();
+    };
     backdrop.querySelector("button").addEventListener("click", close);
     backdrop.addEventListener("keydown", (event) => event.key === "Escape" && close());
     this.root.append(backdrop);
@@ -986,7 +990,7 @@ export class WorkbookWindow {
       const input = backdrop.querySelector("input");
       input.value = value;
       const finish = (result) => {
-        backdrop.remove();
+        dismissSheet(backdrop);
         this.grid.focus();
         resolve(result);
       };
