@@ -42,6 +42,19 @@ body {
   gap: var(--ds-spacing-03);
 }
 
+.app__loading-progress {
+  width: 120px;
+}
+
+/* While the engine downloads: the bar, with the percentage under it. */
+.app__loading.is-downloading {
+  flex-direction: column;
+}
+
+.app__loading.is-downloading .ds-caption {
+  font-variant-numeric: tabular-nums;
+}
+
 .app__noscript {
   padding: var(--ds-spacing-06);
 }
@@ -337,6 +350,20 @@ body {
 
 .app__sheet-backdrop .ds-text-input {
   margin-top: var(--ds-spacing-04);
+}
+
+/* The Update button, at the menu bar's trailing end: borderless and the bar's
+   full height like the menu titles. */
+.app__update {
+  align-self: stretch;
+  height: auto;
+  gap: var(--ds-spacing-02);
+  margin-inline-start: auto;
+  font: var(--ds-type-body-compact);
+}
+
+.app__update-body .ds-progress {
+  margin-top: var(--ds-spacing-05);
 }
 
 .app__about-suite {

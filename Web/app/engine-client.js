@@ -6,6 +6,7 @@
 //   engine.addEventListener("content", ...)  // cells changed: redraw
 //   engine.addEventListener("layout", ...)   // rows, columns or the active sheet changed
 //   engine.addEventListener("document", ...) // sheets, file or capabilities changed
+//   engine.addEventListener("progress", ...) // while starting: { loaded, total } bytes of the engine downloaded
 
 export class EngineError extends Error {
   constructor(message, { fatal = false } = {}) {
@@ -15,10 +16,12 @@ export class EngineError extends Error {
 }
 
 export class EngineClient extends EventTarget {
-  constructor() {
+  /** @param {{ keepForOffline?: boolean }} [options] keepForOffline: leave the downloaded engine for the service worker's first install */
+  constructor({ keepForOffline = false } = {}) {
     super();
     const url = new URL("../engine/worker.js", import.meta.url);
     url.searchParams.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC");
+    if (keepForOffline) url.searchParams.set("keep", "1");
     this.worker = new Worker(url, { type: "module" });
     this.pending = new Map();
     this.nextId = 1;
@@ -34,7 +37,11 @@ export class EngineClient extends EventTarget {
     });
   }
 
-  receive({ id, response, payload, error, fatal }) {
+  receive({ id, response, payload, error, fatal, progress }) {
+    if (progress) {
+      this.dispatchEvent(new CustomEvent("progress", { detail: progress }));
+      return;
+    }
     const entry = this.pending.get(id);
     if (!entry) return;
     this.pending.delete(id);
