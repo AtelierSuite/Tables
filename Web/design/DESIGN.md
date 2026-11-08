@@ -69,13 +69,19 @@ No coloured bar along a single edge of a card, list row, tab, notification, call
 
 ### Colour
 
-Carbon **White** theme in light appearance and **Gray 100** in dark. Appearance follows the OS (`prefers-color-scheme`); the app can force it with `data-theme="light"` or `"dark"` on `<html>`. Components only ever reference role tokens, never raw hex.
+Carbon **White** theme in light appearance and **Gray 100** in dark, with one change: Carbon's blue is replaced by **the Tables app's accent colour**, the green in `Apple/Shared/Resources/Assets.xcassets/AccentColor.colorset` (`#2EA666`).
+
+- `--ds-accent` holds that value and is the only place it is written. `lint.mjs` fails if it drifts from the Apple colour set, so changing the app's accent changes both apps.
+- Every interactive colour is mixed from it with `color-mix()`: focus outlines, selection borders, switches, sliders, progress, the grid selection, highlights and links.
+- Text never sits on the raw accent, because white on `#2EA666` is only 3.1:1. Fills that carry text (the default button, highlighted menu items) use `--ds-accent-strong`, the accent mixed with 25% black, which gives 5.1:1. Light-appearance links use the same shade; in dark appearance the raw accent passes (5.8:1 on the background).
+- Status colours keep their meaning and are not accent-tinted: info stays blue, success green, warning yellow and error red. Appearance follows the OS (`prefers-color-scheme`); the app can force it with `data-theme="light"` or `"dark"` on `<html>`. Components only ever reference role tokens, never raw hex.
 
 | Role | Tokens |
 | --- | --- |
 | Surfaces | `--ds-background`, `--ds-layer-01`, `--ds-layer-02`, `--ds-field-01`, `--ds-field-02`, plus `-hover`, `-active`, `-selected` |
 | Borders | `--ds-border-subtle-00`, `--ds-border-subtle-01`, `--ds-border-strong-01`, `--ds-border-interactive` |
 | Text and icons | `--ds-text-primary`, `-secondary`, `-helper`, `-placeholder`, `-on-color`, `-inverse`, `-disabled`, `-error`; `--ds-icon-*` |
+| Accent | `--ds-accent`, `--ds-accent-strong` |
 | Interaction | `--ds-interactive`, `--ds-focus`, `--ds-focus-inset`, `--ds-highlight`, `--ds-link-primary` |
 | Buttons | `--ds-button-primary`, `-secondary`, `-danger`, `-disabled` with `-hover` and `-active` |
 | Status | `--ds-support-error`, `-success`, `-warning`, `-info`; `--ds-notification-*` backgrounds |

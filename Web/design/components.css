@@ -668,7 +668,7 @@ textarea.ds-text-input {
 }
 
 .ds-switch input:checked {
-  background: var(--ds-support-success);
+  background: var(--ds-interactive);
 }
 
 .ds-switch input:checked::after {
@@ -1086,7 +1086,7 @@ textarea.ds-text-input {
 
 .ds-menu__item:hover,
 .ds-menu__item[data-highlighted] {
-  background: var(--ds-interactive);
+  background: var(--ds-button-primary);
   color: var(--ds-text-on-color);
 }
 
