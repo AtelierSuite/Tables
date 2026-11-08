@@ -107,7 +107,8 @@ export class WorkbookWindow {
     this.bindEngine();
     this.bindKeyboard();
     this.applyAppearance(readSetting("appearance", ""));
-    this.setInspectorVisible(readSetting("inspector", "1") === "1");
+    // On a phone the inspector covers the sheet, so it starts closed there.
+    this.setInspectorVisible(readSetting("inspector", "1") === "1" && !matchMedia("(max-width: 720px)").matches, { remember: false });
 
     files.onLaunchFiles((file) => file && this.openFile(file));
     files.onDroppedFiles(document.body, (file) => file && this.openFile(file), (hovering) => {
@@ -827,10 +828,10 @@ export class WorkbookWindow {
     }
   }
 
-  setInspectorVisible(visible) {
+  setInspectorVisible(visible, { remember = true } = {}) {
     this.inspector.hidden = !visible;
     this.root.querySelector("#inspector-toggle").setAttribute("aria-pressed", String(visible));
-    writeSetting("inspector", visible ? "1" : "0");
+    if (remember) writeSetting("inspector", visible ? "1" : "0");
   }
 
   // MARK: - Sheet tabs
