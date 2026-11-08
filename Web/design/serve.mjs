@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Serves Web/ on http://localhost:8000 so the specimen's ES modules load (browsers block them on file://).
+// Serves Web/ on http://localhost:8000: the app at /, the design specimen at /design/.
+// ES modules, workers and service workers need http; browsers block them on file://.
 // Usage: node design/serve.mjs [port]. No dependencies.
 
 import { createServer } from "node:http";
@@ -18,6 +19,8 @@ const types = {
   ".svg": "image/svg+xml",
   ".md": "text/plain; charset=utf-8",
   ".wasm": "application/wasm",
+  ".webmanifest": "application/manifest+json",
+  ".png": "image/png",
 };
 
 createServer(async (request, response) => {
@@ -34,4 +37,4 @@ createServer(async (request, response) => {
   } catch {
     response.writeHead(404).end("Not found");
   }
-}).listen(port, "127.0.0.1", () => console.log(`Design system specimen: http://localhost:${port}/design/`));
+}).listen(port, "127.0.0.1", () => console.log(`Tables: http://localhost:${port}/  ·  design specimen: http://localhost:${port}/design/`));
