@@ -217,9 +217,23 @@ struct CellRenderer {
 
     // MARK: - Text
 
-    /// The font a cell's text is drawn in, at the grid's zoom.
+    /// The font a cell's text is drawn in, at the grid's zoom: its own family
+    /// when it has one and it is installed, otherwise the system font.
     static func font(for style: CellStyle, zoom: Double) -> NSFont {
         let size = style.fontSize * zoom
+        if let family = style.displayFontName {
+            var traits: NSFontTraitMask = []
+            if style.isBold { traits.insert(.boldFontMask) }
+            if style.isItalic { traits.insert(.italicFontMask) }
+            let manager = NSFontManager.shared
+            if let font = manager.font(withFamily: family, traits: traits, weight: 5, size: size) {
+                return font
+            }
+            // A family without the asked-for face still beats the system font.
+            if let font = manager.font(withFamily: family, traits: [], weight: 5, size: size) {
+                return manager.convert(font, toHaveTrait: traits)
+            }
+        }
         var traits: NSFontDescriptor.SymbolicTraits = []
         if style.isBold { traits.insert(.bold) }
         if style.isItalic { traits.insert(.italic) }
