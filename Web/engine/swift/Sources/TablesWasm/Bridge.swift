@@ -78,7 +78,7 @@ final class Bridge {
         case "info":
             return info()
         case "layout":
-            return layout()
+            return layout(of: sheet(r))
         case "render":
             return render(r)
 
@@ -197,6 +197,19 @@ final class Bridge {
         case "sheetColor": if let id = sheetID(r) { session.setSheetColor(id, hex: r["color"] as? String) }
         case "moveSheet": if let id = sheetID(r), let index = r["index"] as? Int { session.moveSheet(id, to: index) }
 
+        // Canvases
+        case "addTable": session.addTable()
+        case "placeSheet":
+            if let id = sheetID(r), let target = (r["target"] as? String).flatMap(UUID.init(uuidString:)) {
+                session.placeSheet(id, onCanvasWith: target)
+            }
+        case "removeFromCanvas": if let id = sheetID(r) { session.removeFromCanvas(id) }
+        case "moveTable":
+            if let id = sheetID(r), let x = number(r["x"]), let y = number(r["y"]) { session.moveTable(id, toX: x, y: y) }
+        case "showTableName": if let id = sheetID(r) { session.setTableNameShown(r["shown"] as? Bool ?? true, for: id) }
+        case "renameTable": if let id = sheetID(r), let name = r["name"] as? String { session.renameTable(id, to: name) }
+        case "renameCanvas": if let id = sheetID(r), let name = r["name"] as? String { session.renameCanvas(containing: id, to: name) }
+
         // History
         case "undo": session.undo()
         case "redo": session.redo()
@@ -222,6 +235,12 @@ final class Bridge {
 
     private func sheetID(_ r: [String: Any]) -> Worksheet.ID? {
         (r["id"] as? String).flatMap(UUID.init(uuidString:))
+    }
+
+    /// The sheet a request names, for drawing the other tables on a canvas;
+    /// the active one when it names none.
+    private func sheet(_ r: [String: Any]) -> Worksheet {
+        sheetID(r).flatMap { session.workbook[$0] } ?? session.activeSheet
     }
 
     private func range(_ range: CellRange) -> [Int] {
@@ -406,6 +425,9 @@ final class Bridge {
             "allowsFreeze": session.allowsFreezingPanes,
             "allowsInsertDelete": session.allowsInsertingAndDeleting,
             "allowsComments": session.allowsComments,
+            "allowsLayingOutTables": session.allowsLayingOutTables,
+            "allowsArrangingCanvases": session.allowsArrangingCanvases,
+            "canvases": canvases(),
             "unsupported": [
                 "preserved": report.preserved.sorted().map(\.label),
                 "lost": report.lost.sorted().map(\.label),
@@ -414,8 +436,30 @@ final class Bridge {
         ]
     }
 
-    private func layout() -> [String: Any] {
-        let sheet = session.activeSheet
+    /// The canvases that show more than one table, each table where it sits
+    /// on the page in points at 100%; hidden sheets are left off, as the
+    /// Apple apps leave them.
+    private func canvases() -> [[String: Any]] {
+        let workbook = session.workbook
+        return workbook.canvases.compactMap { canvas -> [String: Any]? in
+            let sheets = workbook.sheets(on: canvas)
+            guard sheets.count > 1 else { return nil }
+            return [
+                "id": canvas.id.uuidString,
+                "name": canvas.name,
+                "tables": sheets.compactMap { sheet -> [String: Any]? in
+                    guard let table = canvas.table(for: sheet.id) else { return nil }
+                    return [
+                        "id": sheet.id.uuidString, "x": table.x, "y": table.y,
+                        "showsName": table.showsName, "name": workbook.tableName(of: sheet.id),
+                        "ownName": table.name != nil,
+                    ]
+                },
+            ]
+        }
+    }
+
+    private func layout(of sheet: Worksheet) -> [String: Any] {
         let columns = Set(sheet.columnWidths.keys).union(sheet.hiddenColumns).sorted()
         let rows = Set(sheet.rowHeights.keys).union(sheet.hiddenRows).sorted()
         return [
@@ -436,7 +480,7 @@ final class Bridge {
     private func render(_ r: [String: Any]) -> [String: Any] {
         let rect = CGRect(x: number(r["x"]) ?? 0, y: number(r["y"]) ?? 0,
                           width: number(r["w"]) ?? 0, height: number(r["h"]) ?? 0)
-        var renderer = Renderer(sheet: session.activeSheet, viewer: r["dark"] as? Bool == true ? .dark : .light)
+        var renderer = Renderer(sheet: sheet(r), viewer: r["dark"] as? Bool == true ? .dark : .light)
         var body: [String: Any] = ["ops": renderer.render(rect)]
         if let paper = renderer.paper { body["paper"] = paper }
         return body

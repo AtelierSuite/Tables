@@ -196,6 +196,20 @@ body {
   box-shadow: 0 0 0 1px var(--ds-border-subtle-01);
 }
 
+/* A table's name on a canvas, being typed over where it is drawn. */
+.grid__table-name {
+  position: absolute;
+  z-index: 2;
+  padding: 0 2px;
+  border: 0;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  background: var(--ds-field-01);
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 0;
+}
+
 /* MARK: - Start screen */
 
 .app__start {

@@ -64,6 +64,12 @@ final class WebSession {
     var allowsComments: Bool { !document.isPlainText && !document.isNumbers }
     var allowsFreezingPanes: Bool { !document.isPlainText && !document.isNumbers }
     var allowsInsertingAndDeleting: Bool { document.allowsMovingCells(in: activeSheet.id) }
+    /// Moving and naming the tables on a canvas, which Numbers documents keep
+    /// too; delimited text has no tables to lay out.
+    var allowsLayingOutTables: Bool { !document.isPlainText }
+    /// Putting sheets together on a canvas, or taking them off one, which
+    /// only workbooks can keep.
+    var allowsArrangingCanvases: Bool { !document.isPlainText && !document.isNumbers }
 
     func selectSheet(_ id: Worksheet.ID) {
         guard workbook[id] != nil else { return }
@@ -750,11 +756,78 @@ final class WebSession {
     }
 
     func moveSheet(_ id: Worksheet.ID, to position: Int) {
-        guard let from = workbook.index(of: id) else { return }
-        change {
-            let sheet = workbook.sheets.remove(at: from)
-            workbook.sheets.insert(sheet, at: min(max(0, position), workbook.sheets.count))
+        guard workbook.index(of: id) != nil else { return }
+        // The workbook keeps a canvas's sheets together as they move.
+        change { workbook.moveSheet(id, to: position) }
+    }
+
+    // MARK: - Canvases
+
+    /// Sheets laid out together on one page, as a Numbers sheet holds its
+    /// tables: the same actions as the Apple apps' `CanvasActions`.
+
+    /// Adds a new table below the active sheet, on the canvas it is on or a
+    /// new one with it, and goes to it.
+    func addTable() {
+        guard allowsArrangingCanvases else { return }
+        let anchor = activeSheet.id
+        let index = (workbook.index(of: anchor) ?? workbook.sheets.count - 1) + 1
+        var id: Worksheet.ID?
+        change(layout: true) {
+            id = workbook.addSheet(at: index)
+            if let id { workbook.placeSheet(id, onCanvasWith: anchor) }
         }
+        if let id { selectSheet(id) }
+    }
+
+    /// Lays a sheet out on the canvas another is on, starting one when that
+    /// sheet has the page to itself.
+    func placeSheet(_ id: Worksheet.ID, onCanvasWith target: Worksheet.ID) {
+        guard allowsArrangingCanvases else { return }
+        change(layout: true) { workbook.placeSheet(id, onCanvasWith: target) }
+        selectSheet(id)
+    }
+
+    /// Takes a sheet off its canvas, back to a sheet of its own.
+    func removeFromCanvas(_ id: Worksheet.ID) {
+        guard allowsArrangingCanvases else { return }
+        change(layout: true) { workbook.removeFromCanvas(id) }
+        selectSheet(id)
+    }
+
+    /// Moves a table on its canvas, to a place in points at 100%.
+    func moveTable(_ id: Worksheet.ID, toX x: Double, y: Double) {
+        guard allowsLayingOutTables else { return }
+        change { workbook.moveTable(id, toX: x, y: y) }
+    }
+
+    func setTableNameShown(_ shown: Bool, for id: Worksheet.ID) {
+        guard allowsLayingOutTables,
+              let canvas = workbook.canvases.firstIndex(where: { $0.contains(id) }),
+              let table = workbook.canvases[canvas].tables.firstIndex(where: { $0.sheetID == id }) else { return }
+        change { workbook.canvases[canvas].tables[table].showsName = shown }
+    }
+
+    /// Renames a table: its own name where it has one, as a Numbers table
+    /// does, and otherwise its sheet, as Excel knows it.
+    func renameTable(_ id: Worksheet.ID, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard allowsLayingOutTables, !trimmed.isEmpty else { return }
+        if let canvas = workbook.canvases.firstIndex(where: { $0.contains(id) }),
+           let table = workbook.canvases[canvas].tables.firstIndex(where: { $0.sheetID == id }),
+           workbook.canvases[canvas].tables[table].name != nil {
+            change { workbook.canvases[canvas].tables[table].name = trimmed }
+        } else {
+            let sanitized = Worksheet.sanitizedName(trimmed)
+            guard !sanitized.isEmpty else { return }
+            change { workbook.renameSheet(id, to: sanitized) }
+        }
+    }
+
+    /// Renames the canvas a sheet is on: its tab.
+    func renameCanvas(containing id: Worksheet.ID, to name: String) {
+        guard allowsLayingOutTables, let canvas = workbook.canvas(containing: id) else { return }
+        change { workbook.renameCanvas(canvas.id, to: name) }
     }
 
     // MARK: - Quick insert

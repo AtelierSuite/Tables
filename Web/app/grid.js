@@ -2,10 +2,17 @@
 // scrolling layer, with headers, frozen panes, selection, the cell editor,
 // resizing, the fill handle and the clipboard.
 //
+// A sheet laid out with others on a canvas, as a Numbers sheet holds its
+// tables, is shown on that canvas's page instead, as the Mac's CanvasView
+// shows it: the active table is the grid, carried to its place with its
+// headers round it, and the others are drawn about it until one is clicked.
+// A table is moved by the corner where its headers meet, or by the edge just
+// outside its cells, and snaps into line with the tables around it.
+//
 // Events: "edit" (editing started or text changed), "editend", "message".
 
 import { SheetMetrics, columnName } from "./metrics.js";
-import { paint, readPalette, fontFor, familyFor } from "./paint.js";
+import { paint, readPalette, fontFor, familyFor, cssColor } from "./paint.js";
 import { attachContextMenu } from "../design/menus.js";
 
 const TILE = 256;
@@ -17,6 +24,24 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 /** How long zooming must pause before tiles are drawn again at the new scale. */
 const ZOOM_SETTLE = 160;
+/** The room Tables leaves round what it places on a canvas, and a table name's height, in points at 100% (SheetCanvas). */
+const CANVAS_MARGIN = 40;
+const NAME_HEIGHT = 26;
+/**
+ * How far in from the page's left edge its tables start: room for the widest
+ * row numbers a sheet can have (1,048,576 rows), so the page never shifts as
+ * tables are picked, as the Mac's CanvasSnapping.pageInset keeps it.
+ */
+const PAGE_INSET_X = rowHeaderWidthFor(1048576) + 4;
+/** How far outside its cells a table can be picked up, and how close it comes before it snaps into line. */
+const GRAB_SLOP = 5;
+const SNAP_THRESHOLD = 6;
+/** How opaque the headers are while their table is dragged, so what it passes over shows through. */
+const DRAGGING_HEADER_OPACITY = 0.4;
+
+function rowHeaderWidthFor(rows) {
+  return Math.max(40, 8 * String(rows).length + 18);
+}
 
 export class GridView extends EventTarget {
   /**
@@ -38,6 +63,18 @@ export class GridView extends EventTarget {
     this.drawQueued = false;
     this.dark = false;
     this.palette = readPalette();
+    /** Each sheet's own background ("AARRGGBB", or null for the theme's paper), as its tiles last reported it. */
+    this.papers = new Map();
+    /** The canvas the active sheet is on, from the engine's document info, or null for a sheet of its own. */
+    this.canvasInfo = null;
+    /** The other tables' row and column geometry, by sheet id. */
+    this.tableLayouts = new Map();
+    this.tableLayoutGeneration = 0;
+    /** How far the table being dragged has come, once snapped: { id, dx, dy } in screen pixels. */
+    this.tableDrag = null;
+    this.guides = [];
+    /** The field a table's name is being typed in: { id, input, original }. */
+    this.renaming = null;
 
     root.classList.add("grid");
     root.innerHTML = `
@@ -67,6 +104,11 @@ export class GridView extends EventTarget {
     this.scroller.addEventListener("scroll", () => this.requestDraw());
     new ResizeObserver(() => this.resize()).observe(root);
     engine.addEventListener("layout", (event) => this.setLayout(event.detail));
+    engine.addEventListener("document", () => {
+      this.refreshCanvas();
+      this.updateSpacer();
+      this.requestDraw();
+    });
     engine.addEventListener("content", () => this.requestDraw());
     engine.addEventListener("state", () => {
       this.syncEditor();
@@ -87,8 +129,7 @@ export class GridView extends EventTarget {
   // MARK: - Geometry
 
   get rowHeaderWidth() {
-    const digits = String(this.metrics ? this.metrics.layout.rows : 1).length;
-    return Math.max(40, 8 * digits + 18);
+    return rowHeaderWidthFor(this.metrics ? this.metrics.layout.rows : 1);
   }
 
   get viewport() {
@@ -97,19 +138,33 @@ export class GridView extends EventTarget {
 
   setLayout(layout) {
     const sheetChanged = this.metrics?.layout.sheet !== layout.sheet;
-    this.metrics = new SheetMetrics(layout);
-    if (sheetChanged) {
-      this.scroller.scrollTo(0, 0);
-      this.cancelEdit();
-    }
+    const wasOnCanvas = this.onCanvas;
+    // A table on a canvas is shown whole, where it sits: nothing in it scrolls, so nothing freezes.
+    const onCanvas = Boolean(this.canvasContaining(layout.sheet));
+    this.metrics = new SheetMetrics(onCanvas ? { ...layout, frozenRows: 0, frozenColumns: 0 } : layout);
+    this.refreshCanvas();
     this.tiles.clear();
     this.updateSpacer();
+    if (sheetChanged) {
+      this.cancelEdit();
+      this.endRenamingTable(false);
+      if (this.onCanvas) this.revealTableHead(!wasOnCanvas);
+      else this.scroller.scrollTo(0, 0);
+    }
     this.requestDraw();
   }
 
   updateSpacer() {
     if (!this.metrics) return;
     const z = this.zoom;
+    if (this.onCanvas) {
+      // The page holds every table with room to spare; the scroller fills the window regardless.
+      const frames = this.tableFrames();
+      const margin = CANVAS_MARGIN * z;
+      this.spacer.style.width = `${Math.max(0, ...frames.map((f) => f.x + f.width)) + margin}px`;
+      this.spacer.style.height = `${Math.max(0, ...frames.map((f) => f.y + f.height)) + margin * 2}px`;
+      return;
+    }
     this.spacer.style.width = `${this.rowHeaderWidth + this.metrics.totalWidth * z + EXTRA_ROOM}px`;
     this.spacer.style.height = `${HEADER_HEIGHT + this.metrics.totalHeight * z + EXTRA_ROOM}px`;
   }
@@ -126,6 +181,19 @@ export class GridView extends EventTarget {
     const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
     if (Math.abs(clamped - this.zoom) < 0.0005 && !pinned) return;
     const { width, height } = this.viewport;
+    if (this.onCanvas) {
+      // The whole page scales about the anchor, the tables and the room between them alike.
+      const point = anchor ?? { x: width / 2, y: height / 2 };
+      const before = pinned?.page ?? this.pagePoint(point);
+      this.zoom = clamped;
+      this.updateSpacer();
+      this.scroller.scrollLeft = Math.max(0, PAGE_INSET_X + before.x * clamped - point.x);
+      this.scroller.scrollTop = Math.max(0, this.pageInsetY() + before.y * clamped - point.y);
+      this.zoomSettling();
+      this.requestDraw();
+      this.dispatchEvent(new CustomEvent("zoom", { detail: clamped }));
+      return;
+    }
     const point = anchor ?? { x: (this.rowHeaderWidth + width) / 2, y: (HEADER_HEIGHT + height) / 2 };
     const header = this.rowHeaderWidth;
     const m = this.metrics;
@@ -151,6 +219,7 @@ export class GridView extends EventTarget {
 
   /** The sheet point under a screen point, for a gesture to hold under the fingers. */
   pinnedPoint(point) {
+    if (this.onCanvas) return { page: this.pagePoint(point) };
     return this.toSheet(Math.max(point.x, this.rowHeaderWidth), Math.max(point.y, HEADER_HEIGHT));
   }
 
@@ -164,23 +233,39 @@ export class GridView extends EventTarget {
     }, ZOOM_SETTLE);
   }
 
+  /**
+   * Where the active sheet's first cell would be on screen if it scrolled with
+   * the rest: past the headers on a sheet of its own, and at its table's place
+   * on a canvas's page.
+   */
+  get originX() {
+    return (this.onCanvas ? this.activePage().x : this.rowHeaderWidth) - this.scroller.scrollLeft;
+  }
+
+  get originY() {
+    return (this.onCanvas ? this.activePage().y : HEADER_HEIGHT) - this.scroller.scrollTop;
+  }
+
   /** Sheet x for a screen x inside the grid, or null over the row header. */
   sheetX(screenX) {
     const z = this.zoom, header = this.rowHeaderWidth, frozen = this.metrics.frozenWidth;
+    if (this.onCanvas) return (screenX - this.originX) / z;
     if (screenX < header) return null;
     if (screenX < header + frozen * z) return (screenX - header) / z;
-    return frozen + (screenX - header - frozen * z + this.scroller.scrollLeft) / z;
+    return (screenX - this.originX) / z;
   }
 
   sheetY(screenY) {
     const z = this.zoom, frozen = this.metrics.frozenHeight;
+    if (this.onCanvas) return (screenY - this.originY) / z;
     if (screenY < HEADER_HEIGHT) return null;
     if (screenY < HEADER_HEIGHT + frozen * z) return (screenY - HEADER_HEIGHT) / z;
-    return frozen + (screenY - HEADER_HEIGHT - frozen * z + this.scroller.scrollTop) / z;
+    return (screenY - this.originY) / z;
   }
 
   toSheet(screenX, screenY) {
     if (!this.metrics) return null;
+    if (this.onCanvas) return { x: this.sheetX(screenX), y: this.sheetY(screenY) };
     const x = this.sheetX(Math.max(screenX, this.rowHeaderWidth));
     const y = this.sheetY(Math.max(screenY, HEADER_HEIGHT));
     return { x, y };
@@ -188,12 +273,12 @@ export class GridView extends EventTarget {
 
   screenX(sheetX) {
     const z = this.zoom, frozen = this.metrics.frozenWidth;
-    return sheetX < frozen ? this.rowHeaderWidth + sheetX * z : this.rowHeaderWidth + sheetX * z - this.scroller.scrollLeft;
+    return sheetX < frozen ? this.rowHeaderWidth + sheetX * z : this.originX + sheetX * z;
   }
 
   screenY(sheetY) {
     const z = this.zoom, frozen = this.metrics.frozenHeight;
-    return sheetY < frozen ? HEADER_HEIGHT + sheetY * z : HEADER_HEIGHT + sheetY * z - this.scroller.scrollTop;
+    return sheetY < frozen ? HEADER_HEIGHT + sheetY * z : this.originY + sheetY * z;
   }
 
   /** A sheet rectangle on screen, ignoring which pane it would be clipped to. */
@@ -218,6 +303,10 @@ export class GridView extends EventTarget {
     const z = this.zoom;
     const frame = this.metrics.cellFrame(row, column);
     const { width, height } = this.viewport;
+    if (this.onCanvas) {
+      this.scrollIntoView(this.screenRect(frame));
+      return;
+    }
     if (column >= this.metrics.frozenColumns) {
       const left = (frame.x - this.metrics.frozenWidth) * z;
       const right = left + frame.width * z;
@@ -234,6 +323,194 @@ export class GridView extends EventTarget {
     }
   }
 
+  // MARK: - Canvas
+
+  /** The canvas a sheet shares with others, from the engine's document info. */
+  canvasContaining(id) {
+    if (!id) return null;
+    return (this.engine.info?.canvases ?? []).find((canvas) => canvas.tables.some((table) => table.id === id)) ?? null;
+  }
+
+  /** Whether the active sheet is shown as one of several tables on a canvas's page. */
+  get onCanvas() {
+    return Boolean(this.metrics && this.canvasInfo);
+  }
+
+  /** The canvas's tables as the engine last reported them, the other tables' geometry fetched afresh. */
+  refreshCanvas() {
+    const id = this.metrics?.layout.sheet;
+    this.canvasInfo = this.canvasContaining(id);
+    const generation = ++this.tableLayoutGeneration;
+    const kept = this.tableLayouts;
+    this.tableLayouts = new Map();
+    if (!this.canvasInfo) return;
+    for (const table of this.canvasInfo.tables) {
+      if (table.id === id) continue;
+      // Drawn as they were until the fresh geometry comes, so nothing flickers.
+      if (kept.has(table.id)) this.tableLayouts.set(table.id, kept.get(table.id));
+      this.engine.layoutOf(table.id).then((layout) => {
+        if (generation !== this.tableLayoutGeneration) return;
+        this.tableLayouts.set(table.id, new SheetMetrics({ ...layout, frozenRows: 0, frozenColumns: 0 }));
+        this.updateSpacer();
+        this.requestDraw();
+      }, () => {});
+    }
+  }
+
+  /** How far down the page its tables start: room for a table's column letters and its name above them. */
+  pageInsetY(zoom = this.zoom) {
+    return HEADER_HEIGHT + NAME_HEIGHT * zoom + 4;
+  }
+
+  /** A point on screen as a place on the page, in points at 100%, as tables are placed. */
+  pagePoint(point) {
+    return {
+      x: (point.x + this.scroller.scrollLeft - PAGE_INSET_X) / this.zoom,
+      y: (point.y + this.scroller.scrollTop - this.pageInsetY()) / this.zoom,
+    };
+  }
+
+  /** Where a table on the canvas sits on the page, in pixels at the current zoom, before scrolling. */
+  tablePage(table) {
+    const z = this.zoom;
+    let x = PAGE_INSET_X + table.x * z, y = this.pageInsetY() + table.y * z;
+    if (this.tableDrag?.id === table.id) {
+      x += this.tableDrag.dx;
+      y += this.tableDrag.dy;
+    }
+    return { x, y };
+  }
+
+  activePage() {
+    const id = this.metrics.layout.sheet;
+    const table = this.canvasInfo.tables.find((t) => t.id === id) ?? { id, x: 0, y: 0 };
+    return this.tablePage(table);
+  }
+
+  /** Every table on the canvas whose geometry is known, placed on the page, in the canvas's order. */
+  tableFrames() {
+    if (!this.onCanvas) return [];
+    const active = this.metrics.layout.sheet;
+    const z = this.zoom;
+    const frames = [];
+    for (const table of this.canvasInfo.tables) {
+      const metrics = table.id === active ? this.metrics : this.tableLayouts.get(table.id);
+      if (!metrics) continue;
+      const { x, y } = this.tablePage(table);
+      frames.push({ table, metrics, active: table.id === active, x, y, width: metrics.totalWidth * z, height: metrics.totalHeight * z });
+    }
+    return frames;
+  }
+
+  /** The tables on screen, each with the rectangle its name is drawn in when it shows one. */
+  screenFrames() {
+    const z = this.zoom, left = this.scroller.scrollLeft, top = this.scroller.scrollTop;
+    return this.tableFrames().map((frame) => {
+      const x = frame.x - left, y = frame.y - top;
+      // Above its column letters on the active table, and straight on top of any other.
+      const reach = frame.active ? HEADER_HEIGHT + NAME_HEIGHT * z : NAME_HEIGHT * z;
+      const name = frame.table.showsName
+        ? { x, y: y - reach, width: Math.max(frame.width, 120), height: NAME_HEIGHT * z }
+        : null;
+      return { ...frame, x, y, name };
+    });
+  }
+
+  /** Scrolls the least it can to show a rectangle on screen. */
+  scrollIntoView(rect, margin = 0) {
+    const { width, height } = this.viewport;
+    const left = rect.x - margin, right = rect.x + rect.width + margin;
+    const top = rect.y - margin, bottom = rect.y + rect.height + margin;
+    if (left < 0) this.scroller.scrollLeft += left;
+    else if (right > width) this.scroller.scrollLeft += Math.min(left, right - width);
+    if (top < 0) this.scroller.scrollTop += top;
+    else if (bottom > height) this.scroller.scrollTop += Math.min(top, bottom - height);
+  }
+
+  /**
+   * Brings the active table's top-left corner into view, its headers and name
+   * with it: from the page's corner on coming to a canvas, and as little as
+   * it takes on moving between its tables.
+   */
+  revealTableHead(entering) {
+    const page = this.activePage();
+    const reach = HEADER_HEIGHT + NAME_HEIGHT * this.zoom;
+    const header = this.rowHeaderWidth;
+    if (entering) {
+      this.scroller.scrollTo(Math.max(0, page.x - header - 24), Math.max(0, page.y - reach - 20));
+      return;
+    }
+    const head = {
+      x: page.x - header - this.scroller.scrollLeft, y: page.y - reach - this.scroller.scrollTop,
+      width: header + Math.min(this.metrics.totalWidth * this.zoom, 240), height: reach + Math.min(this.metrics.totalHeight * this.zoom, 120),
+    };
+    this.scrollIntoView(head, 12);
+  }
+
+  /** Puts a field over a table's name to type a new one in, as a sheet's tab is renamed. */
+  beginRenamingTable(id) {
+    const table = this.canvasInfo?.tables.find((t) => t.id === id);
+    if (!table?.showsName) return;
+    this.endRenamingTable(true);
+    const input = document.createElement("input");
+    input.className = "grid__table-name";
+    input.spellcheck = false;
+    input.autocomplete = "off";
+    input.value = table.name;
+    input.ariaLabel = this.options.t("Canvas.RenameTable.Title");
+    this.root.append(input);
+    this.renaming = { id, input, original: table.name };
+    input.addEventListener("keydown", (event) => {
+      if (event.isComposing) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.endRenamingTable(true, true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        this.endRenamingTable(false, true);
+      }
+    });
+    input.addEventListener("blur", () => this.endRenamingTable(true));
+    this.placeNameEditor();
+    this.requestDraw();
+    input.focus();
+    input.select();
+  }
+
+  /** Puts the name typed in place, or leaves the old one. */
+  async endRenamingTable(commit, refocus = false) {
+    const renaming = this.renaming;
+    if (!renaming) return;
+    this.renaming = null;
+    const name = renaming.input.value.trim();
+    renaming.input.remove();
+    this.requestDraw();
+    if (refocus) this.focus();
+    if (!commit || !name || name === renaming.original) return;
+    try {
+      await this.engine.call("renameTable", { id: renaming.id, name });
+    } catch (error) {
+      this.dispatchEvent(new CustomEvent("message", { detail: error.message }));
+    }
+  }
+
+  /** Keeps the name field over the name as the page scrolls, zooms and moves. */
+  placeNameEditor() {
+    if (!this.renaming) return;
+    const frame = this.screenFrames().find((f) => f.table.id === this.renaming.id);
+    if (!frame?.name) {
+      this.endRenamingTable(false);
+      return;
+    }
+    const style = this.renaming.input.style;
+    const z = this.zoom;
+    style.left = `${Math.round(frame.name.x - 2)}px`;
+    style.top = `${Math.round(frame.name.y)}px`;
+    style.width = `${Math.round(frame.name.width + 2)}px`;
+    style.height = `${Math.round(frame.name.height)}px`;
+    style.fontSize = `${Math.max(9, 14 * z)}px`;
+  }
+
   // MARK: - Drawing
 
   themeChanged() {
@@ -241,7 +518,14 @@ export class GridView extends EventTarget {
     this.dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
     this.palette = readPalette();
     this.tiles.clear();
+    this.papers.clear();
     this.requestDraw();
+  }
+
+  /** What a sheet's cells show through to: its background colour, or the theme's paper. */
+  paperFor(sheet = null) {
+    const id = sheet ?? this.metrics?.layout.sheet;
+    return cssColor(this.papers.get(id)) ?? this.palette.paper;
   }
 
   resize() {
@@ -263,8 +547,8 @@ export class GridView extends EventTarget {
     });
   }
 
-  tileKey(tx, ty) {
-    return `${this.dark ? 1 : 0}|${tx}|${ty}`;
+  tileKey(tx, ty, sheet) {
+    return `${sheet}|${this.dark ? 1 : 0}|${tx}|${ty}`;
   }
 
   /**
@@ -273,17 +557,19 @@ export class GridView extends EventTarget {
    * zooming settles: re-rendering every tile on every step of a pinch would
    * leave the sheet blank while the fingers move.
    */
-  tile(tx, ty) {
-    const key = this.tileKey(tx, ty);
+  tile(tx, ty, sheet = null) {
+    const key = this.tileKey(tx, ty, sheet ?? this.metrics.layout.sheet);
     const version = this.engine.versions.content * 100000 + this.engine.versions.layout;
     const cached = this.tiles.get(key);
     const stale = !cached || cached.version !== version || (cached.zoom !== this.zoom && !this.isZooming);
     if (stale && !this.pendingTiles.has(key)) {
       this.pendingTiles.add(key);
       const dark = this.dark, zoom = this.zoom;
-      this.engine.render({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE }, dark).then((list) => {
+      const id = sheet ?? this.metrics.layout.sheet;
+      this.engine.render({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE }, dark, sheet).then((list) => {
         this.pendingTiles.delete(key);
         if (dark !== this.dark) return;
+        this.papers.set(id, list.paper ?? null);
         this.tiles.delete(key);
         this.tiles.set(key, { version, zoom, canvas: this.rasterize(list, tx, ty, zoom) });
         if (this.tiles.size > TILE_LIMIT) this.tiles.delete(this.tiles.keys().next().value);
@@ -302,7 +588,7 @@ export class GridView extends EventTarget {
     canvas.height = size;
     const ctx = canvas.getContext("2d");
     ctx.setTransform(scale, 0, 0, scale, -tx * TILE * scale, -ty * TILE * scale);
-    ctx.fillStyle = list.paper ? this.palette.paper : this.palette.paper;
+    ctx.fillStyle = cssColor(list.paper) ?? this.palette.paper;
     ctx.fillRect(tx * TILE, ty * TILE, TILE, TILE);
     ctx.beginPath();
     ctx.rect(tx * TILE, ty * TILE, TILE, TILE);
@@ -311,10 +597,17 @@ export class GridView extends EventTarget {
     return canvas;
   }
 
-  /** The four panes: frozen corner, frozen top, frozen left, and the scrolling rest. */
+  /** The four panes: frozen corner, frozen top, frozen left, and the scrolling rest. On a canvas, the one table. */
   panes() {
     const m = this.metrics, z = this.zoom, header = this.rowHeaderWidth;
     const { width, height } = this.viewport;
+    if (this.onCanvas) {
+      const ox = this.originX, oy = this.originY;
+      const x0 = Math.max(0, ox), y0 = Math.max(0, oy);
+      const x1 = Math.min(width, ox + m.totalWidth * z), y1 = Math.min(height, oy + m.totalHeight * z);
+      if (x1 <= x0 || y1 <= y0) return [];
+      return [{ screen: { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }, sheetX: (x0 - ox) / z, sheetY: (y0 - oy) / z }];
+    }
     const fw = m.frozenWidth * z, fh = m.frozenHeight * z;
     const sx = m.frozenWidth + this.scroller.scrollLeft / z;
     const sy = m.frozenHeight + this.scroller.scrollTop / z;
@@ -329,6 +622,38 @@ export class GridView extends EventTarget {
     return panes;
   }
 
+  /**
+   * Draws a sheet's tiles into a rectangle on screen, `screen` showing the
+   * part of the sheet from (sheetX, sheetY); `sheet` is null for the active one.
+   */
+  drawTiles(ctx, screen, sheetX, sheetY, metrics, sheet = null) {
+    const z = this.zoom;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(screen.x, screen.y, screen.width, screen.height);
+    ctx.clip();
+    // Only the sheet's own extent is paper; past it is the window's background.
+    const sheetRight = screen.x + (metrics.totalWidth - sheetX) * z;
+    const sheetBottom = screen.y + (metrics.totalHeight - sheetY) * z;
+    ctx.beginPath();
+    ctx.rect(screen.x, screen.y, Math.min(screen.width, sheetRight - screen.x), Math.min(screen.height, sheetBottom - screen.y));
+    ctx.clip();
+    const x1 = sheetX + screen.width / z, y1 = sheetY + screen.height / z;
+    for (let ty = Math.floor(sheetY / TILE); ty * TILE < Math.min(y1, metrics.totalHeight); ty++) {
+      for (let tx = Math.floor(sheetX / TILE); tx * TILE < Math.min(x1, metrics.totalWidth); tx++) {
+        const bitmap = this.tile(tx, ty, sheet);
+        const dx = screen.x + (tx * TILE - sheetX) * z, dy = screen.y + (ty * TILE - sheetY) * z;
+        if (bitmap) {
+          ctx.drawImage(bitmap, dx, dy, TILE * z, TILE * z);
+        } else {
+          ctx.fillStyle = this.paperFor(sheet);
+          ctx.fillRect(dx, dy, TILE * z, TILE * z);
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   draw() {
     const ctx = this.ctx;
     const dpr = window.devicePixelRatio || 1;
@@ -339,40 +664,42 @@ export class GridView extends EventTarget {
     ctx.fillRect(0, 0, width, height);
     if (!this.metrics) return;
     const m = this.metrics, z = this.zoom;
+    const frames = this.onCanvas ? this.screenFrames() : [];
+
+    if (this.onCanvas) {
+      // The tables share their sheet's page, and its colour: the first table's, as the Mac takes it.
+      ctx.fillStyle = this.paperFor(this.canvasInfo.tables[0]?.id);
+      ctx.fillRect(0, 0, width, height);
+      for (const frame of frames) {
+        if (frame.active) continue;
+        const x0 = Math.max(0, frame.x), y0 = Math.max(0, frame.y);
+        const x1 = Math.min(width, frame.x + frame.width), y1 = Math.min(height, frame.y + frame.height);
+        if (x1 <= x0 || y1 <= y0) continue;
+        this.drawTiles(ctx, { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }, (x0 - frame.x) / z, (y0 - frame.y) / z, frame.metrics, frame.table.id);
+      }
+    }
 
     for (const pane of this.panes()) {
       const { screen } = pane;
+      this.drawTiles(ctx, screen, pane.sheetX, pane.sheetY, m);
       ctx.save();
       ctx.beginPath();
-      ctx.rect(screen.x, screen.y, screen.width, screen.height);
-      ctx.clip();
-      // Only the sheet's own extent is paper; past it is the window's background.
-      const sheetRight = screen.x + (m.totalWidth - pane.sheetX) * z;
-      const sheetBottom = screen.y + (m.totalHeight - pane.sheetY) * z;
-      ctx.beginPath();
-      ctx.rect(screen.x, screen.y, Math.min(screen.width, sheetRight - screen.x), Math.min(screen.height, sheetBottom - screen.y));
-      ctx.clip();
-      const x0 = pane.sheetX, y0 = pane.sheetY;
-      const x1 = x0 + screen.width / z, y1 = y0 + screen.height / z;
-      for (let ty = Math.floor(y0 / TILE); ty * TILE < Math.min(y1, m.totalHeight); ty++) {
-        for (let tx = Math.floor(x0 / TILE); tx * TILE < Math.min(x1, m.totalWidth); tx++) {
-          const bitmap = this.tile(tx, ty);
-          const dx = screen.x + (tx * TILE - x0) * z, dy = screen.y + (ty * TILE - y0) * z;
-          if (bitmap) {
-            ctx.drawImage(bitmap, dx, dy, TILE * z, TILE * z);
-          } else {
-            ctx.fillStyle = this.palette.paper;
-            ctx.fillRect(dx, dy, TILE * z, TILE * z);
-          }
-        }
-      }
-      ctx.restore();
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(screen.x, screen.y, screen.width, screen.height);
+      // On a canvas the selection's outline and fill handle may stand just past the table's edge.
+      if (this.onCanvas) ctx.rect(screen.x - 4, screen.y - 4, screen.width + 8, screen.height + 8);
+      else ctx.rect(screen.x, screen.y, screen.width, screen.height);
       ctx.clip();
       this.drawSelection(ctx, pane);
       ctx.restore();
+    }
+
+    if (this.onCanvas) {
+      for (const frame of frames) this.drawTableChrome(ctx, style, frame);
+      this.drawHeaders(ctx, style);
+      this.drawGuides(ctx, style);
+      this.placeAddButtons();
+      this.positionEditor();
+      this.placeNameEditor();
+      return;
     }
 
     // The lines where frozen panes meet the scrolling ones.
@@ -383,6 +710,40 @@ export class GridView extends EventTarget {
     this.drawHeaders(ctx, style);
     this.placeAddButtons();
     this.positionEditor();
+  }
+
+  /** A table's edge, so one without gridlines still reads as one, and its name above it. */
+  drawTableChrome(ctx, style, frame) {
+    ctx.strokeStyle = style.getPropertyValue("--ds-border-subtle-01");
+    ctx.lineWidth = 1;
+    ctx.strokeRect(Math.round(frame.x) - 0.5, Math.round(frame.y) - 0.5, Math.round(frame.width) + 1, Math.round(frame.height) + 1);
+    if (!frame.name || this.renaming?.id === frame.table.id) return;
+    const z = this.zoom;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(frame.name.x, frame.name.y, frame.name.width, frame.name.height);
+    ctx.clip();
+    ctx.font = `600 ${Math.max(9, 14 * z)}px ${FONT}`;
+    // Light on a dark page, whatever the appearance, as the Mac draws it.
+    const onDark = isDark(this.papers.get(this.canvasInfo.tables[0]?.id));
+    ctx.fillStyle = onDark
+      ? (frame.active ? "rgba(255, 255, 255, 0.92)" : "rgba(255, 255, 255, 0.6)")
+      : style.getPropertyValue(frame.active ? "--ds-text-primary" : "--ds-text-secondary");
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(fitText(ctx, frame.table.name, frame.name.width), frame.name.x, frame.name.y + frame.name.height - 4 * z);
+    ctx.restore();
+  }
+
+  /** The lines showing what a dragged table has lined up with, over everything. */
+  drawGuides(ctx, style) {
+    if (!this.guides.length) return;
+    const left = this.scroller.scrollLeft, top = this.scroller.scrollTop;
+    ctx.fillStyle = style.getPropertyValue("--ds-support-warning");
+    for (const guide of this.guides) {
+      if (guide.vertical) ctx.fillRect(guide.at - left - 0.5, guide.start - top, 1, guide.end - guide.start);
+      else ctx.fillRect(guide.start - left, guide.at - top - 0.5, guide.end - guide.start, 1);
+    }
   }
 
   /** Selection fills and outlines for one pane, in that pane's coordinates. */
@@ -438,7 +799,7 @@ export class GridView extends EventTarget {
       if (handle) {
         ctx.fillStyle = accent;
         ctx.fillRect(handle.x, handle.y, handle.width, handle.height);
-        ctx.strokeStyle = this.palette.paper;
+        ctx.strokeStyle = this.paperFor();
         ctx.lineWidth = 1;
         ctx.strokeRect(handle.x - 0.5, handle.y - 0.5, handle.width + 1, handle.height + 1);
       }
@@ -473,13 +834,24 @@ export class GridView extends EventTarget {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+    // Where the bars go: along the window's top and left edges, or round the table on a canvas.
+    const onCanvas = this.onCanvas;
+    const ox = this.originX, oy = this.originY;
+    const columnTop = onCanvas ? oy - HEADER_HEIGHT : 0;
+    const rowLeft = onCanvas ? ox - header : 0;
+    const columnsRight = onCanvas ? Math.min(width, ox + m.totalWidth * z) : width;
+    const rowsBottom = onCanvas ? Math.min(height, oy + m.totalHeight * z) : height;
+    ctx.save();
+    if (onCanvas && this.tableDrag?.id === m.layout.sheet) ctx.globalAlpha = DRAGGING_HEADER_OPACITY;
+
     // Column headers.
     ctx.fillStyle = token("--ds-grid-header");
-    ctx.fillRect(0, 0, width, HEADER_HEIGHT);
+    if (onCanvas) ctx.fillRect(ox, columnTop, columnsRight - ox, HEADER_HEIGHT);
+    else ctx.fillRect(0, 0, width, HEADER_HEIGHT);
     const drawColumns = (fromX, toX, sheetStart) => {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(fromX, 0, toX - fromX, HEADER_HEIGHT);
+      ctx.rect(fromX, columnTop, toX - fromX, HEADER_HEIGHT);
       ctx.clip();
       let column = m.columnAt(sheetStart);
       while (column < m.layout.columns) {
@@ -489,28 +861,34 @@ export class GridView extends EventTarget {
         if (w > 0) {
           if (selectedColumns.has(column)) {
             ctx.fillStyle = token("--ds-grid-header-selected");
-            ctx.fillRect(x, 0, w, HEADER_HEIGHT);
+            ctx.fillRect(x, columnTop, w, HEADER_HEIGHT);
           }
           ctx.fillStyle = selectedColumns.has(column) ? token("--ds-text-primary") : token("--ds-text-secondary");
-          ctx.fillText(columnName(column), x + w / 2, HEADER_HEIGHT / 2);
+          ctx.fillText(columnName(column), x + w / 2, columnTop + HEADER_HEIGHT / 2);
           ctx.fillStyle = token("--ds-grid-line");
-          ctx.fillRect(x + w - 1, 0, 1, HEADER_HEIGHT);
+          ctx.fillRect(x + w - 1, columnTop, 1, HEADER_HEIGHT);
         }
         column++;
       }
       ctx.restore();
     };
-    const frozenX = header + m.frozenWidth * z;
-    if (m.frozenColumns > 0) drawColumns(header, frozenX, 0);
-    drawColumns(frozenX, width, m.frozenWidth + this.scroller.scrollLeft / z);
+    if (onCanvas) {
+      const fromX = Math.max(0, ox);
+      drawColumns(fromX, columnsRight, (fromX - ox) / z);
+    } else {
+      const frozenX = header + m.frozenWidth * z;
+      if (m.frozenColumns > 0) drawColumns(header, frozenX, 0);
+      drawColumns(frozenX, width, m.frozenWidth + this.scroller.scrollLeft / z);
+    }
 
     // Row headers.
     ctx.fillStyle = token("--ds-grid-header");
-    ctx.fillRect(0, HEADER_HEIGHT, header, height - HEADER_HEIGHT);
+    if (onCanvas) ctx.fillRect(rowLeft, oy, header, rowsBottom - oy);
+    else ctx.fillRect(0, HEADER_HEIGHT, header, height - HEADER_HEIGHT);
     const drawRows = (fromY, toY, sheetStart) => {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(0, fromY, header, toY - fromY);
+      ctx.rect(rowLeft, fromY, header, toY - fromY);
       ctx.clip();
       let row = m.rowAt(sheetStart);
       while (row < m.layout.rows) {
@@ -520,26 +898,39 @@ export class GridView extends EventTarget {
         if (h > 0) {
           if (selectedRows.has(row)) {
             ctx.fillStyle = token("--ds-grid-header-selected");
-            ctx.fillRect(0, y, header, h);
+            ctx.fillRect(rowLeft, y, header, h);
           }
           ctx.fillStyle = selectedRows.has(row) ? token("--ds-text-primary") : token("--ds-text-secondary");
-          ctx.fillText(String(row + 1), header / 2, y + h / 2);
+          ctx.fillText(String(row + 1), rowLeft + header / 2, y + h / 2);
           ctx.fillStyle = token("--ds-grid-line");
-          ctx.fillRect(0, y + h - 1, header, 1);
+          ctx.fillRect(rowLeft, y + h - 1, header, 1);
         }
         row++;
       }
       ctx.restore();
     };
-    const frozenY = HEADER_HEIGHT + m.frozenHeight * z;
-    if (m.frozenRows > 0) drawRows(HEADER_HEIGHT, frozenY, 0);
-    drawRows(frozenY, height, m.frozenHeight + this.scroller.scrollTop / z);
+    if (onCanvas) {
+      const fromY = Math.max(0, oy);
+      drawRows(fromY, rowsBottom, (fromY - oy) / z);
+      // The corner where the bars meet: the table's handle.
+      ctx.fillStyle = token("--ds-border-subtle-01");
+      ctx.fillRect(rowLeft, columnTop + HEADER_HEIGHT - 1, columnsRight - rowLeft, 1);
+      ctx.fillRect(rowLeft + header - 1, columnTop, 1, rowsBottom - columnTop);
+      ctx.fillStyle = token("--ds-grid-header");
+      ctx.fillRect(rowLeft, columnTop, header - 1, HEADER_HEIGHT - 1);
+      ctx.restore();
+    } else {
+      const frozenY = HEADER_HEIGHT + m.frozenHeight * z;
+      if (m.frozenRows > 0) drawRows(HEADER_HEIGHT, frozenY, 0);
+      drawRows(frozenY, height, m.frozenHeight + this.scroller.scrollTop / z);
 
-    ctx.fillStyle = token("--ds-border-subtle-01");
-    ctx.fillRect(0, HEADER_HEIGHT - 1, width, 1);
-    ctx.fillRect(header - 1, 0, 1, height);
-    ctx.fillStyle = token("--ds-grid-header");
-    ctx.fillRect(0, 0, header - 1, HEADER_HEIGHT - 1);
+      ctx.fillStyle = token("--ds-border-subtle-01");
+      ctx.fillRect(0, HEADER_HEIGHT - 1, width, 1);
+      ctx.fillRect(header - 1, 0, 1, height);
+      ctx.fillStyle = token("--ds-grid-header");
+      ctx.fillRect(0, 0, header - 1, HEADER_HEIGHT - 1);
+      ctx.restore();
+    }
 
     if (this.resizeGuide) {
       ctx.fillStyle = this.palette.accent;
@@ -553,11 +944,18 @@ export class GridView extends EventTarget {
     const { width, height } = this.viewport;
     const right = this.screenX(m.totalWidth);
     const bottom = this.screenY(m.totalHeight);
+    const minX = this.onCanvas ? 0 : this.rowHeaderWidth, minY = this.onCanvas ? 0 : HEADER_HEIGHT;
     const show = (button, x, y) => {
-      const visible = x > this.rowHeaderWidth && y > HEADER_HEIGHT && x < width - 8 && y < height - 8;
+      const visible = !this.tableDrag && x > minX && y > minY && x < width - 8 && y < height - 8;
       button.hidden = !visible;
       if (visible) button.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     };
+    if (this.onCanvas) {
+      // Just past the table's right and bottom edges.
+      show(this.addColumnButton, right + 4, this.originY + 2);
+      show(this.addRowButton, this.originX + 2, bottom + 4);
+      return;
+    }
     show(this.addColumnButton, right + 4, Math.max(HEADER_HEIGHT + 4, Math.min(bottom - 28, HEADER_HEIGHT + 4)));
     show(this.addRowButton, this.rowHeaderWidth + 4, bottom + 4);
   }
@@ -724,7 +1122,7 @@ export class GridView extends EventTarget {
     el.addEventListener("pointerdown", (event) => this.pointerDown(event));
     el.addEventListener("pointermove", (event) => this.pointerMove(event));
     el.addEventListener("pointerup", (event) => this.pointerUp(event));
-    el.addEventListener("pointercancel", () => this.endDrag());
+    el.addEventListener("pointercancel", () => this.cancelDrag());
     el.addEventListener("dblclick", (event) => this.doubleClick(event));
     this.bindZoomGestures();
   }
@@ -760,7 +1158,7 @@ export class GridView extends EventTarget {
     if (hasGestureEvents) {
       el.addEventListener("gesturestart", (event) => {
         event.preventDefault();
-        this.endDrag();
+        this.cancelDrag();
         this.gesture = { zoom: this.zoom, pinned: this.pinnedPoint(this.localPoint(event)) };
       });
       el.addEventListener("gesturechange", (event) => {
@@ -788,7 +1186,7 @@ export class GridView extends EventTarget {
       if (event.pointerType !== "touch") return;
       touches.set(event.pointerId, this.localPoint(event));
       if (touches.size === 2) {
-        this.endDrag();
+        this.cancelDrag();
         const { distance, centre } = pinchState();
         this.gesture = { zoom: this.zoom, distance, pinned: this.pinnedPoint(centre) };
       }
@@ -811,35 +1209,82 @@ export class GridView extends EventTarget {
     el.addEventListener("pointercancel", lift, true);
   }
 
+  /** A point over the column letters: a column, or the edge between two to resize. */
+  columnHit(point) {
+    const z = this.zoom;
+    const x = this.sheetX(point.x);
+    if (x == null || x < 0 || x > this.metrics.totalWidth + RESIZE_SLOP / z) return { kind: "none" };
+    const edge = this.metrics.columns.boundaryNear(x, RESIZE_SLOP / z);
+    if (edge >= 0) return { kind: "columnEdge", index: edge };
+    if (x > this.metrics.totalWidth) return { kind: "none" };
+    return { kind: "columnHeader", index: this.metrics.columnAt(x) };
+  }
+
+  rowHit(point) {
+    const z = this.zoom;
+    const y = this.sheetY(point.y);
+    if (y == null || y < 0 || y > this.metrics.totalHeight + RESIZE_SLOP / z) return { kind: "none" };
+    const edge = this.metrics.rows.boundaryNear(y, RESIZE_SLOP / z);
+    if (edge >= 0) return { kind: "rowEdge", index: edge };
+    if (y > this.metrics.totalHeight) return { kind: "none" };
+    return { kind: "rowHeader", index: this.metrics.rowAt(y) };
+  }
+
+  fillHandleHit(point) {
+    const handle = this.fillHandleRect();
+    return Boolean(handle && !this.editing && point.x >= handle.x - 3 && point.x <= handle.x + handle.width + 3
+      && point.y >= handle.y - 3 && point.y <= handle.y + handle.height + 3);
+  }
+
+  /**
+   * What is under a point on a canvas's page: a table's name, the corner
+   * where the active table's headers meet, its headers, its cells, the edge
+   * just outside any table's cells, another table's cells, or the bare page.
+   */
+  canvasHit(point) {
+    const m = this.metrics, z = this.zoom, header = this.rowHeaderWidth;
+    const ox = this.originX, oy = this.originY;
+    const right = ox + m.totalWidth * z, bottom = oy + m.totalHeight * z;
+    const inside = (r, p, slop = 0) => p.x >= r.x - slop && p.x < r.x + r.width + slop && p.y >= r.y - slop && p.y < r.y + r.height + slop;
+    const frames = this.screenFrames().reverse();
+    const active = m.layout.sheet;
+    const named = frames.find((frame) => frame.name && inside(frame.name, point));
+    if (named) return { kind: "tableName", id: named.table.id };
+    if (point.x >= ox - header && point.x < ox && point.y >= oy - HEADER_HEIGHT && point.y < oy) return { kind: "tableCorner", id: active };
+    if (point.y >= oy - HEADER_HEIGHT && point.y < oy && point.x >= ox && point.x <= right + RESIZE_SLOP) return this.columnHit(point);
+    if (point.x >= ox - header && point.x < ox && point.y >= oy && point.y <= bottom + RESIZE_SLOP) return this.rowHit(point);
+    if (this.fillHandleHit(point)) return { kind: "fillHandle" };
+    if (point.x >= ox && point.x < right && point.y >= oy && point.y < bottom) {
+      return { kind: "cell", row: m.rowAt(this.sheetY(point.y)), column: m.columnAt(this.sheetX(point.x)) };
+    }
+    const edge = frames.find((frame) => inside(frame, point, GRAB_SLOP) && !inside(frame, point));
+    if (edge) return { kind: "tableEdge", id: edge.table.id };
+    const other = frames.find((frame) => !frame.active && inside(frame, point));
+    if (other) {
+      return {
+        kind: "otherTable", id: other.table.id,
+        row: other.metrics.rowAt((point.y - other.y) / z), column: other.metrics.columnAt((point.x - other.x) / z),
+      };
+    }
+    return { kind: "page" };
+  }
+
   hit(point) {
     if (!this.metrics) return { kind: "none" };
+    if (this.onCanvas) return this.canvasHit(point);
     const header = this.rowHeaderWidth;
-    const z = this.zoom;
     if (point.x < header && point.y < HEADER_HEIGHT) return { kind: "corner" };
-    if (point.y < HEADER_HEIGHT) {
-      const x = this.sheetX(point.x);
-      if (x == null || x > this.metrics.totalWidth + RESIZE_SLOP / z) return { kind: "none" };
-      const edge = this.metrics.columns.boundaryNear(x, RESIZE_SLOP / z);
-      if (edge >= 0) return { kind: "columnEdge", index: edge };
-      if (x > this.metrics.totalWidth) return { kind: "none" };
-      return { kind: "columnHeader", index: this.metrics.columnAt(x) };
-    }
-    if (point.x < header) {
-      const y = this.sheetY(point.y);
-      if (y == null || y > this.metrics.totalHeight + RESIZE_SLOP / z) return { kind: "none" };
-      const edge = this.metrics.rows.boundaryNear(y, RESIZE_SLOP / z);
-      if (edge >= 0) return { kind: "rowEdge", index: edge };
-      if (y > this.metrics.totalHeight) return { kind: "none" };
-      return { kind: "rowHeader", index: this.metrics.rowAt(y) };
-    }
-    const handle = this.fillHandleRect();
-    if (handle && !this.editing && point.x >= handle.x - 3 && point.x <= handle.x + handle.width + 3
-        && point.y >= handle.y - 3 && point.y <= handle.y + handle.height + 3) {
-      return { kind: "fillHandle" };
-    }
+    if (point.y < HEADER_HEIGHT) return this.columnHit(point);
+    if (point.x < header) return this.rowHit(point);
+    if (this.fillHandleHit(point)) return { kind: "fillHandle" };
     const sheet = this.toSheet(point.x, point.y);
     if (sheet.x > this.metrics.totalWidth || sheet.y > this.metrics.totalHeight) return { kind: "outside" };
     return { kind: "cell", row: this.metrics.rowAt(sheet.y), column: this.metrics.columnAt(sheet.x) };
+  }
+
+  /** Whether this document lets its tables be moved and renamed. */
+  get canLayOutTables() {
+    return Boolean(this.engine.info?.allowsLayingOutTables);
   }
 
   cursorFor(point) {
@@ -849,6 +1294,10 @@ export class GridView extends EventTarget {
       case "rowEdge": return "row-resize";
       case "fillHandle": return "crosshair";
       case "cell": return "cell";
+      case "otherTable": return "cell";
+      case "tableName": return this.canLayOutTables ? "text" : "default";
+      case "tableCorner":
+      case "tableEdge": return this.canLayOutTables ? "grab" : "default";
       default: return "default";
     }
   }
@@ -871,6 +1320,38 @@ export class GridView extends EventTarget {
         event.preventDefault();
         await this.commitIfEditing();
         await this.engine.call("selectAll");
+        break;
+      case "tableName":
+        event.preventDefault();
+        await this.commitIfEditing();
+        if (hit.id !== this.metrics.layout.sheet) await this.engine.call("selectSheet", { id: hit.id });
+        if (this.canLayOutTables) {
+          this.beginRenamingTable(hit.id);
+          return;
+        }
+        break;
+      case "tableCorner":
+      case "tableEdge": {
+        event.preventDefault();
+        await this.commitIfEditing();
+        if (hit.id !== this.metrics.layout.sheet) await this.engine.call("selectSheet", { id: hit.id });
+        if (this.canLayOutTables) {
+          // Measured on the page, so scrolling while dragging carries the table along.
+          this.drag = { kind: "table", id: hit.id, corner: hit.kind === "tableCorner",
+            origin: { x: point.x + this.scroller.scrollLeft, y: point.y + this.scroller.scrollTop } };
+          this.scroller.style.cursor = "grabbing";
+        } else if (hit.kind === "tableCorner") {
+          await this.engine.call("selectAll");
+        }
+        break;
+      }
+      case "otherTable":
+        // Another table: it becomes the one worked on, with the cell clicked selected.
+        event.preventDefault();
+        await this.commitIfEditing();
+        await this.engine.call("selectSheet", { id: hit.id });
+        await this.engine.call("select", { row: hit.row, column: hit.column });
+        this.drag = { kind: "cells", last: [hit.row, hit.column], toggles: false };
         break;
       case "columnEdge":
       case "rowEdge": {
@@ -926,6 +1407,9 @@ export class GridView extends EventTarget {
     const point = this.localPoint(event);
     this.autoScroll(point);
     switch (drag.kind) {
+      case "table":
+        this.dragTable(drag, point);
+        break;
       case "resize": {
         const delta = ((drag.isColumn ? point.x : point.y) - drag.origin) / this.zoom;
         drag.newSize = Math.max(drag.isColumn ? 24 : 12, drag.size + delta);
@@ -973,11 +1457,61 @@ export class GridView extends EventTarget {
     }
   }
 
+  /**
+   * Carries a table across the page, measured from where it rests so the
+   * page and the tables round it decide where it lands, however far the
+   * pointer goes.
+   */
+  dragTable(drag, point) {
+    const table = this.canvasInfo?.tables.find((t) => t.id === drag.id);
+    const frames = this.tableFrames();
+    const moving = frames.find((frame) => frame.table.id === drag.id);
+    if (!table || !moving) return;
+    const z = this.zoom;
+    const rest = { x: PAGE_INSET_X + table.x * z, y: this.pageInsetY() + table.y * z };
+    const proposed = {
+      x: rest.x + point.x + this.scroller.scrollLeft - drag.origin.x,
+      y: rest.y + point.y + this.scroller.scrollTop - drag.origin.y,
+      width: moving.width, height: moving.height,
+    };
+    const others = frames.filter((frame) => frame.table.id !== drag.id);
+    const snapped = snapFrame(proposed, others, { x: PAGE_INSET_X, y: this.pageInsetY() });
+    this.tableDrag = { id: drag.id, dx: snapped.x - rest.x, dy: snapped.y - rest.y };
+    this.guides = snapped.guides;
+    this.updateSpacer();
+    this.requestDraw();
+  }
+
+  /** Puts a dragged table where it was let go, or selects the whole table when its corner was only clicked. */
+  async dropTable(drag) {
+    const moved = this.tableDrag;
+    const table = this.canvasInfo?.tables.find((t) => t.id === drag.id);
+    this.guides = [];
+    this.scroller.style.cursor = "";
+    if (moved && table && (Math.abs(moved.dx) >= 0.5 || Math.abs(moved.dy) >= 0.5)) {
+      const z = this.zoom;
+      try {
+        await this.engine.call("moveTable", { id: drag.id, x: Math.round(table.x + moved.dx / z), y: Math.round(table.y + moved.dy / z) });
+      } catch (error) {
+        this.dispatchEvent(new CustomEvent("message", { detail: error.message }));
+      }
+    } else if (drag.corner) {
+      await this.engine.call("selectAll");
+    }
+    // Held until the engine reports where the table now is, so it doesn't jump back meanwhile.
+    this.tableDrag = null;
+    this.updateSpacer();
+    this.requestDraw();
+  }
+
   async pointerUp(event) {
     const drag = this.drag;
     this.endDrag();
     if (!drag) return;
     switch (drag.kind) {
+      case "table":
+        await this.dropTable(drag);
+        break;
       case "resize":
         this.resizeGuide = null;
         this.requestDraw();
@@ -1007,6 +1541,18 @@ export class GridView extends EventTarget {
     }
   }
 
+  /** Lets go of a drag without finishing it: a table being carried goes back where it was. */
+  cancelDrag() {
+    if (this.drag?.kind === "table") {
+      this.tableDrag = null;
+      this.guides = [];
+      this.scroller.style.cursor = "";
+      this.updateSpacer();
+      this.requestDraw();
+    }
+    this.endDrag();
+  }
+
   endDrag() {
     this.drag = null;
     clearInterval(this.scrollTimer);
@@ -1016,12 +1562,17 @@ export class GridView extends EventTarget {
   /** Scrolls while a drag is held past the edge of the grid. */
   autoScroll(point) {
     const { width, height } = this.viewport;
-    const dx = point.x > width - 16 ? 16 : point.x < this.rowHeaderWidth ? -16 : 0;
-    const dy = point.y > height - 16 ? 16 : point.y < HEADER_HEIGHT ? -16 : 0;
+    const left = this.onCanvas ? 16 : this.rowHeaderWidth, top = this.onCanvas ? 16 : HEADER_HEIGHT;
+    const dx = point.x > width - 16 ? 16 : point.x < left ? -16 : 0;
+    const dy = point.y > height - 16 ? 16 : point.y < top ? -16 : 0;
     clearInterval(this.scrollTimer);
     this.scrollTimer = null;
     if (!dx && !dy) return;
-    this.scrollTimer = setInterval(() => this.scroller.scrollBy(dx, dy), 30);
+    this.scrollTimer = setInterval(() => {
+      this.scroller.scrollBy(dx, dy);
+      // A table held at the edge keeps coming along as the page scrolls under it.
+      if (this.drag?.kind === "table") this.dragTable(this.drag, point);
+    }, 30);
   }
 
   async doubleClick(event) {
@@ -1213,6 +1764,10 @@ export class GridView extends EventTarget {
   contextMenu(event) {
     const hit = this.hit(this.localPoint(event));
     const state = this.engine.state;
+    if (["tableName", "tableCorner", "tableEdge", "otherTable"].includes(hit.kind)) {
+      if (hit.id !== this.metrics.layout.sheet) this.engine.call("selectSheet", { id: hit.id });
+      return this.options.contextMenu("table", event, hit);
+    }
     if (hit.kind === "cell") {
       const inSelection = state?.ranges.some((r) => hit.row >= r[0] && hit.row <= r[2] && hit.column >= r[1] && hit.column <= r[3]);
       if (!inSelection) this.engine.call("select", { row: hit.row, column: hit.column });
@@ -1229,4 +1784,61 @@ export class GridView extends EventTarget {
 }
 
 const FONT = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+
+/** Whether an "AARRGGBB" background is dark enough to want light text on it. */
+function isDark(argb) {
+  if (!argb || parseInt(argb.slice(0, 2), 16) < 128) return false;
+  const [r, g, b] = [2, 4, 6].map((at) => parseInt(argb.slice(at, at + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.5;
+}
+
+/** Text cut short with an ellipsis to fit a width, as the Mac truncates a table's name. */
+function fitText(ctx, text, width) {
+  if (ctx.measureText(text).width <= width) return text;
+  let low = 0, high = text.length;
+  while (low < high) {
+    const middle = (low + high + 1) >> 1;
+    if (ctx.measureText(`${text.slice(0, middle)}…`).width <= width) low = middle;
+    else high = middle - 1;
+  }
+  return `${text.slice(0, low)}…`;
+}
+
+/**
+ * Where a frame being dragged on a canvas lands among the others, never
+ * nearer the page's top-left than `minimum`, lined up with any edge or middle
+ * that comes within the threshold, and the guides showing what it lined up
+ * with: the Mac's CanvasSnapping, in page pixels.
+ */
+function snapFrame(frame, others, minimum, threshold = SNAP_THRESHOLD) {
+  const f = { ...frame, x: Math.max(minimum.x, frame.x), y: Math.max(minimum.y, frame.y) };
+  const lines = (r, vertical) => (vertical ? [r.x, r.x + r.width / 2, r.x + r.width] : [r.y, r.y + r.height / 2, r.y + r.height]);
+  const shift = (vertical) => {
+    let best = null;
+    for (const other of others) {
+      for (const line of lines(f, vertical)) {
+        for (const target of lines(other, vertical)) {
+          const delta = target - line;
+          if (Math.abs(delta) <= threshold && (best === null || Math.abs(delta) < Math.abs(best))) best = delta;
+        }
+      }
+    }
+    return best;
+  };
+  const dx = shift(true), dy = shift(false);
+  if (dx !== null && f.x + dx >= minimum.x) f.x += dx;
+  if (dy !== null && f.y + dy >= minimum.y) f.y += dy;
+  const guides = [];
+  for (const vertical of [true, false]) {
+    for (const line of lines(f, vertical)) {
+      const matches = others.filter((other) => lines(other, vertical).some((value) => Math.abs(value - line) < 0.5));
+      if (!matches.length) continue;
+      const all = [f, ...matches];
+      guides.push(vertical
+        ? { vertical, at: line, start: Math.min(...all.map((r) => r.y)), end: Math.max(...all.map((r) => r.y + r.height)) }
+        : { vertical, at: line, start: Math.min(...all.map((r) => r.x)), end: Math.max(...all.map((r) => r.x + r.width)) });
+    }
+  }
+  return { x: f.x, y: f.y, guides };
+}
 const REFERENCE_COLOURS = ["#2EA666", "#0F62FE", "#DA1E28", "#8A3FFC", "#FF832B", "#009D9A"];

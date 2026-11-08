@@ -12,6 +12,20 @@ import { dismissSheet } from "../design/sheets.js";
 import * as fonts from "./fonts.js";
 
 const isApple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+/** Tables for iPhone, iPad and Mac: one App Store listing, opened in the visitor's own storefront. */
+const APP_STORE_URL = "https://apps.apple.com/app/atelier-tables/id6795331043";
+const SOURCE_CODE_URL = "https://github.com/AtelierSuite/Tables";
+/**
+ * Which Apple app to offer, from the device the page is open on: "ios" on an
+ * iPhone or iPad, "mac" on a Mac, null elsewhere. iPadOS asks for desktop
+ * pages and calls itself a Mac, but a Mac has no touch screen.
+ */
+const appStorePlatform = (() => {
+  const agent = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(agent)) return "ios";
+  if (/Macintosh/.test(agent)) return navigator.maxTouchPoints > 1 ? "ios" : "mac";
+  return null;
+})();
 const AUTOSAVE_DELAY = 1500;
 
 const ICONS = {
@@ -81,11 +95,13 @@ export class WorkbookWindow {
     this.document = null; // { id, name, handle?, format }
     this.autosaveTimer = null;
     this.numberFormat = new Intl.NumberFormat(language, { maximumFractionDigits: 4 });
+    /** The table last worked on in each canvas, by canvas id, so its tab goes back to it. */
+    this.canvasTables = new Map();
 
     this.build();
     this.grid = new GridView(this.root.querySelector(".app__grid"), engine, {
       t,
-      contextMenu: (kind) => this.contextMenu(kind),
+      contextMenu: (kind, event, hit) => this.contextMenu(kind, hit),
     });
     this.bindEngine();
     this.bindKeyboard();
@@ -264,6 +280,8 @@ export class WorkbookWindow {
     const info = this.engine.info;
     const hasDocument = Boolean(this.document);
     const formatting = info?.formatting ?? {};
+    // A table on a canvas is shown whole, so it has nothing to freeze.
+    const canFreeze = info?.allowsFreeze && !this.grid.onCanvas;
     return {
       new: { label: t("Mac.Menu.New"), shortcut: shortcut("N"), run: () => this.newDocument() },
       open: { label: t("Mac.Menu.Open"), shortcut: shortcut("O"), run: () => this.openPicked() },
@@ -312,17 +330,22 @@ export class WorkbookWindow {
         },
       },
       newSheet: { label: t("Mac.Menu.NewSheet"), shortcut: shortcut("N", { shift: true }), enabled: hasDocument, run: () => this.engine.call("addSheet") },
+      newTable: { label: t("Canvas.NewTable"), enabled: hasDocument && info?.allowsArrangingCanvases && !this.engine.layout?.chart, run: () => this.engine.call("addTable") },
       previousSheet: { label: t("Mac.Menu.PreviousSheet"), enabled: hasDocument, run: () => this.stepSheet(-1) },
       nextSheet: { label: t("Mac.Menu.NextSheet"), enabled: hasDocument, run: () => this.stepSheet(1) },
-      freezeTopRow: { label: t("Mac.Menu.FreezeTopRow"), enabled: info?.allowsFreeze, run: () => this.engine.call("freeze", { rows: 1, columns: this.engine.layout?.frozenColumns ?? 0 }) },
-      freezeFirstColumn: { label: t("Mac.Menu.FreezeFirstColumn"), enabled: info?.allowsFreeze, run: () => this.engine.call("freeze", { rows: this.engine.layout?.frozenRows ?? 0, columns: 1 }) },
-      freezeSelection: { label: t("Mac.Menu.FreezeAtSelection"), enabled: info?.allowsFreeze, run: () => this.engine.call("freezeSelection") },
-      unfreeze: { label: t("Mac.Menu.Unfreeze"), enabled: info?.allowsFreeze && (this.engine.layout?.frozenRows || this.engine.layout?.frozenColumns), run: () => this.engine.call("freeze", { rows: 0, columns: 0 }) },
+      freezeTopRow: { label: t("Mac.Menu.FreezeTopRow"), enabled: canFreeze, run: () => this.engine.call("freeze", { rows: 1, columns: this.engine.layout?.frozenColumns ?? 0 }) },
+      freezeFirstColumn: { label: t("Mac.Menu.FreezeFirstColumn"), enabled: canFreeze, run: () => this.engine.call("freeze", { rows: this.engine.layout?.frozenRows ?? 0, columns: 1 }) },
+      freezeSelection: { label: t("Mac.Menu.FreezeAtSelection"), enabled: canFreeze, run: () => this.engine.call("freezeSelection") },
+      unfreeze: { label: t("Mac.Menu.Unfreeze"), enabled: canFreeze && (this.engine.layout?.frozenRows || this.engine.layout?.frozenColumns), run: () => this.engine.call("freeze", { rows: 0, columns: 0 }) },
       zoomIn: { label: t("Mac.Menu.ZoomIn"), shortcut: shortcut("="), enabled: hasDocument, run: () => this.stepZoom(1) },
       zoomOut: { label: t("Mac.Menu.ZoomOut"), shortcut: shortcut("-", { alt: true }), enabled: hasDocument, run: () => this.stepZoom(-1) },
       actualSize: { label: t("Mac.Menu.ActualSize"), shortcut: shortcut("0"), enabled: hasDocument, run: () => this.grid.setZoom(1) },
       toggleInspector: { label: t("Mac.Menu.ShowInspector"), checked: !this.inspector.hidden, run: () => this.setInspectorVisible(this.inspector.hidden) },
       about: { label: t("Mac.Menu.About", "Tables"), run: () => this.showAbout() },
+      downloadApp: {
+        label: t(appStorePlatform === "mac" ? "Web.Help.DownloadMacApp" : "Web.Help.DownloadiOSApp"),
+        run: () => window.open(`${APP_STORE_URL}?platform=${appStorePlatform === "mac" ? "mac" : "iphone"}`, "_blank", "noopener"),
+      },
     };
   }
 
@@ -379,7 +402,7 @@ export class WorkbookWindow {
       { label: t("Mac.Menu.Edit"), get items() { return self.items("undo", "redo", "-", "cut", "copy", "paste", "clear", "selectAll"); } },
       { label: t("Mac.Menu.Insert"), get items() {
         return [
-          ...self.items("insertRowAbove", "insertRowBelow", "insertColumnBefore", "insertColumnAfter", "-", "addRow", "addColumn", "-", "newSheet"),
+          ...self.items("insertRowAbove", "insertRowBelow", "insertColumnBefore", "insertColumnAfter", "-", "addRow", "addColumn", "-", "newSheet", "newTable"),
           { separator: true },
           { label: t("Toolbar.InsertFunction"), submenu: self.aggregateItems() },
         ];
@@ -404,12 +427,12 @@ export class WorkbookWindow {
       } },
       { label: t("Mac.Menu.Window"), get items() {
         return [...self.items("previousSheet", "nextSheet"), { separator: true },
-          ...(self.engine.info?.sheets ?? []).filter((s) => !s.hidden).map((sheet) => ({
-            label: sheet.name, checked: self.engine.state?.sheet === sheet.id, disabled: !self.document,
-            action: () => self.engine.call("selectSheet", { id: sheet.id }),
+          ...self.tabEntries().map((entry) => ({
+            label: entry.name, checked: entry.ids.includes(self.engine.state?.sheet), disabled: !self.document,
+            action: () => self.selectTab(entry),
           }))];
       } },
-      { label: t("Mac.Menu.Help"), get items() { return self.items("about"); } },
+      { label: t("Mac.Menu.Help"), get items() { return self.items(...(appStorePlatform ? ["downloadApp", "-"] : []), "about"); } },
     ];
     void appearance;
     attachMenuBar(this.root.querySelector("#menu-bar"), menus, { label: t("Web.Menu.Label"), overflowLabel: t("Toolbar.More") });
@@ -492,8 +515,9 @@ export class WorkbookWindow {
     return this.engine.call("border", { preset, style: lineStyle, color });
   }
 
-  contextMenu(kind) {
+  contextMenu(kind, hit) {
     if (!this.document) return null;
+    if (kind === "table") return this.tableMenu(hit.id);
     const clipboard = this.items("cut", "copy", "paste");
     if (kind === "cell") {
       return [
@@ -509,6 +533,39 @@ export class WorkbookWindow {
         ...this.items("insertColumnBefore", "insertColumnAfter", "deleteColumn", "-", "hideColumn", "unhideAll", "-", "fitColumn")];
     }
     return [...clipboard, { separator: true }, ...this.items("insertRowAbove", "insertRowBelow", "deleteRow", "-", "hideRow", "unhideAll")];
+  }
+
+  /** The menu for a table on a canvas: its name, which canvas it is on, and deleting it. */
+  tableMenu(id) {
+    const info = this.engine.info;
+    const table = this.grid.canvasContaining(id)?.tables.find((t) => t.id === id);
+    const lay = Boolean(info?.allowsLayingOutTables);
+    const arrange = Boolean(info?.allowsArrangingCanvases);
+    const targets = this.canvasTargets(id);
+    return [
+      { label: t("Canvas.ShowTableName"), checked: Boolean(table?.showsName), disabled: !lay || !table,
+        action: () => this.engine.call("showTableName", { id, shown: !table.showsName }) },
+      { label: t("Canvas.RenameTable"), disabled: !lay || !table, action: () => this.renameTable(id) },
+      { separator: true },
+      { label: t("Canvas.MoveToSheet"), disabled: !arrange || !targets.length, submenu: targets.map((target) => ({
+        label: target.name, action: () => this.engine.call("placeSheet", { id, target: target.id }),
+      })) },
+      { label: t("Canvas.MoveToOwnSheet"), disabled: !arrange, action: () => this.engine.call("removeFromCanvas", { id }) },
+      { separator: true },
+      { label: t("SheetTabBar.Menu.Delete"), action: () => this.engine.call("deleteSheet", { id }) },
+    ];
+  }
+
+  /** Renames a table where its name is drawn, or in a sheet when it shows none. */
+  async renameTable(id) {
+    const table = this.grid.canvasContaining(id)?.tables.find((t) => t.id === id);
+    if (!table) return;
+    if (table.showsName) {
+      this.grid.beginRenamingTable(id);
+      return;
+    }
+    const name = await this.askText(t("Canvas.RenameTable.Title"), table.name, t("Canvas.RenameTable.Confirm"));
+    if (name && name !== table.name) await this.engine.call("renameTable", { id, name }).catch((error) => this.showMessage(error.message, "error"));
   }
 
   // MARK: - Inspector
@@ -705,7 +762,7 @@ export class WorkbookWindow {
       inspector.querySelector(".app__frozen-columns input").value = layout.frozenColumns;
     }
     for (const selector of [".app__frozen-rows", ".app__frozen-columns"]) {
-      for (const control of inspector.querySelectorAll(`${selector} input, ${selector} button`)) control.disabled = !info.allowsFreeze;
+      for (const control of inspector.querySelectorAll(`${selector} input, ${selector} button`)) control.disabled = !info.allowsFreeze || this.grid.onCanvas;
     }
   }
 
@@ -765,17 +822,50 @@ export class WorkbookWindow {
 
   // MARK: - Sheet tabs
 
+  /**
+   * The sheet tabs, as the Apple apps' tab bar has them: a tab for every
+   * visible sheet, but one for all the tables a canvas lays out together,
+   * named for the canvas. Its tables are picked on the canvas itself.
+   */
+  tabEntries() {
+    const info = this.engine.info;
+    if (!info) return [];
+    const canvases = info.canvases ?? [];
+    const seen = new Set();
+    const entries = [];
+    for (const sheet of info.sheets.filter((s) => !s.hidden)) {
+      const canvas = canvases.find((c) => c.tables.some((table) => table.id === sheet.id));
+      if (!canvas) {
+        entries.push({ id: sheet.id, name: sheet.name, color: sheet.color, chart: sheet.chart, canvas: null, ids: [sheet.id] });
+        continue;
+      }
+      if (seen.has(canvas.id)) continue;
+      seen.add(canvas.id);
+      entries.push({ id: sheet.id, name: canvas.name || sheet.name, color: sheet.color, chart: false, canvas, ids: canvas.tables.map((table) => table.id) });
+    }
+    return entries;
+  }
+
+  /** Goes to a tab: a canvas's goes back to the table last worked on there. */
+  async selectTab(entry) {
+    const remembered = entry.canvas && this.canvasTables.get(entry.canvas.id);
+    const id = remembered && entry.ids.includes(remembered) ? remembered : entry.id;
+    await this.grid.commitIfEditing();
+    await this.engine.call("selectSheet", { id });
+    this.grid.focus();
+  }
+
   renderTabs() {
     const info = this.engine.info;
     const state = this.engine.state;
     if (!info) return;
-    const sheets = info.sheets.filter((sheet) => !sheet.hidden);
+    this.tabEntriesShown = this.tabEntries();
     const previousScroll = this.tabs.querySelector(".ds-sheet-tabs__strip")?.scrollLeft ?? 0;
     this.tabs.innerHTML = `
       <div class="ds-sheet-tabs__strip" role="tablist" aria-label="${escapeHTML(t("Web.SheetTabs.AllSheets"))}">
-        ${sheets.map((sheet) => `
-          <button class="ds-sheet-tabs__tab" role="tab" data-id="${sheet.id}" aria-selected="${sheet.id === state?.sheet}" title="${escapeHTML(sheet.name)}"
-            ${sheet.color ? `style="--ds-tab-tint: ${escapeHTML(sheet.color)}"` : ""}>${escapeHTML(sheet.name)}</button>`).join("")}
+        ${this.tabEntriesShown.map((entry, index) => `
+          <button class="ds-sheet-tabs__tab" role="tab" data-id="${entry.id}" data-index="${index}" aria-selected="${entry.ids.includes(state?.sheet)}" title="${escapeHTML(entry.name)}"
+            ${entry.color ? `style="--ds-tab-tint: ${escapeHTML(entry.color)}"` : ""}>${escapeHTML(entry.name)}</button>`).join("")}
       </div>
       <div class="ds-sheet-tabs__actions">
         <button class="ds-button ds-button--ghost ds-button--icon ds-button--xs ds-sheet-tabs__add" aria-label="${escapeHTML(t("SheetTabBar.AddSheet"))}" title="${escapeHTML(t("SheetTabBar.AddSheet"))}">${icon("add")}</button>
@@ -786,15 +876,12 @@ export class WorkbookWindow {
     const strip = this.tabs.querySelector(".ds-sheet-tabs__strip");
     strip.scrollLeft = previousScroll;
     for (const tab of strip.querySelectorAll(".ds-sheet-tabs__tab")) {
-      tab.addEventListener("click", async () => {
-        await this.grid.commitIfEditing();
-        await this.engine.call("selectSheet", { id: tab.dataset.id });
-        this.grid.focus();
-      });
+      const entry = this.tabEntriesShown[Number(tab.dataset.index)];
+      tab.addEventListener("click", () => this.selectTab(entry));
       tab.addEventListener("dblclick", () => this.renameSheetInline(tab));
       tab.addEventListener("contextmenu", (event) => {
         event.preventDefault();
-        this.engine.call("selectSheet", { id: tab.dataset.id });
+        if (!entry.ids.includes(this.engine.state?.sheet)) this.selectTab(entry);
         openMenu(this.sheetMenu(tab), { x: event.clientX, y: event.clientY }, { placement: "point" });
       });
     }
@@ -814,16 +901,11 @@ export class WorkbookWindow {
   allSheetsMenu() {
     const info = this.engine.info;
     const active = this.engine.state?.sheet;
-    const visible = info.sheets.filter((sheet) => !sheet.hidden);
     const hidden = info.sheets.filter((sheet) => sheet.hidden);
     return [
-      ...visible.map((sheet) => ({
-        label: sheet.name, checked: sheet.id === active,
-        action: async () => {
-          await this.grid.commitIfEditing();
-          await this.engine.call("selectSheet", { id: sheet.id });
-          this.grid.focus();
-        },
+      ...this.tabEntries().map((entry) => ({
+        label: entry.name, checked: entry.ids.includes(active),
+        action: () => this.selectTab(entry),
       })),
       ...(hidden.length ? [{ separator: true }, { header: t("SheetTabBar.ShowHiddenSheet") }] : []),
       ...hidden.map((sheet) => ({ label: sheet.name, action: () => this.engine.call("hideSheet", { id: sheet.id, hidden: false }) })),
@@ -840,11 +922,36 @@ export class WorkbookWindow {
     else if (right > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = right - strip.clientWidth;
   }
 
+  /** The sheets a sheet or table could join on a canvas: one entry per tab, other than its own, charts aside. */
+  canvasTargets(id) {
+    return this.tabEntries().filter((entry) => !entry.ids.includes(id) && !entry.chart);
+  }
+
   sheetMenu(tab) {
     const id = tab.dataset.id;
+    const entry = this.tabEntriesShown?.[Number(tab.dataset.index)];
+    const info = this.engine.info;
+    const arrange = Boolean(info?.allowsArrangingCanvases) && !entry?.chart;
+    // A canvas's tables are duplicated, hidden and deleted one by one, from their names on it.
+    if (entry?.canvas) {
+      return [
+        { label: t("SheetTabBar.Menu.Rename"), disabled: !info?.allowsLayingOutTables, action: () => this.renameSheetInline(tab) },
+        { separator: true },
+        { label: t("Canvas.NewTable"), disabled: !arrange, action: () => this.engine.call("addTable") },
+      ];
+    }
+    const targets = this.canvasTargets(id);
     const colours = ["#da1e28", "#ff832b", "#f1c21b", "#24a148", "#1192e8", "#8a3ffc", "#ee5396"];
     return [
       { label: t("SheetTabBar.Menu.Rename"), action: () => this.renameSheetInline(tab) },
+      ...(info?.allowsArrangingCanvases ? [
+        { separator: true },
+        { label: t("Canvas.NewTable"), disabled: !arrange, action: () => this.engine.call("addTable") },
+        { label: t("Canvas.MoveToSheet"), disabled: !arrange || !targets.length, submenu: targets.map((target) => ({
+          label: target.name, action: () => this.engine.call("placeSheet", { id, target: target.id }),
+        })) },
+        { separator: true },
+      ] : []),
       { label: t("SheetTabBar.Menu.Duplicate"), action: () => this.engine.call("duplicateSheet") },
       { label: t("SheetTabBar.Menu.Hide"), action: () => this.engine.call("hideSheet", { id, hidden: true }).catch((e) => this.showMessage(e.message, "error")) },
       { label: t("Web.Inspector.TabColour"), submenu: [
@@ -873,7 +980,10 @@ export class WorkbookWindow {
       if (done) return;
       done = true;
       if (commit && input.value.trim() && input.value !== tab.textContent.trim()) {
-        await this.engine.call("renameSheet", { id: tab.dataset.id, name: input.value.trim() }).catch((error) => this.showMessage(error.message, "error"));
+        // A canvas's tab is the canvas's own name, not its first table's.
+        const isCanvas = Boolean(this.tabEntriesShown?.[Number(tab.dataset.index)]?.canvas);
+        await this.engine.call(isCanvas ? "renameCanvas" : "renameSheet", { id: tab.dataset.id, name: input.value.trim() })
+          .catch((error) => this.showMessage(error.message, "error"));
       }
       this.renderTabs();
       this.grid.focus();
@@ -956,7 +1066,12 @@ export class WorkbookWindow {
     if (state.message) this.showMessage(state.message, "error");
     this.updateTitle();
     this.updateInspector();
-    for (const tab of this.tabs.querySelectorAll(".ds-sheet-tabs__tab")) tab.setAttribute("aria-selected", String(tab.dataset.id === state.sheet));
+    for (const tab of this.tabs.querySelectorAll(".ds-sheet-tabs__tab")) {
+      const entry = this.tabEntriesShown?.[Number(tab.dataset.index)];
+      tab.setAttribute("aria-selected", String(entry ? entry.ids.includes(state.sheet) : tab.dataset.id === state.sheet));
+    }
+    const canvas = this.grid.canvasContaining(state.sheet);
+    if (canvas) this.canvasTables.set(canvas.id, state.sheet);
     this.revealActiveTab();
     if (this.hasUnkeptChanges && !this.autosaveTimer) this.scheduleAutosave();
   }
@@ -1022,7 +1137,10 @@ export class WorkbookWindow {
             <p class="ds-sheet__message app__about-suite"><a href="https://atelier.ktgk.app" target="_blank" rel="noopener"></a></p>
           </div>
         </div>
-        <div class="ds-sheet__buttons"><button class="ds-button ds-button--primary">${escapeHTML(t("Common.OK"))}</button></div>
+        <div class="ds-sheet__buttons">
+          <button class="ds-button" type="button" data-source>${escapeHTML(t("Toolbar.SourceCode"))}</button>
+          <button class="ds-button ds-button--primary" type="button" data-ok>${escapeHTML(t("Common.OK"))}</button>
+        </div>
       </div>`;
     backdrop.querySelector("#about-message").textContent = t("Web.About.Message");
     backdrop.querySelector(".app__about-version").textContent = t("Web.About.Version", self.TABLES_APP_VERSION ?? "");
@@ -1031,10 +1149,11 @@ export class WorkbookWindow {
       dismissSheet(backdrop);
       this.grid.focus();
     };
-    backdrop.querySelector("button").addEventListener("click", close);
+    backdrop.querySelector("[data-ok]").addEventListener("click", close);
+    backdrop.querySelector("[data-source]").addEventListener("click", () => window.open(SOURCE_CODE_URL, "_blank", "noopener"));
     backdrop.addEventListener("keydown", (event) => event.key === "Escape" && close());
     this.root.append(backdrop);
-    backdrop.querySelector("button").focus();
+    backdrop.querySelector("[data-ok]").focus();
   }
 
   /** A window-modal sheet asking for one line of text. Resolves with it, or null on Cancel. */

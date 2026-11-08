@@ -73,7 +73,8 @@ export class EngineClient extends EventTarget {
     this.state = state;
     this.versions = state.versions;
     const documentCommand = ["new", "open", "rename", "addSheet", "duplicateSheet", "deleteSheet", "renameSheet",
-      "hideSheet", "sheetColor", "moveSheet", "undo", "redo", "selectSheet", "save"].includes(cmd);
+      "hideSheet", "sheetColor", "moveSheet", "undo", "redo", "selectSheet", "save",
+      "addTable", "placeSheet", "removeFromCanvas", "moveTable", "showTableName", "renameTable", "renameCanvas"].includes(cmd);
     if (documentCommand || !this.info) {
       const { response } = await this.send({ cmd: "info" });
       this.info = response.result;
@@ -90,9 +91,15 @@ export class EngineClient extends EventTarget {
     this.dispatchEvent(new CustomEvent("state", { detail: state }));
   }
 
-  /** Drawing operations for part of the active sheet, in sheet coordinates. */
-  async render(rect, dark) {
-    const { response } = await this.send({ cmd: "render", ...rect, dark });
+  /** Drawing operations for part of a sheet (the active one unless `id` names another), in sheet coordinates. */
+  async render(rect, dark, id = null) {
+    const { response } = await this.send({ cmd: "render", ...rect, dark, ...(id ? { id } : {}) });
+    return response.result;
+  }
+
+  /** Another sheet's rows and columns, for drawing it beside the active one on a canvas. */
+  async layoutOf(id) {
+    const { response } = await this.send({ cmd: "layout", id });
     return response.result;
   }
 }
