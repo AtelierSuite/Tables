@@ -4,139 +4,92 @@
 
 Ship Tables as an installable Progressive Web App that runs **entirely on the device**: after the first visit it opens, edits, calculates and saves Excel, Numbers and CSV files with no network connection and no server. The spreadsheet engine is the same Swift code the Apple apps use, compiled to WebAssembly, so formulas, file formats and macros behave identically on every platform.
 
-## Starting point
+Constraints: **no Node packages** (the build is Swift and a shell script; the page is plain HTML, CSS and JavaScript modules), and **the web build reads nothing from `Apple/`**.
 
-| Part | Where | Size | Portable? |
-| --- | --- | --- | --- |
-| Engine: model, formulas, XLSX/Numbers/CSV I/O | `Apple/TablesEngine` | ~28k lines Swift in 82 files | Mostly. Five files use Apple-only frameworks (below) |
-| Macros: VBA lexer, parser, interpreter, Excel object model | `Apple/TablesMacros` | Foundation + `Synchronization` | Yes, after checking `Mutex` on Wasm |
-| Shared app logic: editor state and actions | `Apple/Shared/Session` | SwiftUI-coupled | Logic is reusable; needs separating from SwiftUI |
-| UI | `Apple/Tables` (iOS), `Apple/TablesMac` (AppKit), `Apple/Shared/Views` | | No. Rebuilt for the web |
-| Tests | `Apple/TablesTests` | Formula oracles, reader/writer and Excel-compatibility tests | Engine tests should run under WASI unchanged |
+## Where things stand
 
-Apple-only imports in the engine and macros:
+The base app works end to end, including offline: start screen, new and opened workbooks (XLSX, XLSM, Numbers, CSV, TSV), typing and formulas, selection with the keyboard and mouse, formatting, borders, merging, rows and columns, freezing, sheets, undo and redo, clipboard, fill handle, saving and exporting, autosave and Open Recent, light and dark, five languages, and an installable PWA whose service worker serves every file offline.
 
-| File | Uses | Plan |
+| Part | Where | Notes |
 | --- | --- | --- |
-| `TablesEngine/IO/ZipArchive.swift` | `Compression` (deflate) | Pure-Swift inflate/deflate behind `#if canImport(Compression)`; keep Apple's on Apple platforms |
-| `TablesEngine/IO/CommentParts.swift` | `CryptoKit` | `swift-crypto` (`Crypto`), which has the same API and builds for Wasm |
-| `TablesEngine/IO/NumbersPreview.swift` | SwiftUI, UIKit, AppKit, ImageIO, UTType | Apple-only; exclude from the Wasm target. The web reads the preview JPEG bytes and lets the browser decode them |
-| `TablesEngine/Model/AdaptiveColor.swift`, `CellStyle.swift` | `SwiftUI` (`Color`) | Split the SwiftUI conversions into Apple-only extensions; the model keeps plain RGBA |
-| `TablesMacros/MacroRunner.swift` | `Synchronization`, threads | Run macros synchronously inside the engine worker; cancellation via a shared flag the host checks |
+| Engine and macros | `Engine/` (Swift package) | Shared by the Xcode project (compiled in place) and the web build. Builds for WebAssembly unchanged in behaviour; 706 of 707 Apple tests pass after the port, and the one failure is a flaky App Intents test unrelated to the engine |
+| WebAssembly interface | `Web/wasm/` | C exports with JSON requests, a WASI host, the worker, a strings tool, Node smoke tests |
+| Window | `Web/app/` | Canvas grid, menus, toolbar, inspector, files, storage |
+| Design system | `Web/design/` | Tokens, components, menus, lint |
+
+### What porting the engine took
+
+| Problem | Fix |
+| --- | --- |
+| `Compression` (ZIP deflate) | Plain-Swift raw DEFLATE (`Engine/TablesEngine/Portable/RawDeflate.swift`), tested against Apple's on iOS |
+| `CryptoKit` (comment author IDs) | Plain-Swift SHA-256, tested against CryptoKit |
+| SwiftUI `Color`, `ColorScheme`, `Font` in the model | Stand-ins where SwiftUI doesn't exist; Apple builds unchanged |
+| `#bundle`, `String(localized:bundle:)`, `String.LocalizationValue` | A module bundle on Apple platforms; elsewhere a string table the host loads, converted from the same catalogues |
+| `Bundle.main` traps under WASI | Never touched outside Apple platforms |
+| `%lld` with 32-bit `Int` (wasm32) | Integer placeholders rewritten to the platform's word size when the table loads |
+| `FileWrapper`, `XMLParser` (in `FoundationXML`), CoreFoundation code pages | Stand-in, conditional import, explicit code-page table |
+| Threads and semaphores (calculation stack, macro runner) | Run inline; the Wasm stack is sized at link time; the Apple macro runner stays Apple-only |
+| `Int` overflow in a compile-time constant | Clamped |
 
 ## Architecture
 
 ```
-┌────────────────────────── Browser tab / installed app window ─────────────────────────┐
-│ Main thread (TypeScript)                                                             │
-│   App shell · toolbar · inspector · sheet tabs · menus      ← Web/design components  │
-│   Canvas grid renderer · chart renderer · cell editor                                │
-│   File System Access / OPFS / downloads · undo stack UI                              │
-│             ▲  structured messages + transferable ArrayBuffers                        │
-│             ▼                                                                        │
-│ Engine worker (Web Worker)                                                           │
-│   tables-engine.wasm  (TablesEngine + TablesMacros, Swift → wasm32-unknown-wasip1)    │
-│   WASI shim in JS · JavaScriptKit bridge                                             │
-├──────────────────────────────────────────────────────────────────────────────────────┤
-│ Service worker: precaches the app shell, wasm, icons and string tables; serves       │
-│ everything from Cache Storage. No runtime network requests.                          │
-└──────────────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────── Browser tab / installed app window ───────────────────────────┐
+│ Main thread (plain JavaScript modules)                                                  │
+│   app/window.js   menu bar · toolbar · formula bar · sheet tabs · status bar · inspector │
+│   app/grid.js     canvas grid · headers · frozen panes · selection · editor · fill       │
+│   app/paint.js    text layout for the engine's drawing operations                       │
+│   app/files.js · app/storage.js   File System Access / picker / download · autosave     │
+│             ▲  JSON requests + transferable bytes                                        │
+│             ▼                                                                           │
+│ Engine worker (wasm/worker.js)                                                          │
+│   tables-engine.wasm: Engine/TablesEngine + Engine/TablesMacros + wasm/Sources          │
+│   wasm/wasi.js: clocks, randomness, console; no file system, no network                 │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ Service worker (sw.js): caches every file listed in build/version.js at install and     │
+│ answers every request from that cache. A new build waits until the user restarts.       │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Key decisions:
+Decisions as built:
 
-1. **Engine in Swift, compiled with the official Swift SDK for WebAssembly** (Swift 6.2+, `wasm32-unknown-wasip1`). This keeps one engine for all platforms, and the existing formula oracles and compatibility tests validate the web build. Rewriting the engine in TypeScript or Rust was rejected: it would fork ~28k lines of tested behaviour.
-2. **Engine runs in a Web Worker.** Opening a large Numbers file or recalculating never blocks input. The UI asks for what is visible (`viewport(sheet, rows, cols)`) and gets back a compact binary buffer of display strings, styles and spans, so cells never cross the bridge one at a time.
-3. **Narrow command API instead of exposing the object model.** About 40 commands (`open`, `save`, `setCell`, `fill`, `insertRows`, `applyStyle`, `undo`, `runMacro`, `find`, `chartData`, …) modelled on `Shared/Session/EditorActions.swift`. Requests and events are versioned so the worker and UI can be updated independently in the cache.
-4. **UI in TypeScript without a framework.** Native custom elements styled by `Web/design`, bundled with Vite. The heavy surface (the grid) is a `<canvas>`, so a virtual-DOM framework would add weight without benefit. No runtime dependencies beyond JavaScriptKit's runtime.
-5. **Grid drawn on `<canvas>`**, porting the logic in `Apple/TablesMacShared/CellRenderer.swift` and `Apple/TablesMac/Grid`: virtualised rows and columns, device-pixel-ratio aware, frozen panes, merged cells, borders, conditional formats, text overflow, checkboxes. A hidden `<textarea>` handles editing and IME input. An offscreen ARIA grid mirrors the visible range for screen readers.
-6. **Files stay on the device.** File System Access API where available (open, save in place, "Save As"); `<input type="file">` and downloads elsewhere. Autosave and recent documents live in the Origin Private File System. The manifest registers file handlers for `.xlsx`, `.xlsm`, `.numbers` and `.csv`, so the installed app opens them from the OS.
-7. **Strings come from the Apple catalogues.** A build step converts `Apple/**/*.xcstrings` into per-language JSON (en, ja, ko, zh-Hans, zh-Hant) so both apps say the same thing in the same languages.
+1. **One engine, in Swift.** `Engine/` is a Swift package. Xcode compiles its folders in place; the web build depends on it with `.package(path: "../../Engine")` and the swift.org toolchain with its matching Swift SDK for WebAssembly.
+2. **A plain C interface, no JavaScriptKit.** A reactor module exports `tables_alloc`, `tables_free`, `tables_call` and response accessors. Requests and responses are JSON; files cross as raw bytes. About 60 commands, mirroring `EditorActions`.
+3. **The editing session is Swift.** `WebSession.swift` ports `EditorState` and `EditorActions` (minus SwiftUI) and adds snapshot undo, so selection, merges, movement, paste and structure behave as on the Mac.
+4. **Swift decides what to draw; the browser draws it.** `Renderer.swift` makes the Mac cell renderer's decisions and returns drawing operations for a rectangle of the sheet. The page rasterises 256-point tiles once, caches them, and only measures text itself.
+5. **No framework, no bundler.** The page is ES modules served as they are. The design system's lint runs over all of it.
+6. **Strings come from catalogues.** `Web/strings/Localizable.xcstrings` (the web's own, seeded from the Apple app's) plus the engine's catalogues are converted to per-language JSON at build time. The engine and the page share the same table.
 
-## Phases
+## Next
 
-Each phase ends in something that runs and is tested.
+### Engine quality
 
-### Phase 0: Groundwork (this change)
+- [ ] Run the engine test suite under WASI. Most of `Apple/TablesTests` only needs `TablesEngine`/`TablesMacros`; give them a test target in `Engine/Package.swift` (with a stub for the app module they `@testable import`) and run it with the WASI host.
+- [ ] Audit remaining 32-bit `Int` assumptions (row × column keys, serial dates, hashes) found by that suite.
+- [ ] **Size.** The release module is 56 MB (about 20 MB gzipped), mostly ICU data that Foundation links. Options: `wasm-opt -Oz` (Binaryen, a native tool); move the engine to `FoundationEssentials` where possible and do locale formatting through `Intl`; or ship trimmed ICU data for the five languages.
+- [ ] Deep recursion: the browser's own stack limits how deep a formula chain can recurse inside Wasm. Measure the deepest chain that works, and report a clean `#CIRC!`-style error past it rather than a trap.
 
-- [x] Move the iOS and macOS app into `Apple/`. The Xcode project builds from its new location.
-- [x] Create `Web/`.
-- [x] Design system: tokens, components, specimen page, written rules and a linter (`Web/design`).
-
-### Phase 1: Portable engine package
-
-- [ ] Add a Swift package at `Core/` (root level, shared by Apple and Web) with `TablesEngine` and `TablesMacros` targets. The Xcode project consumes the package instead of compiling the folders directly. (`Packages/` is ignored by `.gitignore`, hence `Core/`.)
-- [ ] Remove the Apple-only imports listed above behind `#if canImport(...)`, moving SwiftUI colour conversions into Apple-only extensions.
-- [ ] Replace `Compression` with a pure-Swift deflate on non-Apple platforms; add `swift-crypto`.
-- [ ] Build the package for Linux as a cheap first portability check, then for `wasm32-unknown-wasip1`.
-- [ ] Run the engine tests under WASI with `wasmtime` (`swift test --swift-sdk …`). Target: the same pass rate as on macOS, including `FormulaReferenceCases` and Excel compatibility tests.
-- [ ] Measure the binary: `wasm-opt -Oz`, strip, brotli. Record the size in this file.
-
-Risk to verify early: **Foundation on Wasm**. Date, number and locale formatting (`DateFormatter`, `NumberFormatter`, `Locale`, `Calendar`) pull in ICU data, which is large. Options, in order: (a) check which of the 7 engine and macro files that use them actually need ICU and whether `FoundationEssentials` alone is enough; (b) move locale-sensitive formatting behind a protocol the host implements with `Intl` in JavaScript; (c) ship a trimmed ICU data file for the five supported locales.
-
-### Phase 2: Engine bridge and worker
-
-- [ ] `Web/engine/`: a Swift executable target exporting the command API through JavaScriptKit (BridgeJS), compiled to `tables-engine.wasm`.
-- [ ] `Web/src/engine/`: TypeScript client that starts the worker, sends typed commands, receives events (`cellsChanged`, `sheetsChanged`, `recalcFinished`, `macroOutput`) and decodes the viewport buffer.
-- [ ] Round-trip tests in Node: open every fixture in `Apple/TablesTests`, save, reopen, compare.
-- [ ] Startup budget: worker ready in under 1 s on a mid-range laptop with a warm cache (streaming compile via `WebAssembly.compileStreaming`, module cached by the service worker).
-
-### Phase 3: Web app shell
-
-- [ ] Vite + TypeScript project in `Web/`; `Web/design` CSS imported as-is.
-- [ ] Start screen: New, Open, recent documents from OPFS.
-- [ ] Workbook window: toolbar, formula bar, canvas grid, sheet tabs, status bar, inspector (Cell, Text, Sheet panes after `Apple/TablesMac/Panels`).
-- [ ] Editing: selection, keyboard navigation, typing and formula entry with reference highlighting, fill handle, copy/paste (plain text, TSV and HTML in and out), undo/redo, insert and delete rows/columns, resize, freeze panes, find and replace.
-- [ ] Menus: an in-window menu bar (File, Edit, Insert, Format, Data, View, Window, Help) drawn with `.ds-menu`, plus context menus.
-- [ ] Keyboard shortcuts matching `Apple/TablesMac/App/MainMenu.swift`, with ⌘ on Apple platforms and Ctrl elsewhere.
-- [ ] Localisation from the converted `.xcstrings`.
-
-### Phase 4: Offline PWA
-
-- [ ] Web app manifest: name, icons generated from `Apple/Assets/Tables.icon`, `display: standalone`, `file_handlers`, `launch_handler`, `share_target` for incoming files.
-- [ ] Service worker, hand-written (no Workbox runtime): precache a versioned manifest of every build output at install, cache-first for all requests, delete old caches on activate. The app makes **no** network requests after install; a strict CSP (`default-src 'self'; connect-src 'self'`) makes that verifiable.
-- [ ] Updates: a new version installs in the background and the app offers "Restart to Update" in a notification; open documents are autosaved first.
-- [ ] Persistence: request `navigator.storage.persist()` once a document is saved locally so the browser does not evict autosaves.
-- [ ] Offline test in CI: Playwright loads the app, goes offline, reloads, creates a workbook, enters formulas, saves to OPFS, reloads again and checks the workbook is intact.
-
-### Phase 5: Feature parity
+### Feature parity
 
 In the order users will notice them:
 
-1. Number, date, currency and percentage formats; cell styles and borders.
-2. Conditional formats and data bars (engine already reads them from XLSX and Numbers).
-3. Charts: port `Shared/Views/ChartView.swift` (Swift Charts) to a canvas or SVG renderer fed by the engine's chart data.
-4. Comments and notes.
-5. Drawings and floating objects (canvas layer).
-6. Function reference browser (`Shared/Resources/FunctionReference.json`).
-7. Macros: VBA editor (system font, per the design rules), run, step, output; same interpreter as Apple.
-8. Printing via a print stylesheet that renders the used range as an HTML table.
+1. Find and replace; sorting and filtering.
+2. Comments and notes (the engine reads and writes them; the grid already marks them).
+3. Charts: port `ChartView` (Swift Charts) to a canvas or SVG renderer fed by the engine's chart data.
+4. Conditional formats are drawn already; add their editor.
+5. Function reference browser (the function catalogue should move into `Engine/` so the web needn't read `Apple/`).
+6. Macros: VBA editor (system font, per the design rules) and a runner. `MsgBox` and `InputBox` need the engine to wait for an answer: run macros in their own worker and block on `Atomics.wait`, which needs cross-origin isolation (the service worker can add the headers).
+7. Drawings and floating objects; printing.
+8. Numbers documents saved as packages (folders), which need a directory picker.
 
-Not carried over: App Intents/Shortcuts (`Shared/Automation`), the Quick Look preview extension, iCloud documents, and App Store screenshot automation.
+### Release
 
-### Phase 6: Quality and release
-
-- [ ] CI (GitHub Actions): design lint, TypeScript checks, Wasm build, engine tests under WASI, Playwright end-to-end tests in Chromium, WebKit and Firefox.
-- [ ] Port the UI test scenarios in `Apple/TablesUITests` (cell editing, sheet tabs, charts, comments, budget workbook) to Playwright.
-- [ ] Accessibility audit (keyboard-only, VoiceOver, NVDA) and contrast checks in both appearances.
-- [ ] Performance budgets: first load (cold, over network) under 5 MB transferred; 100k-cell workbook scrolls at 60 fps; recalculation of the budget fixture under 50 ms.
-- [ ] Static hosting (GitHub Pages or Cloudflare Pages) with immutable hashed assets. No cross-origin isolation headers needed unless Wasm threads are adopted later.
-
-## Repository layout
-
-```
-Apple/            iOS and macOS app, Xcode project, tests, App Store assets
-Core/             (Phase 1) Swift package: TablesEngine, TablesMacros, shared by Apple and Web
-Web/
-  design/         design system: tokens, components, specimen, rules, linter
-  engine/         (Phase 2) Swift → Wasm entry point and command API
-  src/            (Phase 3) TypeScript app: shell, grid, inspector, menus, file handling
-  public/         (Phase 4) manifest, icons, service worker
-  tests/          (Phase 6) Playwright tests
-```
+- [ ] CI: design lint, engine build, smoke tests, browser tests in Chromium, WebKit and Firefox (no Node packages: run them with each browser's WebDriver).
+- [ ] Accessibility: an ARIA grid that mirrors the visible cells for screen readers; keyboard-only and VoiceOver passes; contrast in both appearances.
+- [ ] Hosting on a stable origin (users' autosaves and recents belong to it), with long-lived caching for `build/`.
 
 ## Open questions
 
-1. **Browser support floor.** File System Access (save in place) is Chromium-only. Safari and Firefox get open-via-picker and save-via-download, with OPFS autosave. Is that acceptable for launch?
-2. **Hosting domain** for the PWA, which decides the install origin and must stay stable so users keep their local documents.
-3. **Engine size vs. ICU.** If Foundation's ICU makes the module much larger than ~5 MB brotli, do we accept it, or move locale formatting to `Intl` (adds a bridge, keeps size down)?
+1. **Browser support floor.** File System Access (save in place) is Chromium-only. Safari and Firefox open through a picker and save as downloads, with autosave on the device. Is that acceptable for launch?
+2. **Hosting domain** for the PWA.
+3. **Engine size.** Accept ~20 MB compressed for the first release, or do the `Intl` work first?
