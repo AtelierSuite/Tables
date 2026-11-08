@@ -92,6 +92,45 @@ test("saves and reads CSV", () => {
   assert.deepEqual(texts().map((op) => op.t), ["a", "b", "1", "2"]);
 });
 
+test("lays tables out together on a canvas", () => {
+  const { result: opened } = call("new", { name: "Canvas" });
+  const first = opened.sheets[0].id;
+  call("commit", { row: 0, column: 0, text: "first" });
+  call("addTable");
+  call("commit", { row: 0, column: 0, text: "second" });
+  let { result: info } = call("info");
+  assert.equal(info.canvases.length, 1);
+  const [canvas] = info.canvases;
+  assert.equal(canvas.tables[0].id, first);
+  const second = canvas.tables[1].id;
+  assert.ok(canvas.tables[1].y > canvas.tables[0].y, "the new table goes below");
+  // Any table draws, not just the active one.
+  const drawn = (id) => call("render", { id, x: 0, y: 0, w: 500, h: 200 }).result.ops.filter((op) => op.k === "text").map((op) => op.t);
+  assert.deepEqual(drawn(first), ["first"]);
+  assert.deepEqual(drawn(second), ["second"]);
+  assert.equal(call("layout", { id: first }).result.sheet, first);
+  call("moveTable", { id: second, x: 400, y: 66 });
+  call("showTableName", { id: first, shown: false });
+  call("renameTable", { id: second, name: "Totals" });
+  call("renameCanvas", { id: first, name: "Summary" });
+  info = call("info").result;
+  assert.equal(info.canvases[0].name, "Summary");
+  assert.deepEqual([info.canvases[0].tables[1].x, info.canvases[0].tables[1].y], [400, 66]);
+  assert.equal(info.canvases[0].tables[0].showsName, false);
+  assert.equal(info.canvases[0].tables[1].name, "Totals");
+  // The layout survives a save, and moving a table can be undone.
+  const { payload } = call("save", { format: "xlsx" });
+  info = call("open", { name: "Canvas.xlsx" }, payload).result;
+  assert.equal(info.canvases[0].name, "Summary");
+  assert.equal(info.canvases[0].tables[1].x, 400);
+  const id = info.canvases[0].tables[1].id;
+  call("moveTable", { id, x: 40, y: 400 });
+  call("undo");
+  assert.equal(call("info").result.canvases[0].tables[1].x, 400);
+  call("removeFromCanvas", { id });
+  assert.equal(call("info").result.canvases.length, 0);
+});
+
 for (const path of process.argv.slice(2)) {
   const name = path.split("/").pop();
   test(`opens ${name}`, () => {
