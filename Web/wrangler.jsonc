@@ -3,8 +3,7 @@
 //
 //   ./build.sh && npx wrangler deploy
 //
-// Pushes to main deploy through Cloudflare Workers Builds, which runs
-// deploy/cloudflare-build.sh and then `npx wrangler deploy` (see README.md).
+// Pushes to main deploy from GitHub Actions (.github/workflows/web.yml).
 {
   "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
   "name": "atelier-tables",
