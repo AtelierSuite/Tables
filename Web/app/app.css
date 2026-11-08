@@ -115,26 +115,15 @@ body {
 
 .app__tabs {
   flex: none;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.app__tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .app__tab-rename {
+  flex: none;
   width: 160px;
   height: 100%;
   align-self: stretch;
 }
 
-.app__hidden-sheets {
-  align-self: center;
-  margin-inline-start: auto;
-  margin-inline-end: var(--ds-spacing-03);
-  white-space: nowrap;
-}
 
 /* MARK: - Grid */
 

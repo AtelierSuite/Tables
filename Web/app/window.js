@@ -33,6 +33,7 @@ const ICONS = {
   error: '<path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3 9.6L10.6 11 8 8.4 5.4 11 5 10.6 7.6 8 5 5.4 5.4 5 8 7.6 10.6 5l.4.4L8.4 8z"/>',
   table: '<rect x="1.75" y="2.75" width="12.5" height="10.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5h12M2 10h12M6 3v10" stroke="currentColor" stroke-width="1.2"/>',
   add: '<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5"/>',
+  list: '<path d="M5.5 4h8M5.5 8h8M5.5 12h8" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 4h1M2.5 8h1M2.5 12h1" stroke="currentColor" stroke-width="1.5"/>',
   borderAll: '<rect x="2.5" y="2.5" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.5"/>',
   borderOutside: '<rect x="2.5" y="2.5" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1" stroke-dasharray="1 2" opacity=".5"/>',
   borderTop: '<path d="M2.5 2.75h11" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 3v10.5h11V3M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1 2" opacity=".5"/>',
@@ -139,7 +140,7 @@ export class WorkbookWindow {
       </div>
       <div class="ds-window__content app__content">
         <div class="app__grid"></div>
-        <div class="ds-sheet-tabs app__tabs" role="tablist"></div>
+        <div class="ds-sheet-tabs app__tabs"></div>
         <section class="app__start" hidden></section>
         <div class="app__drop" aria-hidden="true"><p class="ds-heading-03"></p></div>
       </div>
@@ -702,14 +703,22 @@ export class WorkbookWindow {
     const state = this.engine.state;
     if (!info) return;
     const sheets = info.sheets.filter((sheet) => !sheet.hidden);
-    const hidden = info.sheets.filter((sheet) => sheet.hidden);
-    this.tabs.innerHTML = sheets.map((sheet) => `
-      <button class="ds-sheet-tabs__tab" role="tab" data-id="${sheet.id}" aria-selected="${sheet.id === state?.sheet}"
-        ${sheet.color ? `style="--ds-tab-tint: ${escapeHTML(sheet.color)}"` : ""}>${escapeHTML(sheet.name)}</button>`).join("")
-      + `<button class="ds-button ds-button--ghost ds-button--icon ds-button--xs ds-sheet-tabs__add" aria-label="${escapeHTML(t("SheetTabBar.AddSheet"))}" title="${escapeHTML(t("SheetTabBar.AddSheet"))}">${icon("add")}</button>`
-      + (hidden.length ? `<button class="ds-button ds-button--ghost ds-button--xs app__hidden-sheets" aria-haspopup="menu">${escapeHTML(t("SheetTabBar.HiddenSheets.Accessibility", hidden.length))}</button>` : "");
+    const previousScroll = this.tabs.querySelector(".ds-sheet-tabs__strip")?.scrollLeft ?? 0;
+    this.tabs.innerHTML = `
+      <div class="ds-sheet-tabs__strip" role="tablist" aria-label="${escapeHTML(t("Web.SheetTabs.AllSheets"))}">
+        ${sheets.map((sheet) => `
+          <button class="ds-sheet-tabs__tab" role="tab" data-id="${sheet.id}" aria-selected="${sheet.id === state?.sheet}" title="${escapeHTML(sheet.name)}"
+            ${sheet.color ? `style="--ds-tab-tint: ${escapeHTML(sheet.color)}"` : ""}>${escapeHTML(sheet.name)}</button>`).join("")}
+      </div>
+      <div class="ds-sheet-tabs__actions">
+        <button class="ds-button ds-button--ghost ds-button--icon ds-button--xs ds-sheet-tabs__add" aria-label="${escapeHTML(t("SheetTabBar.AddSheet"))}" title="${escapeHTML(t("SheetTabBar.AddSheet"))}">${icon("add")}</button>
+        <button class="ds-button ds-button--ghost ds-button--icon ds-button--xs app__all-sheets" aria-haspopup="menu" aria-label="${escapeHTML(t("Web.SheetTabs.AllSheets"))}" title="${escapeHTML(t("Web.SheetTabs.AllSheets"))}">${icon("list")}</button>
+      </div>`;
+    this.tabs.removeAttribute("role");
 
-    for (const tab of this.tabs.querySelectorAll(".ds-sheet-tabs__tab")) {
+    const strip = this.tabs.querySelector(".ds-sheet-tabs__strip");
+    strip.scrollLeft = previousScroll;
+    for (const tab of strip.querySelectorAll(".ds-sheet-tabs__tab")) {
       tab.addEventListener("click", async () => {
         await this.grid.commitIfEditing();
         await this.engine.call("selectSheet", { id: tab.dataset.id });
@@ -722,12 +731,46 @@ export class WorkbookWindow {
         openMenu(this.sheetMenu(tab), { x: event.clientX, y: event.clientY }, { placement: "point" });
       });
     }
+    // A mouse wheel scrolls the tabs sideways; trackpads already scroll them.
+    strip.addEventListener("wheel", (event) => {
+      if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      event.preventDefault();
+      strip.scrollLeft += event.deltaY;
+    }, { passive: false });
     this.tabs.querySelector(".ds-sheet-tabs__add").addEventListener("click", () => this.run("newSheet"));
-    const hiddenButton = this.tabs.querySelector(".app__hidden-sheets");
-    hiddenButton?.addEventListener("click", () => openMenu(hidden.map((sheet) => ({
-      label: sheet.name, action: () => this.engine.call("hideSheet", { id: sheet.id, hidden: false }),
-    })), hiddenButton, { opener: hiddenButton }));
-    this.tabs.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const allSheets = this.tabs.querySelector(".app__all-sheets");
+    allSheets.addEventListener("click", () => openMenu(this.allSheetsMenu(), allSheets, { opener: allSheets, placement: "below" }));
+    this.revealActiveTab();
+  }
+
+  /** Every sheet, the hidden ones last: choosing a hidden one shows it again. */
+  allSheetsMenu() {
+    const info = this.engine.info;
+    const active = this.engine.state?.sheet;
+    const visible = info.sheets.filter((sheet) => !sheet.hidden);
+    const hidden = info.sheets.filter((sheet) => sheet.hidden);
+    return [
+      ...visible.map((sheet) => ({
+        label: sheet.name, checked: sheet.id === active,
+        action: async () => {
+          await this.grid.commitIfEditing();
+          await this.engine.call("selectSheet", { id: sheet.id });
+          this.grid.focus();
+        },
+      })),
+      ...(hidden.length ? [{ separator: true }, { header: t("SheetTabBar.ShowHiddenSheet") }] : []),
+      ...hidden.map((sheet) => ({ label: sheet.name, action: () => this.engine.call("hideSheet", { id: sheet.id, hidden: false }) })),
+    ];
+  }
+
+  /** Scrolls the tab strip just enough to show the active sheet's tab. */
+  revealActiveTab() {
+    const strip = this.tabs.querySelector(".ds-sheet-tabs__strip");
+    const tab = strip?.querySelector('[aria-selected="true"]');
+    if (!tab) return;
+    const left = tab.offsetLeft, right = left + tab.offsetWidth;
+    if (left < strip.scrollLeft) strip.scrollLeft = left;
+    else if (right > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = right - strip.clientWidth;
   }
 
   sheetMenu(tab) {
@@ -847,6 +890,7 @@ export class WorkbookWindow {
     this.updateTitle();
     this.updateInspector();
     for (const tab of this.tabs.querySelectorAll(".ds-sheet-tabs__tab")) tab.setAttribute("aria-selected", String(tab.dataset.id === state.sheet));
+    this.revealActiveTab();
     if (this.hasUnkeptChanges && !this.autosaveTimer) this.scheduleAutosave();
   }
 
