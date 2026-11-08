@@ -376,6 +376,25 @@ a[href]:hover {
   font: var(--ds-type-label);
 }
 
+/* Icon or single-glyph segments are square: as wide as they are tall, plus the 1px divider. */
+.ds-segmented--icons .ds-segmented__segment {
+  width: calc(var(--ds-control-sm) - 1px);
+  min-width: 0;
+  padding: 0;
+}
+
+.ds-segmented--icons .ds-segmented__segment:last-child {
+  width: calc(var(--ds-control-sm) - 2px);
+}
+
+.ds-segmented--icons.ds-segmented--xs .ds-segmented__segment {
+  width: calc(var(--ds-control-xs) - 1px);
+}
+
+.ds-segmented--icons.ds-segmented--xs .ds-segmented__segment:last-child {
+  width: calc(var(--ds-control-xs) - 2px);
+}
+
 .ds-segmented--fill {
   display: flex;
 }

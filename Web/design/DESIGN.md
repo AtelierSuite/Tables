@@ -149,7 +149,7 @@ Each component is taken from macOS and styled with Carbon tokens. Class names fo
 | Push button | NSButton, push | `.ds-button` | Neutral by default; `--primary` is the default (Return) button, at most one per view; `--danger` for destructive defaults; `--bordered` for secondary actions in panels |
 | Borderless button | NSButton, borderless/toolbar | `.ds-button--ghost`, `--icon` | Toggle state with `aria-pressed` |
 | Help button | NSButton, help | `.ds-help-button` | Opens help for the surrounding panel. Square, unlike the round macOS original |
-| Segmented control | NSSegmentedControl | `.ds-segmented` | Replaces tabs, filter chips and toggle groups. Selected segment uses the inverse fill. Select-one: `role="radiogroup"` + `aria-checked`, or `role="tablist"` + `aria-selected`. Select-any: `aria-pressed` |
+| Segmented control | NSSegmentedControl | `.ds-segmented` | Replaces tabs, filter chips and toggle groups. Selected segment uses the inverse fill. Select-one: `role="radiogroup"` + `aria-checked`, or `role="tablist"` + `aria-selected`. Select-any: `aria-pressed`. Add `--icons` when segments hold an icon or a single glyph, so every segment is square |
 | Pop-up button | NSPopUpButton | `.ds-popup` | A native `<select>`, so the OS draws the menu and handles accessibility |
 | Text field | NSTextField | `.ds-text-input` | Carbon field fill + 1px neutral underline; `aria-invalid` shows the error outline |
 | Search field | NSSearchField | `.ds-search` | Magnifier, field, clear button |
