@@ -206,7 +206,7 @@ public enum AutoFill {
                 for symbols in [
                     formatter.weekdaySymbols, formatter.shortWeekdaySymbols,
                     formatter.monthSymbols, formatter.shortMonthSymbols,
-                ] {
+                ] as [[String]?] {
                     guard let symbols, !symbols.isEmpty else { continue }
                     let list = NamedList(names: symbols)
                     if !lists.contains(list) { lists.append(list) }

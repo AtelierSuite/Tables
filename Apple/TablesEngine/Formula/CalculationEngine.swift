@@ -99,6 +99,11 @@ public final class CalculationEngine: FormulaContext {
     /// that rather than on whichever thread asked: a secondary thread's half
     /// megabyte runs out a few hundred levels deep.
     private static func withLargeStack<Result: Sendable>(_ body: @escaping @Sendable () -> Result) -> Result {
+        #if !canImport(Darwin)
+        // WebAssembly has no threads here: the module's own stack, sized when it
+        // is linked, is the one evaluation runs on.
+        return body()
+        #else
         let outcome = LargeStackOutcome<Result>()
         let finished = DispatchSemaphore(value: 0)
         let thread = Thread {
@@ -110,6 +115,7 @@ public final class CalculationEngine: FormulaContext {
         thread.start()
         finished.wait()
         return outcome.value!
+        #endif
     }
 
     private func evaluateAllFormulas() {

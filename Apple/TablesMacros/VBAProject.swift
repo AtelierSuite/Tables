@@ -97,9 +97,29 @@ public struct VBAProject: Hashable, Sendable {
     // MARK: - Text
 
     public static func encoding(forCodePage codePage: UInt32) -> String.Encoding {
+        #if canImport(Darwin)
         let encoding = CFStringConvertWindowsCodepageToEncoding(codePage)
         guard encoding != kCFStringEncodingInvalidId else { return .windowsCP1252 }
         return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))
+        #else
+        // Without CoreFoundation's table, the code pages VBA projects are saved in.
+        switch codePage {
+        case 932: return .shiftJIS
+        case 1200: return .utf16LittleEndian
+        case 1201: return .utf16BigEndian
+        case 1250: return .windowsCP1250
+        case 1251: return .windowsCP1251
+        case 1253: return .windowsCP1253
+        case 1254: return .windowsCP1254
+        case 10000: return .macOSRoman
+        case 20932, 51932: return .japaneseEUC
+        case 28591: return .isoLatin1
+        case 28592: return .isoLatin2
+        case 50220, 50221, 50222: return .iso2022JP
+        case 65001: return .utf8
+        default: return .windowsCP1252
+        }
+        #endif
     }
 
     public static func decode(_ bytes: [UInt8], codePage: UInt32) -> String {

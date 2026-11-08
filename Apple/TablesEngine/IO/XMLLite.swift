@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
 
 /// A tiny XML tree, built on `XMLParser`. Namespace prefixes are
 /// dropped so `<x:sheetData>` and `<sheetData>` look the same to callers.

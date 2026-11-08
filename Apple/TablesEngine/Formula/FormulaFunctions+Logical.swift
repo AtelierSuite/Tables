@@ -159,7 +159,8 @@ extension FormulaFunctions {
 
 public enum FormulaLogic {
     /// The most cells a generated array may have, Excel's own grid size.
-    public static let maximumArrayCells = 1_048_576 * 16_384
+    /// Clamped where Int is 32 bits (WebAssembly), which no real array reaches.
+    public static let maximumArrayCells = Int(clamping: Int64(1_048_576) * 16_384)
 
     /// The evaluator `LET` runs its calculation in, with each name bound in
     /// turn so later values can use earlier names, and that calculation.

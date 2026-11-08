@@ -326,7 +326,11 @@ public final class VBAFileSystem {
     private func flush(_ file: OpenFile) throws {
         guard file.isDirty else { return }
         do {
+            #if os(WASI)
+            try Data(file.bytes).write(to: file.url)
+            #else
             try Data(file.bytes).write(to: file.url, options: .atomic)
+            #endif
             file.isDirty = false
         } catch {
             throw Self.permissionDenied

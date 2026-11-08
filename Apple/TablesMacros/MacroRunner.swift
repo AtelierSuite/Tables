@@ -2,6 +2,7 @@ import Foundation
 import Synchronization
 import TablesEngine
 
+#if canImport(Darwin)
 /// Runs a workbook's macros away from the main thread, and carries their
 /// `MsgBox` and `InputBox` questions to the user and the answers back.
 ///
@@ -167,6 +168,8 @@ public final class MacroRunner {
     }
 }
 
+#endif
+
 /// The flag a running macro checks between statements.
 public final class MacroCancellation: Sendable {
     private let flag = Mutex(false)
@@ -181,6 +184,7 @@ public struct MacroPromptAnswer: Sendable {
     public var text: String?
 }
 
+#if canImport(Darwin)
 /// Where a macro's thread waits for the user. The macro blocks in `ask`
 /// until the main thread calls `answer`; an answer with nobody waiting —
 /// Stop pressed between questions — is dropped rather than left to answer
@@ -219,3 +223,4 @@ public final class MacroPromptChannel: Sendable {
         if delivered { semaphore.signal() }
     }
 }
+#endif
