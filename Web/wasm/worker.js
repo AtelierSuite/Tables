@@ -1,4 +1,4 @@
-// The engine's worker: loads tables-engine.wasm.gz and answers the page's requests
+// The engine's worker: loads tables-engine.bin (the gzipped engine) and answers the page's requests
 // one at a time, off the main thread, so opening or recalculating a large
 // workbook never stops the window from responding.
 //
@@ -11,11 +11,12 @@ import { Engine } from "./engine.js";
 const timeZone = new URL(self.location.href).searchParams.get("tz");
 
 /**
- * The engine, kept gzipped (build/tables-engine.wasm.gz) to fit hosts' file size limits.
+ * The engine, kept gzipped (build/tables-engine.bin) to fit hosts' file size limits, and not
+ * named .gz because Cloudflare challenges requests for .gz files.
  * Decompressed here, unless a server already did that on the way.
  */
 async function engineModule() {
-  const response = await fetch(new URL("../build/tables-engine.wasm.gz", import.meta.url));
+  const response = await fetch(new URL("../build/tables-engine.bin", import.meta.url));
   if (!response.ok) throw new Error(`Couldn't load the engine (${response.status})`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return bytes;

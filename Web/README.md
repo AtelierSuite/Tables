@@ -48,7 +48,7 @@ On `localhost` the offline service worker only installs when the address has `?o
 
 The app is published at [tables.atelier.ktgk.app](https://tables.atelier.ktgk.app) as a Cloudflare Worker that serves only static files (`wrangler.jsonc`).
 
-- `build.sh` assembles the site into `dist/`: just the files the page uses, plus `deploy/_headers`. The engine goes up gzipped (`build/tables-engine.wasm.gz`, about 20 MB) because Cloudflare serves files of at most 25 MiB; the worker decompresses it. `build.sh` stops if any file is too large.
+- `build.sh` assembles the site into `dist/`: just the files the page uses, plus `deploy/_headers`. The engine goes up gzipped (`build/tables-engine.bin`, about 20 MB; not named `.gz`, which Cloudflare answers with a bot challenge) because Cloudflare serves files of at most 25 MiB; the worker decompresses it. `build.sh` stops if any file is too large.
 - Every push to `main` that touches `Web/` or `Engine/` builds, tests and deploys through `.github/workflows/web.yml`. Pull requests are built and tested only. The workflow runs `deploy/ci-build.sh`, which installs Swift and its SDK for WebAssembly, builds the site and runs the engine smoke tests. Swift is kept in the Actions cache, so it's only downloaded again when that script changes. The workflow needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 - To deploy by hand from a Mac: `./build.sh && npx wrangler deploy`. Wrangler is only the deploy tool, not part of the app.
 

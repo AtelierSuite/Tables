@@ -2,8 +2,10 @@
 # Builds what the web app needs that isn't checked in, into Web/build/:
 #
 #   tables-engine.wasm      the engine from Engine/, compiled for WebAssembly
-#   tables-engine.wasm.gz   the same, compressed: what the page loads, as hosts
-#                           limit file sizes (Cloudflare: 25 MiB) and it's a third the size
+#   tables-engine.bin       the same, gzipped: what the page loads, as hosts
+#                           limit file sizes (Cloudflare: 25 MiB) and it's a third the size.
+#                           Not named .gz: Cloudflare's security rules challenge any
+#                           request for a .gz file, which a worker's fetch can't pass
 #   strings/*.json       a string table for each language
 #   version.js           the files the service worker keeps for offline use, and their version
 #
@@ -31,9 +33,9 @@ if [[ "${1:-}" != "--skip-engine" ]]; then
     BIN="$("$SWIFT" build --swift-sdk "$SDK" --product TablesWasm -c release -Xswiftc -gnone -Xlinker --strip-all --show-bin-path)"
     cp "$BIN/TablesWasm.wasm" "$WEB/build/tables-engine.wasm"
 fi
-if [[ ! "$WEB/build/tables-engine.wasm.gz" -nt "$WEB/build/tables-engine.wasm" ]]; then
+if [[ ! "$WEB/build/tables-engine.bin" -nt "$WEB/build/tables-engine.wasm" ]]; then
     echo "Compressing the engine…"
-    gzip -9 -n -c "$WEB/build/tables-engine.wasm" > "$WEB/build/tables-engine.wasm.gz"
+    gzip -9 -n -c "$WEB/build/tables-engine.wasm" > "$WEB/build/tables-engine.bin"
 fi
 
 echo "Converting strings…"
@@ -43,7 +45,7 @@ echo "Converting strings…"
 echo "Listing files for offline use…"
 cd "$WEB"
 FILES=$( { echo index.html; echo manifest.webmanifest;
-    find app design wasm build -type f \( -name "*.js" -o -name "*.css" -o -name "*.json" -o -name "*.wasm.gz" -o -name "*.png" -o -name "*.svg" \) \
+    find app design wasm build -type f \( -name "*.js" -o -name "*.css" -o -name "*.json" -o -name "*.bin" -o -name "*.png" -o -name "*.svg" \) \
         -not -path "wasm/.build/*" -not -path "wasm/Sources/*" -not -name "lint.mjs" -not -name "serve.mjs" -not -name "version.js"; } | sort)
 if command -v sha256sum > /dev/null; then SHA256="sha256sum"; else SHA256="shasum -a 256"; fi
 VERSION=$(echo "$FILES" | xargs $SHA256 | $SHA256 | cut -c1-16)
@@ -76,4 +78,4 @@ if [[ -n "$TOO_BIG" ]]; then
     exit 1
 fi
 
-echo "Built Tables $APP_VERSION (build $VERSION, $(du -h "$WEB/build/tables-engine.wasm" | cut -f1) engine, $(du -h "$WEB/build/tables-engine.wasm.gz" | cut -f1) compressed) into $WEB/build and $WEB/dist"
+echo "Built Tables $APP_VERSION (build $VERSION, $(du -h "$WEB/build/tables-engine.wasm" | cut -f1) engine, $(du -h "$WEB/build/tables-engine.bin" | cut -f1) compressed) into $WEB/build and $WEB/dist"
