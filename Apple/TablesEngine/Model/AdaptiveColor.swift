@@ -1,4 +1,8 @@
+#if canImport(SwiftUI)
 import SwiftUI
+#else
+import Foundation
+#endif
 
 /// Adapts document colours to the current appearance.
 ///

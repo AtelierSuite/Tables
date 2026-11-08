@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -336,3 +337,18 @@ private struct PreviewCanvas {
         }
     }
 }
+#else
+import Foundation
+
+/// Without a graphics stack (WebAssembly) no previews are drawn, so saving keeps
+/// the ones the document already had.
+public enum NumbersPreview {
+    public static let names = ["preview.jpg", "preview-web.jpg", "preview-micro.jpg"]
+
+    public static func previews(
+        replacing originals: [String: Data], workbook: Workbook, source: NumbersSource
+    ) -> [String: Data] {
+        [:]
+    }
+}
+#endif

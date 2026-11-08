@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(SwiftUI)
 import SwiftUI
+#endif
 
 public enum HorizontalTextAlignment: String, Hashable, Sendable, CaseIterable {
     case automatic, leading, center, trailing
@@ -42,6 +44,7 @@ public enum VerticalTextAlignment: String, Hashable, Sendable, CaseIterable {
         }
     }
 
+    #if canImport(SwiftUI)
     public var alignment: Alignment {
         switch self {
         case .top: return .top
@@ -49,6 +52,7 @@ public enum VerticalTextAlignment: String, Hashable, Sendable, CaseIterable {
         case .bottom: return .bottom
         }
     }
+    #endif
 }
 
 public struct BorderEdges: OptionSet, Hashable, Sendable {
@@ -487,6 +491,10 @@ extension Color {
 
     /// "AARRGGBB" representation, for round-tripping through OOXML.
     public var argbHex: String? {
+        #if !canImport(SwiftUI)
+        let components = [opacity, red, green, blue].map { UInt8(max(0, min(1, $0)) * 255) }
+        return components.map { String(format: "%02X", $0) }.joined()
+        #else
         #if canImport(UIKit)
         typealias PlatformColor = UIColor
         #else
@@ -501,6 +509,7 @@ extension Color {
         #endif
         let components = [alpha, red, green, blue].map { UInt8(max(0, min(1, $0)) * 255) }
         return components.map { String(format: "%02X", $0) }.joined()
+        #endif
     }
 }
 
