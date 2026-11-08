@@ -107,7 +107,8 @@ export class WorkbookWindow {
     this.bindEngine();
     this.bindKeyboard();
     this.applyAppearance(readSetting("appearance", ""));
-    this.setInspectorVisible(readSetting("inspector", "1") === "1");
+    // On a phone the inspector covers the sheet, so it starts closed there.
+    this.setInspectorVisible(readSetting("inspector", "1") === "1" && !matchMedia("(max-width: 720px)").matches, { remember: false });
 
     files.onLaunchFiles((file) => file && this.openFile(file));
     files.onDroppedFiles(document.body, (file) => file && this.openFile(file), (hovering) => {
@@ -231,7 +232,7 @@ export class WorkbookWindow {
         this.grid.focus();
       });
     }
-    attachToolbarOverflow(toolbar, { label: t("Toolbar.More"), before: toolbar.querySelector("#inspector-toggle") });
+    this.toolbarOverflow = attachToolbarOverflow(toolbar, { label: t("Toolbar.More"), before: toolbar.querySelector("#inspector-toggle") });
   }
 
   buildFormulaBar() {
@@ -827,10 +828,10 @@ export class WorkbookWindow {
     }
   }
 
-  setInspectorVisible(visible) {
+  setInspectorVisible(visible, { remember = true } = {}) {
     this.inspector.hidden = !visible;
     this.root.querySelector("#inspector-toggle").setAttribute("aria-pressed", String(visible));
-    writeSetting("inspector", visible ? "1" : "0");
+    if (remember) writeSetting("inspector", visible ? "1" : "0");
   }
 
   // MARK: - Sheet tabs
@@ -1317,6 +1318,7 @@ export class WorkbookWindow {
   showStart() {
     this.document = null;
     this.root.classList.add("is-empty");
+    this.toolbarOverflow.layout();
     this.start.hidden = false;
     this.updateTitle();
     this.refreshRecents();
@@ -1373,6 +1375,8 @@ export class WorkbookWindow {
     this.document = record;
     this.keptVersion = this.engine.state?.versions.content;
     this.root.classList.remove("is-empty");
+    // The toolbar's items come back without the toolbar resizing, so its overflow needs laying out again.
+    this.toolbarOverflow.layout();
     this.start.hidden = true;
     this.banners.replaceChildren();
     this.updateTitle();
