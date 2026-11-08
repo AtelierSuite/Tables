@@ -30,33 +30,46 @@ function registerServiceWorker(app) {
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
   if (local && !new URLSearchParams(location.search).has("offline")) return;
   const firstInstall = !navigator.serviceWorker.controller;
-  let restarting = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (restarting) location.reload();
-  });
-  navigator.serviceWorker.register(new URL("../sw.js", import.meta.url), { scope: "../" }).then((registration) => {
-    const offerRestart = (worker) => app.showMessage(t("Web.Update.Ready"), "info", {
-      sticky: true,
-      action: {
-        label: t("Web.Update.Restart"),
-        run: async () => {
-          await app.flushAutosave();
-          restarting = true;
-          worker.postMessage("activate");
-        },
-      },
-    });
-    if (registration.waiting && navigator.serviceWorker.controller) offerRestart(registration.waiting);
-    registration.addEventListener("updatefound", () => {
-      const worker = registration.installing;
-      worker?.addEventListener("statechange", () => {
-        if (worker.state !== "installed") return;
-        if (navigator.serviceWorker.controller) offerRestart(worker);
-        else if (firstInstall) app.showMessage(t("Web.Offline.Ready"), "success");
-      });
-    });
+  navigator.serviceWorker.register(new URL("../sw.js", import.meta.url), { scope: "../" }).then(async (registration) => {
+    const installing = Boolean(registration.installing);
+    await navigator.serviceWorker.ready;
+    if (firstInstall && installing) app.showMessage(t("Web.Offline.Ready"), "success");
+    watchForUpdates(app, registration);
   }).catch(() => {
     // Without a service worker Tables still works; it just needs the network to load.
+  });
+}
+
+// The service worker never updates by itself. The page asks it now and then
+// whether a new version is published and, if so, offers the toolbar's Update
+// button, which downloads it and reloads.
+function watchForUpdates(app, registration) {
+  const ask = (message, onReply) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (event) => onReply(event.data);
+    registration.active?.postMessage(message, [channel.port2]);
+  };
+  const download = (onProgress) => new Promise((resolve, reject) => ask({ type: "download" }, (reply) => {
+    if (reply.type === "progress") onProgress(reply.total ? reply.loaded / reply.total : 0);
+    else if (reply.type === "downloaded") resolve();
+    else if (reply.type === "failed") reject(new Error(reply.message));
+  }));
+  let offered = false;
+  let lastCheck = 0;
+  const check = () => {
+    if (offered || !navigator.onLine || Date.now() - lastCheck < 30 * 60 * 1000) return;
+    lastCheck = Date.now();
+    ask({ type: "check" }, (reply) => {
+      if (!reply.available || offered) return;
+      offered = true;
+      app.offerUpdate(download);
+    });
+  };
+  check();
+  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && check());
+  window.addEventListener("online", () => {
+    lastCheck = 0;
+    check();
   });
 }
 

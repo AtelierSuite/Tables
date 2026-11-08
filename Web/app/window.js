@@ -214,7 +214,17 @@ export class WorkbookWindow {
         this.grid.focus();
       });
     }
-    attachToolbarOverflow(toolbar, { label: t("Toolbar.More"), before: toolbar.querySelector("#inspector-toggle") });
+    this.toolbarOverflow = attachToolbarOverflow(toolbar, { label: t("Toolbar.More"), before: toolbar.querySelector("#inspector-toggle") });
+    // Added after the overflow is set up, so it never moves into the » menu
+    // and stays hidden until offerUpdate() shows it.
+    const update = document.createElement("button");
+    update.type = "button";
+    update.className = "ds-button ds-button--bordered ds-button--xs app__update";
+    update.textContent = t("Web.Update.Button");
+    update.title = t("Web.Update.Available");
+    update.hidden = true;
+    toolbar.append(update);
+    this.updateButton = update;
   }
 
   buildFormulaBar() {
@@ -1035,6 +1045,73 @@ export class WorkbookWindow {
     backdrop.addEventListener("keydown", (event) => event.key === "Escape" && close());
     this.root.append(backdrop);
     backdrop.querySelector("button").focus();
+  }
+
+  /**
+   * Shows the toolbar's Update button. Pressing it downloads the new version
+   * with `download(onProgress)` in a sheet, then reloads into it.
+   */
+  offerUpdate(download) {
+    this.updateButton.hidden = false;
+    this.toolbarOverflow.layout();
+    this.updateButton.onclick = () => this.showUpdate(download);
+  }
+
+  showUpdate(download) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "ds-sheet-backdrop app__sheet-backdrop";
+    backdrop.innerHTML = `
+      <div class="ds-sheet" role="dialog" aria-labelledby="update-title" aria-describedby="update-message">
+        <div class="ds-sheet__body app__update-body">
+          <h2 class="ds-sheet__title" id="update-title">${escapeHTML(t("Web.Update.Title"))}</h2>
+          <p class="ds-sheet__message" id="update-message"></p>
+          <div class="ds-progress" role="progressbar" aria-labelledby="update-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="ds-progress__bar"></div></div>
+        </div>
+        <div class="ds-sheet__buttons">
+          <button class="ds-button" type="button" data-cancel>${escapeHTML(t("Web.Common.Cancel"))}</button>
+          <button class="ds-button ds-button--primary" type="button" data-retry hidden>${escapeHTML(t("Web.Update.TryAgain"))}</button>
+        </div>
+      </div>`;
+    const message = backdrop.querySelector("#update-message");
+    const progress = backdrop.querySelector(".ds-progress");
+    const retry = backdrop.querySelector("[data-retry]");
+    const setProgress = (fraction) => {
+      const percent = Math.round(Math.min(Math.max(fraction, 0), 1) * 100);
+      progress.style.setProperty("--ds-progress", `${percent}%`);
+      progress.setAttribute("aria-valuenow", String(percent));
+    };
+    let open = true;
+    const close = () => {
+      // The download carries on in the service worker; the next attempt picks up from there.
+      open = false;
+      dismissSheet(backdrop);
+      this.grid.focus();
+    };
+    const attempt = async () => {
+      message.textContent = t("Web.Update.Downloading");
+      retry.hidden = true;
+      progress.hidden = false;
+      setProgress(0);
+      try {
+        await download((fraction) => open && setProgress(fraction));
+      } catch {
+        if (!open) return;
+        message.textContent = t("Web.Update.Failed");
+        progress.hidden = true;
+        retry.hidden = false;
+        retry.focus();
+        return;
+      }
+      if (!open) return;
+      await this.flushAutosave();
+      location.reload();
+    };
+    backdrop.querySelector("[data-cancel]").addEventListener("click", close);
+    retry.addEventListener("click", attempt);
+    backdrop.addEventListener("keydown", (event) => event.key === "Escape" && close());
+    this.root.append(backdrop);
+    backdrop.querySelector("[data-cancel]").focus();
+    attempt();
   }
 
   /** A window-modal sheet asking for one line of text. Resolves with it, or null on Cancel. */

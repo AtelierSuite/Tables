@@ -108,7 +108,7 @@ body {
   background: var(--ds-background);
 }
 
-.app.is-empty #toolbar > :not(.ds-toolbar__title):not(.ds-toolbar__spacer),
+.app.is-empty #toolbar > :not(.ds-toolbar__title):not(.ds-toolbar__spacer):not(.app__update),
 .app.is-empty .app__grid,
 .app.is-empty .app__tabs,
 .app.is-empty .app__accessory,
@@ -323,6 +323,10 @@ body {
 
 .app__sheet-backdrop .ds-text-input {
   margin-top: var(--ds-spacing-04);
+}
+
+.app__update-body .ds-progress {
+  margin-top: var(--ds-spacing-05);
 }
 
 .app__about-suite {

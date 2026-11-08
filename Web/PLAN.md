@@ -46,8 +46,8 @@ The base app works end to end, including offline: start screen, new and opened w
 │   tables-engine.wasm: Engine/TablesEngine + Engine/TablesMacros + engine/swift/Sources  │
 │   engine/wasi.js: clocks, randomness, console; no file system, no network               │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ Service worker (sw.js): caches every file listed in build/version.js at install and     │
-│ answers every request from that cache. A new build waits until the user restarts.       │
+│ Service worker (sw.js): caches every file listed in build/version.json at install and   │
+│ answers every request from that cache. New builds download only from the Update button. │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
