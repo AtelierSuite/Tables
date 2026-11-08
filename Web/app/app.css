@@ -331,6 +331,10 @@ body {
   margin-top: var(--ds-spacing-04);
 }
 
+.app__about-suite {
+  margin-top: var(--ds-spacing-03);
+}
+
 .app__about-icon {
   fill: none;
   color: var(--ds-interactive);

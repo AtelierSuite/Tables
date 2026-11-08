@@ -889,11 +889,13 @@ export class WorkbookWindow {
           <div>
             <h2 class="ds-sheet__title" id="about-title">Tables</h2>
             <p class="ds-sheet__message" id="about-message"></p>
+            <p class="ds-sheet__message app__about-suite"><a href="https://atelier.ktgk.app" target="_blank" rel="noopener"></a></p>
           </div>
         </div>
         <div class="ds-sheet__buttons"><button class="ds-button ds-button--primary">${escapeHTML(t("Common.OK"))}</button></div>
       </div>`;
     backdrop.querySelector("#about-message").textContent = t("Web.About.Message");
+    backdrop.querySelector(".app__about-suite a").textContent = t("Web.About.Suite");
     const close = () => backdrop.remove();
     backdrop.querySelector("button").addEventListener("click", close);
     backdrop.addEventListener("keydown", (event) => event.key === "Escape" && close());

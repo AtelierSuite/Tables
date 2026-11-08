@@ -4446,6 +4446,41 @@
         }
       }
     },
+    "Web.About.Suite" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Part of the Atelier Suite"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atelier Suite の一部"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atelier Suite의 일부"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atelier Suite 的一部分"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atelier Suite 的一部分"
+          }
+        }
+      }
+    },
     "Web.Appearance.Dark" : {
       "extractionState" : "manual",
       "localizations" : {
