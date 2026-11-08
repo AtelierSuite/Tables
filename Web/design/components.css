@@ -1356,6 +1356,18 @@ textarea.ds-text-input {
   justify-content: center;
   align-items: flex-start;
   background: var(--ds-overlay);
+  animation: ds-fade-in var(--ds-duration-moderate-02) var(--ds-ease-entrance);
+}
+
+/* Closing: the sheet slides back up under the toolbar as the backdrop fades.
+   Add .is-closing, then remove the backdrop when it ends (design/sheets.js). */
+.ds-sheet-backdrop.is-closing {
+  pointer-events: none;
+  animation: ds-fade-out var(--ds-duration-moderate-01) var(--ds-ease-exit) forwards;
+}
+
+.ds-sheet-backdrop.is-closing .ds-sheet {
+  animation: ds-sheet-out var(--ds-duration-moderate-01) var(--ds-ease-exit) forwards;
 }
 
 .ds-sheet {
@@ -1368,6 +1380,19 @@ textarea.ds-text-input {
 @keyframes ds-sheet-in {
   from { transform: translateY(-16px); opacity: 0; }
   to { transform: none; opacity: 1; }
+}
+
+@keyframes ds-sheet-out {
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(-16px); opacity: 0; }
+}
+
+@keyframes ds-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes ds-fade-out {
+  to { opacity: 0; }
 }
 
 .ds-sheet__body {
