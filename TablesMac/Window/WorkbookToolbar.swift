@@ -63,6 +63,9 @@ final class WorkbookToolbar: NSObject, NSToolbarDelegate {
                 target: self, action: #selector(styleGroupChanged(_:))
             )
             group.label = String(localized: "Mac.Toolbar.Style")
+            // Shown when the toolbar is too narrow and the group collapses
+            // into a pull-down; without it the pull-down is an empty pill.
+            group.image = NSImage(systemSymbolName: "textformat", accessibilityDescription: group.label)
             styleGroup = group
             return group
         case Item.alignment:
