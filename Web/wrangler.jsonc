@@ -1,0 +1,21 @@
+// Publishes the web app (Web/dist, assembled by build.sh) to Cloudflare as a
+// static-assets Worker at tables.atelier.ktgk.app.
+//
+//   ./build.sh && npx wrangler deploy
+//
+// Deploys from GitHub run in .github/workflows/web.yml.
+{
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "atelier-tables",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+  "routes": [
+    { "pattern": "tables.atelier.ktgk.app", "custom_domain": true }
+  ],
+  "workers_dev": false,
+  "preview_urls": false
+}

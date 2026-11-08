@@ -31,3 +31,5 @@ playground.xcworkspace
 
 # Web app build output (Web/build.sh)
 Web/build/
+Web/dist/
+.wrangler/

@@ -7,6 +7,9 @@
 #   strings/*.json       a string table for each language
 #   version.js           the files the service worker keeps for offline use, and their version
 #
+# and assembles the site to publish, just the files the page uses, into Web/dist/
+# (deployed to Cloudflare from there; see wrangler.jsonc).
+#
 # Pass --skip-engine to refresh only the strings and version.js, after changing
 # the page's own files.
 #
@@ -55,4 +58,19 @@ APP_VERSION=$(sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([^"]+)
     echo "];"
 } > "$WEB/build/version.js"
 
-echo "Built Tables $APP_VERSION (build $VERSION, $(du -h "$WEB/build/tables-engine.wasm" | cut -f1) engine, $(du -h "$WEB/build/tables-engine.wasm.gz" | cut -f1) compressed) into $WEB/build"
+echo "Assembling the site…"
+rm -rf "$WEB/dist"
+mkdir -p "$WEB/dist"
+{ echo "$FILES"; echo sw.js; echo build/version.js; } | while read -r file; do
+    mkdir -p "$WEB/dist/$(dirname "$file")"
+    cp "$file" "$WEB/dist/$file"
+done
+cp "$WEB/deploy/_headers" "$WEB/dist/_headers"
+# Cloudflare serves files up to 25 MiB.
+TOO_BIG=$(find "$WEB/dist" -type f -size +26214400c)
+if [[ -n "$TOO_BIG" ]]; then
+    echo "Too large to publish (over 25 MiB): $TOO_BIG" >&2
+    exit 1
+fi
+
+echo "Built Tables $APP_VERSION (build $VERSION, $(du -h "$WEB/build/tables-engine.wasm" | cut -f1) engine, $(du -h "$WEB/build/tables-engine.wasm.gz" | cut -f1) compressed) into $WEB/build and $WEB/dist"
