@@ -17,7 +17,9 @@ export class EngineError extends Error {
 export class EngineClient extends EventTarget {
   constructor() {
     super();
-    this.worker = new Worker(new URL("../wasm/worker.js", import.meta.url), { type: "module" });
+    const url = new URL("../wasm/worker.js", import.meta.url);
+    url.searchParams.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC");
+    this.worker = new Worker(url, { type: "module" });
     this.pending = new Map();
     this.nextId = 1;
     this.state = null;

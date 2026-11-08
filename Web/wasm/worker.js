@@ -7,7 +7,10 @@
 
 import { Engine } from "./engine.js";
 
+// The page passes the user's time zone in the worker's address; Foundation reads it from TZ.
+const timeZone = new URL(self.location.href).searchParams.get("tz");
 const ready = Engine.load(fetch(new URL("../build/tables-engine.wasm", import.meta.url)), {
+  env: timeZone ? { TZ: timeZone } : {},
   stdout: (line) => console.log("[engine]", line),
   stderr: (line) => console.warn("[engine]", line),
 });
