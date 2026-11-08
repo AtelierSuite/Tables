@@ -240,7 +240,7 @@
               <summary><svg class="ds-icon ds-disclosure__triangle"><use href="#i-chevron-right"/></svg>Fill</summary>
               <div class="ds-disclosure__body ds-form">
                 <span class="ds-form__label">Colour</span>
-                <span class="ds-form__control"><button class="ds-color-well" aria-label="Fill Colour" style="--ds-swatch: #d0e2ff"><span class="ds-color-well__swatch"></span></button></span>
+                <span class="ds-form__control"><input type="color" class="ds-color-well" id="fill-well" value="#d0e2ff" aria-label="Fill Colour"></span>
                 <span class="ds-form__label">Opacity</span>
                 <span class="ds-form__control" style="flex: 1"><span class="ds-slider" style="flex: 1"><input type="range" value="80" aria-label="Opacity"><span class="ds-numeric">80%</span></span></span>
               </div>
@@ -379,7 +379,8 @@
           <div class="ds-swatches" role="radiogroup" aria-label="Colours" id="popover-swatches"></div>
           <div style="display: flex; justify-content: space-between; margin-top: var(--ds-spacing-05)">
             <button class="ds-button ds-button--ghost ds-button--xs">No Fill</button>
-            <button class="ds-button ds-button--bordered ds-button--xs">More Colours…</button>
+            <button class="ds-button ds-button--bordered ds-button--xs" id="more-colours">More Colours…</button>
+            <input type="color" class="ds-visually-hidden" id="more-colours-picker" value="#d0e2ff" tabindex="-1" aria-label="More Colours">
           </div>
         </div>
       </div>
@@ -511,16 +512,31 @@
   const palette = ["#161616", "#525252", "#8d8d8d", "#c6c6c6", "#e0e0e0", "#f4f4f4", "#ffffff", "#2ea666",
     "#da1e28", "#ff832b", "#f1c21b", "#24a148", "#009d9a", "#1192e8", "#8a3ffc", "#ee5396",
     "#ffd7d9", "#ffd9be", "#fcf4d6", "#defbe6", "#d9fbfb", "#d0e2ff", "#e8daff", "#ffd6e8"];
+  // The colour popover: swatches for quick picks, "More Colours…" for the system picker.
+  const fillWell = document.getElementById("fill-well");
   const swatchGrid = document.getElementById("popover-swatches");
+  const markSwatch = (colour) => {
+    for (const s of swatchGrid.children) s.setAttribute("aria-checked", String(s.dataset.colour === colour));
+  };
   for (const colour of palette) {
     const b = document.createElement("button");
     b.className = "ds-swatches__swatch";
+    b.dataset.colour = colour;
     b.setAttribute("role", "radio");
-    b.setAttribute("aria-checked", String(colour === "#d0e2ff"));
     b.setAttribute("aria-label", colour);
     b.style.setProperty("--ds-swatch", colour);
+    b.addEventListener("click", () => { fillWell.value = colour; markSwatch(colour); });
     swatchGrid.append(b);
   }
+  markSwatch(fillWell.value);
+  const morePicker = document.getElementById("more-colours-picker");
+  document.getElementById("more-colours").addEventListener("click", () => {
+    morePicker.value = fillWell.value;
+    try { morePicker.showPicker(); } catch { morePicker.click(); }
+  });
+  morePicker.addEventListener("input", () => { fillWell.value = morePicker.value; markSwatch(morePicker.value); });
+  fillWell.addEventListener("input", () => markSwatch(fillWell.value));
+
   // ---- Menus: data shaped like the Mac app's main menu (strings from its catalogues).
   const isApple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   const key = (k, { shift = false, alt = false } = {}) =>

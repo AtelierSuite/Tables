@@ -145,7 +145,7 @@ Each component is taken from macOS and styled with Carbon tokens. Class names fo
 | Checkbox, radio | NSButton, check/radio | `.ds-check`, `.ds-radio` | Supports indeterminate |
 | Switch | NSSwitch | `.ds-switch` | `role="switch"`; for settings that take effect immediately |
 | Slider | NSSlider | `.ds-slider` | Shows its value beside it |
-| Colour well | NSColorWell | `.ds-color-well` | Opens the colour popover |
+| Colour well | NSColorWell | `.ds-color-well` | An `<input type="color">`, so it opens the system colour picker: the Colours panel on macOS (directly in Chrome and Firefox; Safari first shows its swatch popover with "Show Colors…"), the system dialog in Firefox on Windows and Linux, and the browser's own picker elsewhere. Opacity is a separate slider because the native picker has no alpha. The colour popover's "More Colours…" opens the same picker with `showPicker()` |
 | Disclosure | NSDisclosureButton | `.ds-disclosure` | `<details>`/`<summary>`; inspector sections |
 | Group box | NSBox | `.ds-group-box` | Titled group on layer-01 |
 | Form rows | Inspector / Settings layout | `.ds-form` | Right-aligned labels, controls to the right |
