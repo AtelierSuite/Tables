@@ -178,6 +178,19 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
     @objc func orderFrontFillColorPanel(_ sender: Any?) { showColorPanel(for: .fill) }
     @objc func orderFrontTextColorPanel(_ sender: Any?) { showColorPanel(for: .text) }
 
+    // MARK: - Fonts panel
+
+    /// Opens the system Fonts panel on the selected cells' font. What is picked
+    /// there comes back through `changeFont(_:)`.
+    @objc func showFonts(_ sender: Any?) {
+        guard let document else { return }
+        let style = document.state.representativeStyle(in: document.workbook)
+        let manager = NSFontManager.shared
+        manager.target = self
+        manager.setSelectedFont(CellRenderer.font(for: style, zoom: 1), isMultiple: false)
+        manager.orderFrontFontPanel(self)
+    }
+
     private func showColorPanel(for target: ColorTarget) {
         guard let document else { return }
         colorTarget = target
@@ -548,6 +561,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
              #selector(alignHorizontally(_:)), #selector(alignVertically(_:)), #selector(toggleWrapText(_:)),
              #selector(orderFrontFillColorPanel(_:)), #selector(orderFrontTextColorPanel(_:)), #selector(removeFill(_:)):
             return isCells && formatting.contains(.styles)
+        case #selector(showFonts(_:)):
+            return isCells && formatting.contains(.fonts)
         case #selector(increaseIndent(_:)), #selector(decreaseIndent(_:)):
             return isCells && formatting.contains(.indents)
         case #selector(setNumberFormat(_:)):
@@ -615,5 +630,32 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         if let item = sender as? NSMenuItem { return item.representedObject as? String }
         if let control = sender as? NSControl { return control.identifier?.rawValue }
         return nil
+    }
+}
+
+extension WorkbookViewController: NSFontChanging {
+    /// Applies what was picked in the Fonts panel to each selected cell's own
+    /// font, as text views do: choosing a family keeps each cell's size, bold
+    /// and italic, and choosing a size keeps each cell's family.
+    func changeFont(_ sender: NSFontManager?) {
+        let manager = sender ?? NSFontManager.shared
+        guard document?.state.formatting.contains(.fonts) == true else { return }
+        edit { state, workbook in
+            state.applyStyle(in: &workbook) { style in
+                let converted = manager.convert(CellRenderer.font(for: style, zoom: 1))
+                let family = converted.familyName ?? ""
+                let traits = manager.traits(of: converted)
+                // The system font's family is private (".AppleSystemUIFont").
+                style.fontName = family.isEmpty || family.hasPrefix(".") ? CellStyle.systemFontName : family
+                style.fontSize = min(409, max(1, converted.pointSize))
+                style.isBold = traits.contains(.boldFontMask)
+                style.isItalic = traits.contains(.italicFontMask)
+            }
+        }
+    }
+
+    /// Only what a cell keeps: the face and its size.
+    func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask {
+        [.collection, .face, .size]
     }
 }

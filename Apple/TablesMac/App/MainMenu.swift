@@ -148,6 +148,8 @@ enum MainMenu {
     private static func formatMenu() -> NSMenu {
         let menu = NSMenu(title: String(localized: "Mac.Menu.Format"))
         let font = NSMenu(title: String(localized: "Mac.Menu.Font"))
+        font.addItem(item(String(localized: "Mac.Menu.ShowFonts"), #selector(WorkbookViewController.showFonts(_:)), "t"))
+        font.addItem(.separator())
         font.addItem(item(String(localized: "Toolbar.Bold"), #selector(WorkbookViewController.toggleBold(_:)), "b"))
         font.addItem(item(String(localized: "Toolbar.Italic"), #selector(WorkbookViewController.toggleItalic(_:)), "i"))
         font.addItem(item(String(localized: "Toolbar.Underline"),

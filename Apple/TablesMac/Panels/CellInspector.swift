@@ -56,6 +56,18 @@ struct CellInspector: View {
                 },
             ])
 
+            if state.formatting.contains(.fonts) {
+                InspectorRow("Format.Text.Font") {
+                    InspectorPopup(selection: fontFamily) {
+                        Text("Format.Text.Font.System").tag("")
+                        Divider()
+                        ForEach(fontFamilies, id: \.self) { family in
+                            Text(verbatim: family).tag(family)
+                        }
+                    }
+                }
+            }
+
             InspectorRow("Format.Text.Size") {
                 HStack(spacing: 4) {
                     TextField("", value: fontSize, format: .number.precision(.fractionLength(0...1)))
@@ -79,6 +91,30 @@ struct CellInspector: View {
             }
         }
     }
+
+    /// The selected cells' family, "" standing for the system font.
+    private var fontFamily: Binding<String> {
+        Binding(
+            get: { style.displayFontName ?? "" },
+            set: { family in
+                state.applyStyle(in: &workbook) { $0.fontName = family.isEmpty ? CellStyle.systemFontName : family }
+            }
+        )
+    }
+
+    /// Every installed family, and the selection's own when it isn't installed,
+    /// so the pop-up can still show what the cells ask for.
+    private var fontFamilies: [String] {
+        var families = Self.installedFamilies
+        if let current = style.displayFontName, !families.contains(current) {
+            families.insert(current, at: 0)
+        }
+        return families
+    }
+
+    private static let installedFamilies = NSFontManager.shared.availableFontFamilies
+        .filter { !$0.hasPrefix(".") }
+        .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
 
     private var fontSize: Binding<Double> {
         Binding(
