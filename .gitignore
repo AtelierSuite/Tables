@@ -28,3 +28,6 @@ Packages/
 # Playgrounds
 timeline.xctimeline
 playground.xcworkspace
+
+# Web app build output (Web/build.sh)
+Web/build/
