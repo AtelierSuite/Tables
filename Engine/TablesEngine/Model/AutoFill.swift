@@ -200,7 +200,7 @@ public enum AutoFill {
         /// The lists Excel ships with, in English and in the user's own language.
         static let namedLists: [NamedList] = {
             var lists: [NamedList] = []
-            for identifier in ["en_US", Locale.current.identifier] {
+            for identifier in ["en_US", Locale.user.identifier] {
                 let formatter = DateFormatter()
                 formatter.locale = Locale(identifier: identifier)
                 for symbols in [

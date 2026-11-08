@@ -8,6 +8,10 @@ import Foundation
 public enum PortableStrings {
     nonisolated(unsafe) public static var table: [String: String] = [:]
 
+    /// The user's locale, which the host sets: Foundation's `Locale.current`
+    /// doesn't follow the environment on WebAssembly.
+    nonisolated(unsafe) public static var localeIdentifier = "en_US"
+
     /// Installs the strings for the user's language.
     public static func load(_ strings: [String: String]) {
         table = Int.bitWidth == 64 ? strings : strings.mapValues(nativeIntegers)
