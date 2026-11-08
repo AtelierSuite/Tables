@@ -37,12 +37,18 @@ public struct Color: Hashable, Sendable {
 }
 
 public struct Font: Hashable, Sendable {
+    /// The family, or nil for the system font.
+    public var family: String?
     public var size: Double
     public var isBold = false
     public var isItalic = false
 
     public static func system(size: Double) -> Font {
         Font(size: size)
+    }
+
+    public static func custom(_ name: String, size: Double) -> Font {
+        Font(family: name, size: size)
     }
 
     public func bold() -> Font {

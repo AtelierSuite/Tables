@@ -17,6 +17,9 @@ public struct FormattingKinds: OptionSet, Hashable, Sendable {
     public static let indents = FormattingKinds(rawValue: 1 << 3)
     public static let rotation = FormattingKinds(rawValue: 1 << 4)
     public static let merging = FormattingKinds(rawValue: 1 << 5)
+    /// The typeface text is set in. Numbers documents can't keep it: Tables
+    /// doesn't write font names into them.
+    public static let fonts = FormattingKinds(rawValue: 1 << 6)
 
-    public static let all: FormattingKinds = [.numberFormats, .styles, .borders, .indents, .rotation, .merging]
+    public static let all: FormattingKinds = [.numberFormats, .styles, .borders, .indents, .rotation, .merging, .fonts]
 }

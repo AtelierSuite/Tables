@@ -417,8 +417,24 @@ public struct CellStyle: Hashable, Sendable {
         return clamped <= 90 ? Double(clamped) : -Double(clamped - 90)
     }
 
+    /// The font family name that stands for the system font. It is the default
+    /// for new cells, and what files record for them: Helvetica Neue was the
+    /// system font when the format of new Tables documents was settled.
+    public static let systemFontName = "Helvetica Neue"
+
+    /// Whether the cell's text is set in the platform's system font.
+    public var usesSystemFont: Bool {
+        fontName.isEmpty || fontName == Self.systemFontName
+    }
+
+    /// The font family to draw the cell's text in, or nil for the system font.
+    /// A family that isn't installed falls back to the system font when drawn.
+    public var displayFontName: String? {
+        usesSystemFont ? nil : fontName
+    }
+
     public func font(zoom: Double = 1) -> Font {
-        var font = Font.system(size: fontSize * zoom)
+        var font = displayFontName.map { Font.custom($0, size: fontSize * zoom) } ?? Font.system(size: fontSize * zoom)
         if isBold { font = font.bold() }
         if isItalic { font = font.italic() }
         return font
