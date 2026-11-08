@@ -339,17 +339,13 @@ body {
 }
 
 /* The Update button, at the menu bar's trailing end: borderless and the bar's
-   full height like the menu titles, with the accent on its icon. */
+   full height like the menu titles. */
 .app__update {
   align-self: stretch;
   height: auto;
   gap: var(--ds-spacing-02);
   margin-inline-start: auto;
   font: var(--ds-type-body-compact);
-}
-
-.app__update-icon {
-  color: var(--ds-interactive);
 }
 
 .app__update-body .ds-progress {

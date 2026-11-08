@@ -420,7 +420,7 @@ export class WorkbookWindow {
     const update = document.createElement("button");
     update.type = "button";
     update.className = "ds-button ds-button--ghost ds-button--xs app__update";
-    update.innerHTML = `${icon("download", "app__update-icon")}<span></span>`;
+    update.innerHTML = `${icon("download")}<span></span>`;
     update.querySelector("span").textContent = t("Web.Update.Button");
     update.title = t("Web.Update.Available");
     update.hidden = true;
