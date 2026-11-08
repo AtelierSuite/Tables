@@ -5,8 +5,8 @@
 # only downloaded when Web/deploy/ci-build.sh (which pins their version) changes.
 #
 # Needs two repository secrets:
-#   CLOUDFLARE_API_TOKEN   a token with "Workers Scripts: Edit" on the account and
-#                          "Workers Routes: Edit" and "DNS: Edit" on the ktgk.app zone
+#   CLOUDFLARE_API_TOKEN   an API token made from the "Edit Cloudflare Workers" template,
+#                          limited to this account and the ktgk.app zone
 #   CLOUDFLARE_ACCOUNT_ID  the account that holds the ktgk.app zone
 
 name: Web
