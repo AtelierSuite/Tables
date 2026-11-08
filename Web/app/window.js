@@ -428,9 +428,11 @@ export class WorkbookWindow {
         ];
       } },
       { label: t("Mac.Menu.Window"), get items() {
+        // Before a document is open, the engine's placeholder has no sheets worth listing.
+        if (!self.document) return self.items("previousSheet", "nextSheet");
         return [...self.items("previousSheet", "nextSheet"), { separator: true },
           ...self.tabEntries().map((entry) => ({
-            label: entry.name, checked: entry.ids.includes(self.engine.state?.sheet), disabled: !self.document,
+            label: entry.name, checked: entry.ids.includes(self.engine.state?.sheet),
             action: () => self.selectTab(entry),
           }))];
       } },
