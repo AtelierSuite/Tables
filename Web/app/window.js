@@ -951,6 +951,7 @@ export class WorkbookWindow {
           <img class="app__about-icon" src="app/icons/icon.svg" width="48" height="48" alt="" draggable="false">
           <div>
             <h2 class="ds-sheet__title" id="about-title">Tables</h2>
+            <p class="ds-caption app__about-version"></p>
             <p class="ds-sheet__message" id="about-message"></p>
             <p class="ds-sheet__message app__about-suite"><a href="https://atelier.ktgk.app" target="_blank" rel="noopener"></a></p>
           </div>
@@ -958,6 +959,7 @@ export class WorkbookWindow {
         <div class="ds-sheet__buttons"><button class="ds-button ds-button--primary">${escapeHTML(t("Common.OK"))}</button></div>
       </div>`;
     backdrop.querySelector("#about-message").textContent = t("Web.About.Message");
+    backdrop.querySelector(".app__about-version").textContent = t("Web.About.Version", self.TABLES_APP_VERSION ?? "");
     backdrop.querySelector(".app__about-suite a").textContent = t("Web.About.Suite");
     const close = () => {
       dismissSheet(backdrop);
