@@ -824,8 +824,9 @@ textarea.ds-text-input {
   transform: rotate(90deg);
 }
 
+/* 8px under the title row: with the row's own space below its text this matches the 16px at the bottom. */
 .ds-disclosure__body {
-  padding: var(--ds-spacing-02) var(--ds-spacing-05) var(--ds-spacing-05);
+  padding: var(--ds-spacing-03) var(--ds-spacing-05) var(--ds-spacing-05);
 }
 
 /* ---------------------------------------------------------------- Group box */
