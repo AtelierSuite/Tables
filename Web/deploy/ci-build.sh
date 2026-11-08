@@ -1,10 +1,10 @@
 #!/bin/bash
-# The build command for Cloudflare Workers Builds, run from Web/ (the project's
-# root directory). The build image has no Swift, so this installs the swift.org
-# toolchain and its Swift SDK for WebAssembly, builds the site into dist/ and
-# runs the engine smoke tests. Workers Builds then deploys with `npx wrangler deploy`.
+# Builds and tests the web app on a Linux machine with no Swift, for CI
+# (.github/workflows/web.yml). Installs the swift.org toolchain and its Swift
+# SDK for WebAssembly unless they're already there (CI keeps them in its cache),
+# builds the site into dist/ and runs the engine smoke tests.
 #
-# Also works on any x86_64 Ubuntu 24.04 machine.
+# Needs x86_64 Ubuntu 24.04. TABLES_TOOLS_DIR says where to keep the toolchain.
 set -euo pipefail
 
 SWIFT_VERSION="6.4.2"
