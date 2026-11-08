@@ -9307,6 +9307,251 @@
         }
       }
     },
+    "Intent.Fill.CellSummary ${range} ${content} ${sourceCell} ${workbook}" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill ${range} with ${content} ${sourceCell} in ${workbook}"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${workbook} の ${range} を ${content} ${sourceCell} で埋める"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${workbook}에서 ${range}을(를) ${content} ${sourceCell}(으)로 채우기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 ${content} ${sourceCell} 填充 ${workbook} 中的 ${range}"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 ${content} ${sourceCell} 填滿 ${workbook} 中的 ${range}"
+          }
+        }
+      }
+    },
+    "Intent.Fill.Description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fills every cell in a range with a value, read as if typed, or with a copy of one cell. Formulas' relative references move along as they do when you drag to fill."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範囲内のすべてのセルに、入力したのと同じように値を入れるか、1つのセルのコピーを入れます。数式の相対参照は、ドラッグで埋めたときと同じようにずれます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "범위의 모든 셀에 입력한 것처럼 값을 넣거나 한 셀의 복사본을 넣습니다. 수식의 상대 참조는 드래그하여 채울 때처럼 이동합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用值（像键入一样读取）或某个单元格的副本填充范围中的每个单元格。公式中的相对引用会像拖移填充时一样移动。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用值（像輸入一樣讀取）或某個儲存格的副本填滿範圍中的每個儲存格。公式中的相對參照會像拖移填滿時一樣移動。"
+          }
+        }
+      }
+    },
+    "Intent.Fill.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill Range"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範囲を埋める"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "범위 채우기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填充范围"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填滿範圍"
+          }
+        }
+      }
+    },
+    "Intent.Fill.ValueSummary ${range} ${content} ${value} ${workbook}" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill ${range} with ${content} ${value} in ${workbook}"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${workbook} の ${range} を ${content} ${value} で埋める"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${workbook}에서 ${range}을(를) ${content} ${value}(으)로 채우기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 ${content} ${value} 填充 ${workbook} 中的 ${range}"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 ${content} ${value} 填滿 ${workbook} 中的 ${range}"
+          }
+        }
+      }
+    },
+    "Intent.FillContent.Cell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy of Cell"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セルのコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "셀 복사본"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单元格副本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存格副本"
+          }
+        }
+      }
+    },
+    "Intent.FillContent.Type" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill With"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "埋める内容"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "채울 내용"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填充内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填滿內容"
+          }
+        }
+      }
+    },
+    "Intent.FillContent.Value" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "値"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "값"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "值"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "值"
+          }
+        }
+      }
+    },
     "Intent.FindRows.Description" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10427,6 +10672,41 @@
         }
       }
     },
+    "Intent.Parameter.FillContent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill With"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "埋める内容"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "채울 내용"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填充内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填滿內容"
+          }
+        }
+      }
+    },
     "Intent.Parameter.Format" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10738,6 +11018,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作表"
+          }
+        }
+      }
+    },
+    "Intent.Parameter.SourceCell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source Cell"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピー元のセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원본 셀"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "源单元格"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來源儲存格"
           }
         }
       }
