@@ -1,0 +1,81 @@
+# Builds the web app (Web/) and, from main, deploys it to Cloudflare at
+# tables.atelier.ktgk.app. Pull requests are built and tested but not deployed.
+#
+# Swift and its SDK for WebAssembly are kept in the Actions cache, so they're
+# only downloaded when Web/deploy/ci-build.sh (which pins their version) changes.
+#
+# Needs two repository secrets:
+#   CLOUDFLARE_API_TOKEN   a token with "Workers Scripts: Edit" on the account and
+#                          "Workers Routes: Edit" and "DNS: Edit" on the ktgk.app zone
+#   CLOUDFLARE_ACCOUNT_ID  the account that holds the ktgk.app zone
+
+name: Web
+
+on:
+  push:
+    branches: [main]
+    paths: ["Web/**", "Engine/**", ".github/workflows/web.yml"]
+  pull_request:
+    paths: ["Web/**", "Engine/**", ".github/workflows/web.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Swift
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.tables-build
+            ~/.swiftpm/swift-sdks
+          key: swift-ubuntu24.04-${{ hashFiles('Web/deploy/ci-build.sh') }}
+
+      - name: Build and test
+        run: Web/deploy/ci-build.sh
+
+      - name: Check the design rules
+        run: node Web/design/lint.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: Web/dist
+          include-hidden-files: true
+          retention-days: 7
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    environment:
+      name: production
+      url: https://tables.atelier.ktgk.app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: Web/wrangler.jsonc
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: Web/dist
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: Web
+          command: deploy
