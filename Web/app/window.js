@@ -147,7 +147,7 @@ export class WorkbookWindow {
         <span class="app__status-sum"></span><span class="app__status-average"></span><span class="app__status-count"></span>
         <span class="ds-status-bar__spacer"></span>
         <span class="ds-popup ds-popup--xs app__zoom"><select class="ds-popup__select" aria-label="${escapeHTML(t("Mac.Menu.Zoom"))}">
-          ${[50, 75, 100, 125, 150, 200].map((z) => `<option value="${z / 100}">${z}%</option>`).join("")}
+          ${[50, 75, 100, 125, 150, 200, 300].map((z) => `<option value="${z / 100}">${z}%</option>`).join("")}
         </select>${icon("chevronDown", "ds-popup__chevron")}</span>
       </div>
       <aside class="ds-inspector ds-on-layer app__inspector" aria-label="${escapeHTML(t("Mac.Inspector.Title"))}"></aside>`;
@@ -314,12 +314,20 @@ export class WorkbookWindow {
       freezeFirstColumn: { label: t("Mac.Menu.FreezeFirstColumn"), enabled: info?.allowsFreeze, run: () => this.engine.call("freeze", { rows: this.engine.layout?.frozenRows ?? 0, columns: 1 }) },
       freezeSelection: { label: t("Mac.Menu.FreezeAtSelection"), enabled: info?.allowsFreeze, run: () => this.engine.call("freezeSelection") },
       unfreeze: { label: t("Mac.Menu.Unfreeze"), enabled: info?.allowsFreeze && (this.engine.layout?.frozenRows || this.engine.layout?.frozenColumns), run: () => this.engine.call("freeze", { rows: 0, columns: 0 }) },
-      zoomIn: { label: t("Mac.Menu.ZoomIn"), shortcut: shortcut("="), enabled: hasDocument, run: () => this.grid.setZoom(this.grid.zoom * 1.25) },
-      zoomOut: { label: t("Mac.Menu.ZoomOut"), shortcut: shortcut("-", { alt: true }), enabled: hasDocument, run: () => this.grid.setZoom(this.grid.zoom / 1.25) },
+      zoomIn: { label: t("Mac.Menu.ZoomIn"), shortcut: shortcut("="), enabled: hasDocument, run: () => this.stepZoom(1) },
+      zoomOut: { label: t("Mac.Menu.ZoomOut"), shortcut: shortcut("-", { alt: true }), enabled: hasDocument, run: () => this.stepZoom(-1) },
       actualSize: { label: t("Mac.Menu.ActualSize"), shortcut: shortcut("0"), enabled: hasDocument, run: () => this.grid.setZoom(1) },
       toggleInspector: { label: t("Mac.Menu.ShowInspector"), checked: !this.inspector.hidden, run: () => this.setInspectorVisible(this.inspector.hidden) },
       about: { label: t("Mac.Menu.About", "Tables"), run: () => this.showAbout() },
     };
+  }
+
+  /** The next preset zoom in either direction, from wherever a pinch left it. */
+  stepZoom(direction) {
+    const presets = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+    const current = this.grid.zoom;
+    const next = direction > 0 ? presets.find((z) => z > current + 0.001) : [...presets].reverse().find((z) => z < current - 0.001);
+    if (next) this.grid.setZoom(next);
   }
 
   run(id) {
@@ -794,12 +802,22 @@ export class WorkbookWindow {
     });
     this.grid.addEventListener("message", (event) => this.showMessage(event.detail, "error"));
     this.grid.addEventListener("zoom", (event) => {
-      this.zoomSelect.value = String(event.detail);
-      if (this.zoomSelect.value !== String(event.detail)) {
-        const option = new Option(`${Math.round(event.detail * 100)}%`, String(event.detail));
-        this.zoomSelect.add(option);
-        this.zoomSelect.value = String(event.detail);
+      const zoom = event.detail;
+      const preset = [...this.zoomSelect.options].find((option) => !option.dataset.custom && Math.abs(Number(option.value) - zoom) < 0.005);
+      let custom = this.zoomSelect.querySelector("[data-custom]");
+      if (preset) {
+        custom?.remove();
+        this.zoomSelect.value = preset.value;
+        return;
       }
+      if (!custom) {
+        custom = new Option("", "");
+        custom.dataset.custom = "1";
+        this.zoomSelect.add(custom);
+      }
+      custom.value = String(zoom);
+      custom.textContent = new Intl.NumberFormat(language, { style: "percent" }).format(zoom);
+      this.zoomSelect.value = custom.value;
     });
   }
 
