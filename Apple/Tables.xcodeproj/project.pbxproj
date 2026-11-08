@@ -177,7 +177,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0A5E72CA2F857CE60F6E615E /* TablesMacros */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = TablesMacros;
+			name = TablesMacros;
+			path = ../Engine/TablesMacros;
 			sourceTree = "<group>";
 		};
 		0EC790874E364CC29A349D30 /* TablesTests */ = {
@@ -210,7 +211,8 @@
 		};
 		BF4984104936A0280BF267C7 /* TablesEngine */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = TablesEngine;
+			name = TablesEngine;
+			path = ../Engine/TablesEngine;
 			sourceTree = "<group>";
 		};
 		DB059C75A02213E5F1C234F3 /* TablesMac */ = {
