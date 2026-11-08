@@ -271,7 +271,7 @@ struct SheetGridView: View {
                 .frame(width: metrics.totalWidth, height: metrics.totalHeight)
 
             tiles
-            selectionOverlay
+            if !state.isTableUnfocused { selectionOverlay }
             chartOverlay
             editorOverlay
             cellMenuAnchor
@@ -296,10 +296,12 @@ struct SheetGridView: View {
 
     /// A tap where there is no cell puts away whatever is being typed: the
     /// cell being edited, which keeps what was typed, or a table's new name.
+    /// On a canvas's page it also leaves no table worked on, as in Numbers.
     private func tapOutsideCells() {
         lastTap = nil
         endRenamingTable()
         if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
+        if canvas != nil { state.unfocusTables() }
     }
 
     /// The drawn grid, plus the one tap and one long press that serve all of it.
@@ -391,9 +393,11 @@ struct SheetGridView: View {
                         .offset(x: origin.x - 1, y: origin.y - 1)
                         .allowsHitTesting(false)
                     if table.showsName {
-                        tableName(of: sheet, isActive: sheet.id == active, zoom: zoom)
+                        // Above the headers of the table worked on, and straight on top of any other.
+                        let focused = sheet.id == active && !state.isTableUnfocused
+                        tableName(of: sheet, isActive: sheet.id == active, isFocused: focused, zoom: zoom)
                             .offset(x: origin.x,
-                                    y: origin.y - CanvasChrome.nameOffset(zoom: zoom, showsHeaders: sheet.id == active))
+                                    y: origin.y - CanvasChrome.nameOffset(zoom: zoom, showsHeaders: focused))
                     }
                 }
             }
@@ -408,7 +412,7 @@ struct SheetGridView: View {
         let active = activeSheet.id
         return ZStack(alignment: .topLeading) {
             ForEach(workbook.sheets(on: canvas)) { sheet in
-                if sheet.id == active, canvas.table(for: sheet.id) != nil {
+                if sheet.id == active, !state.isTableUnfocused, canvas.table(for: sheet.id) != nil {
                     canvasHeaders(for: sheet)
                         .offset(x: gridOrigin.x, y: gridOrigin.y)
                         .transition(.opacity)
@@ -418,6 +422,7 @@ struct SheetGridView: View {
         // What a dragged table passes over shows through its headers.
         .opacity(isMovingTable ? CanvasChrome.draggingOpacity : 1)
         .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: active)
+        .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: state.isTableUnfocused)
         .animation(.easeOut(duration: CanvasChrome.fadeDuration), value: isMovingTable)
     }
 
@@ -499,7 +504,7 @@ struct SheetGridView: View {
     }
 
     @ViewBuilder
-    private func tableName(of sheet: Worksheet, isActive: Bool, zoom: Double) -> some View {
+    private func tableName(of sheet: Worksheet, isActive: Bool, isFocused: Bool, zoom: Double) -> some View {
         let font = Font.system(size: max(9, 14 * zoom), weight: .semibold)
         let height = (SheetCanvas.nameHeight - 4) * zoom
         if renamingTableID == sheet.id {
@@ -514,12 +519,13 @@ struct SheetGridView: View {
         } else {
             Text(workbook.tableName(of: sheet.id))
                 .font(font)
-                .foregroundStyle(isActive ? Color.primary : Color.secondary)
+                .foregroundStyle(isFocused ? Color.primary : Color.secondary)
                 .lineLimit(1)
                 .frame(height: height, alignment: .bottomLeading)
                 .contentShape(.rect)
                 .onTapGesture {
                     if !isActive { pickTable(sheet, at: CellAddress(row: 0, column: 0)) }
+                    state.refocusTables()
                     beginRenamingTable(sheet.id)
                 }
                 .contextMenu { HeaderActionMenu(actions: tableActions(for: sheet)) }
@@ -971,7 +977,7 @@ struct SheetGridView: View {
     /// starts a multi-range gesture. Typing owns its own pointing and dragging,
     /// so it is left alone.
     private func canHoldSelection(at point: CGPoint) -> Bool {
-        guard state.editingAddress == nil else { return false }
+        guard state.editingAddress == nil, !state.isTableUnfocused else { return false }
         return state.isSelected(address(at: point))
     }
 
@@ -988,7 +994,7 @@ struct SheetGridView: View {
         let address = address(at: point)
         state.selectChart(nil)
         if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
-        if !state.selection.normalized.contains(address) {
+        if !state.selection.normalized.contains(address) || state.isTableUnfocused {
             state.select(address, in: activeSheet)
         }
         cellMenuAddress = address

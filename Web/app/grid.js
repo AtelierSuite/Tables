@@ -35,6 +35,8 @@ const NAME_HEIGHT = 26;
 const PAGE_INSET_X = rowHeaderWidthFor(1048576) + 4;
 /** How far outside its cells a table can be picked up, and how close it comes before it snaps into line. */
 const GRAB_SLOP = 5;
+/** How far a press on the bare page may move and still count as a tap on it. */
+const PAGE_TAP_SLOP = 8;
 const SNAP_THRESHOLD = 6;
 /** How opaque the headers are while their table is dragged, so what it passes over shows through. */
 const DRAGGING_HEADER_OPACITY = 0.4;
@@ -75,6 +77,12 @@ export class GridView extends EventTarget {
     this.guides = [];
     /** The field a table's name is being typed in: { id, input, original }. */
     this.renaming = null;
+    /**
+     * Set when the bare page around a canvas's tables was clicked: no table is
+     * worked on, so the active one shows no selection or headers. Holds the
+     * selection it hid, so the next change to the selection brings it back.
+     */
+    this.unfocused = null;
 
     root.classList.add("grid");
     root.innerHTML = `
@@ -110,7 +118,8 @@ export class GridView extends EventTarget {
       this.requestDraw();
     });
     engine.addEventListener("content", () => this.requestDraw());
-    engine.addEventListener("state", () => {
+    engine.addEventListener("state", (event) => {
+      if (this.unfocused && this.unfocused !== selectionKey(event.detail)) this.unfocused = null;
       this.syncEditor();
       this.requestDraw();
     });
@@ -146,6 +155,7 @@ export class GridView extends EventTarget {
     this.tiles.clear();
     this.updateSpacer();
     if (sheetChanged) {
+      this.unfocused = null;
       this.cancelEdit();
       this.endRenamingTable(false);
       if (this.onCanvas) this.revealTableHead(!wasOnCanvas);
@@ -407,12 +417,14 @@ export class GridView extends EventTarget {
     const z = this.zoom, left = this.scroller.scrollLeft, top = this.scroller.scrollTop;
     return this.tableFrames().map((frame) => {
       const x = frame.x - left, y = frame.y - top;
-      // Above its column letters on the active table, and straight on top of any other.
-      const reach = frame.active ? HEADER_HEIGHT + NAME_HEIGHT * z : NAME_HEIGHT * z;
+      // The table worked on shows its headers and selection; none does once the page is clicked.
+      const focused = frame.active && !this.unfocused;
+      // Above its column letters on the table worked on, and straight on top of any other.
+      const reach = focused ? HEADER_HEIGHT + NAME_HEIGHT * z : NAME_HEIGHT * z;
       const name = frame.table.showsName
         ? { x, y: y - reach, width: Math.max(frame.width, 120), height: NAME_HEIGHT * z }
         : null;
-      return { ...frame, x, y, name };
+      return { ...frame, x, y, name, focused };
     });
   }
 
@@ -688,13 +700,13 @@ export class GridView extends EventTarget {
       if (this.onCanvas) ctx.rect(screen.x - 4, screen.y - 4, screen.width + 8, screen.height + 8);
       else ctx.rect(screen.x, screen.y, screen.width, screen.height);
       ctx.clip();
-      this.drawSelection(ctx, pane);
+      if (!this.unfocused) this.drawSelection(ctx, pane);
       ctx.restore();
     }
 
     if (this.onCanvas) {
       for (const frame of frames) this.drawTableChrome(ctx, style, frame);
-      this.drawHeaders(ctx, style);
+      if (!this.unfocused) this.drawHeaders(ctx, style);
       this.drawGuides(ctx, style);
       this.placeAddButtons();
       this.positionEditor();
@@ -727,8 +739,8 @@ export class GridView extends EventTarget {
     // Light on a dark page, whatever the appearance, as the Mac draws it.
     const onDark = isDark(this.papers.get(this.canvasInfo.tables[0]?.id));
     ctx.fillStyle = onDark
-      ? (frame.active ? "rgba(255, 255, 255, 0.92)" : "rgba(255, 255, 255, 0.6)")
-      : style.getPropertyValue(frame.active ? "--ds-text-primary" : "--ds-text-secondary");
+      ? (frame.focused ? "rgba(255, 255, 255, 0.92)" : "rgba(255, 255, 255, 0.6)")
+      : style.getPropertyValue(frame.focused ? "--ds-text-primary" : "--ds-text-secondary");
     ctx.textAlign = "left";
     ctx.textBaseline = "bottom";
     ctx.fillText(fitText(ctx, frame.table.name, frame.name.width), frame.name.x, frame.name.y + frame.name.height - 4 * z);
@@ -946,7 +958,7 @@ export class GridView extends EventTarget {
     const bottom = this.screenY(m.totalHeight);
     const minX = this.onCanvas ? 0 : this.rowHeaderWidth, minY = this.onCanvas ? 0 : HEADER_HEIGHT;
     const show = (button, x, y) => {
-      const visible = !this.tableDrag && x > minX && y > minY && x < width - 8 && y < height - 8;
+      const visible = !this.tableDrag && !this.unfocused && x > minX && y > minY && x < width - 8 && y < height - 8;
       button.hidden = !visible;
       if (visible) button.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     };
@@ -992,6 +1004,7 @@ export class GridView extends EventTarget {
   beginEdit({ seed = null, mode = "edit", focusEditor = true } = {}) {
     const state = this.engine.state;
     if (!state || this.metrics?.layout.chart) return;
+    this.unfocused = null;
     const [row, column] = state.active;
     this.editing = { row, column, mode, original: state.editText, references: null };
     this.editor.value = seed ?? state.editText;
@@ -1250,16 +1263,18 @@ export class GridView extends EventTarget {
     const active = m.layout.sheet;
     const named = frames.find((frame) => frame.name && inside(frame.name, point));
     if (named) return { kind: "tableName", id: named.table.id };
-    if (point.x >= ox - header && point.x < ox && point.y >= oy - HEADER_HEIGHT && point.y < oy) return { kind: "tableCorner", id: active };
-    if (point.y >= oy - HEADER_HEIGHT && point.y < oy && point.x >= ox && point.x <= right + RESIZE_SLOP) return this.columnHit(point);
-    if (point.x >= ox - header && point.x < ox && point.y >= oy && point.y <= bottom + RESIZE_SLOP) return this.rowHit(point);
-    if (this.fillHandleHit(point)) return { kind: "fillHandle" };
-    if (point.x >= ox && point.x < right && point.y >= oy && point.y < bottom) {
+    // With no table worked on, the active one is hit as any other is, its headers put away.
+    const focused = !this.unfocused;
+    if (focused && point.x >= ox - header && point.x < ox && point.y >= oy - HEADER_HEIGHT && point.y < oy) return { kind: "tableCorner", id: active };
+    if (focused && point.y >= oy - HEADER_HEIGHT && point.y < oy && point.x >= ox && point.x <= right + RESIZE_SLOP) return this.columnHit(point);
+    if (focused && point.x >= ox - header && point.x < ox && point.y >= oy && point.y <= bottom + RESIZE_SLOP) return this.rowHit(point);
+    if (focused && this.fillHandleHit(point)) return { kind: "fillHandle" };
+    if (focused && point.x >= ox && point.x < right && point.y >= oy && point.y < bottom) {
       return { kind: "cell", row: m.rowAt(this.sheetY(point.y)), column: m.columnAt(this.sheetX(point.x)) };
     }
     const edge = frames.find((frame) => inside(frame, point, GRAB_SLOP) && !inside(frame, point));
     if (edge) return { kind: "tableEdge", id: edge.table.id };
-    const other = frames.find((frame) => !frame.active && inside(frame, point));
+    const other = frames.find((frame) => !frame.focused && inside(frame, point));
     if (other) {
       return {
         kind: "otherTable", id: other.table.id,
@@ -1314,6 +1329,7 @@ export class GridView extends EventTarget {
     }
     const extend = event.shiftKey;
     const add = event.metaKey || event.ctrlKey;
+    if (hit.kind !== "page") this.unfocused = null;
 
     switch (hit.kind) {
       case "corner":
@@ -1349,7 +1365,7 @@ export class GridView extends EventTarget {
         // Another table: it becomes the one worked on, with the cell clicked selected.
         event.preventDefault();
         await this.commitIfEditing();
-        await this.engine.call("selectSheet", { id: hit.id });
+        if (hit.id !== this.metrics.layout.sheet) await this.engine.call("selectSheet", { id: hit.id });
         await this.engine.call("select", { row: hit.row, column: hit.column });
         this.drag = { kind: "cells", last: [hit.row, hit.column], toggles: false };
         break;
@@ -1391,6 +1407,10 @@ export class GridView extends EventTarget {
         await this.engine.call("select", { row: hit.row, column: hit.column, extend, add });
         break;
       }
+      case "page":
+        // Put down where it was picked up, it leaves no table worked on; a finger scrolling the page does not.
+        this.drag = { kind: "page", origin: point };
+        return;
       default:
         await this.commitIfEditing();
     }
@@ -1405,6 +1425,10 @@ export class GridView extends EventTarget {
     const drag = this.drag;
     if (!drag || this.gesture) return;
     const point = this.localPoint(event);
+    if (drag.kind === "page") {
+      if (Math.hypot(point.x - drag.origin.x, point.y - drag.origin.y) > PAGE_TAP_SLOP) this.endDrag();
+      return;
+    }
     this.autoScroll(point);
     switch (drag.kind) {
       case "table":
@@ -1538,7 +1562,23 @@ export class GridView extends EventTarget {
         this.pointing = null;
         this.editor.focus({ preventScroll: true });
         break;
+      case "page":
+        await this.unfocusTables();
+        break;
     }
+  }
+
+  /**
+   * Leaves no table worked on, as clicking the bare page does in Numbers: the
+   * edit is put away, the selection and headers hidden, and a phone's
+   * keyboard dismissed. The selection itself stays, for the next click or key.
+   */
+  async unfocusTables() {
+    await this.commitIfEditing();
+    await this.endRenamingTable(true);
+    this.unfocused = selectionKey(this.engine.state);
+    this.editor.blur();
+    this.requestDraw();
   }
 
   /** Lets go of a drag without finishing it: a table being carried goes back where it was. */
@@ -1658,6 +1698,16 @@ export class GridView extends EventTarget {
         default:
           return;
       }
+    }
+
+    // With no table worked on, a key that would act on the hidden selection shows it again instead.
+    if (this.unfocused) {
+      if (GRID_KEYS.has(event.key)) {
+        event.preventDefault();
+        this.unfocused = null;
+        this.requestDraw();
+      }
+      return;
     }
 
     const directions = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
@@ -1785,6 +1835,11 @@ export class GridView extends EventTarget {
 
 const FONT = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 
+/** What is selected, as a string to tell when it changes: always truthy. */
+function selectionKey(state) {
+  return state ? JSON.stringify([state.sheet, state.active, state.ranges]) : "none";
+}
+
 /** Whether an "AARRGGBB" background is dark enough to want light text on it. */
 function isDark(argb) {
   if (!argb || parseInt(argb.slice(0, 2), 16) < 128) return false;
@@ -1841,4 +1896,8 @@ function snapFrame(frame, others, minimum, threshold = SNAP_THRESHOLD) {
   }
   return { x: f.x, y: f.y, guides };
 }
+
+/** The keys the grid acts on the selection with, outside an edit. */
+const GRID_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Tab", "Enter", "F2", "Backspace", "Delete", "PageDown", "PageUp", " "]);
+
 const REFERENCE_COLOURS = ["#2EA666", "#0F62FE", "#DA1E28", "#8A3FFC", "#FF832B", "#009D9A"];

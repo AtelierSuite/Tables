@@ -148,7 +148,8 @@ final class GridView: NSView, NSTextFieldDelegate {
         dirtyRect.fill()
         renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: effectiveAppearance))
         drawReferences(in: document, context: context)
-        drawSelection(in: document, context: context)
+        // With no table worked on, as after a click on the canvas's page, none shows a selection.
+        if !document.state.isTableUnfocused { drawSelection(in: document, context: context) }
         drawDragPreview(in: document, context: context)
     }
 
@@ -162,7 +163,7 @@ final class GridView: NSView, NSTextFieldDelegate {
     /// edit, chart or picture in the way.
     private func offersSelectionHandles(in document: WorkbookDocument) -> Bool {
         let state = document.state
-        return !state.hasMultipleSelections && state.editingAddress == nil
+        return !state.hasMultipleSelections && state.editingAddress == nil && !state.isTableUnfocused
             && state.selectedChartID == nil && state.selectedDrawingID == nil
             && !document.macroRunner.isRunning
     }
@@ -485,6 +486,15 @@ final class GridView: NSView, NSTextFieldDelegate {
         guard let document else { return super.keyDown(with: event) }
         // While a macro runs, the sheet is the macro's.
         guard !document.macroRunner.isRunning else { return }
+        // With no table worked on, a key that would act on the hidden
+        // selection shows it again instead, and nothing is typed anywhere.
+        if document.state.isTableUnfocused, document.state.editingAddress == nil {
+            if Self.selectionKeyCodes.contains(event.keyCode) {
+                document.state.refocusTables()
+                document.notify()
+            }
+            return
+        }
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         // F2 edits the cell in place, as it does in Excel.
         if event.keyCode == 120 {
@@ -503,6 +513,9 @@ final class GridView: NSView, NSTextFieldDelegate {
         }
         interpretKeyEvents([event])
     }
+
+    /// Return, Tab, Delete, Forward Delete, F2 and the arrows: the keys that act on the selection.
+    private static let selectionKeyCodes: Set<UInt16> = [36, 48, 51, 76, 117, 120, 123, 124, 125, 126]
 
     /// Whether a keystroke is text, rather than a movement or function key.
     private static func startsEntry(_ scalar: Unicode.Scalar) -> Bool {

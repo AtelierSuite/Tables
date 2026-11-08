@@ -92,6 +92,7 @@ final class CanvasView: NSView {
         guard let frame = activeFrame else { return }
         if let headerView, headerView.sheetID == active {
             headerView.place(around: frame)
+            if drag == nil { fadeHeaders(to: headerOpacity) }
             return
         }
         if let old = headerView {
@@ -109,9 +110,16 @@ final class CanvasView: NSView {
         headerView = headers
         NSAnimationContext.runAnimationGroup { context in
             context.duration = CanvasChrome.fadeDuration
-            headers.animator().alphaValue = 1
+            headers.animator().alphaValue = headerOpacity
         }
     }
+
+    /// Whether the active table is the one worked on: not after a click on
+    /// the bare page, which leaves none worked on, as in Numbers.
+    private var isActiveFocused: Bool { document?.state.isTableUnfocused != true }
+
+    /// The active table's headers show while it is worked on.
+    private var headerOpacity: CGFloat { isActiveFocused ? 1 : 0 }
 
     /// Lets what a dragged table passes over show through its headers, and
     /// brings them back once it is let go.
@@ -147,7 +155,7 @@ final class CanvasView: NSView {
     /// A table's name: above its column letters on the active table, and
     /// straight on top of any other.
     private func nameRect(of table: Placed) -> CGRect {
-        let reach = CanvasChrome.nameOffset(zoom: zoom, showsHeaders: table.sheet.id == activeID)
+        let reach = CanvasChrome.nameOffset(zoom: zoom, showsHeaders: table.sheet.id == activeID && isActiveFocused)
         return CGRect(x: table.frame.minX, y: table.frame.minY - reach,
                       width: max(table.frame.width, 120), height: nameHeight)
     }
@@ -181,7 +189,7 @@ final class CanvasView: NSView {
                 // Light on a dark page, whatever the appearance.
                 let appearance = table.sheet.isBackgroundDark ? NSAppearance(named: .darkAqua) : nil
                 (appearance ?? effectiveAppearance).performAsCurrentDrawingAppearance {
-                    drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID)
+                    drawName(name, in: nameRect(of: table), isActive: table.sheet.id == activeID && isActiveFocused)
                 }
             }
         }
@@ -211,7 +219,8 @@ final class CanvasView: NSView {
 
     /// Whether a point is on the corner of the active table's headers.
     private func isOnCorner(_ point: CGPoint) -> Bool {
-        placed.first { $0.sheet.id == activeID }.map { cornerRect(of: $0).contains(point) } ?? false
+        guard isActiveFocused else { return false }
+        return placed.first { $0.sheet.id == activeID }.map { cornerRect(of: $0).contains(point) } ?? false
     }
 
     /// The table a drag starting here would pick up: by the corner of the
@@ -226,12 +235,14 @@ final class CanvasView: NSView {
         guard let document else { return }
         let point = convert(event.locationInWindow, from: nil)
         if let table = tableName(at: point) {
+            document.state.refocusTables()
             if table.sheet.id != activeID { document.selectSheet(table.sheet.id) }
             if document.state.allowsLayingOutTables { beginEditingName(of: table.sheet.id) }
             return
         }
         if let table = grabbable(at: point) {
             isDraggingFromCorner = isOnCorner(point)
+            document.state.refocusTables()
             if table.sheet.id != activeID { document.selectSheet(table.sheet.id) }
             if document.state.allowsLayingOutTables {
                 drag = (table.sheet.id, point, .zero)
@@ -241,7 +252,7 @@ final class CanvasView: NSView {
             }
             return
         }
-        guard let table = table(at: point) else { return }
+        guard let table = table(at: point) else { return unfocusTables(in: document) }
         // Another table: it becomes the one worked on, with the cell clicked selected.
         let local = CGPoint(x: point.x - table.frame.minX, y: point.y - table.frame.minY)
         let address = CellAddress(row: table.metrics.row(atY: local.y), column: table.metrics.column(atX: local.x))
@@ -279,7 +290,7 @@ final class CanvasView: NSView {
         guard let drag, let document else { return }
         self.drag = nil
         guideView.guides = []
-        fadeHeaders(to: 1)
+        fadeHeaders(to: headerOpacity)
         NSCursor.openHand.set()
         guard drag.offset != .zero, let table = document.workbook.canvas(containing: drag.id)?.table(for: drag.id) else {
             // A click on the corner, rather than a drag, selects the table.
@@ -292,6 +303,17 @@ final class CanvasView: NSView {
             state.moveTable(drag.id, toX: (table.x + drag.offset.width / zoom).rounded(),
                             y: (table.y + drag.offset.height / zoom).rounded(), in: &$0)
         }
+    }
+
+    /// A click on the bare page leaves no table worked on, as in Numbers:
+    /// what was being typed is kept, and the selection and headers put away.
+    private func unfocusTables(in document: WorkbookDocument) {
+        if editingNameID != nil { endEditingName(commit: true) }
+        grid?.commitEditing(then: nil)
+        document.state.unfocusTables()
+        document.notify()
+        // The grid keeps the keyboard, so a key can bring the selection back.
+        if let grid { window?.makeFirstResponder(grid) }
     }
 
     private func selectWholeTable(in document: WorkbookDocument) {

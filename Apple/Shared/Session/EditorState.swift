@@ -32,14 +32,25 @@ enum EditorPanel: String, Identifiable, Hashable {
 @Observable
 final class EditorState {
     var activeSheetID: Worksheet.ID?
-    var selection = CellRange(CellAddress(row: 0, column: 0))
+    var selection = CellRange(CellAddress(row: 0, column: 0)) {
+        didSet { isTableUnfocused = false }
+    }
     /// Ranges selected alongside `selection`, oldest first, from holding one
     /// finger on the sheet and picking further ranges with another. `selection`
     /// is always the newest of them, and the one edits and movement work from.
-    var additionalSelections: [CellRange] = []
+    var additionalSelections: [CellRange] = [] {
+        didSet { isTableUnfocused = false }
+    }
     /// The cell keyboard entry extends from when the selection is grown.
     var anchor = CellAddress(row: 0, column: 0)
-    var editingAddress: CellAddress?
+    var editingAddress: CellAddress? {
+        didSet { if editingAddress != nil { isTableUnfocused = false } }
+    }
+    /// Whether no table on a canvas is being worked on, as after a tap on the
+    /// bare page between them in Numbers: the active table shows no selection
+    /// or headers. The selection itself is kept, and comes back as soon as
+    /// anything selects or edits a cell again.
+    private(set) var isTableUnfocused = false
     var editingText = ""
     var isFormulaBarActive = false
     /// The chart picked out on the sheet, which the chart panel edits and the
@@ -182,6 +193,16 @@ final class EditorState {
     }
 
     // MARK: - Selection
+
+    /// Puts the selection and headers away until a cell is picked again.
+    func unfocusTables() {
+        isTableUnfocused = true
+    }
+
+    /// Shows the selection put away by `unfocusTables()` again, where it was.
+    func refocusTables() {
+        isTableUnfocused = false
+    }
 
     var selectedAddress: CellAddress { selection.normalized.start }
 

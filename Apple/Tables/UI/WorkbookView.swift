@@ -714,6 +714,18 @@ struct WorkbookView: View {
         // There are no cells on a chart sheet to move between or type into.
         guard !sheet.isChartSheet else { return .ignored }
 
+        // With no table worked on, a key that would act on the hidden
+        // selection shows it again instead, and nothing else is typed anywhere.
+        if state.isTableUnfocused, !isEditing {
+            switch press.key {
+            case .upArrow, .downArrow, .leftArrow, .rightArrow, .tab, .return, .delete, .deleteForward:
+                state.refocusTables()
+                return .handled
+            default:
+                return .ignored
+            }
+        }
+
         switch press.key {
         case .upArrow where !isEditing:
             state.move(.up, extending: extending, in: sheet)
