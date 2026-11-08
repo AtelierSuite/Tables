@@ -77,6 +77,34 @@ struct WorkbookAutomationTests {
         #expect(WorkbookAutomation.evaluate("SUM(1,2)", sheet: 0, in: workbook) == .number(3))
     }
 
+    @Test("The last row counts values and formulas, not formatting, and is 0 when empty")
+    func lastRow() throws {
+        var workbook = try sample()
+        let sales = workbook.sheets[0]
+        #expect(WorkbookAutomation.lastRow(in: sales) == 4)
+        #expect(WorkbookAutomation.lastRow(in: sales, column: 1) == 4)
+        #expect(WorkbookAutomation.lastRow(in: sales, column: 3) == 0)
+        #expect(WorkbookAutomation.lastRow(in: workbook.sheets[1]) == 0)
+
+        // A gap in the column doesn't stop the count, and a formula counts.
+        try WorkbookAutomation.setCell("=1+1", at: CellAddress(a1: "A9")!, sheet: 0, in: &workbook)
+        #expect(WorkbookAutomation.lastRow(in: workbook.sheets[0], column: 0) == 9)
+        #expect(WorkbookAutomation.lastRow(in: workbook.sheets[0], column: 1) == 4)
+        #expect(WorkbookAutomation.lastRow(in: workbook.sheets[0]) == 9)
+
+        // A blank cell that only carries formatting doesn't count.
+        var styled = Cell()
+        styled.style.isBold = true
+        workbook.sheets[0][CellAddress(a1: "A20")!] = styled
+        workbook.sheets[1][CellAddress(a1: "C5")!] = styled
+        #expect(WorkbookAutomation.lastRow(in: workbook.sheets[0], column: 0) == 9)
+        #expect(WorkbookAutomation.lastRow(in: workbook.sheets[1]) == 0)
+
+        // Clearing the last rows brings the count back up.
+        WorkbookAutomation.clear(try WorkbookAutomation.range("A9", in: workbook.sheets[0]), sheet: 0, in: &workbook)
+        #expect(WorkbookAutomation.lastRow(in: workbook.sheets[0]) == 4)
+    }
+
     @Test("Sheets are added, renamed and deleted, but the last one stays")
     func sheets() throws {
         var workbook = try sample()
@@ -166,6 +194,28 @@ struct ShortcutsActionTests {
         var evaluate = EvaluateFormulaIntent()
         evaluate.formula = "=TEXTJOIN(\"-\",,SEQUENCE(3))"
         #expect(try await evaluate.perform().value == "1-2-3")
+    }
+    @Test("Get Last Row reads the whole sheet or one column, and checks its column")
+    func lastRow() async throws {
+        var open = GetWorkbookIntent()
+        let csv = Data("Item,Qty\nPen,10\nInk,\n,\nPad,\n".utf8)
+        open.file = IntentFile(data: csv, filename: "Orders.csv", type: .commaSeparatedText)
+        var last = GetLastRowIntent()
+        last.workbook = try #require(try await open.perform().value)
+        #expect(try await last.perform().value == 5)
+        last.column = "B"
+        #expect(try await last.perform().value == 2)
+        last.column = " 1 "
+        #expect(try await last.perform().value == 5)
+        last.column = "C"
+        #expect(try await last.perform().value == 0)
+        last.column = ""
+        #expect(try await last.perform().value == 5)
+        last.column = "B2"
+        await #expect(throws: WorkbookAutomation.Failure.invalidColumn("B2")) { _ = try await last.perform() }
+        last.column = nil
+        last.sheet = "Missing"
+        await #expect(throws: WorkbookAutomation.Failure.sheetNotFound("Missing")) { _ = try await last.perform() }
     }
 }
 

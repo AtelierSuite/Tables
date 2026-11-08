@@ -9902,6 +9902,111 @@
         }
       }
     },
+    "Intent.GetLastRow.Description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gets the number of the last row that holds a value or formula, in a column or anywhere in the sheet. Gives 0 when the sheet or column is empty. Cells that only have formatting don't count."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列またはシート全体で、値または数式が入っている最後の行の番号を取得します。シートまたは列が空の場合は 0 を返します。書式だけが設定されたセルは数えません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "열 또는 시트 전체에서 값이나 수식이 있는 마지막 행의 번호를 가져옵니다. 시트나 열이 비어 있으면 0을 반환합니다. 서식만 있는 셀은 포함하지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取某列或整个工作表中包含值或公式的最后一行的行号。工作表或列为空时返回 0。仅设置了格式的单元格不计算在内。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取得某欄或整個工作表中包含值或公式的最後一列的列號。工作表或欄為空時傳回 0。僅設定格式的儲存格不計算在內。"
+          }
+        }
+      }
+    },
+    "Intent.GetLastRow.Summary ${workbook}" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get the last row of ${workbook}"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${workbook} の最後の行を取得"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${workbook}의 마지막 행 가져오기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取 ${workbook} 的最后一行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取得 ${workbook} 的最後一列"
+          }
+        }
+      }
+    },
+    "Intent.GetLastRow.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Last Row"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後の行を取得"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 행 가져오기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取最后一行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取得最後一列"
+          }
+        }
+      }
+    },
     "Intent.GetRange.Description" : {
       "extractionState" : "manual",
       "localizations" : {

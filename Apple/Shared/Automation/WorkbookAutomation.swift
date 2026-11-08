@@ -163,6 +163,17 @@ enum WorkbookAutomation {
         return CellRange(start: CellAddress(row: 0, column: 0), end: CellAddress(row: lastRow, column: lastColumn))
     }
 
+    /// The one-based number of the last row holding anything — a value or a
+    /// formula — in `column`, or anywhere in the sheet when no column is given.
+    /// Cells that only carry formatting don't count. An empty sheet or column
+    /// gives 0.
+    static func lastRow(in sheet: Worksheet, column: Int? = nil) -> Int {
+        let rows = sheet.cells.lazy
+            .filter { !$0.value.isBlank && (column == nil || $0.key.column == column) }
+            .map(\.key.row)
+        return rows.max().map { $0 + 1 } ?? 0
+    }
+
     /// Rows whose cell in `column` meets a `COUNTIF`-style condition such as
     /// `>100`, `apple*` or `<>done`.
     static func findRows(where column: Int, matches condition: String, sheet: Int, in workbook: Workbook)
