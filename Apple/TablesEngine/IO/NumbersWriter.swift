@@ -19,7 +19,7 @@ public enum NumbersWriter {
         case unmergedChanges
 
         public var errorDescription: String? {
-            String(localized: "Numbers.Error.UnmergedChanges", bundle: #bundle)
+            String(localized: "Numbers.Error.UnmergedChanges", bundle: .engine)
         }
     }
 

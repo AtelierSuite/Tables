@@ -357,7 +357,7 @@ public enum VBALibrary {
             // line names a program, and there are none to start.
             let target = try call.string(0, "PathName").trimmingCharacters(in: .whitespaces)
             guard let url = openableURL(target) else {
-                throw VBAError(number: 445, String(localized: "Macro.Unavailable.Shell", bundle: #bundle))
+                throw VBAError(number: 445, String(localized: "Macro.Unavailable.Shell", bundle: .macros))
             }
             guard interpreter.host?.openURL(url) == true else { throw VBAFileSystem.permissionDenied }
             return .double(1)
@@ -367,7 +367,7 @@ public enum VBALibrary {
             interpreter.host?.showSendKeys(try call.string(0, "String"))
             return .empty
         case "getobject":
-            throw VBAError(number: 445, String(localized: "Macro.Unavailable.GetObject", bundle: #bundle))
+            throw VBAError(number: 445, String(localized: "Macro.Unavailable.GetObject", bundle: .macros))
         case "callbyname":
             return try callByName(call, arguments, interpreter: interpreter)
 
@@ -573,7 +573,7 @@ public enum VBALibrary {
 
     private static func fileSystem(_ interpreter: VBAInterpreter) throws -> VBAFileSystem {
         guard let files = interpreter.fileSystem else {
-            throw VBAError.notSupported(String(localized: "Macro.Unavailable.Files", bundle: #bundle))
+            throw VBAError.notSupported(String(localized: "Macro.Unavailable.Files", bundle: .macros))
         }
         return files
     }

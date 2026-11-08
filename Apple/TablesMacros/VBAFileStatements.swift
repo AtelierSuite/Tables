@@ -70,7 +70,7 @@ public struct VBAPrintFormatter: Sendable {
 extension VBAInterpreter {
     private var files: VBAFileSystem {
         get throws {
-            guard let fileSystem else { throw VBAError.notSupported(String(localized: "Macro.Unavailable.Files", bundle: #bundle)) }
+            guard let fileSystem else { throw VBAError.notSupported(String(localized: "Macro.Unavailable.Files", bundle: .macros)) }
             return fileSystem
         }
     }

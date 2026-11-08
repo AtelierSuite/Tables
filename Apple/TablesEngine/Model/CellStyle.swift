@@ -15,10 +15,10 @@ public enum HorizontalTextAlignment: String, Hashable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .automatic: return String(localized: "Alignment.Horizontal.Automatic", bundle: #bundle)
-        case .leading: return String(localized: "Alignment.Horizontal.Left", bundle: #bundle)
-        case .center: return String(localized: "Alignment.Horizontal.Center", bundle: #bundle)
-        case .trailing: return String(localized: "Alignment.Horizontal.Right", bundle: #bundle)
+        case .automatic: return String(localized: "Alignment.Horizontal.Automatic", bundle: .engine)
+        case .leading: return String(localized: "Alignment.Horizontal.Left", bundle: .engine)
+        case .center: return String(localized: "Alignment.Horizontal.Center", bundle: .engine)
+        case .trailing: return String(localized: "Alignment.Horizontal.Right", bundle: .engine)
         }
     }
 }
@@ -36,9 +36,9 @@ public enum VerticalTextAlignment: String, Hashable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .top: return String(localized: "Alignment.Vertical.Top", bundle: #bundle)
-        case .middle: return String(localized: "Alignment.Vertical.Middle", bundle: #bundle)
-        case .bottom: return String(localized: "Alignment.Vertical.Bottom", bundle: #bundle)
+        case .top: return String(localized: "Alignment.Vertical.Top", bundle: .engine)
+        case .middle: return String(localized: "Alignment.Vertical.Middle", bundle: .engine)
+        case .bottom: return String(localized: "Alignment.Vertical.Bottom", bundle: .engine)
         }
     }
 
@@ -132,19 +132,19 @@ public enum BorderLineStyle: String, Hashable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .hair: return String(localized: "BorderLineStyle.Hairline", bundle: #bundle)
-        case .thin: return String(localized: "BorderLineStyle.Thin", bundle: #bundle)
-        case .medium: return String(localized: "BorderLineStyle.Medium", bundle: #bundle)
-        case .thick: return String(localized: "BorderLineStyle.Thick", bundle: #bundle)
-        case .double: return String(localized: "BorderLineStyle.Double", bundle: #bundle)
-        case .dotted: return String(localized: "BorderLineStyle.Dotted", bundle: #bundle)
-        case .dashed: return String(localized: "BorderLineStyle.Dashed", bundle: #bundle)
-        case .dashDot: return String(localized: "BorderLineStyle.DashDot", bundle: #bundle)
-        case .dashDotDot: return String(localized: "BorderLineStyle.DashDotDot", bundle: #bundle)
-        case .mediumDashed: return String(localized: "BorderLineStyle.MediumDashed", bundle: #bundle)
-        case .mediumDashDot: return String(localized: "BorderLineStyle.MediumDashDot", bundle: #bundle)
-        case .mediumDashDotDot: return String(localized: "BorderLineStyle.MediumDashDotDot", bundle: #bundle)
-        case .slantDashDot: return String(localized: "BorderLineStyle.SlantDashDot", bundle: #bundle)
+        case .hair: return String(localized: "BorderLineStyle.Hairline", bundle: .engine)
+        case .thin: return String(localized: "BorderLineStyle.Thin", bundle: .engine)
+        case .medium: return String(localized: "BorderLineStyle.Medium", bundle: .engine)
+        case .thick: return String(localized: "BorderLineStyle.Thick", bundle: .engine)
+        case .double: return String(localized: "BorderLineStyle.Double", bundle: .engine)
+        case .dotted: return String(localized: "BorderLineStyle.Dotted", bundle: .engine)
+        case .dashed: return String(localized: "BorderLineStyle.Dashed", bundle: .engine)
+        case .dashDot: return String(localized: "BorderLineStyle.DashDot", bundle: .engine)
+        case .dashDotDot: return String(localized: "BorderLineStyle.DashDotDot", bundle: .engine)
+        case .mediumDashed: return String(localized: "BorderLineStyle.MediumDashed", bundle: .engine)
+        case .mediumDashDot: return String(localized: "BorderLineStyle.MediumDashDot", bundle: .engine)
+        case .mediumDashDotDot: return String(localized: "BorderLineStyle.MediumDashDotDot", bundle: .engine)
+        case .slantDashDot: return String(localized: "BorderLineStyle.SlantDashDot", bundle: .engine)
         }
     }
 }
@@ -180,12 +180,12 @@ public enum BorderScope: String, Hashable, Identifiable, CaseIterable, Sendable 
 
     public var label: String {
         switch self {
-        case .all: return String(localized: "Format.Border.Scope.All", bundle: #bundle)
-        case .top: return String(localized: "Format.Border.Top", bundle: #bundle)
-        case .leading: return String(localized: "Format.Border.Left", bundle: #bundle)
-        case .bottom: return String(localized: "Format.Border.Bottom", bundle: #bundle)
-        case .trailing: return String(localized: "Format.Border.Right", bundle: #bundle)
-        case .diagonal: return String(localized: "Format.Border.Scope.Diagonal", bundle: #bundle)
+        case .all: return String(localized: "Format.Border.Scope.All", bundle: .engine)
+        case .top: return String(localized: "Format.Border.Top", bundle: .engine)
+        case .leading: return String(localized: "Format.Border.Left", bundle: .engine)
+        case .bottom: return String(localized: "Format.Border.Bottom", bundle: .engine)
+        case .trailing: return String(localized: "Format.Border.Right", bundle: .engine)
+        case .diagonal: return String(localized: "Format.Border.Scope.Diagonal", bundle: .engine)
         }
     }
 }
@@ -448,19 +448,19 @@ public enum NumberFormatPreset: String, CaseIterable, Identifiable, Sendable {
 
     public var label: String {
         switch self {
-        case .general: return String(localized: "NumberFormat.Preset.Automatic", bundle: #bundle)
-        case .number: return String(localized: "NumberFormat.Preset.Number", bundle: #bundle)
-        case .numberTwoPlaces: return String(localized: "NumberFormat.Preset.NumberTwoPlaces", bundle: #bundle)
-        case .thousands: return String(localized: "NumberFormat.Preset.Thousands", bundle: #bundle)
-        case .currency: return String(localized: "NumberFormat.Preset.Currency", bundle: #bundle)
-        case .accounting: return String(localized: "NumberFormat.Preset.Accounting", bundle: #bundle)
-        case .percent: return String(localized: "NumberFormat.Preset.Percentage", bundle: #bundle)
-        case .percentTwoPlaces: return String(localized: "NumberFormat.Preset.PercentageTwoPlaces", bundle: #bundle)
-        case .scientific: return String(localized: "NumberFormat.Preset.Scientific", bundle: #bundle)
-        case .date: return String(localized: "NumberFormat.Preset.Date", bundle: #bundle)
-        case .time: return String(localized: "NumberFormat.Preset.Time", bundle: #bundle)
-        case .dateTime: return String(localized: "NumberFormat.Preset.DateTime", bundle: #bundle)
-        case .text: return String(localized: "NumberFormat.Preset.Text", bundle: #bundle)
+        case .general: return String(localized: "NumberFormat.Preset.Automatic", bundle: .engine)
+        case .number: return String(localized: "NumberFormat.Preset.Number", bundle: .engine)
+        case .numberTwoPlaces: return String(localized: "NumberFormat.Preset.NumberTwoPlaces", bundle: .engine)
+        case .thousands: return String(localized: "NumberFormat.Preset.Thousands", bundle: .engine)
+        case .currency: return String(localized: "NumberFormat.Preset.Currency", bundle: .engine)
+        case .accounting: return String(localized: "NumberFormat.Preset.Accounting", bundle: .engine)
+        case .percent: return String(localized: "NumberFormat.Preset.Percentage", bundle: .engine)
+        case .percentTwoPlaces: return String(localized: "NumberFormat.Preset.PercentageTwoPlaces", bundle: .engine)
+        case .scientific: return String(localized: "NumberFormat.Preset.Scientific", bundle: .engine)
+        case .date: return String(localized: "NumberFormat.Preset.Date", bundle: .engine)
+        case .time: return String(localized: "NumberFormat.Preset.Time", bundle: .engine)
+        case .dateTime: return String(localized: "NumberFormat.Preset.DateTime", bundle: .engine)
+        case .text: return String(localized: "NumberFormat.Preset.Text", bundle: .engine)
         }
     }
 

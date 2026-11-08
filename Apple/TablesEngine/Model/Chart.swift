@@ -86,13 +86,13 @@ public enum ChartKind: String, CaseIterable, Hashable, Sendable {
 
     public var label: String {
         switch self {
-        case .column: return String(localized: "Chart.Kind.Column", bundle: #bundle)
-        case .bar: return String(localized: "Chart.Kind.Bar", bundle: #bundle)
-        case .line: return String(localized: "Chart.Kind.Line", bundle: #bundle)
-        case .area: return String(localized: "Chart.Kind.Area", bundle: #bundle)
-        case .pie: return String(localized: "Chart.Kind.Pie", bundle: #bundle)
-        case .doughnut: return String(localized: "Chart.Kind.Doughnut", bundle: #bundle)
-        case .scatter: return String(localized: "Chart.Kind.Scatter", bundle: #bundle)
+        case .column: return String(localized: "Chart.Kind.Column", bundle: .engine)
+        case .bar: return String(localized: "Chart.Kind.Bar", bundle: .engine)
+        case .line: return String(localized: "Chart.Kind.Line", bundle: .engine)
+        case .area: return String(localized: "Chart.Kind.Area", bundle: .engine)
+        case .pie: return String(localized: "Chart.Kind.Pie", bundle: .engine)
+        case .doughnut: return String(localized: "Chart.Kind.Doughnut", bundle: .engine)
+        case .scatter: return String(localized: "Chart.Kind.Scatter", bundle: .engine)
         }
     }
 
@@ -131,9 +131,9 @@ public enum ChartGrouping: String, CaseIterable, Hashable, Sendable {
 
     public var label: String {
         switch self {
-        case .standard: return String(localized: "Chart.Grouping.Standard", bundle: #bundle)
-        case .stacked: return String(localized: "Chart.Grouping.Stacked", bundle: #bundle)
-        case .percentStacked: return String(localized: "Chart.Grouping.PercentStacked", bundle: #bundle)
+        case .standard: return String(localized: "Chart.Grouping.Standard", bundle: .engine)
+        case .stacked: return String(localized: "Chart.Grouping.Stacked", bundle: .engine)
+        case .percentStacked: return String(localized: "Chart.Grouping.PercentStacked", bundle: .engine)
         }
     }
 }
@@ -147,11 +147,11 @@ public enum ChartLegendPosition: String, CaseIterable, Hashable, Sendable {
 
     public var label: String {
         switch self {
-        case .right: return String(localized: "Chart.Legend.Right", bundle: #bundle)
-        case .left: return String(localized: "Chart.Legend.Left", bundle: #bundle)
-        case .top: return String(localized: "Chart.Legend.Top", bundle: #bundle)
-        case .bottom: return String(localized: "Chart.Legend.Bottom", bundle: #bundle)
-        case .topRight: return String(localized: "Chart.Legend.TopRight", bundle: #bundle)
+        case .right: return String(localized: "Chart.Legend.Right", bundle: .engine)
+        case .left: return String(localized: "Chart.Legend.Left", bundle: .engine)
+        case .top: return String(localized: "Chart.Legend.Top", bundle: .engine)
+        case .bottom: return String(localized: "Chart.Legend.Bottom", bundle: .engine)
+        case .topRight: return String(localized: "Chart.Legend.TopRight", bundle: .engine)
         }
     }
 }

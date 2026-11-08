@@ -915,7 +915,7 @@ public final class VBAInterpreter {
             }
             return .object(instance)
         case .addressOf:
-            throw VBAError(number: 445, String(localized: "Macro.Unavailable.AddressOf", bundle: #bundle))
+            throw VBAError(number: 445, String(localized: "Macro.Unavailable.AddressOf", bundle: .macros))
         case .typeOfIs(let subject, let className):
             let value = try evaluate(subject, frame)
             guard case .object(let object) = value else { return .boolean(false) }
@@ -1093,7 +1093,7 @@ public final class VBAInterpreter {
         let arguments = try evaluateArguments(argumentExpressions, frame)
         if frame.module.syntax.externalProcedures.contains(key)
             || modules.contains(where: { $0.syntax.externalProcedures.contains(key) }) {
-            throw VBAError(number: 445, String(format: String(localized: "Macro.Unavailable.Declare", bundle: #bundle), name))
+            throw VBAError(number: 445, String(format: String(localized: "Macro.Unavailable.Declare", bundle: .macros), name))
         }
         if let value = try VBALibrary.call(name, arguments, interpreter: self, frame: frame) { return value }
         if let host, let value = try host.globalMember(name, arguments, in: self) { return value }

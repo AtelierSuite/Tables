@@ -255,7 +255,7 @@ public final class VBAWorkbookObject: VBAObject {
         case "followhyperlink":
             let address = try interpreter.letValue(arguments.required(0, "Address")).asString()
             guard let url = VBALibrary.openableURL(address) else {
-                throw VBAError(number: 445, String(localized: "Macro.Unavailable.Shell", bundle: #bundle))
+                throw VBAError(number: 445, String(localized: "Macro.Unavailable.Shell", bundle: .macros))
             }
             guard host.openURL(url) else { throw VBAFileSystem.permissionDenied }
             return .empty

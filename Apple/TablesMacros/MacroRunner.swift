@@ -140,7 +140,7 @@ public final class MacroRunner {
                 } catch let error as VBAError {
                     failure = Self.describe(error)
                 } catch VBAControl.cancelled {
-                    failure = String(localized: "Macros.Stopped", bundle: #bundle)
+                    failure = String(localized: "Macros.Stopped", bundle: .macros)
                 } catch VBAControl.end {
                     failure = nil
                 } catch {
@@ -163,7 +163,7 @@ public final class MacroRunner {
     public nonisolated static func describe(_ error: VBAError) -> String {
         let message = error.number == 0 ? error.description : "\(error.description) (\(error.number))"
         guard let module = error.module, let line = error.line else { return message }
-        return String(format: String(localized: "Macros.Failed.Location", bundle: #bundle), message, module, line)
+        return String(format: String(localized: "Macros.Failed.Location", bundle: .macros), message, module, line)
     }
 }
 

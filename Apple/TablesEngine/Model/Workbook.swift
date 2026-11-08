@@ -62,26 +62,26 @@ public enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Compar
 
     public var label: String {
         switch self {
-        case .conditionalFormatting: return String(localized: "UnsupportedFeature.ConditionalFormatting", bundle: #bundle)
-        case .dataValidation: return String(localized: "UnsupportedFeature.DataValidation", bundle: #bundle)
-        case .autoFilter: return String(localized: "UnsupportedFeature.AutoFilter", bundle: #bundle)
-        case .frozenPanes: return String(localized: "UnsupportedFeature.FrozenPanes", bundle: #bundle)
-        case .sheetProtection: return String(localized: "UnsupportedFeature.SheetProtection", bundle: #bundle)
-        case .printSetup: return String(localized: "UnsupportedFeature.PrintSetup", bundle: #bundle)
-        case .comments: return String(localized: "UnsupportedFeature.Comments", bundle: #bundle)
-        case .hyperlinks: return String(localized: "UnsupportedFeature.Hyperlinks", bundle: #bundle)
-        case .tables: return String(localized: "UnsupportedFeature.Tables", bundle: #bundle)
-        case .chartsAndImages: return String(localized: "UnsupportedFeature.ChartsAndImages", bundle: #bundle)
-        case .sparklines: return String(localized: "UnsupportedFeature.Sparklines", bundle: #bundle)
-        case .pivotTables: return String(localized: "UnsupportedFeature.PivotTables", bundle: #bundle)
-        case .slicers: return String(localized: "UnsupportedFeature.Slicers", bundle: #bundle)
-        case .documentProperties: return String(localized: "UnsupportedFeature.DocumentProperties", bundle: #bundle)
-        case .macros: return String(localized: "UnsupportedFeature.Macros", bundle: #bundle)
-        case .formatting: return String(localized: "UnsupportedFeature.Formatting", bundle: #bundle)
-        case .fontsAndBorders: return String(localized: "UnsupportedFeature.FontsAndBorders", bundle: #bundle)
-        case .richTextFormatting: return String(localized: "UnsupportedFeature.RichTextFormatting", bundle: #bundle)
-        case .categories: return String(localized: "UnsupportedFeature.Categories", bundle: #bundle)
-        case .unreadFormulas: return String(localized: "UnsupportedFeature.UnreadFormulas", bundle: #bundle)
+        case .conditionalFormatting: return String(localized: "UnsupportedFeature.ConditionalFormatting", bundle: .engine)
+        case .dataValidation: return String(localized: "UnsupportedFeature.DataValidation", bundle: .engine)
+        case .autoFilter: return String(localized: "UnsupportedFeature.AutoFilter", bundle: .engine)
+        case .frozenPanes: return String(localized: "UnsupportedFeature.FrozenPanes", bundle: .engine)
+        case .sheetProtection: return String(localized: "UnsupportedFeature.SheetProtection", bundle: .engine)
+        case .printSetup: return String(localized: "UnsupportedFeature.PrintSetup", bundle: .engine)
+        case .comments: return String(localized: "UnsupportedFeature.Comments", bundle: .engine)
+        case .hyperlinks: return String(localized: "UnsupportedFeature.Hyperlinks", bundle: .engine)
+        case .tables: return String(localized: "UnsupportedFeature.Tables", bundle: .engine)
+        case .chartsAndImages: return String(localized: "UnsupportedFeature.ChartsAndImages", bundle: .engine)
+        case .sparklines: return String(localized: "UnsupportedFeature.Sparklines", bundle: .engine)
+        case .pivotTables: return String(localized: "UnsupportedFeature.PivotTables", bundle: .engine)
+        case .slicers: return String(localized: "UnsupportedFeature.Slicers", bundle: .engine)
+        case .documentProperties: return String(localized: "UnsupportedFeature.DocumentProperties", bundle: .engine)
+        case .macros: return String(localized: "UnsupportedFeature.Macros", bundle: .engine)
+        case .formatting: return String(localized: "UnsupportedFeature.Formatting", bundle: .engine)
+        case .fontsAndBorders: return String(localized: "UnsupportedFeature.FontsAndBorders", bundle: .engine)
+        case .richTextFormatting: return String(localized: "UnsupportedFeature.RichTextFormatting", bundle: .engine)
+        case .categories: return String(localized: "UnsupportedFeature.Categories", bundle: .engine)
+        case .unreadFormulas: return String(localized: "UnsupportedFeature.UnreadFormulas", bundle: .engine)
         }
     }
 
@@ -126,17 +126,17 @@ public struct UnsupportedFeatureReport: Hashable, Sendable {
     public var noticeMessage: String {
         // Languages that do not separate list items with a comma get their own
         // separator, so a translated notice reads as a list in that language.
-        let separator = String(localized: "Common.ListSeparator", bundle: #bundle)
+        let separator = String(localized: "Common.ListSeparator", bundle: .engine)
         var lines: [String] = []
         if !preserved.isEmpty {
             lines.append(String(
-                format: String(localized: "UnsupportedFeature.Notice.Preserved", bundle: #bundle),
+                format: String(localized: "UnsupportedFeature.Notice.Preserved", bundle: .engine),
                 preserved.sorted().map(\.label).joined(separator: separator)
             ))
         }
         if !lost.isEmpty {
             lines.append(String(
-                format: String(localized: "UnsupportedFeature.Notice.Lost", bundle: #bundle),
+                format: String(localized: "UnsupportedFeature.Notice.Lost", bundle: .engine),
                 lost.sorted().map(\.label).joined(separator: separator)
             ))
         }
@@ -271,7 +271,7 @@ public struct Workbook: Hashable, Sendable {
 
     /// "Sheet 3" in the user's language, for sheets the app names itself.
     public static func defaultSheetName(_ position: Int) -> String {
-        String(format: String(localized: "Workbook.Sheet.DefaultName", bundle: #bundle), position)
+        String(format: String(localized: "Workbook.Sheet.DefaultName", bundle: .engine), position)
     }
 
     /// The definition a formula living on `sheetID` sees for `name`.

@@ -28,11 +28,11 @@ public enum NumbersEditPolicy {
 
         public var errorDescription: String? {
             switch self {
-            case .formula: return String(localized: "Numbers.Restriction.Formula", bundle: #bundle)
-            case .protectedCell: return String(localized: "Numbers.Restriction.ProtectedCell", bundle: #bundle)
-            case .structure: return String(localized: "Numbers.Restriction.Structure", bundle: #bundle)
-            case .movingCells: return String(localized: "Numbers.Restriction.MovingCells", bundle: #bundle)
-            case .unmergedChanges: return String(localized: "Numbers.Restriction.UnmergedChanges", bundle: #bundle)
+            case .formula: return String(localized: "Numbers.Restriction.Formula", bundle: .engine)
+            case .protectedCell: return String(localized: "Numbers.Restriction.ProtectedCell", bundle: .engine)
+            case .structure: return String(localized: "Numbers.Restriction.Structure", bundle: .engine)
+            case .movingCells: return String(localized: "Numbers.Restriction.MovingCells", bundle: .engine)
+            case .unmergedChanges: return String(localized: "Numbers.Restriction.UnmergedChanges", bundle: .engine)
             }
         }
     }

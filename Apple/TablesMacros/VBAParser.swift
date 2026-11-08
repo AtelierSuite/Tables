@@ -44,8 +44,8 @@ public struct VBAParser: Sendable {
         case .string(let text): return "\"\(text)\""
         case .date: return "#date#"
         case .symbol(let symbol): return symbol
-        case .newline: return String(localized: "Macro.EndOfLine", bundle: #bundle)
-        case .end: return String(localized: "Macro.EndOfModule", bundle: #bundle)
+        case .newline: return String(localized: "Macro.EndOfLine", bundle: .macros)
+        case .end: return String(localized: "Macro.EndOfModule", bundle: .macros)
         }
     }
 
@@ -601,7 +601,7 @@ public struct VBAParser: Sendable {
         case "load", "unload":
             advance()
             while !atEndOfStatement { advance() }
-            return .unsupported(String(localized: "Macro.Unavailable.UserForms", bundle: #bundle))
+            return .unsupported(String(localized: "Macro.Unavailable.UserForms", bundle: .macros))
         default:
             return nil
         }

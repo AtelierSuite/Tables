@@ -276,7 +276,7 @@ public enum ChartReader {
         }
         if let titleElement = element.firstChild(named: "title") {
             axis.title = title(from: titleElement, context: context)
-                ?? ChartTitle(text: String(localized: "Chart.Axis.DefaultTitle", bundle: #bundle))
+                ?? ChartTitle(text: String(localized: "Chart.Axis.DefaultTitle", bundle: .engine))
         }
         axis.textStyle = textStyle(fromBody: element.firstChild(named: "txPr"), context: context)
         return axis

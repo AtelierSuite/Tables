@@ -172,7 +172,7 @@ extension Chart {
                 valueFormat = valueCells.first { $0.value.chartNumber != nil }?.style.numberFormat ?? "General"
             }
             let name = entry.name.text(in: workbook)
-                ?? String(format: String(localized: "Chart.Series.DefaultName", bundle: #bundle), index + 1)
+                ?? String(format: String(localized: "Chart.Series.DefaultName", bundle: .engine), index + 1)
             series.append(ResolvedChart.Series(
                 name: name,
                 values: values,

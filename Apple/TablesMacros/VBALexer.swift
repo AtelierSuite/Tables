@@ -35,12 +35,12 @@ public struct VBASyntaxError: LocalizedError, Hashable, Sendable {
 
     /// A message from the string catalog, with its arguments filled in.
     public static func text(_ key: String, _ arguments: CVarArg...) -> String {
-        String(format: String(localized: String.LocalizationValue(key), bundle: #bundle), arguments: arguments)
+        String(format: String(localized: String.LocalizationValue(key), bundle: .macros), arguments: arguments)
     }
 
     public var errorDescription: String? {
-        guard let module else { return String(format: String(localized: "Macro.SyntaxError", bundle: #bundle), line, message) }
-        return String(format: String(localized: "Macro.SyntaxError.InModule", bundle: #bundle), module, line, message)
+        guard let module else { return String(format: String(localized: "Macro.SyntaxError", bundle: .macros), line, message) }
+        return String(format: String(localized: "Macro.SyntaxError.InModule", bundle: .macros), module, line, message)
     }
 }
 

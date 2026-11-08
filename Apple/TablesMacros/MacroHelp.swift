@@ -20,7 +20,7 @@ public enum MacroHelp {
             // Built first: written inline, the interpolation would become part
             // of the catalog key as a placeholder.
             let key = "Help.\(id).Title"
-            return String(localized: String.LocalizationValue(key), bundle: #bundle)
+            return String(localized: String.LocalizationValue(key), bundle: .macros)
         }
     }
 
@@ -36,7 +36,7 @@ public enum MacroHelp {
         public var id: String { title + (isAvailable ? "" : "-") }
 
         public var displayTitle: String {
-            isCode ? title : String(localized: String.LocalizationValue(title), bundle: #bundle)
+            isCode ? title : String(localized: String.LocalizationValue(title), bundle: .macros)
         }
     }
 

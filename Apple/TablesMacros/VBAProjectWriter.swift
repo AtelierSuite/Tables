@@ -27,15 +27,15 @@ extension VBAProject {
     /// Why `name` cannot name a new module, or nil when it can.
     public func problem(withModuleName name: String) -> String? {
         guard let first = name.first, first.isLetter, first.isASCII else {
-            return String(localized: "Macros.ModuleName.MustStartWithLetter", bundle: #bundle)
+            return String(localized: "Macros.ModuleName.MustStartWithLetter", bundle: .macros)
         }
         guard name.allSatisfy({ ($0.isLetter || $0.isNumber || $0 == "_") && $0.isASCII }) else {
-            return String(localized: "Macros.ModuleName.InvalidCharacters", bundle: #bundle)
+            return String(localized: "Macros.ModuleName.InvalidCharacters", bundle: .macros)
         }
-        guard name.count <= 31 else { return String(localized: "Macros.ModuleName.TooLong", bundle: #bundle) }
+        guard name.count <= 31 else { return String(localized: "Macros.ModuleName.TooLong", bundle: .macros) }
         guard module(named: name) == nil, name.caseInsensitiveCompare(self.name) != .orderedSame,
               !Self.reservedNames.contains(name.lowercased()) else {
-            return String(localized: "Macros.ModuleName.Taken", bundle: #bundle)
+            return String(localized: "Macros.ModuleName.Taken", bundle: .macros)
         }
         return nil
     }
@@ -105,7 +105,7 @@ extension VBAProject {
             var text = module.source.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\n", with: "\r\n")
             if !text.isEmpty, !text.hasSuffix("\r\n") { text += "\r\n" }
             guard let encoded = (module.attributes + text).data(using: encoding) else {
-                throw EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: #bundle), module.name))
+                throw EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: .macros), module.name))
             }
             moduleStreams.append((module.streamName, VBACompression.compress(encoded)))
         }
@@ -282,7 +282,7 @@ public struct VBADirectoryRecords: Sendable {
                let group = groups.first(where: { $0.name.caseInsensitiveCompare(stored) == .orderedSame }) {
                 let isRenamed = stored != module.name
                 guard let name = module.name.data(using: encoding) else {
-                    throw VBAProject.EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: #bundle), module.name))
+                    throw VBAProject.EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: .macros), module.name))
                 }
                 let unicode = module.name.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
                 for record in group.records {
@@ -306,7 +306,7 @@ public struct VBADirectoryRecords: Sendable {
     /// The records [MS-OVBA] §2.3.4.2.3.2 requires for a module.
     private static func newModuleRecords(_ module: VBAProject.Module, encoding: String.Encoding) throws -> [UInt8] {
         guard let name = module.name.data(using: encoding) else {
-            throw VBAProject.EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: #bundle), module.name))
+            throw VBAProject.EditError(message: String(format: String(localized: "Macros.Save.Unencodable", bundle: .macros), module.name))
         }
         let unicode = module.name.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
         var out: [UInt8] = []

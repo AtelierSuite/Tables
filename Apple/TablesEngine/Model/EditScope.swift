@@ -20,9 +20,9 @@ public enum EditScope: Hashable, Sendable {
 
     public var actionName: String {
         switch self {
-        case .chart: return String(localized: "Undo.Action.Chart", bundle: #bundle)
-        case .sheetLayout: return String(localized: "Undo.Action.Resize", bundle: #bundle)
-        case .sheetOrder: return String(localized: "Undo.Action.MoveSheet", bundle: #bundle)
+        case .chart: return String(localized: "Undo.Action.Chart", bundle: .engine)
+        case .sheetLayout: return String(localized: "Undo.Action.Resize", bundle: .engine)
+        case .sheetOrder: return String(localized: "Undo.Action.MoveSheet", bundle: .engine)
         case .other: return ""
         }
     }

@@ -300,7 +300,7 @@ extension Worksheet {
         let names = Set(charts.map(\.name))
         var number = charts.count + 1
         while true {
-            let candidate = String(format: String(localized: "Chart.DefaultName", bundle: #bundle), number)
+            let candidate = String(format: String(localized: "Chart.DefaultName", bundle: .engine), number)
             if !names.contains(candidate) { return candidate }
             number += 1
         }
