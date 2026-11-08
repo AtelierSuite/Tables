@@ -401,7 +401,8 @@ a[href]:hover {
 /* On a layer-01 surface (inspectors, sheets), fields use field-02 to stay visible. */
 .ds-on-layer .ds-text-input,
 .ds-on-layer .ds-popup__select,
-.ds-on-layer .ds-search__input {
+.ds-on-layer .ds-search__input,
+.ds-on-layer .ds-stepper {
   background: var(--ds-field-02);
 }
 
