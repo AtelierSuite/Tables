@@ -338,12 +338,18 @@ body {
   margin-top: var(--ds-spacing-04);
 }
 
-/* The Update button, at the menu bar's trailing end: shorter than an xs
-   button so its outline clears the bar's edges. */
+/* The Update button, at the menu bar's trailing end: borderless and the bar's
+   full height like the menu titles, with the accent on its icon. */
 .app__update {
-  align-self: center;
-  height: 20px;
-  margin-inline: auto var(--ds-spacing-02);
+  align-self: stretch;
+  height: auto;
+  gap: var(--ds-spacing-02);
+  margin-inline-start: auto;
+  font: var(--ds-type-body-compact);
+}
+
+.app__update-icon {
+  color: var(--ds-interactive);
 }
 
 .app__update-body .ds-progress {

@@ -34,6 +34,7 @@ const ICONS = {
   warning: '<path d="M8 1L.5 15h15zm.75 11.5h-1.5V11h1.5zm0-2.5h-1.5V6h1.5z"/>',
   error: '<path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3 9.6L10.6 11 8 8.4 5.4 11 5 10.6 7.6 8 5 5.4 5.4 5 8 7.6 10.6 5l.4.4L8.4 8z"/>',
   table: '<rect x="1.75" y="2.75" width="12.5" height="10.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5h12M2 10h12M6 3v10" stroke="currentColor" stroke-width="1.2"/>',
+  download: '<path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2.5 11v2.5h11V11" fill="none" stroke="currentColor" stroke-width="1.5"/>',
   add: '<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5"/>',
   list: '<path d="M5.5 4h8M5.5 8h8M5.5 12h8" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 4h1M2.5 8h1M2.5 12h1" stroke="currentColor" stroke-width="1.5"/>',
   borderAll: '<rect x="2.5" y="2.5" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.5"/>',
@@ -418,8 +419,9 @@ export class WorkbookWindow {
     // into the » menu, and hidden until offerUpdate() shows it.
     const update = document.createElement("button");
     update.type = "button";
-    update.className = "ds-button ds-button--bordered ds-button--xs app__update";
-    update.textContent = t("Web.Update.Button");
+    update.className = "ds-button ds-button--ghost ds-button--xs app__update";
+    update.innerHTML = `${icon("download", "app__update-icon")}<span></span>`;
+    update.querySelector("span").textContent = t("Web.Update.Button");
     update.title = t("Web.Update.Available");
     update.hidden = true;
     bar.append(update);
