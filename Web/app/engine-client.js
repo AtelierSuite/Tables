@@ -16,10 +16,12 @@ export class EngineError extends Error {
 }
 
 export class EngineClient extends EventTarget {
-  constructor() {
+  /** @param {{ keepForOffline?: boolean }} [options] keepForOffline: leave the downloaded engine for the service worker's first install */
+  constructor({ keepForOffline = false } = {}) {
     super();
     const url = new URL("../engine/worker.js", import.meta.url);
     url.searchParams.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC");
+    if (keepForOffline) url.searchParams.set("keep", "1");
     this.worker = new Worker(url, { type: "module" });
     this.pending = new Map();
     this.nextId = 1;

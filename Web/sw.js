@@ -9,6 +9,9 @@
 
 const META = "tables-meta";
 const MANIFEST = "./build/version.json";
+// The engine as the page downloaded it on a first visit (engine/worker.js),
+// so installing doesn't download it a second time.
+const FIRST_VISIT = "tables-first-visit";
 
 let current; // the version being served; undefined until read from META
 let downloading = null;
@@ -47,7 +50,7 @@ async function download(manifest, onProgress = () => {}) {
       onProgress(loaded, total);
       continue;
     }
-    const response = await fetch(new Request(path, { cache: "reload" }));
+    const response = await fetchOrReuse(path);
     if (!response.ok) throw new Error(`${path}: ${response.status}`);
     const counted = response.clone().body.getReader();
     const stored = cache.put(path, response);
@@ -64,6 +67,24 @@ async function download(manifest, onProgress = () => {}) {
   for (const name of await caches.keys()) {
     if (name.startsWith("tables-") && name !== META && name !== `tables-${current}`) await caches.delete(name);
   }
+}
+
+/**
+ * The file from the server, or the page's copy of it if the server says that
+ * one is still current. Checked with the server either way, and not sent
+ * again when the browser's own cache has the same file.
+ */
+async function fetchOrReuse(path) {
+  const early = await (await caches.open(FIRST_VISIT)).match(path);
+  const etag = early?.headers.get("ETag");
+  const modified = early?.headers.get("Last-Modified");
+  if (etag || modified) {
+    const headers = etag ? { "If-None-Match": etag } : { "If-Modified-Since": modified };
+    const response = await fetch(new Request(path, { cache: "no-store", headers }));
+    if (response.status === 304) return early;
+    return response;
+  }
+  return fetch(new Request(path, { cache: "no-cache" }));
 }
 
 self.addEventListener("install", (event) => {

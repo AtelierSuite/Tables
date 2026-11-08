@@ -15,7 +15,7 @@ for (const type of ["gesturestart", "gesturechange"]) {
 
 async function start() {
   const strings = await loadStrings();
-  const engine = new EngineClient();
+  const engine = new EngineClient({ keepForOffline: usesServiceWorker() && !navigator.serviceWorker.controller });
   showEngineProgress(engine);
   const locale = new URLSearchParams(location.search).get("lang") || navigator.language || "en-US";
   await engine.call("init", { strings, locale });
@@ -52,12 +52,16 @@ function showEngineProgress(engine) {
   });
 }
 
-function registerServiceWorker(app) {
-  if (!("serviceWorker" in navigator)) return;
+function usesServiceWorker() {
+  if (!("serviceWorker" in navigator)) return false;
   // While developing, files change faster than builds: on this machine the
   // offline cache is only used when asked for with ?offline.
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
-  if (local && !new URLSearchParams(location.search).has("offline")) return;
+  return !local || new URLSearchParams(location.search).has("offline");
+}
+
+function registerServiceWorker(app) {
+  if (!usesServiceWorker()) return;
   const firstInstall = !navigator.serviceWorker.controller;
   navigator.serviceWorker.register(new URL("../sw.js", import.meta.url), { scope: "../" }).then(async (registration) => {
     const installing = Boolean(registration.installing);

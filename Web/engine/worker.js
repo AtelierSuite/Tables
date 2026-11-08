@@ -9,7 +9,11 @@
 import { Engine } from "./engine.js";
 
 // The page passes the user's time zone in the worker's address; Foundation reads it from TZ.
-const timeZone = new URL(self.location.href).searchParams.get("tz");
+const parameters = new URL(self.location.href).searchParams;
+const timeZone = parameters.get("tz");
+// Set on a first visit, before the service worker has kept the app for offline use.
+const keepForOffline = parameters.get("keep") === "1";
+let keeping = Promise.resolve();
 
 /**
  * The engine, kept gzipped (build/tables-engine.bin) to fit hosts' file size limits, and not
@@ -17,9 +21,11 @@ const timeZone = new URL(self.location.href).searchParams.get("tz");
  * Decompressed here, unless a server already did that on the way.
  */
 async function engineModule() {
-  const response = await fetch(new URL("../build/tables-engine.bin", import.meta.url));
+  const url = new URL("../build/tables-engine.bin", import.meta.url);
+  const response = await fetch(url);
   if (!response.ok) throw new Error(`Couldn't load the engine (${response.status})`);
   const bytes = await readReportingProgress(response);
+  if (keepForOffline) keeping = keepCopy(url, response, bytes).catch(() => {});
   if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return bytes;
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
   return new Response(stream, { headers: { "Content-Type": "application/wasm" } });
@@ -56,10 +62,26 @@ async function readReportingProgress(response) {
   return bytes;
 }
 
+/**
+ * Leaves the downloaded engine where the service worker's first install
+ * looks for it (FIRST_VISIT in sw.js), which then needn't download it again.
+ */
+async function keepCopy(url, response, bytes) {
+  const headers = new Headers(response.headers);
+  headers.delete("Content-Encoding");
+  headers.set("Content-Length", String(bytes.byteLength));
+  const copy = new Response(bytes, { status: response.status, statusText: response.statusText, headers });
+  await (await caches.open("tables-first-visit")).put(url, copy);
+}
+
 const ready = Engine.load(engineModule(), {
   env: timeZone ? { TZ: timeZone } : {},
   stdout: (line) => console.log("[engine]", line),
   stderr: (line) => console.warn("[engine]", line),
+}).then(async (engine) => {
+  // Kept before the page goes on to start the service worker.
+  await keeping;
+  return engine;
 });
 let broken = null;
 
