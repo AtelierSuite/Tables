@@ -266,6 +266,7 @@
       <div class="specimen__rule"><h3 class="ds-heading-compact">No all caps</h3><p>Text is never transformed to capitals or small caps. Strings appear exactly as written in the string catalogues.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">No wide tracking</h3><p>Letter-spacing is always zero. Numbers line up with tabular figures, not monospace.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">No selectable UI text</h3><p>Labels, headings, menus and messages can't be selected. Only text fields, editable regions and document content can.</p></div>
+      <div class="specimen__rule"><h3 class="ds-heading-compact">No draggable UI images</h3><p>Icons, images and other UI media never start a drag. Only objects the user moves on purpose are draggable.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">Square buttons</h3><p>Every button has square corners, including icon, segmented, help and menu-bar buttons. Only checkboxes, radios, switches and sliders are rounded.</p></div>
       <div class="specimen__rule"><h3 class="ds-heading-compact">No fingernail strips</h3><p>No coloured bar along one edge of a card, row, tab or notification. Selection and status fill the whole surface.</p></div>
     </div>
@@ -463,6 +464,7 @@
 </main>
 
 <script type="module">
+  import "./base.js";
   import { attachMenuBar, attachToolbarOverflow, attachContextMenu } from "./menus.js";
 
   const root = document.documentElement;

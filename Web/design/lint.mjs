@@ -146,6 +146,9 @@ function lintDeclaration(file, selector, prop, rawValue, line) {
     if (!ok) report(file, line, "no-selectable-ui-text", `${prop}: ${value} on "${selector}"`);
   }
 
+  // Dragging: UI images never drag.
+  if (prop === "-webkit-user-drag" && v !== "none") report(file, line, "no-draggable-images", `${prop}: ${value}`);
+
   // Case: never transform to capitals; never small caps.
   if (prop === "text-transform" && v !== "none") report(file, line, "no-all-caps", `text-transform: ${value}`);
   if ((prop === "font-variant-caps" || prop === "font-variant") && /(small|petite|titling)-caps|unicase/.test(v)) {
@@ -239,6 +242,12 @@ function lintHTML(file, html) {
       if (cls && FORBIDDEN_NAMES.test(cls)) report(file, lineAt(html, m.index), "no-chips-or-eyebrows", `class "${cls}"`);
     }
   }
+  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+    if (!/\sdraggable\s*=\s*"false"/i.test(m[0])) report(file, lineAt(html, m.index), "no-draggable-images", "<img> needs draggable=\"false\"");
+  }
+  for (const m of html.matchAll(/<(img|svg|picture|video|canvas)\b[^>]*\sdraggable\s*=\s*"true"/gi)) {
+    report(file, lineAt(html, m.index), "no-draggable-images", `<${m[1]} draggable="true">`);
+  }
   const body = html.replace(/<script[\s\S]*?<\/script>/gi, (s) => s.replace(/[^\n]/g, " "));
   for (const m of body.matchAll(new RegExp(MONO_ELEMENTS.source, "gi"))) {
     report(file, lineAt(body, m.index), "system-font-only", `<${m[1]}> renders monospace; use a span`);
@@ -257,6 +266,7 @@ function lintScript(file, js, baseLine = 1) {
     [/(letterSpacing|letter-spacing)\s*[:=]\s*["'`](?!0(px)?["'`]|normal)/g, "no-wide-kerning"],
     [/monospace/g, "system-font-only"],
     [/(userSelect|user-select)\s*[:=]\s*["'`](text|all|auto|contain)/g, "no-selectable-ui-text"],
+    [/(webkitUserDrag|user-drag)\s*[:=]\s*["'`](auto|element)/g, "no-draggable-images"],
   ];
   for (const [re, rule] of rules) {
     for (const m of js.matchAll(re)) {

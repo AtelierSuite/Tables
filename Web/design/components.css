@@ -43,7 +43,7 @@ optgroup {
 }
 
 /*
- * UI text is never selectable, as in a native app.
+ * UI text is never selectable and UI images never drag, as in a native app.
  * Only what the user edits or authored is selectable: text fields, editable
  * regions and document content rendered as HTML (.ds-document-content).
  */
@@ -51,6 +51,14 @@ html {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+}
+
+img,
+svg,
+picture,
+video,
+canvas {
+  -webkit-user-drag: none;
 }
 
 input[type="text"],

@@ -6,6 +6,7 @@ The web version of Tables uses **IBM Carbon's visual language** (colour, type sc
 | --- | --- |
 | `tokens.css` | Every colour, type, spacing, size, motion and elevation value as `--ds-*` custom properties, with light and dark appearance. |
 | `components.css` | The component classes (`.ds-*`). Built only from tokens. |
+| `base.js` | Global behaviour every page imports first: cancels drags that start on UI images (Firefox ignores the CSS for it). |
 | `menus.js` | Menu behaviour: pull-down, context and submenus that always fit the window, the in-window menu bar, and toolbar and menu-bar overflow. An ES module with no dependencies. |
 | `index.html` | A specimen page showing every component and a complete, resizable workbook window. Run `npm run design` in `Web/` and open the printed address (browsers don't load ES modules from `file://`). |
 | `serve.mjs` | The tiny static server behind `npm run design`. |
@@ -72,6 +73,11 @@ No coloured bar along a single edge of a card, list row, tab, notification, call
 - The whole UI is `user-select: none` from `<html>` down, as in a native app: labels, headings, buttons, menus, tooltips, notifications, alerts and the status bar can't be selected or long-pressed for a callout.
 - Selectable text is limited to what the user edits or authored: text inputs, `<textarea>`, `[contenteditable]`, and document content rendered as HTML, marked `.ds-document-content` (comment bodies, a printed sheet). Grid cells are drawn on a canvas and copied through the app's own copy command, not text selection.
 - Text that people need to copy, such as an error code, gets a Copy button instead of being selectable.
+
+### 9. UI images are not draggable
+
+- Icons, images, `<svg>`, `<picture>`, `<video>` and `<canvas>` never start a drag: `-webkit-user-drag: none` in CSS for WebKit and Chromium, `draggable="false"` on every `<img>`, and `base.js` cancelling `dragstart` on them for Firefox.
+- Only things the user moves on purpose (sheet tabs, floating charts and drawings, the fill handle) are draggable, and they opt in with `draggable="true"` or pointer-event handling.
 
 ## Foundations
 
