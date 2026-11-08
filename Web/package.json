@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "design": "node design/serve.mjs",
     "lint:design": "node design/lint.mjs"
   }
 }
