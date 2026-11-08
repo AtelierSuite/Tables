@@ -12,7 +12,7 @@
 // Events: "edit" (editing started or text changed), "editend", "message".
 
 import { SheetMetrics, columnName } from "./metrics.js";
-import { paint, readPalette, fontFor, familyFor } from "./paint.js";
+import { paint, readPalette, fontFor, familyFor, cssColor } from "./paint.js";
 import { attachContextMenu } from "../design/menus.js";
 
 const TILE = 256;
@@ -63,6 +63,8 @@ export class GridView extends EventTarget {
     this.drawQueued = false;
     this.dark = false;
     this.palette = readPalette();
+    /** Each sheet's own background ("AARRGGBB", or null for the theme's paper), as its tiles last reported it. */
+    this.papers = new Map();
     /** The canvas the active sheet is on, from the engine's document info, or null for a sheet of its own. */
     this.canvasInfo = null;
     /** The other tables' row and column geometry, by sheet id. */
@@ -516,7 +518,14 @@ export class GridView extends EventTarget {
     this.dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
     this.palette = readPalette();
     this.tiles.clear();
+    this.papers.clear();
     this.requestDraw();
+  }
+
+  /** What a sheet's cells show through to: its background colour, or the theme's paper. */
+  paperFor(sheet = null) {
+    const id = sheet ?? this.metrics?.layout.sheet;
+    return cssColor(this.papers.get(id)) ?? this.palette.paper;
   }
 
   resize() {
@@ -556,9 +565,11 @@ export class GridView extends EventTarget {
     if (stale && !this.pendingTiles.has(key)) {
       this.pendingTiles.add(key);
       const dark = this.dark, zoom = this.zoom;
+      const id = sheet ?? this.metrics.layout.sheet;
       this.engine.render({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE }, dark, sheet).then((list) => {
         this.pendingTiles.delete(key);
         if (dark !== this.dark) return;
+        this.papers.set(id, list.paper ?? null);
         this.tiles.delete(key);
         this.tiles.set(key, { version, zoom, canvas: this.rasterize(list, tx, ty, zoom) });
         if (this.tiles.size > TILE_LIMIT) this.tiles.delete(this.tiles.keys().next().value);
@@ -577,7 +588,7 @@ export class GridView extends EventTarget {
     canvas.height = size;
     const ctx = canvas.getContext("2d");
     ctx.setTransform(scale, 0, 0, scale, -tx * TILE * scale, -ty * TILE * scale);
-    ctx.fillStyle = list.paper ? this.palette.paper : this.palette.paper;
+    ctx.fillStyle = cssColor(list.paper) ?? this.palette.paper;
     ctx.fillRect(tx * TILE, ty * TILE, TILE, TILE);
     ctx.beginPath();
     ctx.rect(tx * TILE, ty * TILE, TILE, TILE);
@@ -635,7 +646,7 @@ export class GridView extends EventTarget {
         if (bitmap) {
           ctx.drawImage(bitmap, dx, dy, TILE * z, TILE * z);
         } else {
-          ctx.fillStyle = this.palette.paper;
+          ctx.fillStyle = this.paperFor(sheet);
           ctx.fillRect(dx, dy, TILE * z, TILE * z);
         }
       }
@@ -656,8 +667,8 @@ export class GridView extends EventTarget {
     const frames = this.onCanvas ? this.screenFrames() : [];
 
     if (this.onCanvas) {
-      // The tables share their sheet's page, and its colour.
-      ctx.fillStyle = this.palette.paper;
+      // The tables share their sheet's page, and its colour: the first table's, as the Mac takes it.
+      ctx.fillStyle = this.paperFor(this.canvasInfo.tables[0]?.id);
       ctx.fillRect(0, 0, width, height);
       for (const frame of frames) {
         if (frame.active) continue;
@@ -713,7 +724,11 @@ export class GridView extends EventTarget {
     ctx.rect(frame.name.x, frame.name.y, frame.name.width, frame.name.height);
     ctx.clip();
     ctx.font = `600 ${Math.max(9, 14 * z)}px ${FONT}`;
-    ctx.fillStyle = style.getPropertyValue(frame.active ? "--ds-text-primary" : "--ds-text-secondary");
+    // Light on a dark page, whatever the appearance, as the Mac draws it.
+    const onDark = isDark(this.papers.get(this.canvasInfo.tables[0]?.id));
+    ctx.fillStyle = onDark
+      ? (frame.active ? "rgba(255, 255, 255, 0.92)" : "rgba(255, 255, 255, 0.6)")
+      : style.getPropertyValue(frame.active ? "--ds-text-primary" : "--ds-text-secondary");
     ctx.textAlign = "left";
     ctx.textBaseline = "bottom";
     ctx.fillText(fitText(ctx, frame.table.name, frame.name.width), frame.name.x, frame.name.y + frame.name.height - 4 * z);
@@ -784,7 +799,7 @@ export class GridView extends EventTarget {
       if (handle) {
         ctx.fillStyle = accent;
         ctx.fillRect(handle.x, handle.y, handle.width, handle.height);
-        ctx.strokeStyle = this.palette.paper;
+        ctx.strokeStyle = this.paperFor();
         ctx.lineWidth = 1;
         ctx.strokeRect(handle.x - 0.5, handle.y - 0.5, handle.width + 1, handle.height + 1);
       }
@@ -1769,6 +1784,13 @@ export class GridView extends EventTarget {
 }
 
 const FONT = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+
+/** Whether an "AARRGGBB" background is dark enough to want light text on it. */
+function isDark(argb) {
+  if (!argb || parseInt(argb.slice(0, 2), 16) < 128) return false;
+  const [r, g, b] = [2, 4, 6].map((at) => parseInt(argb.slice(at, at + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.5;
+}
 
 /** Text cut short with an ellipsis to fit a width, as the Mac truncates a table's name. */
 function fitText(ctx, text, width) {
