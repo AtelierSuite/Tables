@@ -19,6 +19,7 @@ const types = {
   ".svg": "image/svg+xml",
   ".md": "text/plain; charset=utf-8",
   ".wasm": "application/wasm",
+  ".gz": "application/gzip",
   ".webmanifest": "application/manifest+json",
   ".png": "image/png",
 };
