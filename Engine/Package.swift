@@ -2,7 +2,7 @@
 //
 // The Tables engine: the workbook model, formulas, file formats and the VBA
 // macro interpreter. Shared by the Apple apps (whose Xcode project compiles
-// these folders directly) and the web app (Web/wasm, which depends on this
+// these folders directly) and the web app (Web/engine, which depends on this
 // package and builds it for WebAssembly).
 
 import PackageDescription

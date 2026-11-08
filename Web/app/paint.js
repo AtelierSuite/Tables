@@ -1,4 +1,4 @@
-// Draws the engine's drawing operations (Web/wasm/Sources/TablesWasm/Renderer.swift)
+// Draws the engine's drawing operations (Web/engine/swift/Sources/TablesWasm/Renderer.swift)
 // onto a canvas. The engine decides what goes where; this measures and lays out
 // text, which only the browser can do, following the Mac's CellRenderer:
 // elided text, #s for a number too wide, wrapping, rotation and accounting fills.

@@ -25,7 +25,7 @@ TOOLCHAIN="${SWIFT_TOOLCHAIN:-$HOME/Library/Developer/Toolchains/swift-6.4.2-REL
 SWIFT="$TOOLCHAIN/usr/bin/swift"
 SDK="${SWIFT_SDK:-swift-6.4.2-RELEASE_wasm}"
 
-cd "$WEB/wasm"
+cd "$WEB/engine/swift"
 mkdir -p "$WEB/build"
 if [[ "${1:-}" != "--skip-engine" ]]; then
     echo "Building the engine…"
@@ -45,8 +45,8 @@ echo "Converting strings…"
 echo "Listing files for offline use…"
 cd "$WEB"
 FILES=$( { echo index.html; echo manifest.webmanifest;
-    find app design wasm build -type f \( -name "*.js" -o -name "*.css" -o -name "*.json" -o -name "*.bin" -o -name "*.png" -o -name "*.svg" \) \
-        -not -path "wasm/.build/*" -not -path "wasm/Sources/*" -not -name "lint.mjs" -not -name "serve.mjs" -not -name "version.js"; } | sort)
+    find app design engine build -type f \( -name "*.js" -o -name "*.css" -o -name "*.json" -o -name "*.bin" -o -name "*.png" -o -name "*.svg" \) \
+        -not -path "engine/swift/.build/*" -not -path "engine/swift/Sources/*" -not -name "lint.mjs" -not -name "serve.mjs" -not -name "version.js"; } | sort)
 if command -v sha256sum > /dev/null; then SHA256="sha256sum"; else SHA256="shasum -a 256"; fi
 VERSION=$(echo "$FILES" | xargs $SHA256 | $SHA256 | cut -c1-16)
 APP_VERSION=$(sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$WEB/package.json" | head -1)

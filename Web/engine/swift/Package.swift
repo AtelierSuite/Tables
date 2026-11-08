@@ -1,6 +1,6 @@
 // swift-tools-version:6.0
 //
-// The Tables engine for the web: the shared engine package (../../Engine)
+// The Tables engine for the web: the shared engine package (../../../Engine)
 // built for WebAssembly behind a small C interface, plus the tool that turns
 // string catalogues into the JSON the web app loads. Built by Web/build.sh.
 //
@@ -18,7 +18,7 @@ let package = Package(
         .executable(name: "strings-tool", targets: ["StringsTool"]),
     ],
     dependencies: [
-        .package(path: "../../Engine"),
+        .package(path: "../../../Engine"),
     ],
     targets: [
         .executableTarget(

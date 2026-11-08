@@ -1,6 +1,6 @@
 // Smoke tests for the WebAssembly engine, run with Node's built-ins only:
 //
-//   node Web/wasm/tests/smoke.mjs [file.xlsx|file.numbers|file.csv ...]
+//   node Web/engine/tests/smoke.mjs [file.xlsx|file.numbers|file.csv ...]
 //
 // Loads build/tables-engine.wasm through the same engine.js the app uses,
 // edits a workbook, saves and reopens it, and opens any files given.

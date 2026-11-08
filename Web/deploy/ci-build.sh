@@ -39,4 +39,4 @@ fi
 "$WEB/build.sh"
 
 echo "Testing the engine…"
-node "$WEB/wasm/tests/smoke.mjs"
+node "$WEB/engine/tests/smoke.mjs"

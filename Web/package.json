@@ -8,6 +8,6 @@
     "serve": "node design/serve.mjs",
     "design": "node design/serve.mjs",
     "lint:design": "node design/lint.mjs",
-    "test": "node wasm/tests/smoke.mjs"
+    "test": "node engine/tests/smoke.mjs"
   }
 }

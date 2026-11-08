@@ -13,7 +13,7 @@ The base app works end to end, including offline: start screen, new and opened w
 | Part | Where | Notes |
 | --- | --- | --- |
 | Engine and macros | `Engine/` (Swift package) | Shared by the Xcode project (compiled in place) and the web build. Builds for WebAssembly unchanged in behaviour; 706 of 707 Apple tests pass after the port, and the one failure is a flaky App Intents test unrelated to the engine |
-| WebAssembly interface | `Web/wasm/` | C exports with JSON requests, a WASI host, the worker, a strings tool, Node smoke tests |
+| WebAssembly interface | `Web/engine/` | C exports with JSON requests, a WASI host, the worker, a strings tool, Node smoke tests |
 | Window | `Web/app/` | Canvas grid, menus, toolbar, inspector, files, storage |
 | Design system | `Web/design/` | Tokens, components, menus, lint |
 
@@ -42,9 +42,9 @@ The base app works end to end, including offline: start screen, new and opened w
 │   app/files.js · app/storage.js   File System Access / picker / download · autosave     │
 │             ▲  JSON requests + transferable bytes                                        │
 │             ▼                                                                           │
-│ Engine worker (wasm/worker.js)                                                          │
-│   tables-engine.wasm: Engine/TablesEngine + Engine/TablesMacros + wasm/Sources          │
-│   wasm/wasi.js: clocks, randomness, console; no file system, no network                 │
+│ Engine worker (engine/worker.js)                                                        │
+│   tables-engine.wasm: Engine/TablesEngine + Engine/TablesMacros + engine/swift/Sources  │
+│   engine/wasi.js: clocks, randomness, console; no file system, no network               │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ Service worker (sw.js): caches every file listed in build/version.js at install and     │
 │ answers every request from that cache. A new build waits until the user restarts.       │
