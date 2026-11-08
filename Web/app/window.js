@@ -12,6 +12,19 @@ import { dismissSheet } from "../design/sheets.js";
 import * as fonts from "./fonts.js";
 
 const isApple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+/** Tables for iPhone, iPad and Mac: one App Store listing, opened in the visitor's own storefront. */
+const APP_STORE_URL = "https://apps.apple.com/app/atelier-tables/id6795331043";
+/**
+ * Which Apple app to offer, from the device the page is open on: "ios" on an
+ * iPhone or iPad, "mac" on a Mac, null elsewhere. iPadOS asks for desktop
+ * pages and calls itself a Mac, but a Mac has no touch screen.
+ */
+const appStorePlatform = (() => {
+  const agent = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(agent)) return "ios";
+  if (/Macintosh/.test(agent)) return navigator.maxTouchPoints > 1 ? "ios" : "mac";
+  return null;
+})();
 const AUTOSAVE_DELAY = 1500;
 
 const ICONS = {
@@ -323,6 +336,10 @@ export class WorkbookWindow {
       actualSize: { label: t("Mac.Menu.ActualSize"), shortcut: shortcut("0"), enabled: hasDocument, run: () => this.grid.setZoom(1) },
       toggleInspector: { label: t("Mac.Menu.ShowInspector"), checked: !this.inspector.hidden, run: () => this.setInspectorVisible(this.inspector.hidden) },
       about: { label: t("Mac.Menu.About", "Tables"), run: () => this.showAbout() },
+      downloadApp: {
+        label: t(appStorePlatform === "mac" ? "Web.Help.DownloadMacApp" : "Web.Help.DownloadiOSApp"),
+        run: () => window.open(`${APP_STORE_URL}?platform=${appStorePlatform === "mac" ? "mac" : "iphone"}`, "_blank", "noopener"),
+      },
     };
   }
 
@@ -409,7 +426,7 @@ export class WorkbookWindow {
             action: () => self.engine.call("selectSheet", { id: sheet.id }),
           }))];
       } },
-      { label: t("Mac.Menu.Help"), get items() { return self.items("about"); } },
+      { label: t("Mac.Menu.Help"), get items() { return self.items(...(appStorePlatform ? ["downloadApp", "-"] : []), "about"); } },
     ];
     void appearance;
     attachMenuBar(this.root.querySelector("#menu-bar"), menus, { label: t("Web.Menu.Label"), overflowLabel: t("Toolbar.More") });
