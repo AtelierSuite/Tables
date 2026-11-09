@@ -135,7 +135,8 @@ final class HeaderRulerView: NSRulerView {
             : Double(visible.minY)...Double(max(visible.minY, visible.maxY))
         let lines = isColumns ? metrics.columns(in: span, overscan: 1) : metrics.rows(in: span, overscan: 1)
 
-        let selected = state.selectedRanges.map(\.normalized)
+        // With no table worked on, as after a click beside a Numbers table, no line is picked out.
+        let selected = state.isTableUnfocused ? [] : state.selectedRanges.map(\.normalized)
         let spansAll = isColumns ? state.selectionSpansEntireColumns(in: sheet) : state.selectionSpansEntireRows(in: sheet)
         let separator = CellRenderer.gridLineColor(for: effectiveAppearance)
         let font = NSFont.systemFont(ofSize: 11)
@@ -279,7 +280,7 @@ final class HeaderRulerView: NSRulerView {
         let state = document.state
         let line = line(at: gridPosition(of: convert(event.locationInWindow, from: nil)))
         let sheet = document.activeSheet
-        let isInSelection = state.selectedRanges.contains {
+        let isInSelection = !state.isTableUnfocused && state.selectedRanges.contains {
             isColumns ? $0.normalized.columnRange.contains(line) : $0.normalized.rowRange.contains(line)
         }
         let isWhole = isColumns ? state.selectionSpansEntireColumns(in: sheet) : state.selectionSpansEntireRows(in: sheet)

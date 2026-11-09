@@ -48,6 +48,10 @@ final class WorkbookViewController: NSViewController {
         let root = NSView()
         root.setFrameSize(NSSize(width: 1080, height: 720))
 
+        let clipView = SheetClipView()
+        // Beside a sheet that ends before the window does, as the canvas's page does round its tables.
+        clipView.onClickOutsideDocument = { [weak self] in self?.grid.clickOutsideCells() }
+        scrollView.contentView = clipView
         scrollView.documentView = grid
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
