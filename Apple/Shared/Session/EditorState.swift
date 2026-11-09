@@ -100,6 +100,10 @@ final class EditorState {
     /// False for delimited text, which has no tables to lay out: moving and
     /// naming the tables on a canvas, which Numbers documents keep too.
     var allowsLayingOutTables = true
+    /// True for a Numbers document, where a tap on the blank page beside a
+    /// table leaves no table selected, as in Numbers — even the one table of a
+    /// sheet with no others, which is shown as a grid rather than on a canvas.
+    var isNumbersDocument = false
     /// False for a Numbers table that something Tables can't move along with
     /// its cells depends on — a chart, a filter, a merged cell: inserting or
     /// deleting rows and columns would leave it behind.

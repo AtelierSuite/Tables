@@ -647,6 +647,20 @@ final class GridView: NSView, NSTextFieldDelegate {
         beginEditing(at: document.state.selectedAddress, seed: "=" + name + "(")
     }
 
+    /// A click on the page past the sheet's last row or column puts away
+    /// the cell being edited. Beside a Numbers table it also leaves no table
+    /// worked on, as in Numbers, and as a click on a canvas's page does.
+    func clickOutsideCells() {
+        guard let document, !isOnCanvas else { return }
+        commitEditing(then: nil)
+        if document.state.isNumbersDocument {
+            document.state.unfocusTables()
+            document.notify()
+        }
+        // The grid keeps the keyboard, so a key can bring the selection back.
+        window?.makeFirstResponder(self)
+    }
+
     /// Writes what was typed into the cell and moves on.
     func commitEditing(then direction: EditorState.MoveDirection?) {
         guard let document, document.state.editingAddress != nil else { return }

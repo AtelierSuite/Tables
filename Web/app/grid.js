@@ -836,7 +836,8 @@ export class GridView extends EventTarget {
     const token = (name) => style.getPropertyValue(name);
     const selectedColumns = new Set();
     const selectedRows = new Set();
-    if (state) {
+    // With no table worked on, as after a tap on the page, no line is picked out.
+    if (state && !this.unfocused) {
       for (const range of state.ranges) {
         for (let c = range[1]; c <= range[3] && c - range[1] < 2000; c++) selectedColumns.add(c);
         for (let r = range[0]; r <= range[2] && r - range[0] < 5000; r++) selectedRows.add(r);
@@ -1291,9 +1292,12 @@ export class GridView extends EventTarget {
     if (point.x < header && point.y < HEADER_HEIGHT) return { kind: "corner" };
     if (point.y < HEADER_HEIGHT) return this.columnHit(point);
     if (point.x < header) return this.rowHit(point);
-    if (this.fillHandleHit(point)) return { kind: "fillHandle" };
+    if (!this.unfocused && this.fillHandleHit(point)) return { kind: "fillHandle" };
     const sheet = this.toSheet(point.x, point.y);
-    if (sheet.x > this.metrics.totalWidth || sheet.y > this.metrics.totalHeight) return { kind: "outside" };
+    if (sheet.x > this.metrics.totalWidth || sheet.y > this.metrics.totalHeight) {
+      // Beside a Numbers sheet's one table is its page, as round a canvas's tables.
+      return { kind: this.engine.info?.kind === "numbers" ? "page" : "outside" };
+    }
     return { kind: "cell", row: this.metrics.rowAt(sheet.y), column: this.metrics.columnAt(sheet.x) };
   }
 

@@ -296,12 +296,13 @@ struct SheetGridView: View {
 
     /// A tap where there is no cell puts away whatever is being typed: the
     /// cell being edited, which keeps what was typed, or a table's new name.
-    /// On a canvas's page it also leaves no table worked on, as in Numbers.
+    /// On a canvas's page, or beside a Numbers sheet's one table, it also
+    /// leaves no table worked on, as in Numbers.
     private func tapOutsideCells() {
         lastTap = nil
         endRenamingTable()
         if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
-        if canvas != nil { state.unfocusTables() }
+        if canvas != nil || state.isNumbersDocument { state.unfocusTables() }
     }
 
     /// The drawn grid, plus the one tap and one long press that serve all of it.
@@ -463,7 +464,7 @@ struct SheetGridView: View {
                 ColumnHeaderCell(
                     title: CellAddress.columnName(column),
                     width: metrics.width(ofColumn: column), height: barHeight,
-                    isSelected: state.selectedRanges.contains { $0.columnRange.contains(column) },
+                    isSelected: !state.isTableUnfocused && state.selectedRanges.contains { $0.columnRange.contains(column) },
                     isHiddenNeighbor: sheet.hiddenColumns.contains(column + 1),
                     onSelect: { state.selectEntireColumns(column...column, in: activeSheet) },
                     onResize: { delta in
@@ -483,7 +484,7 @@ struct SheetGridView: View {
                 RowHeaderCell(
                     title: String(row + 1),
                     width: barWidth, height: metrics.height(ofRow: row),
-                    isSelected: state.selectedRanges.contains { $0.rowRange.contains(row) },
+                    isSelected: !state.isTableUnfocused && state.selectedRanges.contains { $0.rowRange.contains(row) },
                     isHiddenNeighbor: sheet.hiddenRows.contains(row + 1),
                     onSelect: { state.selectEntireRows(row...row, in: activeSheet) },
                     onResize: { delta in
@@ -1490,7 +1491,7 @@ struct SheetGridView: View {
                         title: CellAddress.columnName(column),
                         width: metrics.width(ofColumn: column),
                         height: columnHeaderHeight,
-                        isSelected: state.selectedRanges.contains { $0.columnRange.contains(column) },
+                        isSelected: !state.isTableUnfocused && state.selectedRanges.contains { $0.columnRange.contains(column) },
                         isHiddenNeighbor: activeSheet.hiddenColumns.contains(column + 1),
                         onSelect: { state.selectEntireColumns(column...column, in: activeSheet) },
                         onResize: { delta in
@@ -1540,7 +1541,7 @@ struct SheetGridView: View {
                         title: String(row + 1),
                         width: rowHeaderWidth,
                         height: metrics.height(ofRow: row),
-                        isSelected: state.selectedRanges.contains { $0.rowRange.contains(row) },
+                        isSelected: !state.isTableUnfocused && state.selectedRanges.contains { $0.rowRange.contains(row) },
                         isHiddenNeighbor: activeSheet.hiddenRows.contains(row + 1),
                         onSelect: { state.selectEntireRows(row...row, in: activeSheet) },
                         onResize: { delta in
@@ -1654,7 +1655,7 @@ struct SheetGridView: View {
                 )
                 .equatable()
             }
-            if !state.isEnteringFormula {
+            if !state.isEnteringFormula, !state.isTableUnfocused {
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(Color.accentColor.opacity(0.14))
                     .strokeBorder(Color.accentColor, lineWidth: 2)
