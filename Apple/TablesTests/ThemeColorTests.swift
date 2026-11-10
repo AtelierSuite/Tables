@@ -184,6 +184,30 @@ struct ThemeColorTests {
         #expect(style(workbook, "A1").fillColorHex == "FFFFFF00")
     }
 
+    @Test("A workbook's own indexed palette replaces the default")
+    func customIndexedPalette() throws {
+        var styles = styleSheet(
+            fonts: ["<color indexed=\"10\"/>", "<color indexed=\"12\"/>", "<color indexed=\"64\"/>"],
+            fills: ["<patternFill patternType=\"solid\"><fgColor indexed=\"11\"/></patternFill>"]
+        )
+        // Mac Excel writes palettes like this one: some slots with no alpha,
+        // and fewer entries than the default holds.
+        let palette = ["FF000000", "FFFFFFFF", "FFFF0000", "FF00FF00", "FF0000FF", "FFFFFF00", "FFFF00FF",
+                       "FF00FFFF", "FFFEFFFE", "FF5E88B1", "FF262626", "00434343", "not a colour"]
+            .map { "<rgbColor rgb=\"\($0)\"/>" }.joined()
+        styles = styles.replacingOccurrences(
+            of: "</styleSheet>", with: "<colors><indexedColors>\(palette)</indexedColors></colors></styleSheet>"
+        )
+        let workbook = try XLSXReader.workbook(from: styledPackage(styles: styles, sheet: row(formatCount: 3)))
+
+        #expect(style(workbook, "A1").textColorHex == "FF262626")
+        #expect(style(workbook, "A1").fillColorHex == "FF434343")
+        // An unreadable slot keeps the default colour.
+        #expect(style(workbook, "B1").textColorHex == "FF0000FF")
+        // The system colours stay the app's own.
+        #expect(style(workbook, "C1").textColorHex == nil)
+    }
+
     @Test("System and automatic colours defer to the app's own default")
     func systemAndAutomaticColors() throws {
         let styles = styleSheet(
