@@ -352,6 +352,7 @@ public enum XLSXReader {
 
     private static func parseStyles(_ data: Data?, theme: ThemeColorScheme) -> [CellStyle] {
         guard let data, let root = try? XMLLite.parse(data) else { return [CellStyle.default] }
+        let palette = ThemeColorPalette.indexedColors(styleSheet: root)
 
         var numberFormats = builtInNumberFormats
         for entry in root.firstChild(named: "numFmts")?.children(named: "numFmt") ?? [] {
@@ -378,7 +379,7 @@ public enum XLSXReader {
             }
             if let name = element.firstChild(named: "name")?.attribute("val") { spec.name = name }
             spec.colorHex = ThemeColorPalette.resolvedARGB(
-                from: element.firstChild(named: "color"), theme: theme
+                from: element.firstChild(named: "color"), theme: theme, indexed: palette
             )
             return spec
         }
@@ -387,7 +388,7 @@ public enum XLSXReader {
             guard let pattern = element.firstChild(named: "patternFill"),
                   pattern.attribute("patternType") != "none" else { return nil }
             return ThemeColorPalette.resolvedARGB(
-                from: pattern.firstChild(named: "fgColor"), theme: theme
+                from: pattern.firstChild(named: "fgColor"), theme: theme, indexed: palette
             )
         }
 
@@ -407,7 +408,7 @@ public enum XLSXReader {
                     spec.sides[edge] = BorderSide(
                         lineStyle: BorderLineStyle(rawValue: style) ?? .thin,
                         colorHex: ThemeColorPalette.resolvedARGB(
-                            from: side.firstChild(named: "color"), theme: theme
+                            from: side.firstChild(named: "color"), theme: theme, indexed: palette
                         )
                     )
                 }
@@ -421,7 +422,7 @@ public enum XLSXReader {
                     spec.diagonal = DiagonalBorder(
                         lineStyle: BorderLineStyle(rawValue: style) ?? .thin,
                         colorHex: ThemeColorPalette.resolvedARGB(
-                            from: diagonal.firstChild(named: "color"), theme: theme
+                            from: diagonal.firstChild(named: "color"), theme: theme, indexed: palette
                         ),
                         goesUp: goesUp,
                         goesDown: goesDown
@@ -605,6 +606,10 @@ public enum XLSXReader {
     /// cell fill's `fgColor`: with no pattern named, it is solid in that colour.
     private static func parseDifferentialStyles(_ data: Data?, theme: ThemeColorScheme) -> [ConditionalStyle] {
         guard let data, let root = try? XMLLite.parse(data) else { return [] }
+        let palette = ThemeColorPalette.indexedColors(styleSheet: root)
+        func color(_ element: XMLElement?) -> String? {
+            ThemeColorPalette.resolvedARGB(from: element, theme: theme, indexed: palette)
+        }
         func flag(_ name: String, in font: XMLElement?) -> Bool? {
             guard let element = font?.firstChild(named: name) else { return nil }
             guard let value = element.attribute("val") else { return true }
@@ -614,11 +619,11 @@ public enum XLSXReader {
             var style = ConditionalStyle()
             if let pattern = element.firstChild(named: "fill")?.firstChild(named: "patternFill"),
                pattern.attribute("patternType") != "none" {
-                style.fillColorHex = ThemeColorPalette.resolvedARGB(from: pattern.firstChild(named: "bgColor"), theme: theme)
-                    ?? ThemeColorPalette.resolvedARGB(from: pattern.firstChild(named: "fgColor"), theme: theme)
+                style.fillColorHex = color(pattern.firstChild(named: "bgColor"))
+                    ?? color(pattern.firstChild(named: "fgColor"))
             }
             let font = element.firstChild(named: "font")
-            style.textColorHex = ThemeColorPalette.resolvedARGB(from: font?.firstChild(named: "color"), theme: theme)
+            style.textColorHex = color(font?.firstChild(named: "color"))
             style.isBold = flag("b", in: font)
             style.isItalic = flag("i", in: font)
             style.isStruckThrough = flag("strike", in: font)

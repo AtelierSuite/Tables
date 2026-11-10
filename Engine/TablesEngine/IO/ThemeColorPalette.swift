@@ -84,9 +84,9 @@ public enum ThemeColorPalette {
     /// The legacy palette `<color indexed="N"/>` selects from.
     ///
     /// Indices 0–7 are a fixed header duplicated at 8–15; 8–63 are the
-    /// 56 slots a workbook may override with its own `<indexedColors>`, which
-    /// we do not read yet. 64 and 65 are the system foreground and background
-    /// and deliberately have no entry here.
+    /// 56 slots a workbook may override with its own `<indexedColors>` (see
+    /// `indexedColors(styleSheet:)`). 64 and 65 are the system foreground and
+    /// background and deliberately have no entry here.
     public static let indexedColors = [
         "000000", "FFFFFF", "FF0000", "00FF00", "0000FF", "FFFF00", "FF00FF", "00FFFF",
         "000000", "FFFFFF", "FF0000", "00FF00", "0000FF", "FFFF00", "FF00FF", "00FFFF",
@@ -98,6 +98,21 @@ public enum ThemeColorPalette {
         "003366", "339966", "003300", "333300", "993300", "993366", "333399", "333333",
     ]
 
+    /// The palette a stylesheet's `<colors><indexedColors>` puts in place of
+    /// the default, which Excel honours throughout the workbook. Slots the
+    /// list leaves out, or cannot be read, keep the default colour. Alpha is
+    /// dropped: Excel writes these with any alpha and draws them opaque.
+    public static func indexedColors(styleSheet root: XMLElement?) -> [String] {
+        let entries = root?.firstChild(named: "colors")?.firstChild(named: "indexedColors")?
+            .children(named: "rgbColor") ?? []
+        guard !entries.isEmpty else { return indexedColors }
+        return indexedColors.indices.map { index in
+            guard entries.indices.contains(index),
+                  let color = entries[index].attribute("rgb").flatMap(normalizedRGB) else { return indexedColors[index] }
+            return color
+        }
+    }
+
     /// Resolves a `<color>` element to an eight-digit ARGB string.
     ///
     /// Returns `nil` whenever the file asks for the application's own default —
@@ -105,7 +120,9 @@ public enum ThemeColorPalette {
     /// we cannot follow — so that callers leave the style unset rather than
     /// baking in a black or white that would look wrong in the other
     /// appearance.
-    public static func resolvedARGB(from element: XMLElement?, theme: ThemeColorScheme) -> String? {
+    public static func resolvedARGB(
+        from element: XMLElement?, theme: ThemeColorScheme, indexed palette: [String] = indexedColors
+    ) -> String? {
         guard let element else { return nil }
         if element.attribute("auto") == "1" { return nil }
 
@@ -113,8 +130,8 @@ public enum ThemeColorPalette {
             return normalizedARGB(direct)
         }
         if let index = element.attribute("indexed").flatMap(Int.init) {
-            guard indexedColors.indices.contains(index) else { return nil }
-            return "FF" + indexedColors[index]
+            guard palette.indices.contains(index) else { return nil }
+            return "FF" + palette[index]
         }
         if let index = element.attribute("theme").flatMap(Int.init) {
             guard let base = theme.color(atThemeIndex: index) else { return nil }
