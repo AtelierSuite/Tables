@@ -32,11 +32,15 @@ struct PaintedMerge: Equatable, Sendable {
     var ownsElement: Bool
 }
 
-/// The borders of a cell or merge outside a tile, whose halves on the
-/// gridlines it shares with the tile fall inside it.
+/// The borders a cell or merge draws, in the tile or just outside it, where
+/// the halves of them on the gridlines it shares with the tile fall inside.
+/// Each edge it shares with a neighbour is already resolved to one border.
 struct PaintedBorders: Equatable, Sendable {
+    /// The cell or merge.
     var frame: CGRect
-    var style: CellStyle
+    /// The stretches of its edges whose border wins against the neighbour's.
+    var edges: [DrawnBorder]
+    var diagonal: DiagonalBorder?
 }
 
 /// Everything a tile draws, gathered by the grid before the tile is built.
@@ -50,8 +54,8 @@ struct TileContents: Equatable, Sendable {
     var covered: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
-    /// Borders of the cells and merges just outside the tile.
-    var neighbourBorders: [PaintedBorders] = []
+    /// Borders of the cells and merges in the tile and just outside it.
+    var borders: [PaintedBorders] = []
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -226,14 +230,8 @@ enum CellPainter {
         }
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell.
-        for cell in own {
-            paintBorders(cell.cell.style, in: cell.frame, metrics: metrics, scheme: scheme, into: &context)
-        }
-        for merge in contents.merges {
-            paintBorders(merge.cell.style, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
-        }
-        for neighbour in contents.neighbourBorders {
-            paintBorders(neighbour.style, in: neighbour.frame, metrics: metrics, scheme: scheme, into: &context)
+        for borders in contents.borders {
+            paintBorders(borders, metrics: metrics, scheme: scheme, into: &context)
         }
         for mark in contents.comments {
             paintCommentMark(mark, zoom: metrics.zoom, into: &context)
@@ -553,23 +551,22 @@ enum CellPainter {
     // MARK: - Borders
 
     private static func paintBorders(
-        _ style: CellStyle, in frame: CGRect, metrics: SheetMetrics, scheme: ColorScheme,
+        _ borders: PaintedBorders, metrics: SheetMetrics, scheme: ColorScheme,
         into context: inout GraphicsContext
     ) {
         let zoom = metrics.zoom
-        guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { return }
-
         // Each edge gets its own stroke because line width, dash pattern and
         // colour all vary per edge in OOXML.
-        for edge in BorderEdge.allCases {
-            guard let side = style.borderSides[edge] else { continue }
+        for border in borders.edges {
+            let side = border.side
+            let frame = metrics.frame(for: border.range)
             stroke(side.lineStyle, colorHex: side.colorHex, zoom: zoom, scheme: scheme, into: &context) {
-                edgePath(edge, in: frame, width: side.lineStyle.lineWidth * zoom, offset: $0, metrics: metrics)
+                edgePath(border.edge, in: frame, width: side.lineStyle.lineWidth * zoom, offset: $0, metrics: metrics)
             }
         }
-        if let diagonal = style.diagonalBorder, diagonal.isVisible {
+        if let diagonal = borders.diagonal, diagonal.isVisible {
             stroke(diagonal.lineStyle, colorHex: diagonal.colorHex, zoom: zoom, scheme: scheme, into: &context) {
-                diagonalPath(diagonal, in: frame, offset: $0)
+                diagonalPath(diagonal, in: borders.frame, offset: $0)
             }
         }
     }
