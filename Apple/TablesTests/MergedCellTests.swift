@@ -342,4 +342,32 @@ struct MergedCellTests {
         workbook.removeSheet(workbook.sheets[0].id)
         #expect(workbook.visibleSheets.count == 1)
     }
+
+    @Test("A wide merge's comment mark is drawn with its right-hand part")
+    func commentMarkFollowsMergeCorner() {
+        var sheet = Worksheet(name: "Sheet 1")
+        // B2:E3, commented on its first cell.
+        let merge = CellRange(start: CellAddress(row: 1, column: 1), end: CellAddress(row: 2, column: 4))
+        let merged = sheet.merge(merge)
+        #expect(merged)
+        sheet.comments[merge.start] = .note(author: "Ann", text: "Wide")
+        // A plain cell, and a covered cell, commented too.
+        sheet.comments[CellAddress(row: 6, column: 0)] = .note(author: "Ann", text: "Plain")
+        sheet.comments[CellAddress(row: 2, column: 3)] = .note(author: "Ann", text: "Covered")
+
+        // Only the merge's right part is redrawn: its mark is still there.
+        let right = sheet.commentMarks(rows: 0..<10, columns: 3..<8)
+        #expect(right.map { $0.address } == [merge.start])
+        #expect(right.first?.range == merge)
+
+        // Its left part still draws it too, clipped away if out of reach.
+        #expect(sheet.commentMarks(rows: 0..<4, columns: 0..<2).map { $0.address } == [merge.start])
+        // Below the merge's top row it has no mark, nor has the covered cell.
+        #expect(sheet.commentMarks(rows: 2..<10, columns: 0..<8).map { $0.address } == [CellAddress(row: 6, column: 0)])
+        // Clear of the merge's columns, none either.
+        #expect(sheet.commentMarks(rows: 0..<4, columns: 5..<8).isEmpty)
+
+        // A plain cell's mark is drawn with the cell, as before.
+        #expect(sheet.commentMarks(rows: 6..<7, columns: 0..<1).map { $0.address } == [CellAddress(row: 6, column: 0)])
+    }
 }

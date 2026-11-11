@@ -268,6 +268,36 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         return mergedRanges.first { $0.contains(address) }
     }
 
+    /// The comments whose corner mark may fall inside a block of rows and
+    /// columns, each with the cells its mark is drawn on: the comment's own
+    /// cell, or the whole merge when the comment sits on one's first cell.
+    ///
+    /// A mark sits in the top-right corner of what it is drawn on, so a
+    /// merge's mark belongs to every block that meets the merge's top row,
+    /// not only the one holding its first cell: a redraw of just a wide
+    /// merge's right part paints the merge's fill there, and must paint the
+    /// mark back over it. Blocks the mark misses clip it away.
+    public func commentMarks(
+        rows: Range<Int>, columns: Range<Int>
+    ) -> [(address: CellAddress, comment: CellComment, range: CellRange)] {
+        var marks: [(address: CellAddress, comment: CellComment, range: CellRange)] = []
+        for (address, comment) in comments
+        where rows.contains(address.row) && !hiddenRows.contains(address.row)
+            && !hiddenColumns.contains(address.column) {
+            guard let merge = mergedRange(containing: address)?.normalized else {
+                if columns.contains(address.column) {
+                    marks.append((address, comment, CellRange(start: address, end: address)))
+                }
+                continue
+            }
+            // A comment on a cell the merge covers is not marked.
+            if merge.start == address, columns.overlaps(merge.start.column..<(merge.end.column + 1)) {
+                marks.append((address, comment, merge))
+            }
+        }
+        return marks
+    }
+
     /// Grows a range until it wholly contains every merge it touches, so a
     /// selection can never cut a merged region in half. Growing can reach a
     /// further merge, hence the loop.

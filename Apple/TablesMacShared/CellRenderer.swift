@@ -507,12 +507,8 @@ struct CellRenderer {
     /// Notes are marked red and conversations purple, as Excel marks them;
     /// a resolved conversation fades to grey.
     private func drawCommentMarks(rows: Range<Int>, columns: Range<Int>, context: CGContext) {
-        for (address, comment) in sheet.comments
-        where rows.contains(address.row) && columns.contains(address.column)
-            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
-            let merge = sheet.mergedRange(containing: address)?.normalized
-            if let merge, merge.start != address { continue }
-            let frame = merge.map { metrics.frame(for: $0) } ?? metrics.frame(for: address)
+        for (_, comment, range) in sheet.commentMarks(rows: rows, columns: columns) {
+            let frame = metrics.frame(for: range)
             let size = min(8 * metrics.zoom, frame.width / 2, frame.height / 2)
             guard size > 0 else { continue }
             let color: NSColor
