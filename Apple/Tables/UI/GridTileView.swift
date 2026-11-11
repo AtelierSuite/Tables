@@ -389,7 +389,7 @@ enum CellPainter {
         // Stacked text is drawn as one glyph per line rather than by rotating
         // the run, which is what Excel's `textRotation="255"` looks like.
         if style.isTextStacked {
-            string = CellFormatter.displayText(for: cell).map(String.init).joined(separator: "\n")
+            string = TextFitting.stacked(CellFormatter.displayText(for: cell))
         }
 
         let horizontal = style.horizontalAlignment == .automatic
@@ -450,6 +450,18 @@ enum CellPainter {
         var measured = resolved.measure(in: CGSize(
             width: wraps ? box.width : unbounded, height: unbounded
         ))
+        // Turned text runs along its turned box rather than across the cell.
+        if style.rotationDegrees != 0, !wraps {
+            room = TextFitting.runLength(of: style, in: box.size, lineHeight: measured.height)
+        }
+        // Stacked text has as many glyphs as fit down the box.
+        if style.isTextStacked, measured.height > box.height {
+            let fitting = TextFitting.elided(CellFormatter.displayText(for: cell), stacked: true) { candidate in
+                context.resolve(make(candidate)).measure(in: CGSize(width: box.width, height: unbounded)).height <= box.height
+            }
+            resolved = context.resolve(make(fitting))
+            measured = resolved.measure(in: CGSize(width: box.width, height: unbounded))
+        }
         if !wraps, measured.width > room {
             // A General number is rounded to fit before it gives way to #s.
             let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
@@ -457,7 +469,9 @@ enum CellPainter {
             }
             let shortened = isNumber
                 ? fitted ?? hashes(filling: room, make: make, in: context)
-                : elided(string, to: room, make: make, in: context)
+                : TextFitting.elided(string) {
+                    context.resolve(make($0)).measure(in: CGSize(width: unbounded, height: unbounded)).width <= room
+                }
             resolved = context.resolve(make(shortened))
             measured = resolved.measure(in: CGSize(width: unbounded, height: unbounded))
         }
@@ -513,34 +527,6 @@ enum CellPainter {
     /// Stands in for an unconstrained axis when measuring. A finite number
     /// rather than `.infinity`, which text layout will happily multiply.
     private static let unbounded: Double = 100_000
-
-    /// The longest prefix that fits in `width`, with an ellipsis.
-    ///
-    /// Text laid out by hand does not truncate itself, and a run simply clipped
-    /// at the cell edge reads as a shorter value rather than as a longer one cut
-    /// off. Binary search keeps this to a handful of measurements, and only for
-    /// the cells that actually overflow.
-    private static func elided(
-        _ string: String, to width: Double, make: (String) -> Text, in context: GraphicsContext
-    ) -> String {
-        let characters = Array(string)
-        var low = 0
-        var high = characters.count - 1
-        var best = "…"
-        while low <= high {
-            let middle = (low + high) / 2
-            let candidate = String(characters[0..<middle]) + "…"
-            let size = context.resolve(make(candidate))
-                .measure(in: CGSize(width: unbounded, height: unbounded))
-            if size.width <= width {
-                best = candidate
-                low = middle + 1
-            } else {
-                high = middle - 1
-            }
-        }
-        return best
-    }
 
     /// As many #s as fit in `width`, which is what Excel shows for a number
     /// its cell is too narrow for.
