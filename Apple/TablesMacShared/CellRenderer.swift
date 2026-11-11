@@ -275,9 +275,12 @@ struct CellRenderer {
             let color = style.textColor(for: scheme).map { NSColor($0) } ?? .labelColor
             return drawCheckbox(isOn, in: style.checkboxFrame(in: frame, zoom: metrics.zoom), color: color)
         }
-        var string = CellFormatter.displayText(for: cell)
+        // The characters a format's `_x` reserves are laid out but not drawn.
+        var string = CellFormatter.layoutText(for: cell)
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
-        if style.isTextStacked { string = string.map(String.init).joined(separator: "\n") }
+        if style.isTextStacked {
+            string = CellFormatter.displayText(for: cell).map(String.init).joined(separator: "\n")
+        }
         let zoom = metrics.zoom
 
         let horizontal = style.horizontalAlignment == .automatic
@@ -320,7 +323,7 @@ struct CellRenderer {
             room = max(room, box.width)
         }
 
-        var text = NSAttributedString(string: string, attributes: attributes)
+        var text = Self.attributed(string, attributes: attributes)
         var measured = text.boundingRect(
             with: CGSize(width: wraps ? box.width : Self.unbounded, height: Self.unbounded),
             options: [.usesLineFragmentOrigin]
@@ -335,7 +338,7 @@ struct CellRenderer {
         if !wraps, measured.width > room {
             let shortened = isNumber ? hashes(filling: room, attributes: attributes)
                 : elided(string, to: room, attributes: attributes)
-            text = NSAttributedString(string: shortened, attributes: attributes)
+            text = Self.attributed(shortened, attributes: attributes)
             measured = text.size()
         }
 
@@ -368,9 +371,9 @@ struct CellRenderer {
         // A format's fill spreads the text across the cell: an accounting
         // format's symbol at the left edge, the amount at the right.
         if !wraps, style.rotationDegrees == 0, measured.width <= box.width,
-           let parts = CellFormatter.filledText(for: cell) {
-            let leading = NSAttributedString(string: parts.leading, attributes: attributes)
-            let trailing = NSAttributedString(string: parts.trailing, attributes: attributes)
+           let parts = CellFormatter.filledText(for: cell, reservingWidth: true) {
+            let leading = Self.attributed(parts.leading, attributes: attributes)
+            let trailing = Self.attributed(parts.trailing, attributes: attributes)
             let trailingWidth = trailing.size().width
             context.saveGState()
             context.clip(to: frame)
@@ -406,6 +409,21 @@ struct CellRenderer {
     /// Stands in for an unconstrained axis when measuring.
     private static let unbounded: Double = 100_000
 
+    /// `string` from `CellFormatter.layoutText` set in `attributes`, with
+    /// the characters its format reserves the width of left clear.
+    private static func attributed(_ string: String, attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        guard string.contains(CellFormatter.reserveMark) else {
+            return NSAttributedString(string: string, attributes: attributes)
+        }
+        let result = NSMutableAttributedString()
+        for part in CellFormatter.reservedRuns(in: string) {
+            var partAttributes = attributes
+            if part.isReserved { partAttributes[.foregroundColor] = NSColor.clear }
+            result.append(NSAttributedString(string: part.text, attributes: partAttributes))
+        }
+        return result
+    }
+
     /// The longest prefix that fits in `width`, with an ellipsis.
     private func elided(_ string: String, to width: Double, attributes: [NSAttributedString.Key: Any]) -> String {
         let characters = Array(string)
@@ -415,7 +433,7 @@ struct CellRenderer {
         while low <= high {
             let middle = (low + high) / 2
             let candidate = String(characters[0..<middle]) + "…"
-            if NSAttributedString(string: candidate, attributes: attributes).size().width <= width {
+            if Self.attributed(candidate, attributes: attributes).size().width <= width {
                 best = candidate
                 low = middle + 1
             } else {
