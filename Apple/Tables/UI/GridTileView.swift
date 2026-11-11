@@ -341,7 +341,7 @@ enum CellPainter {
             let row = painted.address.row
             guard let reach = Worksheet.overflowReach(
                 of: painted.address.column, within: span, textWidth: width,
-                alignment: style.horizontalAlignment, padding: 6 * zoom, indent: style.indentPoints * zoom,
+                alignment: CellFormatter.alignment(for: painted.cell), padding: 6 * zoom, indent: style.indentPoints * zoom,
                 columnWidth: { metrics.frame(for: CellAddress(row: row, column: $0)).width }
             ) else { continue }
             for column in reach.lowerBound..<reach.upperBound {
@@ -392,9 +392,7 @@ enum CellPainter {
             string = TextFitting.stacked(CellFormatter.displayText(for: cell))
         }
 
-        let horizontal = style.horizontalAlignment == .automatic
-            ? CellFormatter.naturalAlignment(for: cell.value)
-            : style.horizontalAlignment
+        let horizontal = CellFormatter.alignment(for: cell)
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
         let color: Color = cell.textColor(for: scheme)
