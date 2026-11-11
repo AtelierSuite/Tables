@@ -285,7 +285,7 @@ struct CellRenderer {
             : style.horizontalAlignment
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
-        let color: NSColor = style.textColor(for: scheme).map { NSColor($0) }
+        let color: NSColor = cell.textColor(for: scheme).map { NSColor($0) }
             ?? (cell.value.errorValue != nil ? .systemRed : .labelColor)
 
         var attributes: [NSAttributedString.Key: Any] = [

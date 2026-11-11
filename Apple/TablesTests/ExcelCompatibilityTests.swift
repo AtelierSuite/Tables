@@ -253,6 +253,16 @@ struct ExcelCompatibilityTests {
         #expect(CellFormatter.sectionColorHex(for: .number(1), format: "General") == nil)
     }
 
+    @Test("A section's colour code wins over the cell's font colour")
+    func sectionColourOverridesFontColour() {
+        var cell = Cell(value: .number(-3), formula: nil, style: .default)
+        cell.style.numberFormat = "0;[Red]-0"
+        cell.style.textColorHex = "FF0000FF"
+        #expect(cell.textColor(for: .light) == AdaptiveColor.resolveText(hex: "FF0000", on: nil, for: .light))
+        cell.value = .number(3)
+        #expect(cell.textColor(for: .light) == cell.style.textColor(for: .light))
+    }
+
     @Test("The 1904 epoch leaves colour-coded numbers alone")
     func macEpochIgnoresColourCodes() throws {
         // s="2" is [Red]0.00 and s="3" is built-in 38, #,##0;[Red](#,##0).
