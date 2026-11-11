@@ -131,17 +131,19 @@ struct CellRenderer {
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell. The cells around `rect` draw only as far as it:
         // the rest of their borders is drawn with them.
+        // An edge two cells share is drawn once, by the one whose border wins.
         context.saveGState()
         context.clip(to: rect)
+        let resolver = BorderResolver(sheet: sheet, metrics: metrics, near: reach)
         for row in borderRows where !sheet.hiddenRows.contains(row) {
             for column in borderColumns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
-                guard !covered.contains(address), let cell = sheet.cells[address] else { continue }
-                drawBorders(cell.style, in: metrics.frame(for: address), context: context)
+                guard !covered.contains(address), sheet.cells[address] != nil else { continue }
+                drawBorders(of: CellRange(address), resolver: resolver, context: context)
             }
         }
         for merge in nearby {
-            drawBorders(sheet[merge.start].style, in: metrics.frame(for: merge), context: context)
+            drawBorders(of: merge, resolver: resolver, context: context)
         }
         context.restoreGState()
         drawCommentMarks(rows: rows, columns: columns, context: context)
@@ -451,19 +453,22 @@ struct CellRenderer {
 
     // MARK: - Borders
 
-    private func drawBorders(_ style: CellStyle, in frame: CGRect, context: CGContext) {
-        guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { return }
+    /// The borders of a cell or merge: the stretches of its edges its border
+    /// wins against the neighbour's, and its diagonal.
+    private func drawBorders(of region: CellRange, resolver: BorderResolver, context: CGContext) {
         let zoom = metrics.zoom
-        for edge in BorderEdge.allCases {
-            guard let side = style.borderSides[edge] else { continue }
+        for border in resolver.drawnBorders(of: region) {
+            let side = border.side
+            let frame = metrics.frame(for: border.range)
             stroke(side.lineStyle, colorHex: side.colorHex, context: context) { offset in
                 let (start, end) = metrics.borderSegment(
-                    edge, of: frame, lineWidth: side.lineStyle.lineWidth * zoom, offset: offset, shown: shownArea
+                    border.edge, of: frame, lineWidth: side.lineStyle.lineWidth * zoom, offset: offset, shown: shownArea
                 )
                 return [start, end]
             }
         }
-        if let diagonal = style.diagonalBorder, diagonal.isVisible {
+        if let diagonal = sheet.cells[region.start]?.style.diagonalBorder, diagonal.isVisible {
+            let frame = metrics.frame(for: region)
             stroke(diagonal.lineStyle, colorHex: diagonal.colorHex, context: context) { offset in
                 var points: [CGPoint] = []
                 if diagonal.goesDown {
