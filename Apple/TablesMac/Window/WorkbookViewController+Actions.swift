@@ -213,7 +213,7 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         edit { state, workbook in
             state.applyStyle(in: &workbook) { style in
                 switch target {
-                case .fill: style.fillColorHex = hex
+                case .fill: style.setSolidFill(hex)
                 case .text: style.textColorHex = hex
                 }
             }

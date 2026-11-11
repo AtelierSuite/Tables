@@ -277,7 +277,7 @@ final class Bridge {
                 session.applyStyle { $0.fontSize = min(max($0.fontSize + delta, 4), 400) }
             }
             if r.keys.contains("textColor") { session.applyStyle { $0.textColorHex = Self.argb(r["textColor"] as? String) } }
-            if r.keys.contains("fill") { session.applyStyle { $0.fillColorHex = Self.argb(r["fill"] as? String) } }
+            if r.keys.contains("fill") { session.applyStyle { $0.setSolidFill(Self.argb(r["fill"] as? String)) } }
         }
         if formatting.contains(.fonts), r.keys.contains("fontName") {
             // A family name, or null for the system font.

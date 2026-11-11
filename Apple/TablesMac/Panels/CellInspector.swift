@@ -135,7 +135,7 @@ struct CellInspector: View {
                     automaticColor: .white,
                     noneLabel: "ColorSwatches.None.Fill.Accessibility"
                 ) { hex in
-                    state.applyStyle(in: &workbook) { $0.fillColorHex = hex }
+                    state.applyStyle(in: &workbook) { $0.setSolidFill(hex) }
                 }
             }
         }

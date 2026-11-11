@@ -887,7 +887,7 @@ public final class VBAInteriorObject: VBAObject {
             let hex = VBAColorIndex.hex(try value.asInteger())
             try range.modifyStyles { $0.fillColorHex = hex }
         case "pattern":
-            if try value.asInteger() == -4142 { try range.modifyStyles { $0.fillColorHex = nil } }
+            if try value.asInteger() == -4142 { try range.modifyStyles { $0.setSolidFill(nil) } }
         case "tintandshade", "patterncolorindex", "themecolor":
             return
         default:
