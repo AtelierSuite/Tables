@@ -28,6 +28,76 @@ public enum CellFormatter {
         return (strip(text[..<mark]), strip(text[text.index(after: mark)...]))
     }
 
+    /// What a General number shows when its full text is too wide for the
+    /// cell, or nil when the cell is not a General number or nothing fits.
+    ///
+    /// Excel never shows `#`s for a General number while a shorter rendering
+    /// of it fits: it drops decimals first (`0.333333`), then switches to
+    /// scientific notation with fewer digits (`1.2E+11`), and only gives way
+    /// to `#`s when even that is too wide. Rounding that would leave no
+    /// significant digit — `0.00001` to `0` — is skipped in favour of
+    /// scientific notation, so a non-zero value never reads as zero.
+    /// `fits` measures a candidate against the room the cell has.
+    public static func fittedGeneralText(for cell: Cell, fits: (String) -> Bool) -> String? {
+        guard case .number(let number) = cell.value, number.isFinite,
+              isGeneral(cell.style.numberFormat) else { return nil }
+        return fittedGeneralText(for: number, fits: fits)
+    }
+
+    static func fittedGeneralText(for number: Double, fits: (String) -> Bool) -> String? {
+        let full = CellValue.plainNumberString(number)
+        if fits(full) { return full }
+
+        // Fewer decimals, for a number General writes out in full.
+        var decimal: String?
+        if !full.contains("E"), let point = full.firstIndex(of: ".") {
+            let decimals = full.distance(from: point, to: full.endIndex) - 1
+            for places in stride(from: decimals - 1, through: 0, by: -1) {
+                let candidate = trimmedDecimal(String(format: "%.\(places)f", number))
+                guard let rounded = Double(candidate), rounded != 0 else { break }
+                if fits(candidate) { decimal = candidate; break }
+            }
+        }
+
+        // Scientific notation, with as many mantissa digits as fit.
+        var exponent: String?
+        for places in stride(from: 5, through: 0, by: -1) {
+            let candidate = scientific(number, places: places)
+            if candidate != full, fits(candidate) { exponent = candidate; break }
+        }
+
+        // Whichever keeps more of the number: `0.333333` over `3.33E-01`, but
+        // `1.2E-05` over `0.00001`.
+        guard let decimal else { return exponent }
+        guard let exponent else { return decimal }
+        return significantDigits(exponent) > significantDigits(decimal) ? exponent : decimal
+    }
+
+    private static func significantDigits(_ text: String) -> Int {
+        let mantissa = text.prefix { $0 != "E" }.filter(\.isNumber)
+        return mantissa.drop { $0 == "0" }.count
+    }
+
+    private static func isGeneral(_ code: String) -> Bool {
+        let trimmed = code.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty || trimmed.caseInsensitiveCompare("General") == .orderedSame
+    }
+
+    /// `1.20E+11` as Excel's General writes it: `1.2E+11`.
+    private static func scientific(_ number: Double, places: Int) -> String {
+        let text = String(format: "%.\(places)E", number)
+        guard let e = text.firstIndex(of: "E") else { return text }
+        return trimmedDecimal(String(text[..<e])) + text[e...]
+    }
+
+    private static func trimmedDecimal(_ text: String) -> String {
+        guard text.contains(".") else { return text }
+        var text = text
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+
     /// Stands where a format's `*` fill goes in the text it renders.
     private static let fillMark: Character = "\u{1F}"
 
