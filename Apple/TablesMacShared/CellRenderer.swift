@@ -333,7 +333,11 @@ struct CellRenderer {
             room = box.width
         }
         if !wraps, measured.width > room {
-            let shortened = isNumber ? hashes(filling: room, attributes: attributes)
+            // A General number is rounded to fit before it gives way to #s.
+            let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
+                NSAttributedString(string: candidate, attributes: attributes).size().width <= room
+            }
+            let shortened = isNumber ? fitted ?? hashes(filling: room, attributes: attributes)
                 : elided(string, to: room, attributes: attributes)
             text = NSAttributedString(string: shortened, attributes: attributes)
             measured = text.size()
