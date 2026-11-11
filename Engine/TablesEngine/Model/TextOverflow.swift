@@ -40,6 +40,55 @@ extension Worksheet {
         return lower == upper ? nil : lower...upper
     }
 
+    /// The columns of `span` that text `textWidth` wide actually crosses,
+    /// or `nil` when it stays inside its own cell.
+    ///
+    /// `overflowSpan` is only how far the text may run; a short word in a
+    /// cell with empty neighbours fits where it is and leaves their
+    /// gridlines alone. The text is placed in `column` as the renderers set
+    /// it: inset by `padding` on both sides, `indent` more on the edge it is
+    /// aligned to, and aligned to its own cell however far it runs.
+    /// `columnWidth` gives the drawn width of each column of the span.
+    public static func overflowReach(
+        of column: Int, within span: ClosedRange<Int>, textWidth: Double,
+        alignment: HorizontalTextAlignment, padding: Double, indent: Double = 0,
+        columnWidth: (Int) -> Double
+    ) -> ClosedRange<Int>? {
+        guard span.contains(column) else { return nil }
+        let width = columnWidth(column)
+        let boxMin = padding + (alignment == .trailing ? 0 : indent)
+        let boxMax = width - padding - (alignment == .trailing ? indent : 0)
+        let textMin: Double
+        let textMax: Double
+        switch alignment {
+        case .trailing:
+            textMin = boxMax - textWidth
+            textMax = boxMax
+        case .center:
+            textMin = (boxMin + boxMax - textWidth) / 2
+            textMax = (boxMin + boxMax + textWidth) / 2
+        case .automatic, .leading:
+            textMin = boxMin
+            textMax = boxMin + textWidth
+        }
+
+        // Out from the cell's own edges, one gridline at a time, for as long
+        // as the text still reaches past the next one.
+        var upper = column
+        var edge = width
+        while upper < span.upperBound, textMax > edge {
+            upper += 1
+            edge += columnWidth(upper)
+        }
+        var lower = column
+        edge = 0
+        while lower > span.lowerBound, textMin < edge {
+            lower -= 1
+            edge -= columnWidth(lower)
+        }
+        return lower == upper ? nil : lower...upper
+    }
+
     private func isMerged(_ address: CellAddress) -> Bool {
         mergedRanges.contains { $0.contains(address) }
     }

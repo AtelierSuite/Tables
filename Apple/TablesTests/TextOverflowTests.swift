@@ -59,4 +59,41 @@ struct TextOverflowTests {
         #expect(try span(sheet, "A2") == nil)
         #expect(try span(sheet, "A3") == nil)
     }
+
+    /// Where text of `width` actually runs in column C of a row of 100pt
+    /// columns that it may spill across from A to G.
+    private func reach(
+        _ width: Double, _ alignment: HorizontalTextAlignment = .leading, indent: Double = 0
+    ) -> ClosedRange<Int>? {
+        Worksheet.overflowReach(
+            of: 2, within: 0...6, textWidth: width, alignment: alignment,
+            padding: 6, indent: indent, columnWidth: { _ in 100 }
+        )
+    }
+
+    @Test("Text that fits its cell crosses no gridline, however far it may run")
+    func fitsItsCell() {
+        #expect(reach(14) == nil)
+        #expect(reach(88) == nil)
+        #expect(reach(14, .center) == nil)
+        #expect(reach(14, .trailing) == nil)
+    }
+
+    @Test("Text opens only the gridlines it runs across")
+    func opensWhatItCrosses() {
+        // From x = 6 in its cell, 120pt ends in the next column, 250pt two on.
+        #expect(reach(120) == 2...3)
+        #expect(reach(250) == 2...4)
+        #expect(reach(120, .trailing) == 1...2)
+        // Centred, 120pt pokes 4pt past both edges; 320pt a column and more each way.
+        #expect(reach(120, .center) == 1...3)
+        #expect(reach(320, .center) == 0...4)
+    }
+
+    @Test("Indent counts towards the reach, and the span still caps it")
+    func indentAndCap() {
+        #expect(reach(88, indent: 10) == 2...3)
+        #expect(reach(5_000) == 2...6)
+        #expect(reach(5_000, .trailing) == 0...2)
+    }
 }

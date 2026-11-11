@@ -149,12 +149,25 @@ struct CellRenderer {
 
     // MARK: - Overflow
 
-    /// How far a cell's text spills, noting the cell edges it runs across
-    /// so their gridlines can make way for it.
+    /// How far a cell's text may spill, noting the cell edges it actually
+    /// runs across so their gridlines can make way for it.
     private func overflow(of address: CellAddress, edges: inout Set<CellAddress>) -> CGRect? {
         guard let span = sheet.overflowSpan(of: address) else { return nil }
-        for column in span.lowerBound..<span.upperBound {
-            edges.insert(CellAddress(row: address.row, column: column))
+        let cell = sheet.displayedCell(at: address)
+        let style = cell.style
+        let zoom = metrics.zoom
+        let width = NSAttributedString(
+            string: CellFormatter.displayText(for: cell),
+            attributes: [.font: Self.font(for: style, zoom: zoom)]
+        ).size().width
+        if let reach = Worksheet.overflowReach(
+            of: address.column, within: span, textWidth: width,
+            alignment: style.horizontalAlignment, padding: 6 * zoom, indent: style.indentPoints * zoom,
+            columnWidth: { metrics.frame(for: CellAddress(row: address.row, column: $0)).width }
+        ) {
+            for column in reach.lowerBound..<reach.upperBound {
+                edges.insert(CellAddress(row: address.row, column: column))
+            }
         }
         return metrics.frame(for: CellRange(
             start: CellAddress(row: address.row, column: span.lowerBound),
@@ -220,26 +233,7 @@ struct CellRenderer {
     /// The font a cell's text is drawn in, at the grid's zoom: its own family
     /// when it has one and it is installed, otherwise the system font.
     static func font(for style: CellStyle, zoom: Double) -> NSFont {
-        let size = style.fontSize * zoom
-        if let family = style.displayFontName {
-            var traits: NSFontTraitMask = []
-            if style.isBold { traits.insert(.boldFontMask) }
-            if style.isItalic { traits.insert(.italicFontMask) }
-            let manager = NSFontManager.shared
-            if let font = manager.font(withFamily: family, traits: traits, weight: 5, size: size) {
-                return font
-            }
-            // A family without the asked-for face still beats the system font.
-            if let font = manager.font(withFamily: family, traits: [], weight: 5, size: size) {
-                return manager.convert(font, toHaveTrait: traits)
-            }
-        }
-        var traits: NSFontDescriptor.SymbolicTraits = []
-        if style.isBold { traits.insert(.bold) }
-        if style.isItalic { traits.insert(.italic) }
-        let base = NSFont.systemFont(ofSize: size)
-        guard !traits.isEmpty else { return base }
-        return NSFont(descriptor: base.fontDescriptor.withSymbolicTraits(traits), size: size) ?? base
+        style.platformFont(zoom: zoom)
     }
 
     /// `overflow` is the stretch of the row the text may run across. The
@@ -275,9 +269,12 @@ struct CellRenderer {
             let color = style.textColor(for: scheme).map { NSColor($0) } ?? .labelColor
             return drawCheckbox(isOn, in: style.checkboxFrame(in: frame, zoom: metrics.zoom), color: color)
         }
-        var string = CellFormatter.displayText(for: cell)
+        // The characters a format's `_x` reserves are laid out but not drawn.
+        var string = CellFormatter.layoutText(for: cell)
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
-        if style.isTextStacked { string = string.map(String.init).joined(separator: "\n") }
+        if style.isTextStacked {
+            string = CellFormatter.displayText(for: cell).map(String.init).joined(separator: "\n")
+        }
         let zoom = metrics.zoom
 
         let horizontal = style.horizontalAlignment == .automatic
@@ -285,7 +282,7 @@ struct CellRenderer {
             : style.horizontalAlignment
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
-        let color: NSColor = style.textColor(for: scheme).map { NSColor($0) }
+        let color: NSColor = cell.textColor(for: scheme).map { NSColor($0) }
             ?? (cell.value.errorValue != nil ? .systemRed : .labelColor)
 
         var attributes: [NSAttributedString.Key: Any] = [
@@ -320,7 +317,7 @@ struct CellRenderer {
             room = max(room, box.width)
         }
 
-        var text = NSAttributedString(string: string, attributes: attributes)
+        var text = Self.attributed(string, attributes: attributes)
         var measured = text.boundingRect(
             with: CGSize(width: wraps ? box.width : Self.unbounded, height: Self.unbounded),
             options: [.usesLineFragmentOrigin]
@@ -333,9 +330,13 @@ struct CellRenderer {
             room = box.width
         }
         if !wraps, measured.width > room {
-            let shortened = isNumber ? hashes(filling: room, attributes: attributes)
+            // A General number is rounded to fit before it gives way to #s.
+            let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
+                NSAttributedString(string: candidate, attributes: attributes).size().width <= room
+            }
+            let shortened = isNumber ? fitted ?? hashes(filling: room, attributes: attributes)
                 : elided(string, to: room, attributes: attributes)
-            text = NSAttributedString(string: shortened, attributes: attributes)
+            text = Self.attributed(shortened, attributes: attributes)
             measured = text.size()
         }
 
@@ -368,9 +369,9 @@ struct CellRenderer {
         // A format's fill spreads the text across the cell: an accounting
         // format's symbol at the left edge, the amount at the right.
         if !wraps, style.rotationDegrees == 0, measured.width <= box.width,
-           let parts = CellFormatter.filledText(for: cell) {
-            let leading = NSAttributedString(string: parts.leading, attributes: attributes)
-            let trailing = NSAttributedString(string: parts.trailing, attributes: attributes)
+           let parts = CellFormatter.filledText(for: cell, reservingWidth: true) {
+            let leading = Self.attributed(parts.leading, attributes: attributes)
+            let trailing = Self.attributed(parts.trailing, attributes: attributes)
             let trailingWidth = trailing.size().width
             context.saveGState()
             context.clip(to: frame)
@@ -406,6 +407,21 @@ struct CellRenderer {
     /// Stands in for an unconstrained axis when measuring.
     private static let unbounded: Double = 100_000
 
+    /// `string` from `CellFormatter.layoutText` set in `attributes`, with
+    /// the characters its format reserves the width of left clear.
+    private static func attributed(_ string: String, attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        guard string.contains(CellFormatter.reserveMark) else {
+            return NSAttributedString(string: string, attributes: attributes)
+        }
+        let result = NSMutableAttributedString()
+        for part in CellFormatter.reservedRuns(in: string) {
+            var partAttributes = attributes
+            if part.isReserved { partAttributes[.foregroundColor] = NSColor.clear }
+            result.append(NSAttributedString(string: part.text, attributes: partAttributes))
+        }
+        return result
+    }
+
     /// The longest prefix that fits in `width`, with an ellipsis.
     private func elided(_ string: String, to width: Double, attributes: [NSAttributedString.Key: Any]) -> String {
         let characters = Array(string)
@@ -415,7 +431,7 @@ struct CellRenderer {
         while low <= high {
             let middle = (low + high) / 2
             let candidate = String(characters[0..<middle]) + "…"
-            if NSAttributedString(string: candidate, attributes: attributes).size().width <= width {
+            if Self.attributed(candidate, attributes: attributes).size().width <= width {
                 best = candidate
                 low = middle + 1
             } else {

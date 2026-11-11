@@ -8,6 +8,8 @@ struct PaintedCell: Equatable, Sendable {
     var cell: Cell
     /// Where the text may run past the cell, across empty neighbours.
     var overflow: CGRect?
+    /// The columns `overflow` covers, the cell's own included.
+    var overflowSpan: ClosedRange<Int>?
     /// A cell outside the tile whose text runs into it: only its text is
     /// drawn here, its own tile draws the rest.
     var textOnly = false
@@ -46,9 +48,6 @@ struct TileContents: Equatable, Sendable {
     var cells: [PaintedCell] = []
     var merges: [PaintedMerge] = []
     var covered: Set<CellAddress> = []
-    /// Cells whose trailing edge spilled text runs across, which draw no
-    /// gridline there — Excel's text reads as one run, not as boxes.
-    var overflowEdges: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
     /// Borders of the cells and merges just outside the tile.
@@ -206,7 +205,7 @@ enum CellPainter {
         context.translateBy(x: -origin.x, y: -origin.y)
 
         let painted = Set(contents.cells.map(\.address))
-        let edges = contents.overflowEdges
+        let edges = openEdges(of: contents.cells, metrics: metrics, in: context)
         paintBlankHairlines(
             rows: rows, columns: columns,
             hiddenRows: hiddenRows, hiddenColumns: hiddenColumns,
@@ -325,6 +324,33 @@ enum CellPainter {
         context.stroke(hairlines, with: .color(.gridLine), lineWidth: hairlineWidth)
     }
 
+    /// Cells whose trailing edge spilled text runs across, which draw no
+    /// gridline there — Excel's text reads as one run, not as boxes. Only the
+    /// edges the text actually crosses: a short word with room to run still
+    /// fits in its own cell.
+    private static func openEdges(
+        of cells: [PaintedCell], metrics: SheetMetrics, in context: GraphicsContext
+    ) -> Set<CellAddress> {
+        var edges = Set<CellAddress>()
+        let zoom = metrics.zoom
+        for painted in cells {
+            guard let span = painted.overflowSpan else { continue }
+            let style = painted.cell.style
+            let text = Text(verbatim: CellFormatter.displayText(for: painted.cell)).font(style.font(zoom: zoom))
+            let width = context.resolve(text).measure(in: CGSize(width: unbounded, height: unbounded)).width
+            let row = painted.address.row
+            guard let reach = Worksheet.overflowReach(
+                of: painted.address.column, within: span, textWidth: width,
+                alignment: style.horizontalAlignment, padding: 6 * zoom, indent: style.indentPoints * zoom,
+                columnWidth: { metrics.frame(for: CellAddress(row: row, column: $0)).width }
+            ) else { continue }
+            for column in reach.lowerBound..<reach.upperBound {
+                edges.insert(CellAddress(row: row, column: column))
+            }
+        }
+        return edges
+    }
+
     // MARK: - Text
 
     /// `overflow` is the stretch of the row the text may run across. The
@@ -357,24 +383,37 @@ enum CellPainter {
             let color = style.textColor(for: scheme) ?? .primary
             return paintCheckbox(isOn, in: style.checkboxFrame(in: frame, zoom: zoom), color: color, zoom: zoom, into: &context)
         }
-        var string = CellFormatter.displayText(for: cell)
+        // The characters a format's `_x` reserves are laid out but not drawn.
+        var string = CellFormatter.layoutText(for: cell)
         guard !string.isEmpty else { return }
         // Stacked text is drawn as one glyph per line rather than by rotating
         // the run, which is what Excel's `textRotation="255"` looks like.
-        if style.isTextStacked { string = string.map(String.init).joined(separator: "\n") }
+        if style.isTextStacked {
+            string = CellFormatter.displayText(for: cell).map(String.init).joined(separator: "\n")
+        }
 
         let horizontal = style.horizontalAlignment == .automatic
             ? CellFormatter.naturalAlignment(for: cell.value)
             : style.horizontalAlignment
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
-        let color: Color = style.textColor(for: scheme)
+        let color: Color = cell.textColor(for: scheme)
             ?? (cell.value.errorValue != nil ? .red : .primary)
 
         let make: (String) -> Text = { text in
-            var run = Text(verbatim: text)
-                .font(style.font(zoom: zoom))
-                .foregroundStyle(color)
+            var run: Text
+            if text.contains(CellFormatter.reserveMark) {
+                var attributed = AttributedString()
+                for part in CellFormatter.reservedRuns(in: text) {
+                    var piece = AttributedString(part.text)
+                    piece.foregroundColor = part.isReserved ? .clear : color
+                    attributed += piece
+                }
+                run = Text(attributed)
+            } else {
+                run = Text(verbatim: text).foregroundStyle(color)
+            }
+            run = run.font(style.font(zoom: zoom))
             if style.isUnderlined { run = run.underline() }
             if style.isStruckThrough { run = run.strikethrough() }
             return run
@@ -412,8 +451,12 @@ enum CellPainter {
             width: wraps ? box.width : unbounded, height: unbounded
         ))
         if !wraps, measured.width > room {
+            // A General number is rounded to fit before it gives way to #s.
+            let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
+                context.resolve(make(candidate)).measure(in: CGSize(width: unbounded, height: unbounded)).width <= room
+            }
             let shortened = isNumber
-                ? hashes(filling: room, make: make, in: context)
+                ? fitted ?? hashes(filling: room, make: make, in: context)
                 : elided(string, to: room, make: make, in: context)
             resolved = context.resolve(make(shortened))
             measured = resolved.measure(in: CGSize(width: unbounded, height: unbounded))
@@ -437,7 +480,7 @@ enum CellPainter {
         // A format's fill spreads the text across the cell: an accounting
         // format's symbol at the left edge, the amount at the right.
         if !wraps, style.rotationDegrees == 0, measured.width <= box.width,
-           let parts = CellFormatter.filledText(for: cell) {
+           let parts = CellFormatter.filledText(for: cell, reservingWidth: true) {
             let leading = context.resolve(make(parts.leading))
             let trailing = context.resolve(make(parts.trailing))
             let leadingSize = leading.measure(in: CGSize(width: unbounded, height: unbounded))
