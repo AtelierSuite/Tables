@@ -237,6 +237,19 @@ struct ThemeColorTests {
         #expect(style(workbook, "B1").textColorHex == "FF3366CC")
     }
 
+    @Test("A direct colour's alpha byte is ignored, as Excel ignores it")
+    func directColorAlphaIsIgnored() throws {
+        // openpyxl writes every colour with a zero alpha byte.
+        let styles = styleSheet(
+            fonts: ["<color rgb=\"003366CC\"/>"],
+            fills: ["<patternFill patternType=\"solid\"><fgColor rgb=\"00FF0000\"/></patternFill>"]
+        )
+        let workbook = try XLSXReader.workbook(from: styledPackage(styles: styles, sheet: row(formatCount: 1)))
+
+        #expect(style(workbook, "A1").textColorHex == "FF3366CC")
+        #expect(style(workbook, "A1").fillColorHex == "FFFF0000")
+    }
+
     @Test("A workbook with no theme part falls back to the standard scheme")
     func missingThemePart() throws {
         let styles = styleSheet(
