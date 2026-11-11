@@ -185,7 +185,11 @@ function wrapLines(ctx, text, width) {
   return lines;
 }
 
-/** The longest prefix that fits in `width`, with an ellipsis. */
+/**
+ * The longest prefix that fits in `width`, with an ellipsis. The ellipsis
+ * follows the kept text in reading order: drawn right to left (`op.rtl`),
+ * it lands on the left.
+ */
 function elided(ctx, text, width) {
   const characters = Array.from(text);
   let low = 0;
@@ -319,6 +323,10 @@ function drawText(ctx, op, palette) {
   ctx.beginPath();
   ctx.rect(clip[0], clip[1], clip[2], clip[3]);
   ctx.clip();
+  // Text read right to left is set that way whatever it starts with, as the
+  // engine's `TextFitting.baseDirection(of:)` finds it; "left" and "right"
+  // alignment stay where they are.
+  ctx.direction = op.rtl ? "rtl" : "ltr";
   if (op.rot) {
     ctx.translate(target[0] + target[2] / 2, target[1] + target[3] / 2);
     ctx.rotate(-angle);
