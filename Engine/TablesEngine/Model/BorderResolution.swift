@@ -106,10 +106,23 @@ public struct BorderResolver: Sendable {
 
     /// The border a cell or merge gives its own `edge` where it runs along
     /// `line`, a column for a top or bottom edge and a row otherwise, before
-    /// the neighbour across it has a say. A merge takes its borders from its
-    /// top-left cell.
+    /// the neighbour across it has a say.
+    ///
+    /// A merge's border along `line` is the one stored on its cell there: the
+    /// cell in its top or bottom row under that column, or in its first or
+    /// last column on that row. That is where Excel keeps each side of a
+    /// merge's outline, which can change along its length; the merge's first
+    /// cell holds only the part of the top and leading edges it lies on.
     public func assignedSide(_ edge: BorderEdge, of region: CellRange, at line: Int) -> BorderSide? {
-        sheet.cells[region.start]?.style.borderSides[edge]
+        let region = region.normalized
+        let address: CellAddress
+        switch edge {
+        case .top: address = CellAddress(row: region.start.row, column: line)
+        case .bottom: address = CellAddress(row: region.end.row, column: line)
+        case .leading: address = CellAddress(row: line, column: region.start.column)
+        case .trailing: address = CellAddress(row: line, column: region.end.column)
+        }
+        return sheet.cells[address]?.style.borderSides[edge]
     }
 
     /// The border drawn on one cell's `edge` once its neighbour's is weighed
