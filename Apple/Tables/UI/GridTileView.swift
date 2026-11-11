@@ -368,7 +368,7 @@ enum CellPainter {
             : style.horizontalAlignment
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
-        let color: Color = style.textColor(for: scheme)
+        let color: Color = cell.textColor(for: scheme)
             ?? (cell.value.errorValue != nil ? .red : .primary)
 
         let make: (String) -> Text = { text in

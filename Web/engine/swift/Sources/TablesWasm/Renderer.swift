@@ -180,7 +180,7 @@ struct Renderer {
 
     private mutating func text(of cell: Cell, in frame: CGRect, overflow: CGRect?) {
         let style = cell.style
-        let textColor = style.textColor(for: scheme)?.argbHex
+        let textColor = cell.textColor(for: scheme)?.argbHex
         if style.showsCheckbox, case .boolean(let isOn) = cell.value {
             let box = style.checkboxFrame(in: frame, zoom: 1)
             guard box.width > 0 else { return }

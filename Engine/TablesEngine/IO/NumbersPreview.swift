@@ -285,7 +285,7 @@ private struct PreviewCanvas {
             font = NSFont(descriptor: font.fontDescriptor.withSymbolicTraits(traits), size: style.fontSize) ?? font
         }
         #endif
-        let color: PreviewColor = style.textColor(for: scheme).map { PreviewColor($0) }
+        let color: PreviewColor = cell.textColor(for: scheme).map { PreviewColor($0) }
             ?? (cell.value.errorValue != nil ? .systemRed : ink)
 
         let paragraph = NSMutableParagraphStyle()
