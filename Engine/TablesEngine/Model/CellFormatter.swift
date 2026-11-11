@@ -174,13 +174,25 @@ public enum CellFormatter {
         }
     }
 
-    /// Whether a value renders right-aligned when the style says `.automatic`.
+    /// Where a value sits when the style says `.automatic`, as Excel's
+    /// General alignment sets it: numbers and booleans to the right, errors
+    /// in the middle, and text from the side it is read from — the left for
+    /// most, the right for Arabic or Hebrew.
     public static func naturalAlignment(for value: CellValue) -> HorizontalTextAlignment {
         switch value {
         case .number, .boolean: return .trailing
         case .error: return .center
-        case .text, .empty: return .leading
+        case .text(let text):
+            return TextFitting.baseDirection(of: text) == .rightToLeft ? .trailing : .leading
+        case .empty: return .leading
         }
+    }
+
+    /// Where `cell`'s text sits: its own alignment, or under automatic
+    /// alignment, wherever its value naturally goes.
+    public static func alignment(for cell: Cell) -> HorizontalTextAlignment {
+        cell.style.horizontalAlignment == .automatic
+            ? naturalAlignment(for: cell.value) : cell.style.horizontalAlignment
     }
 
     // MARK: - Number formatting

@@ -10,6 +10,8 @@ extension Worksheet {
     /// rotated or stacked text, and anything merged, keep to their box.
     /// Left-aligned text runs right, right-aligned text left, centred text
     /// both ways, each across empty cells until something is in the way.
+    /// Under automatic alignment text runs the way it reads, so Arabic or
+    /// Hebrew, set from the right, runs left.
     /// A cell holding only formatting counts as empty, as in Excel.
     ///
     /// `reach` bounds the search, so a long title on an empty sheet does not
@@ -28,7 +30,7 @@ extension Worksheet {
             return !isMerged(neighbour)
         }
 
-        let alignment = style.horizontalAlignment == .automatic ? .leading : style.horizontalAlignment
+        let alignment = CellFormatter.alignment(for: cell)
         var lower = address.column
         var upper = address.column
         if alignment != .trailing {
@@ -48,6 +50,9 @@ extension Worksheet {
     /// gridlines alone. The text is placed in `column` as the renderers set
     /// it: inset by `padding` on both sides, `indent` more on the edge it is
     /// aligned to, and aligned to its own cell however far it runs.
+    /// `alignment` is where the text actually sits, as
+    /// `CellFormatter.alignment(for:)` resolves it; `.automatic` is taken
+    /// as left.
     /// `columnWidth` gives the drawn width of each column of the span.
     public static func overflowReach(
         of column: Int, within span: ClosedRange<Int>, textWidth: Double,

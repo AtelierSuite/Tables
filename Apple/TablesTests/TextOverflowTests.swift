@@ -50,6 +50,21 @@ struct TextOverflowTests {
         #expect(try span(sheet, "C2") == 1...4)
     }
 
+    @Test("Arabic and Hebrew text runs left under automatic alignment, and as set otherwise")
+    func rightToLeft() throws {
+        let sheet = try self.sheet([
+            "D1": .text("שלום עולם ומלואו"), "D2": .text("مرحبا بالعالم"), "D3": .text("שלום"),
+            "D4": .text("Hello שלום"), "A2": .text("x"),
+        ]) {
+            $0[CellAddress(row: 2, column: 3)].style.horizontalAlignment = .leading
+            $0.columnCount = 6
+        }
+        #expect(try span(sheet, "D1") == 0...3)
+        #expect(try span(sheet, "D2") == 1...3)
+        #expect(try span(sheet, "D3") == 3...5)
+        #expect(try span(sheet, "D4") == 3...5)
+    }
+
     @Test("Numbers, wrapped text and text with nowhere to go stay in their cells")
     func staysPut() throws {
         let sheet = try self.sheet(["A1": .number(123_456_789), "A2": .text("Wrapped"), "A3": .text("Boxed"), "B3": .text("y")]) {
