@@ -89,9 +89,7 @@ struct Renderer {
             let frame = metrics.frame(for: merge)
             let cell = sheet.displayedCell(at: merge.start)
             operations.append(["k": "paper", "r": frameArray(frame)])
-            if let fill = cell.style.fillColor(for: scheme)?.argbHex {
-                operations.append(["k": "fill", "r": frameArray(frame), "c": fill])
-            }
+            paintFill(of: cell.style, in: frame)
             var lines: [Double] = []
             appendHairlines(of: frame, openEdge: false, to: &lines)
             operations.append(["k": "grid", "p": lines])
@@ -169,11 +167,44 @@ struct Renderer {
     }
 
     private mutating func fill(_ cell: Cell, in frame: CGRect, openEdge: Bool) {
-        guard frame.width > 0, frame.height > 0, let fill = cell.style.fillColor(for: scheme)?.argbHex else { return }
-        operations.append(["k": "fill", "r": frameArray(frame), "c": fill])
+        guard frame.width > 0, frame.height > 0, cell.style.hasFill else { return }
+        paintFill(of: cell.style, in: frame)
         var lines: [Double] = []
         appendHairlines(of: frame, openEdge: openEdge, to: &lines)
         operations.append(["k": "grid", "p": lines])
+    }
+
+    /// A cell's fill: its colour, then any pattern over it, or its gradient.
+    ///
+    /// A pattern goes to the page as its bits, which it tiles from the sheet's
+    /// origin a screen point to a bit whatever the zoom, as the Mac does.
+    private mutating func paintFill(of style: CellStyle, in frame: CGRect) {
+        guard frame.width > 0, frame.height > 0 else { return }
+        if let gradient = style.fillGradient(for: scheme) {
+            if case .path = gradient.kind {
+                // Half a point apart, so the rings still blend at 200%.
+                for band in gradient.pathBands(in: frame, step: 0.5) {
+                    operations.append(["k": "fill", "r": frameArray(band.rect), "c": band.colorHex])
+                }
+            } else {
+                let ends = gradient.linearEndpoints(in: frame)
+                operations.append([
+                    "k": "lgrad", "r": frameArray(frame),
+                    "p": [Double(ends.start.x), Double(ends.start.y), Double(ends.end.x), Double(ends.end.y)],
+                    "s": gradient.stops.map { [$0.position, $0.colorHex ?? FillGradient.automaticColorHex] as [Any] },
+                ])
+            }
+            return
+        }
+        if let fill = style.fillColor(for: scheme)?.argbHex {
+            operations.append(["k": "fill", "r": frameArray(frame), "c": fill])
+        }
+        if let pattern = style.fillPattern, let ink = style.fillPatternColor(for: scheme)?.argbHex {
+            operations.append([
+                "k": "pattern", "r": frameArray(frame), "c": ink,
+                "b": pattern.type.rows.map { Int($0) },
+            ])
+        }
     }
 
     // MARK: - Text

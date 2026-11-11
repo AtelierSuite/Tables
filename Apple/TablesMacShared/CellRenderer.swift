@@ -114,10 +114,7 @@ struct CellRenderer {
             context.saveGState()
             paper.setFill()
             context.fill(frame)
-            if let fill = cell.style.fillColor(for: scheme) {
-                context.setFillColor(NSColor(fill).cgColor)
-                context.fill(frame)
-            }
+            paintFill(of: cell.style, in: frame, context: context)
             // The merge's own trailing and bottom gridlines, filled or not,
             // since the background above covered the ones beneath it.
             if drawsGridlines {
@@ -218,14 +215,103 @@ struct CellRenderer {
     }
 
     private func fill(_ cell: Cell, in frame: CGRect, context: CGContext, gridLineColor: NSColor, openEdge: Bool) {
-        guard frame.width > 0, frame.height > 0, let fill = cell.style.fillColor(for: scheme) else { return }
-        context.setFillColor(NSColor(fill).cgColor)
-        context.fill(frame)
+        guard frame.width > 0, frame.height > 0, cell.style.hasFill else { return }
+        paintFill(of: cell.style, in: frame, context: context)
         if drawsGridlines {
             context.setStrokeColor(gridLineColor.cgColor)
             context.setLineWidth(1)
             strokeHairlines(of: frame, openEdge: openEdge, in: context)
         }
+    }
+
+    /// A cell's fill: its colour, then any pattern over it, or its gradient.
+    private func paintFill(of style: CellStyle, in frame: CGRect, context: CGContext) {
+        guard frame.width > 0, frame.height > 0 else { return }
+        if let gradient = style.fillGradient(for: scheme) {
+            paintGradient(gradient, in: frame, context: context)
+            return
+        }
+        if let fill = style.fillColor(for: scheme) {
+            context.setFillColor(NSColor(fill).cgColor)
+            context.fill(frame)
+        }
+        if let pattern = style.fillPattern, let ink = style.fillPatternColor(for: scheme) {
+            paintPattern(pattern.type, ink: NSColor(ink).cgColor, in: frame, context: context)
+        }
+    }
+
+    /// Tiles the pattern across the frame from the sheet's origin, so the
+    /// cells of a patterned range join up. The context is in points on
+    /// screen at any zoom, so a bit stays a point however far in it goes.
+    private func paintPattern(_ type: FillPatternType, ink: CGColor, in frame: CGRect, context: CGContext) {
+        // Sheet coordinates run down the screen however the view or layer
+        // gets them to, so a bitmap always lands upside down: the tile is
+        // laid out to suit. The backing scale makes a bit whole device pixels.
+        let scale = max(1, Int(hypot(context.ctm.c, context.ctm.d).rounded()))
+        guard let image = Self.patternTile(type, ink: ink, scale: scale, flipped: true) else { return }
+        let side = FillPattern.bitSize * Double(FillPattern.tileBits)
+        context.saveGState()
+        context.clip(to: frame)
+        context.interpolationQuality = .none
+        var y = (frame.minY / side).rounded(.down) * side
+        while y < frame.maxY {
+            var x = (frame.minX / side).rounded(.down) * side
+            while x < frame.maxX {
+                context.draw(image, in: CGRect(x: x, y: y, width: side, height: side))
+                x += side
+            }
+            y += side
+        }
+        context.restoreGState()
+    }
+
+    private struct PatternTileKey: Hashable {
+        var type: FillPatternType
+        var ink: String
+        var scale: Int
+        var flipped: Bool
+    }
+
+    private static var patternTiles: [PatternTileKey: CGImage] = [:]
+
+    private static func patternTile(_ type: FillPatternType, ink: CGColor, scale: Int, flipped: Bool) -> CGImage? {
+        let key = PatternTileKey(
+            type: type, ink: (ink.components ?? []).map { String(format: "%.3f", $0) }.joined(separator: ","),
+            scale: scale, flipped: flipped
+        )
+        if let cached = patternTiles[key] { return cached }
+        let image = type.tileImage(ink: ink, scale: scale, flipped: flipped)
+        if patternTiles.count > 256 { patternTiles.removeAll() }
+        patternTiles[key] = image
+        return image
+    }
+
+    private func paintGradient(_ gradient: FillGradient, in frame: CGRect, context: CGContext) {
+        context.saveGState()
+        context.clip(to: frame)
+        if case .path = gradient.kind {
+            // A ring a point apart on screen is too close to see a step in.
+            for band in gradient.pathBands(in: frame, step: 1) {
+                context.setFillColor(Self.cgColor(band.colorHex))
+                context.fill(band.rect)
+            }
+        } else {
+            let colors = gradient.stops.map { Self.cgColor($0.colorHex ?? FillGradient.automaticColorHex) }
+            let locations = gradient.stops.map { CGFloat($0.position) }
+            if let space = CGColorSpace(name: CGColorSpace.sRGB),
+               let shading = CGGradient(colorsSpace: space, colors: colors as CFArray, locations: locations) {
+                let ends = gradient.linearEndpoints(in: frame)
+                context.drawLinearGradient(
+                    shading, start: ends.start, end: ends.end,
+                    options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+                )
+            }
+        }
+        context.restoreGState()
+    }
+
+    private static func cgColor(_ hex: String) -> CGColor {
+        Color(argbHex: hex).map { NSColor($0).cgColor } ?? NSColor.white.cgColor
     }
 
     // MARK: - Text
