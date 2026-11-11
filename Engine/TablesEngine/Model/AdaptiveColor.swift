@@ -204,6 +204,18 @@ extension Worksheet {
     }
 }
 
+extension Cell {
+    /// The colour the cell's text is drawn in: the colour its number format
+    /// names for the section showing its value (`[Red]`), which wins over the
+    /// font colour as in Excel, or else the style's own; nil for the default.
+    public func textColor(for scheme: ColorScheme) -> Color? {
+        if let hex = CellFormatter.sectionColorHex(for: self) {
+            return AdaptiveColor.resolveText(hex: hex, on: style.fillColorHex, for: scheme)
+        }
+        return style.textColor(for: scheme)
+    }
+}
+
 extension CellStyle {
     public func textColor(for scheme: ColorScheme) -> Color? {
         AdaptiveColor.resolveText(hex: textColorHex, on: fillColorHex, for: scheme)
