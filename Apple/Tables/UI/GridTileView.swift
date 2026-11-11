@@ -8,6 +8,8 @@ struct PaintedCell: Equatable, Sendable {
     var cell: Cell
     /// Where the text may run past the cell, across empty neighbours.
     var overflow: CGRect?
+    /// The columns `overflow` covers, the cell's own included.
+    var overflowSpan: ClosedRange<Int>?
     /// A cell outside the tile whose text runs into it: only its text is
     /// drawn here, its own tile draws the rest.
     var textOnly = false
@@ -46,9 +48,6 @@ struct TileContents: Equatable, Sendable {
     var cells: [PaintedCell] = []
     var merges: [PaintedMerge] = []
     var covered: Set<CellAddress> = []
-    /// Cells whose trailing edge spilled text runs across, which draw no
-    /// gridline there — Excel's text reads as one run, not as boxes.
-    var overflowEdges: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
     /// Borders of the cells and merges just outside the tile.
@@ -206,7 +205,7 @@ enum CellPainter {
         context.translateBy(x: -origin.x, y: -origin.y)
 
         let painted = Set(contents.cells.map(\.address))
-        let edges = contents.overflowEdges
+        let edges = openEdges(of: contents.cells, metrics: metrics, in: context)
         paintBlankHairlines(
             rows: rows, columns: columns,
             hiddenRows: hiddenRows, hiddenColumns: hiddenColumns,
@@ -323,6 +322,33 @@ enum CellPainter {
         var hairlines = Path()
         addHairlines(of: frame, openEdge: openEdge, to: &hairlines)
         context.stroke(hairlines, with: .color(.gridLine), lineWidth: hairlineWidth)
+    }
+
+    /// Cells whose trailing edge spilled text runs across, which draw no
+    /// gridline there — Excel's text reads as one run, not as boxes. Only the
+    /// edges the text actually crosses: a short word with room to run still
+    /// fits in its own cell.
+    private static func openEdges(
+        of cells: [PaintedCell], metrics: SheetMetrics, in context: GraphicsContext
+    ) -> Set<CellAddress> {
+        var edges = Set<CellAddress>()
+        let zoom = metrics.zoom
+        for painted in cells {
+            guard let span = painted.overflowSpan else { continue }
+            let style = painted.cell.style
+            let text = Text(verbatim: CellFormatter.displayText(for: painted.cell)).font(style.font(zoom: zoom))
+            let width = context.resolve(text).measure(in: CGSize(width: unbounded, height: unbounded)).width
+            let row = painted.address.row
+            guard let reach = Worksheet.overflowReach(
+                of: painted.address.column, within: span, textWidth: width,
+                alignment: style.horizontalAlignment, padding: 6 * zoom, indent: style.indentPoints * zoom,
+                columnWidth: { metrics.frame(for: CellAddress(row: row, column: $0)).width }
+            ) else { continue }
+            for column in reach.lowerBound..<reach.upperBound {
+                edges.insert(CellAddress(row: row, column: column))
+            }
+        }
+        return edges
     }
 
     // MARK: - Text
