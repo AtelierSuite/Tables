@@ -819,7 +819,7 @@ struct SheetGridView: View {
                 let cell = sheet.displayedCell(at: address)
                 guard !cell.isEmptyEntirely else { continue }
                 var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
-                entry.overflow = overflow(of: address, in: sheet, metrics: metrics, edges: &painted.overflowEdges)
+                (entry.overflow, entry.overflowSpan) = overflow(of: address, in: sheet, metrics: metrics)
                 painted.cells.append(entry)
             }
             spillsFromOutside(row: row, of: plan, in: sheet, metrics: metrics, into: &painted)
@@ -868,19 +868,18 @@ struct SheetGridView: View {
         }
     }
 
-    /// How far a cell's text spills, as a frame, noting the cell edges it
-    /// runs across so their gridlines can make way for it.
+    /// How far a cell's text may spill, as a frame and as the columns it
+    /// spans. Which of their gridlines make way for it is left to the
+    /// painter, which can measure the text.
     private func overflow(
-        of address: CellAddress, in sheet: Worksheet, metrics: SheetMetrics, edges: inout Set<CellAddress>
-    ) -> CGRect? {
-        guard let span = sheet.overflowSpan(of: address) else { return nil }
-        for column in span.lowerBound..<span.upperBound {
-            edges.insert(CellAddress(row: address.row, column: column))
-        }
-        return metrics.frame(for: CellRange(
+        of address: CellAddress, in sheet: Worksheet, metrics: SheetMetrics
+    ) -> (CGRect?, ClosedRange<Int>?) {
+        guard let span = sheet.overflowSpan(of: address) else { return (nil, nil) }
+        let frame = metrics.frame(for: CellRange(
             start: CellAddress(row: address.row, column: span.lowerBound),
             end: CellAddress(row: address.row, column: span.upperBound)
         ))
+        return (frame, span)
     }
 
     /// Text that starts in a cell outside the tile and runs into it. The
@@ -900,7 +899,7 @@ struct SheetGridView: View {
                 if let span = sheet.overflowSpan(of: address, reach: reach),
                    span.overlaps(plan.columns.lowerBound...(plan.columns.upperBound - 1)) {
                     var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
-                    entry.overflow = overflow(of: address, in: sheet, metrics: metrics, edges: &painted.overflowEdges)
+                    (entry.overflow, entry.overflowSpan) = overflow(of: address, in: sheet, metrics: metrics)
                     entry.textOnly = true
                     painted.cells.append(entry)
                 }
@@ -1440,15 +1439,8 @@ struct SheetGridView: View {
         if state.editingText.hasPrefix("=") {
             return .monospacedSystemFont(ofSize: size, weight: .regular)
         }
-        var traits: UIFontDescriptor.SymbolicTraits = []
-        if style.isBold { traits.insert(.traitBold) }
-        if style.isItalic { traits.insert(.traitItalic) }
-        let system = UIFont.systemFont(ofSize: size)
         // The cell's own family when it is installed, as the grid draws it.
-        let base = style.displayFontName
-            .flatMap { family in UIFont.familyNames.contains(family) ? family : nil }
-            .map { UIFont(descriptor: UIFontDescriptor(fontAttributes: [.family: $0]), size: size) } ?? system
-        return base.fontDescriptor.withSymbolicTraits(traits).map { UIFont(descriptor: $0, size: size) } ?? base
+        return style.platformFont(zoom: metrics.zoom)
     }
 
     // MARK: - Headers

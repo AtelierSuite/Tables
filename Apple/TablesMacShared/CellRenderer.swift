@@ -149,12 +149,25 @@ struct CellRenderer {
 
     // MARK: - Overflow
 
-    /// How far a cell's text spills, noting the cell edges it runs across
-    /// so their gridlines can make way for it.
+    /// How far a cell's text may spill, noting the cell edges it actually
+    /// runs across so their gridlines can make way for it.
     private func overflow(of address: CellAddress, edges: inout Set<CellAddress>) -> CGRect? {
         guard let span = sheet.overflowSpan(of: address) else { return nil }
-        for column in span.lowerBound..<span.upperBound {
-            edges.insert(CellAddress(row: address.row, column: column))
+        let cell = sheet.displayedCell(at: address)
+        let style = cell.style
+        let zoom = metrics.zoom
+        let width = NSAttributedString(
+            string: CellFormatter.displayText(for: cell),
+            attributes: [.font: Self.font(for: style, zoom: zoom)]
+        ).size().width
+        if let reach = Worksheet.overflowReach(
+            of: address.column, within: span, textWidth: width,
+            alignment: style.horizontalAlignment, padding: 6 * zoom, indent: style.indentPoints * zoom,
+            columnWidth: { metrics.frame(for: CellAddress(row: address.row, column: $0)).width }
+        ) {
+            for column in reach.lowerBound..<reach.upperBound {
+                edges.insert(CellAddress(row: address.row, column: column))
+            }
         }
         return metrics.frame(for: CellRange(
             start: CellAddress(row: address.row, column: span.lowerBound),
@@ -220,26 +233,7 @@ struct CellRenderer {
     /// The font a cell's text is drawn in, at the grid's zoom: its own family
     /// when it has one and it is installed, otherwise the system font.
     static func font(for style: CellStyle, zoom: Double) -> NSFont {
-        let size = style.fontSize * zoom
-        if let family = style.displayFontName {
-            var traits: NSFontTraitMask = []
-            if style.isBold { traits.insert(.boldFontMask) }
-            if style.isItalic { traits.insert(.italicFontMask) }
-            let manager = NSFontManager.shared
-            if let font = manager.font(withFamily: family, traits: traits, weight: 5, size: size) {
-                return font
-            }
-            // A family without the asked-for face still beats the system font.
-            if let font = manager.font(withFamily: family, traits: [], weight: 5, size: size) {
-                return manager.convert(font, toHaveTrait: traits)
-            }
-        }
-        var traits: NSFontDescriptor.SymbolicTraits = []
-        if style.isBold { traits.insert(.bold) }
-        if style.isItalic { traits.insert(.italic) }
-        let base = NSFont.systemFont(ofSize: size)
-        guard !traits.isEmpty else { return base }
-        return NSFont(descriptor: base.fontDescriptor.withSymbolicTraits(traits), size: size) ?? base
+        style.platformFont(zoom: zoom)
     }
 
     /// `overflow` is the stretch of the row the text may run across. The
@@ -288,7 +282,7 @@ struct CellRenderer {
             : style.horizontalAlignment
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
-        let color: NSColor = style.textColor(for: scheme).map { NSColor($0) }
+        let color: NSColor = cell.textColor(for: scheme).map { NSColor($0) }
             ?? (cell.value.errorValue != nil ? .systemRed : .labelColor)
 
         var attributes: [NSAttributedString.Key: Any] = [
@@ -336,7 +330,11 @@ struct CellRenderer {
             room = box.width
         }
         if !wraps, measured.width > room {
-            let shortened = isNumber ? hashes(filling: room, attributes: attributes)
+            // A General number is rounded to fit before it gives way to #s.
+            let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
+                NSAttributedString(string: candidate, attributes: attributes).size().width <= room
+            }
+            let shortened = isNumber ? fitted ?? hashes(filling: room, attributes: attributes)
                 : elided(string, to: room, attributes: attributes)
             text = Self.attributed(shortened, attributes: attributes)
             measured = text.size()

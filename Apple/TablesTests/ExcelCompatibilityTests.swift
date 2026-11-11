@@ -228,6 +228,41 @@ struct ExcelCompatibilityTests {
         #expect(CellFormatter.isDateFormat("[$-409]mmm d, yyyy"))
     }
 
+    @Test("A format's colour code colours the section it heads, and only that one")
+    func sectionColours() {
+        let accounting = "#,##0;[Red](#,##0)"
+        #expect(CellFormatter.sectionColorHex(for: .number(-1234), format: accounting) == "FF0000")
+        #expect(CellFormatter.displayText(for: .number(-1234), format: accounting) == "(1,234)")
+        #expect(CellFormatter.sectionColorHex(for: .number(1234), format: accounting) == nil)
+        #expect(CellFormatter.sectionColorHex(for: .number(5), format: "[Red]0.00") == "FF0000")
+        #expect(CellFormatter.displayText(for: .number(5), format: "[Red]0.00") == "5.00")
+        #expect(CellFormatter.sectionColorHex(for: .number(5), format: "[blue]0") == "0000FF")
+        #expect(CellFormatter.sectionColorHex(for: .number(0), format: "0;0;[Green]0") == "00FF00")
+        #expect(CellFormatter.sectionColorHex(for: .text("x"), format: "0;0;0;[Magenta]@") == "FF00FF")
+        #expect(CellFormatter.sectionColorHex(for: .text("x"), format: "[Red]0") == nil)
+        // `[ColorN]` picks slot N of the 56-colour palette, which starts at index 8.
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "[Color10]0") == "008000")
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "[Color57]0") == nil)
+        // Conditions, locales, elapsed time and quoted or escaped brackets name no colour.
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "[>100]0") == nil)
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "[$-409]#,##0") == nil)
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "[h]:mm") == nil)
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "\"[Red]\"0") == nil)
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "\\[Red]0") == nil)
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "[$-409][Red]0") == "FF0000")
+        #expect(CellFormatter.sectionColorHex(for: .number(1), format: "General") == nil)
+    }
+
+    @Test("A section's colour code wins over the cell's font colour")
+    func sectionColourOverridesFontColour() {
+        var cell = Cell(value: .number(-3), formula: nil, style: .default)
+        cell.style.numberFormat = "0;[Red]-0"
+        cell.style.textColorHex = "FF0000FF"
+        #expect(cell.textColor(for: .light) == AdaptiveColor.resolveText(hex: "FF0000", on: nil, for: .light))
+        cell.value = .number(3)
+        #expect(cell.textColor(for: .light) == cell.style.textColor(for: .light))
+    }
+
     @Test("The 1904 epoch leaves colour-coded numbers alone")
     func macEpochIgnoresColourCodes() throws {
         // s="2" is [Red]0.00 and s="3" is built-in 38, #,##0;[Red](#,##0).

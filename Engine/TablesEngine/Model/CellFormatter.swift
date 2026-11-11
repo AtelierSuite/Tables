@@ -65,6 +65,76 @@ public enum CellFormatter {
         return (strip(text[..<mark]), strip(text[text.index(after: mark)...]))
     }
 
+    /// What a General number shows when its full text is too wide for the
+    /// cell, or nil when the cell is not a General number or nothing fits.
+    ///
+    /// Excel never shows `#`s for a General number while a shorter rendering
+    /// of it fits: it drops decimals first (`0.333333`), then switches to
+    /// scientific notation with fewer digits (`1.2E+11`), and only gives way
+    /// to `#`s when even that is too wide. Rounding that would leave no
+    /// significant digit — `0.00001` to `0` — is skipped in favour of
+    /// scientific notation, so a non-zero value never reads as zero.
+    /// `fits` measures a candidate against the room the cell has.
+    public static func fittedGeneralText(for cell: Cell, fits: (String) -> Bool) -> String? {
+        guard case .number(let number) = cell.value, number.isFinite,
+              isGeneral(cell.style.numberFormat) else { return nil }
+        return fittedGeneralText(for: number, fits: fits)
+    }
+
+    static func fittedGeneralText(for number: Double, fits: (String) -> Bool) -> String? {
+        let full = CellValue.plainNumberString(number)
+        if fits(full) { return full }
+
+        // Fewer decimals, for a number General writes out in full.
+        var decimal: String?
+        if !full.contains("E"), let point = full.firstIndex(of: ".") {
+            let decimals = full.distance(from: point, to: full.endIndex) - 1
+            for places in stride(from: decimals - 1, through: 0, by: -1) {
+                let candidate = trimmedDecimal(String(format: "%.\(places)f", number))
+                guard let rounded = Double(candidate), rounded != 0 else { break }
+                if fits(candidate) { decimal = candidate; break }
+            }
+        }
+
+        // Scientific notation, with as many mantissa digits as fit.
+        var exponent: String?
+        for places in stride(from: 5, through: 0, by: -1) {
+            let candidate = scientific(number, places: places)
+            if candidate != full, fits(candidate) { exponent = candidate; break }
+        }
+
+        // Whichever keeps more of the number: `0.333333` over `3.33E-01`, but
+        // `1.2E-05` over `0.00001`.
+        guard let decimal else { return exponent }
+        guard let exponent else { return decimal }
+        return significantDigits(exponent) > significantDigits(decimal) ? exponent : decimal
+    }
+
+    private static func significantDigits(_ text: String) -> Int {
+        let mantissa = text.prefix { $0 != "E" }.filter(\.isNumber)
+        return mantissa.drop { $0 == "0" }.count
+    }
+
+    private static func isGeneral(_ code: String) -> Bool {
+        let trimmed = code.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty || trimmed.caseInsensitiveCompare("General") == .orderedSame
+    }
+
+    /// `1.20E+11` as Excel's General writes it: `1.2E+11`.
+    private static func scientific(_ number: Double, places: Int) -> String {
+        let text = String(format: "%.\(places)E", number)
+        guard let e = text.firstIndex(of: "E") else { return text }
+        return trimmedDecimal(String(text[..<e])) + text[e...]
+    }
+
+    private static func trimmedDecimal(_ text: String) -> String {
+        guard text.contains(".") else { return text }
+        var text = text
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+
     /// Stands where a format's `*` fill goes in the text it renders.
     private static let fillMark: Character = "\u{1F}"
 
@@ -123,14 +193,7 @@ public enum CellFormatter {
         if trimmed == "@" { return CellValue.plainNumberString(number) }
 
         let sections = split(trimmed)
-        let section: String
-        if number < 0, sections.count >= 2 {
-            section = sections[1]
-        } else if number == 0, sections.count >= 3 {
-            section = sections[2]
-        } else {
-            section = sections[0]
-        }
+        let section = sections[sectionIndex(for: number, count: sections.count)]
 
         // A negative number falling back to the positive section keeps its sign.
         let usesDedicatedNegativeSection = number < 0 && sections.count >= 2
@@ -140,6 +203,77 @@ public enum CellFormatter {
             return formatDateTime(serial: number, pattern: section)
         }
         return formatNumeric(magnitude, pattern: section)
+    }
+
+    /// Which of a format's `count` sections renders `number`: the negative
+    /// and zero sections when the format has them, the first otherwise.
+    private static func sectionIndex(for number: Double, count: Int) -> Int {
+        if number < 0, count >= 2 { return 1 }
+        if number == 0, count >= 3 { return 2 }
+        return 0
+    }
+
+    // MARK: - Section colours
+
+    /// The colour the format section that renders `cell` names, such as the
+    /// red of `#,##0;[Red](#,##0)` for a negative number, as an RGB hex
+    /// string; nil when that section names none. It takes the place of the
+    /// cell's font colour, as in Excel.
+    public static func sectionColorHex(for cell: Cell) -> String? {
+        sectionColorHex(for: cell.value, format: cell.style.numberFormat)
+    }
+
+    public static func sectionColorHex(for value: CellValue, format formatCode: String) -> String? {
+        let trimmed = formatCode.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed != "@",
+              trimmed.caseInsensitiveCompare("General") != .orderedSame else { return nil }
+        let sections = split(trimmed)
+        switch value {
+        case .number(let number):
+            return colorHex(inSection: sections[sectionIndex(for: number, count: sections.count)])
+        case .text:
+            return sections.count >= 4 ? colorHex(inSection: sections[3]) : nil
+        case .empty, .error, .boolean:
+            return nil
+        }
+    }
+
+    /// The eight colours a format may name, as Excel draws them.
+    private static let namedColors: [String: String] = [
+        "black": "000000", "blue": "0000FF", "cyan": "00FFFF", "green": "00FF00",
+        "magenta": "FF00FF", "red": "FF0000", "white": "FFFFFF", "yellow": "FFFF00",
+    ]
+
+    /// The first bracketed colour in a section: a name like `[Red]` or a
+    /// palette slot like `[Color10]` (1–56, the indexed palette from 8 on).
+    /// Conditions, locales and elapsed-time tokens are passed over.
+    private static func colorHex(inSection section: String) -> String? {
+        let characters = Array(section)
+        var inQuotes = false
+        var index = 0
+        while index < characters.count {
+            let character = characters[index]
+            if character == "\"" {
+                inQuotes.toggle()
+            } else if !inQuotes {
+                switch character {
+                case "\\", "_", "*":
+                    index += 1  // The next character is literal, reserved or a fill.
+                case "[":
+                    guard let close = characters[index...].firstIndex(of: "]") else { return nil }
+                    let name = String(characters[(index + 1)..<close]).lowercased()
+                    if let hex = namedColors[name] { return hex }
+                    if name.hasPrefix("color"), let slot = Int(name.dropFirst(5)), (1...56).contains(slot) {
+                        return ThemeColorPalette.indexedColors[slot + 7]
+                    }
+                    index = close
+                default:
+                    break
+                }
+            }
+            index += 1
+        }
+        return nil
     }
 
     private static func split(_ code: String) -> [String] {
