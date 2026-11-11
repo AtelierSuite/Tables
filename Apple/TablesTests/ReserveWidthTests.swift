@@ -55,6 +55,14 @@ struct ReserveWidthTests {
         #expect(CellFormatter.displayText(for: .number(5), format: "0_)") == "5")
     }
 
+    @Test("Excel's built-in bracketed and accounting formats keep their reserves")
+    func builtInFormats() {
+        let formats = XLSXReader.builtInNumberFormats
+        #expect(formats[39] == "#,##0.00_);(#,##0.00)")
+        #expect(laidOut(cell(.number(-7.1), format: formats[43] ?? "")) == "[(](7.10)")
+        #expect(laidOut(cell(.number(7.1), format: formats[39] ?? "")) == "7.10[)]")
+    }
+
     @Test("Adjacent reserves join one run, and a mark cut off by elision draws nothing")
     func runs() {
         let mark = String(CellFormatter.reserveMark)
