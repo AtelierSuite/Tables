@@ -439,7 +439,7 @@ public struct CellStyle: Hashable, Sendable {
         #if canImport(UIKit) || canImport(AppKit)
         return Font(platformFont(zoom: zoom))
         #else
-        var font = displayFontName.map { Font.custom($0, fixedSize: fontSize * zoom) } ?? Font.system(size: fontSize * zoom)
+        var font = displayFontName.map { Font.custom($0, size: fontSize * zoom) } ?? Font.system(size: fontSize * zoom)
         if isBold { font = font.bold() }
         if isItalic { font = font.italic() }
         return font
