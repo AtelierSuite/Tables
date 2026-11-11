@@ -394,7 +394,7 @@ enum CellPainter {
             : style.horizontalAlignment
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
-        let color: Color = style.textColor(for: scheme)
+        let color: Color = cell.textColor(for: scheme)
             ?? (cell.value.errorValue != nil ? .red : .primary)
 
         let make: (String) -> Text = { text in
@@ -438,8 +438,12 @@ enum CellPainter {
             width: wraps ? box.width : unbounded, height: unbounded
         ))
         if !wraps, measured.width > room {
+            // A General number is rounded to fit before it gives way to #s.
+            let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
+                context.resolve(make(candidate)).measure(in: CGSize(width: unbounded, height: unbounded)).width <= room
+            }
             let shortened = isNumber
-                ? hashes(filling: room, make: make, in: context)
+                ? fitted ?? hashes(filling: room, make: make, in: context)
                 : elided(string, to: room, make: make, in: context)
             resolved = context.resolve(make(shortened))
             measured = resolved.measure(in: CGSize(width: unbounded, height: unbounded))

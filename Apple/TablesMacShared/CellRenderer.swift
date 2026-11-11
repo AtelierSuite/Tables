@@ -298,7 +298,7 @@ struct CellRenderer {
             : style.horizontalAlignment
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
-        let color: NSColor = style.textColor(for: scheme).map { NSColor($0) }
+        let color: NSColor = cell.textColor(for: scheme).map { NSColor($0) }
             ?? (cell.value.errorValue != nil ? .systemRed : .labelColor)
 
         var attributes: [NSAttributedString.Key: Any] = [
@@ -346,7 +346,11 @@ struct CellRenderer {
             room = box.width
         }
         if !wraps, measured.width > room {
-            let shortened = isNumber ? hashes(filling: room, attributes: attributes)
+            // A General number is rounded to fit before it gives way to #s.
+            let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
+                NSAttributedString(string: candidate, attributes: attributes).size().width <= room
+            }
+            let shortened = isNumber ? fitted ?? hashes(filling: room, attributes: attributes)
                 : elided(string, to: room, attributes: attributes)
             text = NSAttributedString(string: shortened, attributes: attributes)
             measured = text.size()
