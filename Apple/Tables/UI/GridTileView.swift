@@ -383,11 +383,14 @@ enum CellPainter {
             let color = style.textColor(for: scheme) ?? .primary
             return paintCheckbox(isOn, in: style.checkboxFrame(in: frame, zoom: zoom), color: color, zoom: zoom, into: &context)
         }
-        var string = CellFormatter.displayText(for: cell)
+        // The characters a format's `_x` reserves are laid out but not drawn.
+        var string = CellFormatter.layoutText(for: cell)
         guard !string.isEmpty else { return }
         // Stacked text is drawn as one glyph per line rather than by rotating
         // the run, which is what Excel's `textRotation="255"` looks like.
-        if style.isTextStacked { string = string.map(String.init).joined(separator: "\n") }
+        if style.isTextStacked {
+            string = CellFormatter.displayText(for: cell).map(String.init).joined(separator: "\n")
+        }
 
         let horizontal = style.horizontalAlignment == .automatic
             ? CellFormatter.naturalAlignment(for: cell.value)
@@ -398,9 +401,19 @@ enum CellPainter {
             ?? (cell.value.errorValue != nil ? .red : .primary)
 
         let make: (String) -> Text = { text in
-            var run = Text(verbatim: text)
-                .font(style.font(zoom: zoom))
-                .foregroundStyle(color)
+            var run: Text
+            if text.contains(CellFormatter.reserveMark) {
+                var attributed = AttributedString()
+                for part in CellFormatter.reservedRuns(in: text) {
+                    var piece = AttributedString(part.text)
+                    piece.foregroundColor = part.isReserved ? .clear : color
+                    attributed += piece
+                }
+                run = Text(attributed)
+            } else {
+                run = Text(verbatim: text).foregroundStyle(color)
+            }
+            run = run.font(style.font(zoom: zoom))
             if style.isUnderlined { run = run.underline() }
             if style.isStruckThrough { run = run.strikethrough() }
             return run
@@ -467,7 +480,7 @@ enum CellPainter {
         // A format's fill spreads the text across the cell: an accounting
         // format's symbol at the left edge, the amount at the right.
         if !wraps, style.rotationDegrees == 0, measured.width <= box.width,
-           let parts = CellFormatter.filledText(for: cell) {
+           let parts = CellFormatter.filledText(for: cell, reservingWidth: true) {
             let leading = context.resolve(make(parts.leading))
             let trailing = context.resolve(make(parts.trailing))
             let leadingSize = leading.measure(in: CGSize(width: unbounded, height: unbounded))

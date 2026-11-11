@@ -12,19 +12,56 @@ public enum CellFormatter {
     }
 
     public static func displayText(for value: CellValue, format formatCode: String) -> String {
-        let text = marked(value, format: formatCode)
+        unmarked(marked(value, format: formatCode))
+    }
+
+    /// What `cell` lays out in its grid: its display text, but with the
+    /// character each `_x` in its format reserves kept, behind `reserveMark`.
+    /// The renderer measures that character but leaves it undrawn, so an
+    /// accounting format's `_)` pads a positive amount by the width of the
+    /// `)` a negative one ends in, and their decimals line up.
+    public static func layoutText(for cell: Cell) -> String {
+        let text = marked(cell.value, format: cell.style.numberFormat)
         return text.contains(fillMark) ? text.replacingOccurrences(of: String(fillMark), with: "") : text
+    }
+
+    /// `text` from `layoutText` or `filledText(reservingWidth:)`, cut into
+    /// the runs that are drawn and the reserved characters that only take up
+    /// their width.
+    public static func reservedRuns(in text: String) -> [(text: String, isReserved: Bool)] {
+        guard text.contains(reserveMark) else { return [(text, false)] }
+        var runs: [(text: String, isReserved: Bool)] = []
+        var drawn = ""
+        var iterator = text.makeIterator()
+        while let character = iterator.next() {
+            guard character == reserveMark else { drawn.append(character); continue }
+            // Elided text can end on a mark whose character was cut off.
+            guard let reserved = iterator.next() else { break }
+            if !drawn.isEmpty { runs.append((drawn, false)); drawn = "" }
+            if let last = runs.last, last.isReserved {
+                runs[runs.count - 1].text.append(reserved)
+            } else {
+                runs.append((String(reserved), true))
+            }
+        }
+        if !drawn.isEmpty { runs.append((drawn, false)) }
+        return runs
     }
 
     /// What `cell` shows split where its format's `*` fill falls, or nil
     /// when its format has none. The fill takes up whatever room the cell
     /// has, so the first part sits at the cell's leading edge and the second
     /// at its trailing one — an accounting format's currency symbol at the
-    /// left and the amount at the right.
-    public static func filledText(for cell: Cell) -> (leading: String, trailing: String)? {
+    /// left and the amount at the right. `reservingWidth` keeps the
+    /// characters `_x` reserves in the parts, as `layoutText` does.
+    public static func filledText(
+        for cell: Cell, reservingWidth: Bool = false
+    ) -> (leading: String, trailing: String)? {
         let text = marked(cell.value, format: cell.style.numberFormat)
         guard let mark = text.firstIndex(of: fillMark) else { return nil }
-        let strip = { (part: Substring) in part.replacingOccurrences(of: String(fillMark), with: "") }
+        let strip = { (part: Substring) in
+            reservingWidth ? part.replacingOccurrences(of: String(fillMark), with: "") : unmarked(String(part))
+        }
         return (strip(text[..<mark]), strip(text[text.index(after: mark)...]))
     }
 
@@ -100,6 +137,25 @@ public enum CellFormatter {
 
     /// Stands where a format's `*` fill goes in the text it renders.
     private static let fillMark: Character = "\u{1F}"
+
+    /// Stands before the character a format's `_` reserves the width of.
+    public static let reserveMark: Character = "\u{1E}"
+
+    /// `text` without its fill marks or reserved characters: what the cell
+    /// reads as, for copying, finding and exporting.
+    private static func unmarked(_ text: String) -> String {
+        guard text.contains(fillMark) || text.contains(reserveMark) else { return text }
+        var result = ""
+        var iterator = text.makeIterator()
+        while let character = iterator.next() {
+            switch character {
+            case fillMark: continue
+            case reserveMark: _ = iterator.next()
+            default: result.append(character)
+            }
+        }
+        return result
+    }
 
     private static func marked(_ value: CellValue, format formatCode: String) -> String {
         switch value {
@@ -258,7 +314,9 @@ public enum CellFormatter {
             } else {
                 switch character {
                 case "@": result += text
-                case "_": index += 1
+                case "_":
+                    index += 1
+                    if index < characters.count { result += [reserveMark, characters[index]] }
                 case "*":
                     index += 1
                     result.append(fillMark)
@@ -400,7 +458,11 @@ public enum CellFormatter {
                     if seenDigit { result.suffix.append(characters[index]) } else { result.prefix.append(characters[index]) }
                 }
             case "_":
-                index += 1  // Reserve-width token: skip the following character.
+                index += 1  // Reserve-width token: marked, for the renderer to leave undrawn.
+                if index < characters.count {
+                    let reserved = [reserveMark, characters[index]]
+                    if seenDigit { result.suffix += reserved } else { result.prefix += reserved }
+                }
             case "*":
                 index += 1  // Fill token: marked, for the renderer to spread.
                 if seenDigit { result.suffix.append(fillMark) } else { result.prefix.append(fillMark) }
