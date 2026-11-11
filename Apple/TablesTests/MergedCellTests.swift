@@ -370,4 +370,26 @@ struct MergedCellTests {
         // A plain cell's mark is drawn with the cell, as before.
         #expect(sheet.commentMarks(rows: 6..<7, columns: 0..<1).map { $0.address } == [CellAddress(row: 6, column: 0)])
     }
+    @Test("Merging a boxed cell carries its box out to the merge's edges")
+    func mergingCarriesFirstCellBorders() {
+        var sheet = Worksheet(name: "Sheet 1")
+        let thick = BorderSide(lineStyle: .thick)
+        sheet[CellAddress(row: 0, column: 0)] = Cell(value: .text("Title"))
+        sheet[CellAddress(row: 0, column: 0)].style.borderSides = [.top: thick, .leading: thick, .bottom: thick, .trailing: thick]
+        sheet[CellAddress(row: 1, column: 1)] = Cell(value: .number(4))
+        let box = CellRange(start: CellAddress(row: 0, column: 0), end: CellAddress(row: 2, column: 2))
+        let merged = sheet.mergeKeepingFirstCell(box)
+        #expect(merged)
+        #expect(sheet.mergedRanges == [box])
+        // The covered cells' content is gone, and the middle one keeps no border.
+        #expect(sheet.cells[CellAddress(row: 1, column: 1)] == nil)
+        #expect(sheet[CellAddress(row: 0, column: 0)].value == .text("Title"))
+        let resolver = BorderResolver(sheet: sheet, metrics: SheetMetrics(sheet: sheet))
+        #expect(Set(resolver.drawnBorders(of: box)) == Set(BorderEdge.allCases.map {
+            DrawnBorder(edge: $0, side: thick, range: box)
+        }))
+        // A merge across a covering one is still refused.
+        let crossing = sheet.mergeKeepingFirstCell(CellRange(start: CellAddress(row: 2, column: 2), end: CellAddress(row: 3, column: 3)))
+        #expect(!crossing)
+    }
 }
