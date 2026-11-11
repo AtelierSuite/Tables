@@ -1440,15 +1440,8 @@ struct SheetGridView: View {
         if state.editingText.hasPrefix("=") {
             return .monospacedSystemFont(ofSize: size, weight: .regular)
         }
-        var traits: UIFontDescriptor.SymbolicTraits = []
-        if style.isBold { traits.insert(.traitBold) }
-        if style.isItalic { traits.insert(.traitItalic) }
-        let system = UIFont.systemFont(ofSize: size)
         // The cell's own family when it is installed, as the grid draws it.
-        let base = style.displayFontName
-            .flatMap { family in UIFont.familyNames.contains(family) ? family : nil }
-            .map { UIFont(descriptor: UIFontDescriptor(fontAttributes: [.family: $0]), size: size) } ?? system
-        return base.fontDescriptor.withSymbolicTraits(traits).map { UIFont(descriptor: $0, size: size) } ?? base
+        return style.platformFont(zoom: metrics.zoom)
     }
 
     // MARK: - Headers
