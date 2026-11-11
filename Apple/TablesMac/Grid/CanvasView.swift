@@ -64,10 +64,13 @@ final class CanvasView: NSView {
         let active = document.activeSheet.id
         activeID = active
         let page = CanvasSnapping.pageInset(zoom: zoom)
+        let scale = document.state.displayScale
         placed = document.workbook.sheets(on: canvas).compactMap { sheet in
             guard let table = canvas.table(for: sheet.id) else { return nil }
-            let metrics = sheet.id == active ? document.state.metrics : SheetMetrics(sheet: sheet, zoom: zoom)
-            var frame = CGRect(x: page.x + table.x * zoom, y: page.y + table.y * zoom,
+            let metrics = sheet.id == active ? document.state.metrics : SheetMetrics(sheet: sheet, zoom: zoom, pixelScale: scale)
+            // On whole pixels, so the cells snapped within it stay on them.
+            var frame = CGRect(x: ((page.x + table.x * zoom) * scale).rounded() / scale,
+                               y: ((page.y + table.y * zoom) * scale).rounded() / scale,
                                width: metrics.totalWidth, height: metrics.totalHeight)
             if let drag, drag.id == sheet.id { frame = frame.offsetBy(dx: drag.offset.width, dy: drag.offset.height) }
             return Placed(sheet: sheet, metrics: metrics, frame: frame,
