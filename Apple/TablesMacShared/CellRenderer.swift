@@ -273,7 +273,7 @@ struct CellRenderer {
         var string = CellFormatter.layoutText(for: cell)
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
         if style.isTextStacked {
-            string = CellFormatter.displayText(for: cell).map(String.init).joined(separator: "\n")
+            string = TextFitting.stacked(CellFormatter.displayText(for: cell))
         }
         let zoom = metrics.zoom
 
@@ -322,9 +322,26 @@ struct CellRenderer {
             with: CGSize(width: wraps ? box.width : Self.unbounded, height: Self.unbounded),
             options: [.usesLineFragmentOrigin]
         ).size
+        // Turned text runs along its turned box rather than across the cell.
+        let turned = style.rotationDegrees != 0
+        if turned, !wraps {
+            room = TextFitting.runLength(of: style, in: box.size, lineHeight: measured.height)
+        }
+        // Stacked text has as many glyphs as fit down the box.
+        if style.isTextStacked, measured.height > box.height {
+            let fitting = TextFitting.elided(CellFormatter.displayText(for: cell), stacked: true) { candidate in
+                Self.attributed(candidate, attributes: attributes).boundingRect(
+                    with: CGSize(width: box.width, height: Self.unbounded), options: [.usesLineFragmentOrigin]
+                ).height <= box.height
+            }
+            text = Self.attributed(fitting, attributes: attributes)
+            measured = text.boundingRect(
+                with: CGSize(width: box.width, height: Self.unbounded), options: [.usesLineFragmentOrigin]
+            ).size
+        }
         // A number a hair too wide may take some of the cell's padding before
         // it gives way to #s.
-        if isNumber, !wraps, measured.width > room, measured.width <= frame.width - 2 * zoom {
+        if isNumber, !wraps, !turned, measured.width > room, measured.width <= frame.width - 2 * zoom {
             let spare = (frame.width - 2 * zoom - box.width) / 2
             box = box.insetBy(dx: -spare, dy: 0)
             room = box.width
@@ -335,7 +352,7 @@ struct CellRenderer {
                 NSAttributedString(string: candidate, attributes: attributes).size().width <= room
             }
             let shortened = isNumber ? fitted ?? hashes(filling: room, attributes: attributes)
-                : elided(string, to: room, attributes: attributes)
+                : TextFitting.elided(string) { Self.attributed($0, attributes: attributes).size().width <= room }
             text = Self.attributed(shortened, attributes: attributes)
             measured = text.size()
         }
@@ -420,25 +437,6 @@ struct CellRenderer {
             result.append(NSAttributedString(string: part.text, attributes: partAttributes))
         }
         return result
-    }
-
-    /// The longest prefix that fits in `width`, with an ellipsis.
-    private func elided(_ string: String, to width: Double, attributes: [NSAttributedString.Key: Any]) -> String {
-        let characters = Array(string)
-        var low = 0
-        var high = characters.count - 1
-        var best = "…"
-        while low <= high {
-            let middle = (low + high) / 2
-            let candidate = String(characters[0..<middle]) + "…"
-            if Self.attributed(candidate, attributes: attributes).size().width <= width {
-                best = candidate
-                low = middle + 1
-            } else {
-                high = middle - 1
-            }
-        }
-        return best
     }
 
     /// As many #s as fit in `width`, which is what Excel shows for a number
