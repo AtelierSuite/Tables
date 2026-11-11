@@ -75,6 +75,9 @@ final class EditorState {
 
     /// Pinch-to-zoom factor for the grid.
     var zoom: Double = 1
+    /// Device pixels to a point on the display the grid is on, which the
+    /// metrics snap cell edges and lines to. Set by the view showing it.
+    var displayScale: Double = 2
     static let zoomRange: ClosedRange<Double> = 0.5...3
 
     /// While a formula is being typed, the range most recently inserted into it,
@@ -171,7 +174,7 @@ final class EditorState {
     }
 
     func refreshMetrics(in workbook: Workbook) {
-        metrics = SheetMetrics(sheet: activeSheet(in: workbook), zoom: zoom)
+        metrics = SheetMetrics(sheet: activeSheet(in: workbook), zoom: zoom, pixelScale: displayScale)
     }
 
     /// True while the user is typing a formula, when tapping a cell should
