@@ -69,6 +69,27 @@ test("formats the selection", () => {
   assert.ok(call("render", { x: 0, y: 0, w: 500, h: 500 }).result.ops.some((op) => op.k === "line"));
 });
 
+test("snaps gridlines and borders to device pixels at a fractional zoom", () => {
+  // 80% on a 2× screen: a sheet point is 1.6 pixels, and a 72-point column 115.2.
+  const scale = 1.6;
+  const ops = call("render", { x: 0, y: 0, w: 500, h: 500, scale }).result.ops;
+  const whole = (value) => Math.abs(value * scale - Math.round(value * scale)) < 1e-6;
+  const lines = ops.filter((op) => op.k === "grid" || op.k === "line");
+  assert.ok(lines.some((op) => op.k === "line"), "expected the borders drawn earlier");
+  for (const op of lines) {
+    const width = op.w * scale;
+    assert.ok(width >= 1 && whole(op.w), `a ${width}-pixel-wide line`);
+    for (let i = 0; i + 3 < op.p.length; i += 4) {
+      // Across the line, its sides fall on pixel boundaries.
+      const across = op.p[i] === op.p[i + 2] ? op.p[i] : op.p[i + 1];
+      assert.ok(whole(across - op.w / 2), `a line's side at ${(across - op.w / 2) * scale} pixels`);
+    }
+  }
+  for (const op of ops.filter((op) => op.k === "fill")) {
+    assert.ok(op.r.every(whole), `a fill at ${op.r.map((v) => v * scale)} pixels`);
+  }
+});
+
 test("inserts rows and keeps formulas pointing at their cells", () => {
   call("select", { row: 0, column: 0 });
   call("insertRows", { above: true });
