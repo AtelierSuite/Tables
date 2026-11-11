@@ -67,14 +67,7 @@ public enum CellFormatter {
         if trimmed == "@" { return CellValue.plainNumberString(number) }
 
         let sections = split(trimmed)
-        let section: String
-        if number < 0, sections.count >= 2 {
-            section = sections[1]
-        } else if number == 0, sections.count >= 3 {
-            section = sections[2]
-        } else {
-            section = sections[0]
-        }
+        let section = sections[sectionIndex(for: number, count: sections.count)]
 
         // A negative number falling back to the positive section keeps its sign.
         let usesDedicatedNegativeSection = number < 0 && sections.count >= 2
@@ -84,6 +77,77 @@ public enum CellFormatter {
             return formatDateTime(serial: number, pattern: section)
         }
         return formatNumeric(magnitude, pattern: section)
+    }
+
+    /// Which of a format's `count` sections renders `number`: the negative
+    /// and zero sections when the format has them, the first otherwise.
+    private static func sectionIndex(for number: Double, count: Int) -> Int {
+        if number < 0, count >= 2 { return 1 }
+        if number == 0, count >= 3 { return 2 }
+        return 0
+    }
+
+    // MARK: - Section colours
+
+    /// The colour the format section that renders `cell` names, such as the
+    /// red of `#,##0;[Red](#,##0)` for a negative number, as an RGB hex
+    /// string; nil when that section names none. It takes the place of the
+    /// cell's font colour, as in Excel.
+    public static func sectionColorHex(for cell: Cell) -> String? {
+        sectionColorHex(for: cell.value, format: cell.style.numberFormat)
+    }
+
+    public static func sectionColorHex(for value: CellValue, format formatCode: String) -> String? {
+        let trimmed = formatCode.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed != "@",
+              trimmed.caseInsensitiveCompare("General") != .orderedSame else { return nil }
+        let sections = split(trimmed)
+        switch value {
+        case .number(let number):
+            return colorHex(inSection: sections[sectionIndex(for: number, count: sections.count)])
+        case .text:
+            return sections.count >= 4 ? colorHex(inSection: sections[3]) : nil
+        case .empty, .error, .boolean:
+            return nil
+        }
+    }
+
+    /// The eight colours a format may name, as Excel draws them.
+    private static let namedColors: [String: String] = [
+        "black": "000000", "blue": "0000FF", "cyan": "00FFFF", "green": "00FF00",
+        "magenta": "FF00FF", "red": "FF0000", "white": "FFFFFF", "yellow": "FFFF00",
+    ]
+
+    /// The first bracketed colour in a section: a name like `[Red]` or a
+    /// palette slot like `[Color10]` (1–56, the indexed palette from 8 on).
+    /// Conditions, locales and elapsed-time tokens are passed over.
+    private static func colorHex(inSection section: String) -> String? {
+        let characters = Array(section)
+        var inQuotes = false
+        var index = 0
+        while index < characters.count {
+            let character = characters[index]
+            if character == "\"" {
+                inQuotes.toggle()
+            } else if !inQuotes {
+                switch character {
+                case "\\", "_", "*":
+                    index += 1  // The next character is literal, reserved or a fill.
+                case "[":
+                    guard let close = characters[index...].firstIndex(of: "]") else { return nil }
+                    let name = String(characters[(index + 1)..<close]).lowercased()
+                    if let hex = namedColors[name] { return hex }
+                    if name.hasPrefix("color"), let slot = Int(name.dropFirst(5)), (1...56).contains(slot) {
+                        return ThemeColorPalette.indexedColors[slot + 7]
+                    }
+                    index = close
+                default:
+                    break
+                }
+            }
+            index += 1
+        }
+        return nil
     }
 
     private static func split(_ code: String) -> [String] {
