@@ -274,7 +274,8 @@ final class WorkbookViewController: NSViewController {
 
     func setFindBarShown(_ shown: Bool) {
         findBar.isHidden = !shown
-        findBarHeight?.constant = shown ? 36 : 0
+        if shown { findBar.refresh() }
+        findBarHeight?.constant = shown ? 64 : 0
         view.window?.makeFirstResponder(shown ? findBar.searchField : grid)
     }
 
