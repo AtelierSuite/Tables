@@ -205,10 +205,10 @@ final class WorkbookDocument: NSDocument {
 
     // MARK: - Session
 
-    /// Points a fresh session at the workbook's first visible sheet.
+    /// Points a fresh session at the sheet the file was left on, or else the
+    /// workbook's first visible sheet.
     private func prepareSession() {
-        let first = file.workbook.visibleSheets.first ?? file.workbook.sheets.first
-        if let first { state.selectSheet(first.id, in: file.workbook) }
+        if let id = file.workbook.openingSheetID { state.selectSheet(id, in: file.workbook) }
         state.allowsComments = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers

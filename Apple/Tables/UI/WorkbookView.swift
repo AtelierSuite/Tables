@@ -100,7 +100,7 @@ struct WorkbookView: View {
             state.allowsLayingOutTables = !document.isPlainText
             state.isNumbersDocument = document.isNumbers
             if state.activeSheetID == nil {
-                state.activeSheetID = document.workbook.sheets.first?.id
+                state.activeSheetID = document.workbook.openingSheetID
                 state.refreshMetrics(in: document.workbook)
             }
             state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)

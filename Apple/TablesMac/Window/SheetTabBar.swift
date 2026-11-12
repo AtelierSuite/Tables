@@ -135,7 +135,7 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
             current.scrollToVisible(current.bounds)
         }
 
-        let hidden = workbook.sheets.filter(\.isHidden)
+        let hidden = workbook.unhidableSheets
         hiddenGlass.isHidden = hidden.isEmpty
         hiddenButton.removeAllItems()
         hiddenButton.addItem(withTitle: "")
