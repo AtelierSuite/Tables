@@ -388,7 +388,9 @@ enum CellPainter {
         for painted in cells {
             guard let span = painted.overflowSpan else { continue }
             let style = painted.cell.style
-            let text = Text(verbatim: CellFormatter.displayText(for: painted.cell)).font(style.font(zoom: zoom))
+            let string = CellFormatter.displayText(for: painted.cell)
+            let text = runs(of: painted.cell, in: string, color: .primary, zoom: zoom, scheme: .light)
+                ?? Text(verbatim: string).font(style.font(zoom: zoom))
             let width = context.resolve(text).measure(in: CGSize(width: unbounded, height: unbounded)).width
             let row = painted.address.row
             guard let reach = Worksheet.overflowReach(
@@ -454,6 +456,7 @@ enum CellPainter {
             ?? (cell.value.errorValue != nil ? .red : .primary)
 
         let make: (String) -> Text = { text in
+            if let rich = runs(of: cell, in: text, color: color, zoom: zoom, scheme: scheme) { return rich }
             var run: Text
             if text.contains(CellFormatter.reserveMark) {
                 var attributed = AttributedString()
@@ -572,6 +575,32 @@ enum CellPainter {
             // Text longer than its room runs on and is clipped at the edge.
             layer.draw(resolved, in: TextFitting.clippedLine(target, length: measured.width, alignment: horizontal))
         }
+    }
+
+    /// `string`, which is the text of `cell` as it is about to be drawn, set
+    /// in the cell's runs, or nil for a cell whose text is all in one font.
+    /// A run without a colour of its own is drawn in `color`.
+    private static func runs(
+        of cell: Cell, in string: String, color: Color, zoom: Double, scheme: ColorScheme
+    ) -> Text? {
+        guard let pieces = cell.styledPieces(of: string) else { return nil }
+        var attributed = AttributedString()
+        for piece in pieces {
+            var part = AttributedString(piece.text)
+            var style = piece.style
+            if let font = piece.font {
+                // A raised or lowered run is set smaller, off the line.
+                style.fontSize = font.glyphSize(of: piece.style.fontSize)
+                let offset = font.baselineOffset(of: piece.style.fontSize) * zoom
+                if offset != 0 { part.baselineOffset = offset }
+            }
+            part.font = style.font(zoom: zoom)
+            part.foregroundColor = piece.font?.colorHex == nil ? color : style.textColor(for: scheme) ?? color
+            if style.isUnderlined { part.underlineStyle = .single }
+            if style.isStruckThrough { part.strikethroughStyle = .single }
+            attributed += part
+        }
+        return Text(attributed)
     }
 
     /// Stands in for an unconstrained axis when measuring. A finite number
