@@ -4,10 +4,11 @@ import TablesEngine
 
 /// A sheet laid out for printing: every row and column out to the last cell
 /// with anything in it, and the charts and pictures floating over them,
-/// drawn as the grid draws them, without the selection.
+/// drawn as the grid draws them, without the selection or comment marks.
 ///
 /// Pages break between rows and between columns, never through one, as
-/// `PrintPagination` cuts them.
+/// `PrintPagination` cuts them. Gridlines print only when asked for in the
+/// print panel, as in Excel.
 @MainActor
 final class SheetPrintView: NSView {
     private let sheet: Worksheet
@@ -76,13 +77,17 @@ final class SheetPrintView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let info = NSPrintOperation.current?.printInfo
         let page = NSPrintOperation.current.flatMap { rectForPage($0.currentPage) } ?? bounds
         // Paper is white, whatever the screen's appearance.
         let appearance = NSAppearance(named: .aqua) ?? effectiveAppearance
         appearance.performAsCurrentDrawingAppearance {
             NSColor.white.setFill()
             dirtyRect.fill()
-            var renderer = CellRenderer(sheet: sheet, metrics: metrics, appearance: appearance)
+            var renderer = CellRenderer(
+                sheet: sheet, metrics: metrics, appearance: appearance,
+                drawsGridlines: info.map(SheetPrintSettings.printsGridlines) ?? false)
+            renderer.drawsCommentMarks = false
             // Borders on a page's edges stay on that page.
             renderer.shownArea = page
             renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: appearance))
@@ -139,5 +144,76 @@ final class SheetPrintView: NSView {
             objects.append(PrintedObject(frame: frame, content: .picture(image)))
         }
         return objects
+    }
+}
+
+/// The sheet's own print settings, kept in the print info with the paper
+/// and margins.
+enum SheetPrintSettings {
+    static let gridlinesKey = NSPrintInfo.AttributeKey("TablesPrintsGridlines")
+
+    static func printsGridlines(_ info: NSPrintInfo) -> Bool {
+        (info.dictionary()[gridlinesKey] as? NSNumber)?.boolValue ?? false
+    }
+
+    static func setPrintsGridlines(_ isOn: Bool, in info: NSPrintInfo) {
+        info.dictionary()[gridlinesKey] = NSNumber(value: isOn)
+    }
+}
+
+/// The print panel's own section for a sheet: whether to print gridlines.
+@MainActor
+final class SheetPrintAccessory: NSViewController, NSPrintPanelAccessorizing {
+    private let checkbox = NSButton(checkboxWithTitle: String(localized: "Mac.Print.Gridlines"), target: nil, action: nil)
+
+    private var info: NSPrintInfo? { representedObject as? NSPrintInfo }
+
+    @objc dynamic var printsGridlines = false {
+        didSet {
+            if let info { SheetPrintSettings.setPrintsGridlines(printsGridlines, in: info) }
+            checkbox.state = printsGridlines ? .on : .off
+        }
+    }
+
+    override var representedObject: Any? {
+        didSet {
+            if let info, SheetPrintSettings.printsGridlines(info) != printsGridlines {
+                printsGridlines = SheetPrintSettings.printsGridlines(info)
+            }
+        }
+    }
+
+    override func loadView() {
+        title = String(localized: "Mac.Print.Title")
+        checkbox.target = self
+        checkbox.action = #selector(toggleGridlines(_:))
+        checkbox.state = printsGridlines ? .on : .off
+        checkbox.translatesAutoresizingMaskIntoConstraints = false
+        let view = NSView(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+        view.addSubview(checkbox)
+        NSLayoutConstraint.activate([
+            checkbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            checkbox.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20),
+            checkbox.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
+            checkbox.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
+        ])
+        self.view = view
+    }
+
+    @objc private func toggleGridlines(_ sender: NSButton) {
+        printsGridlines = sender.state == .on
+    }
+
+    nonisolated func localizedSummaryItems() -> [[NSPrintPanel.AccessorySummaryKey: String]] {
+        MainActor.assumeIsolated {
+            [[
+                .itemName: String(localized: "Mac.Print.GridlinesSummary"),
+                .itemDescription: printsGridlines ? String(localized: "Mac.Print.On") : String(localized: "Mac.Print.Off"),
+            ]]
+        }
+    }
+
+    nonisolated func keyPathsForValuesAffectingPreview() -> Set<String> {
+        ["printsGridlines"]
     }
 }

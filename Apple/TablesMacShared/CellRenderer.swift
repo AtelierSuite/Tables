@@ -18,6 +18,9 @@ struct CellRenderer {
     /// The sheet's merges and comments, found without walking them.
     let lookup: SheetLookup
     var drawsGridlines = true
+    /// Whether cells with comments are marked in their corner. Excel never
+    /// prints the marks.
+    var drawsCommentMarks = true
     /// The part of the sheet on show, when that stops short of all of it, as
     /// a printout or preview of the cells in use does. Borders on its edges
     /// are kept inside it.
@@ -153,7 +156,7 @@ struct CellRenderer {
             drawBorders(of: merge, resolver: resolver, context: context)
         }
         context.restoreGState()
-        drawCommentMarks(rows: rows, columns: columns, context: context)
+        if drawsCommentMarks { drawCommentMarks(rows: rows, columns: columns, context: context) }
     }
 
     // MARK: - Overflow

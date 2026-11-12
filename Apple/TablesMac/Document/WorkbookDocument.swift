@@ -141,6 +141,7 @@ final class WorkbookDocument: NSDocument {
         printInfo.isVerticallyCentered = false
         let operation = NSPrintOperation(view: view, printInfo: printInfo)
         operation.jobTitle = displayName
+        operation.printPanel.addAccessoryController(SheetPrintAccessory())
         return operation
     }
 
