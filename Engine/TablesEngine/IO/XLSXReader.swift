@@ -552,9 +552,14 @@ public enum XLSXReader {
             // OOXML column width counts characters; convert to points.
             let width = column.attribute("width").flatMap(Double.init)
                 .map { Worksheet.columnWidthPoints(characters: $0) }
+            // The format of every cell in the column without one of its own.
+            let style = column.attribute("style").flatMap(Int.init)
+                .flatMap { styles.indices.contains($0) ? styles[$0] : nil }
+                .flatMap { $0.isDefault ? nil : $0 }
             for index in first...upper {
                 let zeroBased = index - 1
                 if hidden { sheet.hiddenColumns.insert(zeroBased) }
+                if let style { sheet.columnStyles[zeroBased] = style }
                 if let width, width > 0, isTrue(column.attribute("customWidth")) {
                     sheet.columnWidths[zeroBased] = width
                 }
@@ -567,6 +572,13 @@ public enum XLSXReader {
             maximumRow = max(maximumRow, rowNumber)
 
             if isTrue(rowElement.attribute("hidden")) { sheet.hiddenRows.insert(rowIndex) }
+            // `s` counts only with `customFormat`. A row's format wins over its
+            // columns', so even the default one is kept when a column has its own.
+            if isTrue(rowElement.attribute("customFormat")),
+               let styleIndex = rowElement.attribute("s").flatMap(Int.init), styles.indices.contains(styleIndex),
+               !styles[styleIndex].isDefault || !sheet.columnStyles.isEmpty {
+                sheet.rowStyles[rowIndex] = styles[styleIndex]
+            }
             // `ht` is already in points, the same unit as our geometry, and the
             // resize floor is an interaction limit that must not rewrite a file.
             if let height = rowElement.attribute("ht").flatMap(Double.init), height > 0 {
@@ -610,7 +622,9 @@ public enum XLSXReader {
                    CellFormatter.isDateFormat(cell.style.numberFormat) {
                     cell.value = .number(serial + macEpochOffset)
                 }
-                if !cell.isEmptyEntirely { sheet.cells[address] = cell }
+                // A cell's own record, even with no `s`, wins over its row's
+                // and column's format, so it is kept wherever one applies.
+                if !cell.isBlank || cell.style != sheet.inheritedStyle(at: address) { sheet.cells[address] = cell }
             }
         }
 
@@ -630,6 +644,7 @@ public enum XLSXReader {
         sheet.rowCount = max(Worksheet.defaultRowCount, min(maximumRow, Worksheet.maximumRowCount))
         sheet.columnCount = max(Worksheet.defaultColumnCount, min(maximumColumn, Worksheet.maximumColumnCount))
         sheet.hiddenRows = sheet.hiddenRows.filter { $0 < sheet.rowCount }
+        sheet.rowStyles = sheet.rowStyles.filter { $0.key < sheet.rowCount }
         sheet.hiddenColumns = sheet.hiddenColumns.filter { $0 < sheet.columnCount }
         // `merge` rejects anything that would overlap what is already there, so
         // a file with contradictory regions loses the later ones rather than
