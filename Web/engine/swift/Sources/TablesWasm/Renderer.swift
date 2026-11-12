@@ -257,7 +257,28 @@ struct Renderer {
         if style.indentPoints > 0 { operation["ind"] = style.indentPoints }
         if let overflow { operation["ov"] = frameArray(overflow) }
         if let parts = CellFormatter.filledText(for: cell) { operation["parts"] = [parts.leading, parts.trailing] }
+        if let pieces = cell.styledPieces(of: string) { operation["runs"] = pieces.map(run) }
         operations.append(operation)
+    }
+
+    /// One piece of a cell's text with the font of its run: the keys a text
+    /// operation gives the whole cell, with `dy` for how far above the line
+    /// a raised run sits. The pieces' text adds up to the operation's.
+    private func run(_ piece: (text: String, style: CellStyle, font: RunFont?)) -> [String: Any] {
+        let style = piece.style
+        var run: [String: Any] = ["t": piece.text, "fs": style.fontSize]
+        if let font = piece.font {
+            run["fs"] = font.glyphSize(of: style.fontSize)
+            let offset = font.baselineOffset(of: style.fontSize)
+            if offset != 0 { run["dy"] = offset }
+            if font.colorHex != nil, let color = style.textColor(for: scheme)?.argbHex { run["c"] = color }
+        }
+        if let family = style.displayFontName { run["ff"] = family }
+        if style.isBold { run["b"] = true }
+        if style.isItalic { run["i"] = true }
+        if style.isUnderlined { run["u"] = true }
+        if style.isStruckThrough { run["s"] = true }
+        return run
     }
 
     // MARK: - Borders
