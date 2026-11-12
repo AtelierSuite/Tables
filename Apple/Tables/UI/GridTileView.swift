@@ -33,11 +33,15 @@ struct PaintedMerge: Equatable, Sendable {
     var ownsElement: Bool
 }
 
-/// The borders of a cell or merge outside a tile, whose halves on the
-/// gridlines it shares with the tile fall inside it.
+/// The borders a cell or merge draws, in the tile or just outside it, where
+/// the halves of them on the gridlines it shares with the tile fall inside.
+/// Each edge it shares with a neighbour is already resolved to one border.
 struct PaintedBorders: Equatable, Sendable {
+    /// The cell or merge.
     var frame: CGRect
-    var style: CellStyle
+    /// The stretches of its edges whose border wins against the neighbour's.
+    var edges: [DrawnBorder]
+    var diagonal: DiagonalBorder?
 }
 
 /// Everything a tile draws, gathered by the grid before the tile is built.
@@ -51,8 +55,8 @@ struct TileContents: Equatable, Sendable {
     var covered: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
-    /// Borders of the cells and merges just outside the tile.
-    var neighbourBorders: [PaintedBorders] = []
+    /// Borders of the cells and merges in the tile and just outside it.
+    var borders: [PaintedBorders] = []
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -216,25 +220,21 @@ enum CellPainter {
         // neighbour's fill, and borders on top of the text.
         let own = contents.cells.filter { !$0.textOnly }
         for cell in own {
-            paintBackground(cell.cell, in: cell.frame, openEdge: edges.contains(cell.address), into: &context, scheme: scheme)
+            paintBackground(
+                cell.cell, in: cell.frame, openEdge: edges.contains(cell.address), metrics: metrics, into: &context, scheme: scheme
+            )
         }
         for cell in contents.cells {
             paintText(cell.cell, in: cell.frame, overflow: cell.overflow, zoom: metrics.zoom, scheme: scheme, into: &context)
         }
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in contents.merges {
-            paint(merge.cell, in: merge.frame, zoom: metrics.zoom, scheme: scheme, into: &context)
+            paint(merge.cell, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
         }
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell.
-        for cell in own {
-            paintBorders(cell.cell.style, in: cell.frame, metrics: metrics, scheme: scheme, into: &context)
-        }
-        for merge in contents.merges {
-            paintBorders(merge.cell.style, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
-        }
-        for neighbour in contents.neighbourBorders {
-            paintBorders(neighbour.style, in: neighbour.frame, metrics: metrics, scheme: scheme, into: &context)
+        for borders in contents.borders {
+            paintBorders(borders, metrics: metrics, scheme: scheme, into: &context)
         }
         for mark in contents.comments {
             paintCommentMark(mark, zoom: metrics.zoom, into: &context)
@@ -277,50 +277,45 @@ enum CellPainter {
             for column in columns where !hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
                 guard !skipping.contains(address) else { continue }
-                addHairlines(of: metrics.frame(for: address), openEdge: openEdges.contains(address), to: &path)
+                addHairlines(of: metrics.frame(for: address), openEdge: openEdges.contains(address), metrics: metrics, to: &path)
             }
         }
         guard !path.isEmpty else { return }
-        context.stroke(path, with: .color(.gridLine), lineWidth: hairlineWidth)
+        context.stroke(path, with: .color(.gridLine), lineWidth: metrics.gridLineWidth)
     }
-
-    private static let hairlineWidth: Double = 1
 
     /// The trailing and bottom separators of one cell.
     ///
     /// Both sit a half-width inside the cell rather than straddling its edge, so
     /// that a line on a tile boundary is drawn whole by the tile that owns it
     /// instead of half by each of two.
-    private static func addHairlines(of rect: CGRect, openEdge: Bool = false, to path: inout Path) {
-        let inset = hairlineWidth / 2
-        if openEdge {
-            path.move(to: CGPoint(x: rect.maxX, y: rect.maxY - inset))
-        } else {
-            path.move(to: CGPoint(x: rect.maxX - inset, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.maxY - inset))
+    private static func addHairlines(of rect: CGRect, openEdge: Bool = false, metrics: SheetMetrics, to path: inout Path) {
+        for (start, end) in metrics.gridLines(of: rect, openEdge: openEdge) {
+            path.move(to: start)
+            path.addLine(to: end)
         }
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - inset))
     }
 
     /// A merge's fill and text, which nothing spills across. Its borders are
     /// drawn with everyone else's.
     private static func paint(
-        _ cell: Cell, in frame: CGRect, zoom: Double, scheme: ColorScheme,
+        _ cell: Cell, in frame: CGRect, metrics: SheetMetrics, scheme: ColorScheme,
         into context: inout GraphicsContext
     ) {
         guard frame.width > 0, frame.height > 0 else { return }
-        paintBackground(cell, in: frame, openEdge: false, into: &context, scheme: scheme)
-        paintText(cell, in: frame, overflow: nil, zoom: zoom, scheme: scheme, into: &context)
+        paintBackground(cell, in: frame, openEdge: false, metrics: metrics, into: &context, scheme: scheme)
+        paintText(cell, in: frame, overflow: nil, zoom: metrics.zoom, scheme: scheme, into: &context)
     }
 
     private static func paintBackground(
-        _ cell: Cell, in frame: CGRect, openEdge: Bool, into context: inout GraphicsContext, scheme: ColorScheme
+        _ cell: Cell, in frame: CGRect, openEdge: Bool, metrics: SheetMetrics,
+        into context: inout GraphicsContext, scheme: ColorScheme
     ) {
         guard frame.width > 0, frame.height > 0 else { return }
         paintFill(of: cell.style, in: frame, scheme: scheme, into: &context)
         var hairlines = Path()
-        addHairlines(of: frame, openEdge: openEdge, to: &hairlines)
-        context.stroke(hairlines, with: .color(.gridLine), lineWidth: hairlineWidth)
+        addHairlines(of: frame, openEdge: openEdge, metrics: metrics, to: &hairlines)
+        context.stroke(hairlines, with: .color(.gridLine), lineWidth: metrics.gridLineWidth)
     }
 
     /// A cell's fill: its colour, then any pattern over it, or its gradient.
@@ -398,7 +393,7 @@ enum CellPainter {
             let row = painted.address.row
             guard let reach = Worksheet.overflowReach(
                 of: painted.address.column, within: span, textWidth: width,
-                alignment: style.horizontalAlignment, padding: 6 * zoom, indent: style.indentPoints * zoom,
+                alignment: CellFormatter.alignment(for: painted.cell), padding: 6 * zoom, indent: style.indentPoints * zoom,
                 columnWidth: { metrics.frame(for: CellAddress(row: row, column: $0)).width }
             ) else { continue }
             for column in reach.lowerBound..<reach.upperBound {
@@ -446,12 +441,10 @@ enum CellPainter {
         // Stacked text is drawn as one glyph per line rather than by rotating
         // the run, which is what Excel's `textRotation="255"` looks like.
         if style.isTextStacked {
-            string = CellFormatter.displayText(for: cell).map(String.init).joined(separator: "\n")
+            string = TextFitting.stacked(CellFormatter.displayText(for: cell))
         }
 
-        let horizontal = style.horizontalAlignment == .automatic
-            ? CellFormatter.naturalAlignment(for: cell.value)
-            : style.horizontalAlignment
+        let horizontal = CellFormatter.alignment(for: cell)
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
         let color: Color = cell.textColor(for: scheme)
@@ -507,6 +500,18 @@ enum CellPainter {
         var measured = resolved.measure(in: CGSize(
             width: wraps ? box.width : unbounded, height: unbounded
         ))
+        // Turned text runs along its turned box rather than across the cell.
+        if style.rotationDegrees != 0, !wraps {
+            room = TextFitting.runLength(of: style, in: box.size, lineHeight: measured.height)
+        }
+        // Stacked text has as many glyphs as fit down the box.
+        if style.isTextStacked, measured.height > box.height {
+            let fitting = TextFitting.elided(CellFormatter.displayText(for: cell), stacked: true) { candidate in
+                context.resolve(make(candidate)).measure(in: CGSize(width: box.width, height: unbounded)).height <= box.height
+            }
+            resolved = context.resolve(make(fitting))
+            measured = resolved.measure(in: CGSize(width: box.width, height: unbounded))
+        }
         if !wraps, measured.width > room {
             // A General number is rounded to fit before it gives way to #s.
             let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
@@ -514,25 +519,38 @@ enum CellPainter {
             }
             let shortened = isNumber
                 ? fitted ?? hashes(filling: room, make: make, in: context)
-                : elided(string, to: room, make: make, in: context)
+                : TextFitting.elided(string) {
+                    context.resolve(make($0)).measure(in: CGSize(width: unbounded, height: unbounded)).width <= room
+                }
             resolved = context.resolve(make(shortened))
             measured = resolved.measure(in: CGSize(width: unbounded, height: unbounded))
         }
 
         let width = min(measured.width, room)
-        let x: Double
+        // Turned text is aligned by the box it covers once turned, so a
+        // vertical label sits inside a narrow cell rather than hanging out
+        // of it. Upright text covers exactly its own box.
+        let angle = style.rotationDegrees * .pi / 180
+        let extent = CGSize(
+            width: abs(width * cos(angle)) + abs(measured.height * sin(angle)),
+            height: abs(width * sin(angle)) + abs(measured.height * cos(angle))
+        )
+        let midX: Double
         switch horizontal {
-        case .trailing: x = box.maxX - width
-        case .center: x = box.midX - width / 2
-        default: x = box.minX
+        case .trailing: midX = box.maxX - extent.width / 2
+        case .center: midX = box.midX
+        default: midX = box.minX + extent.width / 2
         }
-        let y: Double
+        let midY: Double
         switch style.verticalAlignment {
-        case .top: y = box.minY
-        case .middle: y = box.midY - measured.height / 2
-        case .bottom: y = box.maxY - measured.height
+        case .top: midY = box.minY + extent.height / 2
+        case .middle: midY = box.midY
+        case .bottom: midY = box.maxY - extent.height / 2
         }
-        let target = CGRect(x: x, y: y, width: width, height: measured.height)
+        let target = CGRect(
+            x: midX - width / 2, y: midY - measured.height / 2, width: width, height: measured.height
+        )
+        let y = target.minY
 
         // A format's fill spreads the text across the cell: an accounting
         // format's symbol at the left edge, the amount at the right.
@@ -556,9 +574,7 @@ enum CellPainter {
             // neighbours, which reads as corrupt rather than as clipped.
             layer.clip(to: Path(overflow.map { $0.union(frame) } ?? frame))
             if style.rotationDegrees != 0 {
-                // Rotation turns the glyphs, not the box they are aligned in,
-                // which is how Excel places a rotated run: the box is laid out
-                // upright and spun about its own centre afterwards.
+                // Spun about the centre of the box it was aligned by.
                 layer.translateBy(x: target.midX, y: target.midY)
                 layer.rotate(by: .degrees(-style.rotationDegrees))
                 layer.translateBy(x: -target.midX, y: -target.midY)
@@ -571,34 +587,6 @@ enum CellPainter {
     /// rather than `.infinity`, which text layout will happily multiply.
     private static let unbounded: Double = 100_000
 
-    /// The longest prefix that fits in `width`, with an ellipsis.
-    ///
-    /// Text laid out by hand does not truncate itself, and a run simply clipped
-    /// at the cell edge reads as a shorter value rather than as a longer one cut
-    /// off. Binary search keeps this to a handful of measurements, and only for
-    /// the cells that actually overflow.
-    private static func elided(
-        _ string: String, to width: Double, make: (String) -> Text, in context: GraphicsContext
-    ) -> String {
-        let characters = Array(string)
-        var low = 0
-        var high = characters.count - 1
-        var best = "…"
-        while low <= high {
-            let middle = (low + high) / 2
-            let candidate = String(characters[0..<middle]) + "…"
-            let size = context.resolve(make(candidate))
-                .measure(in: CGSize(width: unbounded, height: unbounded))
-            if size.width <= width {
-                best = candidate
-                low = middle + 1
-            } else {
-                high = middle - 1
-            }
-        }
-        return best
-    }
-
     /// As many #s as fit in `width`, which is what Excel shows for a number
     /// its cell is too narrow for.
     private static func hashes(filling width: Double, make: (String) -> Text, in context: GraphicsContext) -> String {
@@ -610,39 +598,36 @@ enum CellPainter {
     // MARK: - Borders
 
     private static func paintBorders(
-        _ style: CellStyle, in frame: CGRect, metrics: SheetMetrics, scheme: ColorScheme,
+        _ borders: PaintedBorders, metrics: SheetMetrics, scheme: ColorScheme,
         into context: inout GraphicsContext
     ) {
-        let zoom = metrics.zoom
-        guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { return }
-
         // Each edge gets its own stroke because line width, dash pattern and
         // colour all vary per edge in OOXML.
-        for edge in BorderEdge.allCases {
-            guard let side = style.borderSides[edge] else { continue }
-            stroke(side.lineStyle, colorHex: side.colorHex, zoom: zoom, scheme: scheme, into: &context) {
-                edgePath(edge, in: frame, width: side.lineStyle.lineWidth * zoom, offset: $0, metrics: metrics)
+        for border in borders.edges {
+            let side = border.side
+            let frame = metrics.frame(for: border.range)
+            stroke(side.lineStyle, colorHex: side.colorHex, metrics: metrics, scheme: scheme, into: &context) {
+                edgePath(border.edge, in: frame, width: metrics.lineWidth(of: side.lineStyle), offset: $0, metrics: metrics)
             }
         }
-        if let diagonal = style.diagonalBorder, diagonal.isVisible {
-            stroke(diagonal.lineStyle, colorHex: diagonal.colorHex, zoom: zoom, scheme: scheme, into: &context) {
-                diagonalPath(diagonal, in: frame, offset: $0)
+        if let diagonal = borders.diagonal, diagonal.isVisible {
+            stroke(diagonal.lineStyle, colorHex: diagonal.colorHex, metrics: metrics, scheme: scheme, into: &context) {
+                diagonalPath(diagonal, in: borders.frame, offset: $0)
             }
         }
     }
 
     /// Strokes a line style, drawing a double rule as two offset passes.
     private static func stroke(
-        _ lineStyle: BorderLineStyle, colorHex: String?, zoom: Double, scheme: ColorScheme,
+        _ lineStyle: BorderLineStyle, colorHex: String?, metrics: SheetMetrics, scheme: ColorScheme,
         into context: inout GraphicsContext, path: (Double) -> Path
     ) {
         let paint = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true) ?? .primary
         let style = StrokeStyle(
-            lineWidth: lineStyle.lineWidth * zoom,
-            dash: lineStyle.dashPattern.map { CGFloat($0 * zoom) }
+            lineWidth: metrics.lineWidth(of: lineStyle),
+            dash: lineStyle.dashPattern.map { CGFloat($0 * metrics.zoom) }
         )
-        let offsets: [Double] = lineStyle.doubleLineGap.map { [-$0 * zoom / 2, $0 * zoom / 2] } ?? [0]
-        for offset in offsets {
+        for offset in metrics.passOffsets(of: lineStyle) {
             context.stroke(path(offset), with: .color(paint), style: style)
         }
     }

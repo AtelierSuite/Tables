@@ -55,6 +55,7 @@ struct SheetGridView: View {
     @State private var tableNameDraft = ""
     @FocusState private var isTableNameFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
     #if os(macOS)
     /// Where the pointer last was, for the right-click menu to read.
     ///
@@ -85,7 +86,15 @@ struct SheetGridView: View {
         }
         let dragged = tableDrag?.id == activeSheet.id ? tableDrag?.offset ?? .zero : .zero
         let page = CanvasSnapping.pageInset(zoom: state.zoom)
-        return CGPoint(x: page.x + table.x * state.zoom + dragged.width, y: page.y + table.y * state.zoom + dragged.height)
+        return pixelAligned(CGPoint(
+            x: page.x + table.x * state.zoom + dragged.width, y: page.y + table.y * state.zoom + dragged.height
+        ))
+    }
+
+    /// A table's place on the canvas rounded to whole pixels, so its cells'
+    /// edges, snapped within it, stay on them.
+    private func pixelAligned(_ point: CGPoint) -> CGPoint {
+        CGPoint(x: (point.x * displayScale).rounded() / displayScale, y: (point.y * displayScale).rounded() / displayScale)
     }
 
     /// How much of the top and leading edges the pinned headers cover.
@@ -136,6 +145,12 @@ struct SheetGridView: View {
             state.refreshMetrics(in: workbook)
             // On a canvas, a table just picked or added comes into view.
             if canvas != nil { revealActiveTable() }
+        }
+        .onChange(of: displayScale, initial: true) { _, scale in
+            // Cell edges are snapped to this display's pixels.
+            guard state.displayScale != scale else { return }
+            state.displayScale = scale
+            state.refreshMetrics(in: workbook)
         }
         .onChange(of: activeSheet.rowCount) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.columnCount) { _, _ in state.refreshMetrics(in: workbook) }
@@ -384,7 +399,9 @@ struct SheetGridView: View {
             ForEach(workbook.sheets(on: canvas)) { sheet in
                 if let table = canvas.table(for: sheet.id) {
                     let dragged = tableDrag?.id == sheet.id ? tableDrag?.offset ?? .zero : .zero
-                    let origin = CGPoint(x: page.x + table.x * zoom + dragged.width, y: page.y + table.y * zoom + dragged.height)
+                    let origin = pixelAligned(CGPoint(
+                        x: page.x + table.x * zoom + dragged.width, y: page.y + table.y * zoom + dragged.height
+                    ))
                     if sheet.id != active {
                         canvasTable(sheet, at: origin, zoom: zoom)
                     }
@@ -679,7 +696,7 @@ struct SheetGridView: View {
 
     /// Another table on the canvas, drawn only as far as it is in view.
     private func canvasTable(_ sheet: Worksheet, at origin: CGPoint, zoom: Double) -> some View {
-        let metrics = SheetMetrics(sheet: sheet, zoom: zoom)
+        let metrics = SheetMetrics(sheet: sheet, zoom: zoom, pixelScale: displayScale)
         let top = state.scrollOffset.y - origin.y
         let left = state.scrollOffset.x - origin.x
         let height = max(state.viewportSize.height, 200), width = max(state.viewportSize.width, 200)
@@ -824,7 +841,7 @@ struct SheetGridView: View {
             }
             spillsFromOutside(row: row, of: plan, in: sheet, metrics: metrics, into: &painted)
         }
-        neighbourBorders(of: plan, in: sheet, merges: merges, metrics: metrics, into: &painted)
+        borders(of: plan, in: sheet, merges: merges, metrics: metrics, into: &painted)
         // A comment on a merged cell marks the whole region's corner, so it
         // is drawn by the tile holding that corner, over the merge's fill.
         for (address, comment, range) in sheet.commentMarks(rows: plan.rows, columns: plan.columns) {
@@ -834,9 +851,11 @@ struct SheetGridView: View {
         return painted
     }
 
-    /// The borders of the cells and merges around a tile. Each is centred on
-    /// a gridline, so half of one on the tile's edge falls inside the tile.
-    private func neighbourBorders(
+    /// The borders of the cells and merges in and around a tile. Each is
+    /// centred on a gridline, so half of one on the tile's edge falls inside
+    /// the tile, and an edge two cells share is drawn by the one whose border
+    /// wins.
+    private func borders(
         of plan: TilePlan, in sheet: Worksheet, merges: [CellRange], metrics: SheetMetrics,
         into painted: inout TileContents
     ) {
@@ -846,20 +865,22 @@ struct SheetGridView: View {
             start: CellAddress(row: rows.lowerBound, column: columns.lowerBound),
             end: CellAddress(row: rows.upperBound - 1, column: columns.upperBound - 1)
         )
-        let nearby = merges.map(\.normalized).filter { $0.intersects(reach) }
-        for merge in nearby where !merge.intersects(plan.range) {
-            let style = sheet[merge.start].style
-            guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { continue }
-            painted.neighbourBorders.append(PaintedBorders(frame: metrics.frame(for: merge), style: style))
+        let resolver = BorderResolver(sheet: sheet, metrics: metrics, near: reach)
+        func add(_ region: CellRange) {
+            let edges = resolver.drawnBorders(of: region)
+            let diagonal = sheet.cells[region.start]?.style.diagonalBorder
+            guard !edges.isEmpty || diagonal?.isVisible == true else { return }
+            painted.borders.append(PaintedBorders(frame: metrics.frame(for: region), edges: edges, diagonal: diagonal))
         }
+        let nearby = merges.map(\.normalized).filter { $0.intersects(reach) }
+        nearby.forEach(add)
         for row in rows where !sheet.hiddenRows.contains(row) {
             for column in columns where !sheet.hiddenColumns.contains(column) {
-                guard !plan.rows.contains(row) || !plan.columns.contains(column) else { continue }
                 let address = CellAddress(row: row, column: column)
                 guard let cell = sheet.cells[address],
                       !cell.style.borderSides.isEmpty || cell.style.diagonalBorder != nil,
                       !nearby.contains(where: { $0.contains(address) }) else { continue }
-                painted.neighbourBorders.append(PaintedBorders(frame: metrics.frame(for: address), style: cell.style))
+                add(CellRange(address))
             }
         }
     }

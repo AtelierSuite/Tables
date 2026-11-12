@@ -53,7 +53,8 @@ final class SheetPreviewSection: NSStackView {
 /// A sheet's used cells, drawn by the app's own renderer at a reading size.
 final class SheetPreviewGrid: NSView {
     private let sheet: Worksheet
-    private let metrics: SheetMetrics
+    private var metrics: SheetMetrics
+    private var sizeConstraints: [NSLayoutConstraint] = []
     /// The rows and columns shown: the used range, up to a preview's worth.
     private let rows: Int
     private let columns: Int
@@ -76,9 +77,32 @@ final class SheetPreviewGrid: NSView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         let size = intrinsicContentSize
-        NSLayoutConstraint.activate([
+        sizeConstraints = [
             widthAnchor.constraint(equalToConstant: size.width), heightAnchor.constraint(equalToConstant: size.height),
-        ])
+        ]
+        NSLayoutConstraint.activate(sizeConstraints)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        adoptBackingScale()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        adoptBackingScale()
+    }
+
+    private func adoptBackingScale() {
+        // Snaps the cells to the pixels of the display the preview is on:
+        // at its reading size they would otherwise fall between them.
+        guard let scale = window?.backingScaleFactor, scale > 0, metrics.pixelScale != Double(scale) else { return }
+        metrics = SheetMetrics(sheet: sheet, zoom: Self.zoom, pixelScale: Double(scale))
+        let size = intrinsicContentSize
+        sizeConstraints[0].constant = size.width
+        sizeConstraints[1].constant = size.height
+        invalidateIntrinsicContentSize()
+        needsDisplay = true
     }
 
     @available(*, unavailable)
