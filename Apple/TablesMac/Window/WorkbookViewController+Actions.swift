@@ -432,6 +432,15 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
     @objc func freezePanesAtSelection(_ sender: Any?) { edit { $0.freezePanesAtSelection(in: &$1) } }
     @objc func unfreezePanes(_ sender: Any?) { edit { $0.freezePanes(rows: 0, columns: 0, in: &$1) } }
 
+    @objc func toggleGridLines(_ sender: Any?) { toggleViewOption(\.showsGridLines) }
+    @objc func toggleHeadings(_ sender: Any?) { toggleViewOption(\.showsHeadings) }
+
+    private func toggleViewOption(_ option: WritableKeyPath<Worksheet, Bool>) {
+        guard let document else { return }
+        let isOn = !document.activeSheet[keyPath: option]
+        edit { $0.setViewOption(option, to: isOn, in: &$1) }
+    }
+
     @objc func zoomIn(_ sender: Any?) { setZoom((state?.zoom ?? 1) * 1.25) }
     @objc func zoomOut(_ sender: Any?) { setZoom((state?.zoom ?? 1) / 1.25) }
     @objc func actualSize(_ sender: Any?) { setZoom(1) }
@@ -525,6 +534,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(freezeTopRow(_:)): menuItem.state = sheet.frozenRows == 1 && sheet.frozenColumns == 0 ? .on : .off
         case #selector(freezeFirstColumn(_:)):
             menuItem.state = sheet.frozenRows == 0 && sheet.frozenColumns == 1 ? .on : .off
+        case #selector(toggleGridLines(_:)): menuItem.state = sheet.showsGridLines ? .on : .off
+        case #selector(toggleHeadings(_:)): menuItem.state = sheet.showsHeadings ? .on : .off
         case #selector(toggleBold(_:)): menuItem.state = style.isBold ? .on : .off
         case #selector(toggleItalic(_:)): menuItem.state = style.isItalic ? .on : .off
         case #selector(toggleUnderline(_:)): menuItem.state = style.isUnderlined ? .on : .off
@@ -603,6 +614,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
                 && state.selection.normalized.start != CellAddress(row: 0, column: 0)
         case #selector(unfreezePanes(_:)):
             return isCells && state.allowsFreezingPanes && !onCanvas && (sheet.frozenRows > 0 || sheet.frozenColumns > 0)
+        case #selector(toggleGridLines(_:)), #selector(toggleHeadings(_:)):
+            return isCells && state.allowsFreezingPanes && !onCanvas
         case #selector(newTable(_:)):
             return isCells && state.allowsArrangingCanvases
         case #selector(moveTableToSheet(_:)):

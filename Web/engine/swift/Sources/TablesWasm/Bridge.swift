@@ -472,6 +472,7 @@ final class Bridge {
             "heights": rows.filter { $0 < sheet.rowCount }.flatMap { [Double($0), sheet.height(ofRow: $0)] },
             "frozenRows": sheet.frozenRows,
             "frozenColumns": sheet.frozenColumns,
+            "showsHeadings": sheet.showsHeadings,
             "chart": sheet.isChartSheet,
             "merges": sheet.mergedRanges.map(range),
         ]

@@ -231,6 +231,10 @@ final class WorkbookViewController: NSViewController {
             scrollView.documentView = grid
             scrollView.rulersVisible = true
         }
+        // A sheet with its headings turned off has no rulers.
+        if !grid.isOnCanvas, let sheet = document?.activeSheet, scrollView.rulersVisible != sheet.showsHeadings {
+            scrollView.rulersVisible = sheet.showsHeadings
+        }
         if wasFocused, window?.firstResponder !== grid { window?.makeFirstResponder(grid) }
     }
 
@@ -242,7 +246,8 @@ final class WorkbookViewController: NSViewController {
 
     private func layoutFrozenPanes() {
         let frozen = grid.frozenExtent
-        let headers = CGSize(width: rowHeader?.requiredThickness ?? 0, height: columnHeader?.requiredThickness ?? 0)
+        let headers = scrollView.rulersVisible
+            ? CGSize(width: rowHeader?.requiredThickness ?? 0, height: columnHeader?.requiredThickness ?? 0) : .zero
         // Scrollers that take room of their own, rather than floating over the sheet.
         let legacy = scrollView.scrollerStyle == .legacy
         let trailing = CGSize(

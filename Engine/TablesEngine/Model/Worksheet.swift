@@ -201,6 +201,12 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// rest of the sheet scrolls — Excel's frozen panes. Zero for none.
     public var frozenRows = 0
     public var frozenColumns = 0
+    /// Whether the hairlines between cells are drawn — Excel's Gridlines
+    /// view option. Borders are drawn either way.
+    public var showsGridLines = true
+    /// Whether the column letters and row numbers round the grid are shown —
+    /// Excel's Headings view option.
+    public var showsHeadings = true
     /// Rectangular regions drawn, selected and edited as a single cell. They
     /// never overlap, and only the top-left cell of each keeps its content.
     public var mergedRanges: [CellRange] = []

@@ -494,6 +494,19 @@ extension EditorState {
         freezePanes(rows: start.row, columns: start.column, in: &workbook)
     }
 
+    // MARK: - View options
+
+    /// Turns one of the active sheet's view options — gridlines, headings
+    /// and the like — on or off. Kept where frozen panes are, so a document
+    /// with nowhere to keep those has nowhere to keep these.
+    func setViewOption(_ option: WritableKeyPath<Worksheet, Bool>, to isOn: Bool, in workbook: inout Workbook) {
+        guard allowsFreezingPanes else { return }
+        let index = activeIndex(in: workbook)
+        guard workbook.sheets[index][keyPath: option] != isOn else { return }
+        workbook.sheets[index][keyPath: option] = isOn
+        refreshMetrics(in: workbook)
+    }
+
     // MARK: - Fill and move
 
     /// Fills `target` from the selection, as letting go of the fill handle
