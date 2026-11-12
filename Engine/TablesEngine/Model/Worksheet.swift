@@ -168,6 +168,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// Sheets Excel marks `state="hidden"`: kept in the document, kept out of
     /// the tab strip.
     public var isHidden = false
+    /// A hidden sheet Excel marks `state="veryHidden"`, which only a macro can
+    /// show again: it stays off the list of hidden sheets offered to unhide.
+    public var isVeryHidden = false
     /// The number the file knew the sheet by (Excel's `sheetId`), kept so it
     /// stays the same across saves: anything else in the file naming the
     /// sheet by it goes on finding the same one.
