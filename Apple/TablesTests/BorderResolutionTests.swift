@@ -88,7 +88,10 @@ struct BorderResolutionTests {
         let thin = BorderSide(lineStyle: .thin)
         let thick = BorderSide(lineStyle: .thick)
         // A1:C1 merged with a thin bottom; B2 under it has a thick top.
-        var sheet = sheet([a1: [.bottom: thin], CellAddress(row: 1, column: 1): [.top: thick]])
+        var sheet = sheet([
+            a1: [.bottom: thin], b1: [.bottom: thin], CellAddress(row: 0, column: 2): [.bottom: thin],
+            CellAddress(row: 1, column: 1): [.top: thick],
+        ])
         let merge = CellRange(start: a1, end: CellAddress(row: 0, column: 2))
         sheet.mergedRanges = [merge]
         let resolver = resolver(sheet)
@@ -107,9 +110,69 @@ struct BorderResolutionTests {
     @Test("One border running along a merge's edge is drawn as one line")
     func mergeEdgeRunsJoin() {
         let thin = BorderSide(lineStyle: .thin)
-        var sheet = sheet([a1: [.bottom: thin]])
+        var sheet = sheet([a1: [.bottom: thin], b1: [.bottom: thin], CellAddress(row: 0, column: 2): [.bottom: thin]])
         let merge = CellRange(start: a1, end: CellAddress(row: 0, column: 2))
         sheet.mergedRanges = [merge]
         #expect(resolver(sheet).drawnBorders(of: merge) == [DrawnBorder(edge: .bottom, side: thin, range: merge)])
+    }
+
+    /// A1:C3, as Excel stores an outline around it: each side on the cells along it.
+    private let a1c3 = CellRange(start: CellAddress(row: 0, column: 0), end: CellAddress(row: 2, column: 2))
+
+    private func outlined(_ range: CellRange, with side: BorderSide) -> [CellAddress: [BorderEdge: BorderSide]] {
+        var borders: [CellAddress: [BorderEdge: BorderSide]] = [:]
+        range.forEachAddress { address in
+            if address.row == range.start.row { borders[address, default: [:]][.top] = side }
+            if address.row == range.end.row { borders[address, default: [:]][.bottom] = side }
+            if address.column == range.start.column { borders[address, default: [:]][.leading] = side }
+            if address.column == range.end.column { borders[address, default: [:]][.trailing] = side }
+        }
+        return borders
+    }
+
+    @Test("A merge's outline comes from the cells along each of its edges")
+    func mergeOutlineFromEdgeCells() {
+        let medium = BorderSide(lineStyle: .medium)
+        var sheet = sheet(outlined(a1c3, with: medium))
+        sheet.mergedRanges = [a1c3]
+        let resolver = resolver(sheet)
+        #expect(Set(resolver.drawnBorders(of: a1c3)) == [
+            DrawnBorder(edge: .top, side: medium, range: a1c3),
+            DrawnBorder(edge: .leading, side: medium, range: a1c3),
+            DrawnBorder(edge: .bottom, side: medium, range: a1c3),
+            DrawnBorder(edge: .trailing, side: medium, range: a1c3),
+        ])
+        #expect(resolver.resolvedSide(.trailing, of: CellAddress(row: 1, column: 1)) == medium)
+        #expect(resolver.resolvedSide(.bottom, of: a1) == medium)
+    }
+
+    @Test("A merge's bottom edge can change border along its length")
+    func mergeBottomVariesAlongItsLength() {
+        let thin = BorderSide(lineStyle: .thin)
+        let thick = BorderSide(lineStyle: .thick, colorHex: "FFFF0000")
+        let a3 = CellAddress(row: 2, column: 0), b3 = CellAddress(row: 2, column: 1)
+        // C3 has no bottom border.
+        var sheet = sheet([a3: [.bottom: thin], b3: [.bottom: thick]])
+        sheet.mergedRanges = [a1c3]
+        let column = { (column: Int) in
+            CellRange(start: CellAddress(row: 0, column: column), end: CellAddress(row: 2, column: column))
+        }
+        #expect(resolver(sheet).drawnBorders(of: a1c3) == [
+            DrawnBorder(edge: .bottom, side: thin, range: column(0)),
+            DrawnBorder(edge: .bottom, side: thick, range: column(1)),
+        ])
+    }
+
+    @Test("The first cell's own box reaches only the part of the merge's edges it lies on")
+    func firstCellBordersStayOnItsPart() {
+        // As Excel draws it: the first cell's bottom and trailing sides are
+        // inside the merge, and its top and leading cover one column and row.
+        let thin = BorderSide(lineStyle: .thin)
+        var sheet = sheet([a1: [.top: thin, .leading: thin, .bottom: thin, .trailing: thin]])
+        sheet.mergedRanges = [a1c3]
+        #expect(Set(resolver(sheet).drawnBorders(of: a1c3)) == [
+            DrawnBorder(edge: .top, side: thin, range: CellRange(start: a1, end: CellAddress(row: 2, column: 0))),
+            DrawnBorder(edge: .leading, side: thin, range: CellRange(start: a1, end: CellAddress(row: 0, column: 2))),
+        ])
     }
 }
