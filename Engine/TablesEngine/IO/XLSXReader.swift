@@ -219,6 +219,7 @@ public enum XLSXReader {
         }
         workbook.preservedPackage = preserved
         workbook.unsupportedFeatures = report
+        workbook.documentProperties = DocumentPropertiesParts.read(from: preserved)
         workbook.tables = readTables(workbook: workbook, preserved: preserved, sheetPaths: sheetPaths)
         workbook.recalculate()
         return workbook
@@ -1027,7 +1028,9 @@ public enum XLSXReader {
             }
             note(.pivotTables) { path in pivotPathPrefixes.contains(where: path.hasPrefix) }
             note(.slicers) { path in slicerPathPrefixes.contains(where: path.hasPrefix) }
-            note(.documentProperties) { $0.hasPrefix("docProps/") }
+            // Core and extended properties are read and edited; only the
+            // rest, such as custom properties, is merely carried through.
+            note(.documentProperties) { $0.hasPrefix("docProps/") && !DocumentPropertiesParts.isModelled($0) }
             note(.macros) { $0.hasPrefix("xl/vbaProject") }
         }
 

@@ -8,7 +8,9 @@ public enum XLSXWriter {
     public static func data(from workbook: Workbook, macroEnabled: Bool = false) throws -> Data {
         let strings = SharedStringTable(workbook: workbook)
         let styles = StyleTable(workbook: workbook)
-        let preserved = macroEnabled ? workbook.preservedPackage : workbook.preservedPackage.removingMacros()
+        let preserved = DocumentPropertiesParts.package(
+            macroEnabled ? workbook.preservedPackage : workbook.preservedPackage.removingMacros(),
+            writing: workbook.documentProperties)
         let drawings = DrawingPlan(workbook: workbook)
         let formulas = FormulaPlan(workbook: workbook)
         let comments = CommentPlan(workbook: workbook, preserved: preserved)

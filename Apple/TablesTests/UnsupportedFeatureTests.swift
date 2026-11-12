@@ -268,7 +268,8 @@ struct UnsupportedFeatureTests {
         // Our own relationship ids must still be the ones the workbook names.
         #expect(try text(entries, "xl/_rels/workbook.xml.rels")
             .contains("Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\""))
-        #expect(workbook.unsupportedFeatures.preserved.contains(.documentProperties))
+        // Core properties are shown and edited, so nothing is said about them.
+        #expect(!workbook.unsupportedFeatures.preserved.contains(.documentProperties))
     }
 
     @Test("Form control properties and ActiveX parts survive with the controls list that names them")
