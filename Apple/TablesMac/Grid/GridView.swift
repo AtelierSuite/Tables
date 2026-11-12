@@ -9,7 +9,9 @@ import TablesEngine
 /// go through the document, which owns the undo stack; the grid only reads.
 @MainActor
 final class GridView: NSView, NSTextFieldDelegate {
-    weak var document: WorkbookDocument?
+    weak var document: WorkbookDocument? {
+        didSet { adoptBackingScale() }
+    }
     /// Builds the menu for a right-click on a cell.
     var cellMenu: ((CellAddress) -> NSMenu?)?
     /// Hands the formula bar the keyboard, for an edit that started there.
@@ -128,6 +130,26 @@ final class GridView: NSView, NSTextFieldDelegate {
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         needsDisplay = true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        adoptBackingScale()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        adoptBackingScale()
+    }
+
+    /// Snaps the cells to the pixels of the display the window is on, and
+    /// again when it moves to one with another scale.
+    private func adoptBackingScale() {
+        guard let document, let scale = window?.backingScaleFactor, scale > 0,
+              document.state.displayScale != Double(scale) else { return }
+        document.state.displayScale = Double(scale)
+        document.state.refreshMetrics(in: document.workbook)
+        document.notify()
     }
 
     // MARK: - Drawing

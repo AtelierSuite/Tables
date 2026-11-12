@@ -779,6 +779,45 @@ public enum XLSXWriter {
             }
         }
 
+        /// The children of one `<fill>`: a gradient, a pattern in its colour
+        /// over the fill colour, a solid colour, or nothing. An automatic
+        /// colour is written as the system foreground (64) or background (65),
+        /// which is how Excel writes one and what reads back as automatic.
+        static func fillXML(for style: CellStyle) -> String {
+            func color(_ tag: String, _ hex: String?, system: Int) -> String {
+                hex.map { "<\(tag) rgb=\"\($0)\"/>" } ?? "<\(tag) indexed=\"\(system)\"/>"
+            }
+            if let gradient = style.fillGradient, !gradient.stops.isEmpty {
+                var xml = "<gradientFill"
+                switch gradient.kind {
+                case .linear(let degree):
+                    if degree != 0 { xml += " degree=\"\(XLSXWriter.format(degree))\"" }
+                case .path(let left, let right, let top, let bottom):
+                    xml += " type=\"path\""
+                    for (name, value) in [("left", left), ("right", right), ("top", top), ("bottom", bottom)] where value != 0 {
+                        xml += " \(name)=\"\(XLSXWriter.format(value))\""
+                    }
+                }
+                xml += ">"
+                for stop in gradient.stops {
+                    xml += "<stop position=\"\(XLSXWriter.format(stop.position))\">"
+                    xml += color("color", stop.colorHex, system: 65)
+                    xml += "</stop>"
+                }
+                return xml + "</gradientFill>"
+            }
+            if let pattern = style.fillPattern {
+                return "<patternFill patternType=\"\(pattern.type.rawValue)\">"
+                    + color("fgColor", pattern.colorHex, system: 64)
+                    + color("bgColor", style.fillColorHex, system: 65)
+                    + "</patternFill>"
+            }
+            if let fill = style.fillColorHex {
+                return "<patternFill patternType=\"solid\"><fgColor rgb=\"\(fill)\"/><bgColor indexed=\"64\"/></patternFill>"
+            }
+            return "<patternFill patternType=\"none\"/>"
+        }
+
         @discardableResult
         public func index(for style: CellStyle) -> Int {
             if let existing = lookup[style] { return existing }
@@ -831,12 +870,7 @@ public enum XLSXWriter {
             xml += "<fill><patternFill patternType=\"none\"/></fill>"
             xml += "<fill><patternFill patternType=\"gray125\"/></fill>"
             for style in styles {
-                if let color = style.fillColorHex {
-                    xml += "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"\(color)\"/>"
-                    xml += "<bgColor indexed=\"64\"/></patternFill></fill>"
-                } else {
-                    xml += "<fill><patternFill patternType=\"none\"/></fill>"
-                }
+                xml += "<fill>\(Self.fillXML(for: style))</fill>"
             }
             xml += "</fills>"
 
@@ -874,7 +908,7 @@ public enum XLSXWriter {
             xml += "<cellXfs count=\"\(styles.count)\">"
             for (index, style) in styles.enumerated() {
                 let formatID = style.numberFormat == "General" ? 0 : (formats[style.numberFormat] ?? 0)
-                let fillID = style.fillColorHex == nil ? 0 : index + 2
+                let fillID = style.hasFill ? index + 2 : 0
                 let hasBorder = !style.borderSides.isEmpty || style.diagonalBorder?.isVisible == true
                 let borderID = hasBorder ? index + 1 : 0
                 xml += "<xf numFmtId=\"\(formatID)\" fontId=\"\(index)\" fillId=\"\(fillID)\" borderId=\"\(borderID)\""

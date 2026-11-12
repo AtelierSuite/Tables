@@ -11,8 +11,49 @@ import Foundation
 /// part of the grid has to draw the borders of the cells around it too, and
 /// draw them after every fill.
 extension SheetMetrics {
-    /// The width of the gridlines borders are centred on.
-    public static let gridLineWidth: Double = 1
+    /// The width gridlines are drawn at: a point, as a whole number of
+    /// device pixels when they are snapped.
+    public var gridLineWidth: Double { lineWidth(1) }
+
+    /// A line width as a whole number of device pixels, and at least one, so
+    /// a line is crisp and a hairline never fades at a low zoom. As it is
+    /// when nothing is snapped.
+    public func lineWidth(_ width: Double) -> Double {
+        guard let pixelScale else { return width }
+        return max(1, (width * pixelScale).rounded()) / pixelScale
+    }
+
+    /// The width a border's line is drawn at, at this zoom.
+    public func lineWidth(of style: BorderLineStyle) -> Double {
+        lineWidth(style.lineWidth * zoom)
+    }
+
+    /// How far each pass of a border is moved off its gridline: none for a
+    /// single line, and either side for a double rule, kept at least a
+    /// pixel apart so the two never run together.
+    public func passOffsets(of style: BorderLineStyle) -> [Double] {
+        guard let gap = style.doubleLineGap else { return [0] }
+        var spread = gap * zoom
+        if let pixelScale {
+            let width = lineWidth(of: style) * pixelScale
+            spread = max((spread * pixelScale).rounded(), width + 1) / pixelScale
+        }
+        return [-spread / 2, spread / 2]
+    }
+
+    /// The trailing and bottom gridlines of a cell or merge, as pairs of
+    /// ends, held a half-width inside it so a line on the edge of a part
+    /// drawn is drawn whole by the part that owns it. Text running on into
+    /// the next cell leaves out the trailing one.
+    public func gridLines(of frame: CGRect, openEdge: Bool = false) -> [(CGPoint, CGPoint)] {
+        let width = gridLineWidth
+        let inset = width / 2
+        let minX = snapped(frame.minX), maxX = snapped(frame.maxX)
+        let minY = snapped(frame.minY), maxY = snapped(frame.maxY)
+        let bottom = (CGPoint(x: minX, y: maxY - inset), CGPoint(x: openEdge ? maxX : maxX - width, y: maxY - inset))
+        guard !openEdge else { return [bottom] }
+        return [(CGPoint(x: maxX - inset, y: minY), CGPoint(x: maxX - inset, y: maxY)), bottom]
+    }
 
     /// `rows` widened by the nearest row with any height on either side: the
     /// rows whose borders reach into them.
@@ -43,37 +84,54 @@ extension SheetMetrics {
     /// drawn, there is no neighbour to share the edge with, and the line is
     /// kept inside the cell. `offset` moves one pass of a double rule to
     /// either side.
+    ///
+    /// When edges are snapped, the line is moved by under a pixel so both its
+    /// sides fall on whole device pixels; `lineWidth` should then be one
+    /// `lineWidth(_:)` gave.
     public func borderSegment(
         _ edge: BorderEdge, of frame: CGRect, lineWidth: Double, offset: Double = 0, shown: CGRect? = nil
     ) -> (CGPoint, CGPoint) {
-        let half = lineWidth / 2
-        let inset = Self.gridLineWidth / 2
+        // Worked in device pixels, from edges rounded to whole ones, so the
+        // two cells either side of an edge come to exactly the same line.
+        let unit = pixelScale ?? 1
+        let snaps = pixelScale != nil
+        func pixels(_ position: Double) -> Double { snaps ? (position * unit).rounded() : position * unit }
+        let half = lineWidth * unit / 2
+        let inset = gridLineWidth * unit / 2
+        let offset = offset * unit
+        /// Where a line meant to be centred on `centre` goes, so that both
+        /// its sides land on pixel boundaries.
+        func centred(_ centre: Double) -> Double { snaps ? (centre - half).rounded() + half : centre }
+
         // A double rule's passes sit either side of the line, unless the line
         // is held inside the cell, which pushes both of them in.
         let inward = half + offset + abs(offset)
         let outward = -half + offset - abs(offset)
         let shown = shown ?? CGRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
-        let atTop = frame.minY <= shown.minY, atLeft = frame.minX <= shown.minX
-        let atBottom = frame.maxY >= shown.maxY, atRight = frame.maxX >= shown.maxX
+        let minX = pixels(frame.minX), maxX = pixels(frame.maxX)
+        let minY = pixels(frame.minY), maxY = pixels(frame.maxY)
+        let atTop = minY <= pixels(shown.minY), atLeft = minX <= pixels(shown.minX)
+        let atBottom = maxY >= pixels(shown.maxY), atRight = maxX >= pixels(shown.maxX)
 
-        let left = atLeft ? frame.minX : frame.minX - inset - half
-        let right = atRight ? frame.maxX : frame.maxX - inset + half
-        let top = atTop ? frame.minY : frame.minY - inset - half
-        let bottom = atBottom ? frame.maxY : frame.maxY - inset + half
+        let left = atLeft ? minX : centred(minX - inset) - half
+        let right = atRight ? maxX : centred(maxX - inset) + half
+        let top = atTop ? minY : centred(minY - inset) - half
+        let bottom = atBottom ? maxY : centred(maxY - inset) + half
 
+        func point(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x / unit, y: y / unit) }
         switch edge {
         case .top:
-            let y = atTop ? frame.minY + inward : frame.minY - inset + offset
-            return (CGPoint(x: left, y: y), CGPoint(x: right, y: y))
+            let y = centred(atTop ? minY + inward : minY - inset + offset)
+            return (point(left, y), point(right, y))
         case .bottom:
-            let y = atBottom ? frame.maxY + outward : frame.maxY - inset + offset
-            return (CGPoint(x: left, y: y), CGPoint(x: right, y: y))
+            let y = centred(atBottom ? maxY + outward : maxY - inset + offset)
+            return (point(left, y), point(right, y))
         case .leading:
-            let x = atLeft ? frame.minX + inward : frame.minX - inset + offset
-            return (CGPoint(x: x, y: top), CGPoint(x: x, y: bottom))
+            let x = centred(atLeft ? minX + inward : minX - inset + offset)
+            return (point(x, top), point(x, bottom))
         case .trailing:
-            let x = atRight ? frame.maxX + outward : frame.maxX - inset + offset
-            return (CGPoint(x: x, y: top), CGPoint(x: x, y: bottom))
+            let x = centred(atRight ? maxX + outward : maxX - inset + offset)
+            return (point(x, top), point(x, bottom))
         }
     }
 }

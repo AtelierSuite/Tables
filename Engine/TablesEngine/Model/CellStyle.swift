@@ -229,7 +229,13 @@ public struct CellStyle: Hashable, Sendable {
     public var fontSize: Double = 12
     public var fontName: String = "Helvetica Neue"
     public var textColorHex: String?
+    /// The cell's fill colour: the solid colour, the background a pattern is
+    /// drawn over, or a gradient's first colour, for whatever cannot draw it.
     public var fillColorHex: String?
+    /// A pattern drawn over `fillColorHex`. `nil` for a solid fill.
+    public var fillPattern: FillPattern?
+    /// A gradient drawn instead of `fillColorHex`.
+    public var fillGradient: FillGradient?
     public var horizontalAlignment: HorizontalTextAlignment = .automatic
     public var verticalAlignment: VerticalTextAlignment = .middle
     public var wrapsText = false

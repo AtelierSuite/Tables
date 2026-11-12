@@ -35,7 +35,8 @@ public struct ConditionalStyle: Hashable, Sendable {
 
     public func applied(to style: CellStyle) -> CellStyle {
         var result = style
-        if let fillColorHex { result.fillColorHex = fillColorHex }
+        // A rule's fill is solid, and covers any pattern or gradient of the cell's own.
+        if let fillColorHex { result.setSolidFill(fillColorHex) }
         if let textColorHex { result.textColorHex = textColorHex }
         if let isBold { result.isBold = isBold }
         if let isItalic { result.isItalic = isItalic }

@@ -69,12 +69,22 @@ export function paint(ctx, list, palette) {
   for (const op of list.ops) {
     switch (op.k) {
       case "grid":
-        strokeSegments(ctx, op.p, palette.grid, 1);
+        strokeSegments(ctx, op.p, palette.grid, op.w ?? 1);
         break;
       case "fill":
         ctx.fillStyle = cssColor(op.c);
         ctx.fillRect(op.r[0], op.r[1], op.r[2], op.r[3]);
         break;
+      case "pattern":
+        drawPattern(ctx, op);
+        break;
+      case "lgrad": {
+        const gradient = ctx.createLinearGradient(op.p[0], op.p[1], op.p[2], op.p[3]);
+        for (const [position, color] of op.s) gradient.addColorStop(Math.min(Math.max(position, 0), 1), cssColor(color));
+        ctx.fillStyle = gradient;
+        ctx.fillRect(op.r[0], op.r[1], op.r[2], op.r[3]);
+        break;
+      }
       case "paper":
         ctx.fillStyle = paper;
         ctx.fillRect(op.r[0], op.r[1], op.r[2], op.r[3]);
@@ -113,6 +123,45 @@ export function paint(ctx, list, palette) {
     }
   }
   if (clipped) ctx.restore();
+}
+
+// Pattern tiles, by bits, colour and device pixels to a bit.
+const patternTiles = new Map();
+
+/**
+ * A fill pattern: eight rows of eight bits, the leftmost the high bit, set bits
+ * in the pattern colour. Tiled from the sheet's origin so a patterned range
+ * joins up, and a bit is a CSS pixel on screen at every zoom, as in Excel.
+ */
+function drawPattern(ctx, op) {
+  const transform = ctx.getTransform();
+  const scale = Math.hypot(transform.a, transform.b) || 1; // device pixels per sheet point
+  const ratio = globalThis.devicePixelRatio || 1;
+  const pixels = Math.max(1, Math.round(ratio)); // device pixels to a bit
+  const key = `${op.b.join(",")}|${op.c}|${pixels}`;
+  let tile = patternTiles.get(key);
+  if (!tile) {
+    tile = document.createElement("canvas");
+    tile.width = tile.height = 8 * pixels;
+    const tileContext = tile.getContext("2d");
+    tileContext.fillStyle = cssColor(op.c);
+    for (let row = 0; row < 8; row++) {
+      for (let column = 0; column < 8; column++) {
+        if (op.b[row] & (0x80 >> column)) tileContext.fillRect(column * pixels, row * pixels, pixels, pixels);
+      }
+    }
+    if (patternTiles.size > 256) patternTiles.clear();
+    patternTiles.set(key, tile);
+  }
+  const pattern = ctx.createPattern(tile, "repeat");
+  // One tile pixel to 1/pixels of a CSS pixel: sheet points are scale / ratio CSS pixels.
+  const unit = ratio / (pixels * scale);
+  pattern.setTransform(new DOMMatrix([unit, 0, 0, unit, 0, 0]));
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = pattern;
+  ctx.fillRect(op.r[0], op.r[1], op.r[2], op.r[3]);
+  ctx.restore();
 }
 
 function strokeSegments(ctx, points, color, width) {
@@ -185,7 +234,11 @@ function wrapLines(ctx, text, width) {
   return lines;
 }
 
-/** The longest prefix that fits in `width`, with an ellipsis. */
+/**
+ * The longest prefix that fits in `width`, with an ellipsis. The ellipsis
+ * follows the kept text in reading order: drawn right to left (`op.rtl`),
+ * it lands on the left.
+ */
 function elided(ctx, text, width) {
   const characters = Array.from(text);
   let low = 0;
@@ -202,6 +255,25 @@ function elided(ctx, text, width) {
     }
   }
   return best;
+}
+
+/**
+ * The length a line `lineHeight` tall may run along its baseline in a box
+ * `width` by `height`, turned `degrees` counter-clockwise: the box's width
+ * upright, its height a quarter turn either way, and in between as long as
+ * keeps the turned line inside the box. Mirrors the engine's
+ * `TextFitting.runLength(in:rotationDegrees:lineHeight:)`.
+ */
+function runLength(width, height, degrees, lineHeight) {
+  const angle = (degrees * Math.PI) / 180;
+  // Snapped so 90° does not leave a cosine of 6e-17 to divide by.
+  const snapped = (value) => (Math.abs(value) < 1e-12 ? 0 : Math.abs(value));
+  const cosine = snapped(Math.cos(angle));
+  const sine = snapped(Math.sin(angle));
+  let length = Infinity;
+  if (cosine > 0) length = Math.min(length, (width - lineHeight * sine) / cosine);
+  if (sine > 0) length = Math.min(length, (height - lineHeight * cosine) / sine);
+  return Math.max(length, 0);
 }
 
 /** As many #s as fit in `width`: what Excel shows for a number its cell is too narrow for. */
@@ -246,11 +318,16 @@ function drawText(ctx, op, palette) {
   if (wraps) {
     lines = wrapLines(ctx, text, box[2]);
     measuredWidth = box[2];
+    // Stacked text has as many glyphs as fit down the box, the ellipsis taking the last line.
+    const fitting = Math.max(Math.floor(box[3] / lineHeight), 1);
+    if (op.stk && lines.length > fitting) lines = [...lines.slice(0, fitting - 1), "…"];
   } else {
     lines = text.split("\n");
     measuredWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    // Turned text runs along its turned box rather than across the cell.
+    if (op.rot) room = runLength(box[2], box[3], op.rot, lineHeight * lines.length);
     // A number a hair too wide may take some of the cell's padding before it gives way to #s.
-    if (op.num && measuredWidth > room && measuredWidth <= frame[2] - 2) {
+    if (op.num && !op.rot && measuredWidth > room && measuredWidth <= frame[2] - 2) {
       const spare = (frame[2] - 2 - box[2]) / 2;
       box = [box[0] - spare, box[1], box[2] + 2 * spare, box[3]];
       room = box[2];
@@ -295,6 +372,10 @@ function drawText(ctx, op, palette) {
   ctx.beginPath();
   ctx.rect(clip[0], clip[1], clip[2], clip[3]);
   ctx.clip();
+  // Text read right to left is set that way whatever it starts with, as the
+  // engine's `TextFitting.baseDirection(of:)` finds it; "left" and "right"
+  // alignment stay where they are.
+  ctx.direction = op.rtl ? "rtl" : "ltr";
   if (op.rot) {
     ctx.translate(target[0] + target[2] / 2, target[1] + target[3] / 2);
     ctx.rotate(-angle);

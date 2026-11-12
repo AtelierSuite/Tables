@@ -389,12 +389,48 @@ public enum XLSXReader {
             return spec
         }
 
-        let fills: [String?] = (root.firstChild(named: "fills")?.children(named: "fill") ?? []).map { element in
-            guard let pattern = element.firstChild(named: "patternFill"),
-                  pattern.attribute("patternType") != "none" else { return nil }
-            return ThemeColorPalette.resolvedARGB(
-                from: pattern.firstChild(named: "fgColor"), theme: theme, indexed: palette
-            )
+        struct FillSpec {
+            var colorHex: String?
+            var pattern: FillPattern?
+            var gradient: FillGradient?
+        }
+
+        func color(_ element: XMLElement?) -> String? {
+            ThemeColorPalette.resolvedARGB(from: element, theme: theme, indexed: palette)
+        }
+
+        let fills: [FillSpec] = (root.firstChild(named: "fills")?.children(named: "fill") ?? []).map { element in
+            if let gradient = element.firstChild(named: "gradientFill") {
+                let stops = gradient.children(named: "stop").map { stop in
+                    GradientStop(
+                        position: stop.attribute("position").flatMap(Double.init) ?? 0,
+                        colorHex: color(stop.firstChild(named: "color"))
+                    )
+                }
+                guard !stops.isEmpty else { return FillSpec() }
+                func fraction(_ name: String) -> Double { gradient.attribute(name).flatMap(Double.init) ?? 0 }
+                let kind: FillGradient.Kind = gradient.attribute("type") == "path"
+                    ? .path(left: fraction("left"), right: fraction("right"), top: fraction("top"), bottom: fraction("bottom"))
+                    : .linear(degree: fraction("degree"))
+                let model = FillGradient(kind: kind, stops: stops)
+                return FillSpec(colorHex: model.stops[0].colorHex, gradient: model)
+            }
+            guard let pattern = element.firstChild(named: "patternFill") else { return FillSpec() }
+            let type = pattern.attribute("patternType")
+            let foreground = color(pattern.firstChild(named: "fgColor"))
+            switch type {
+            case "none":
+                return FillSpec()
+            case nil, "solid":
+                return FillSpec(colorHex: foreground)
+            default:
+                // The pattern is drawn in fgColor over bgColor. A token we
+                // don't know still means a pattern, so it degrades to 50%.
+                return FillSpec(
+                    colorHex: color(pattern.firstChild(named: "bgColor")),
+                    pattern: FillPattern(type: type.flatMap(FillPatternType.init) ?? .mediumGray, colorHex: foreground)
+                )
+            }
         }
 
         struct BorderSpec {
@@ -452,7 +488,9 @@ public enum XLSXReader {
                 style.textColorHex = font.colorHex
             }
             if let fillIndex = element.attribute("fillId").flatMap(Int.init), fills.indices.contains(fillIndex) {
-                style.fillColorHex = fills[fillIndex]
+                style.fillColorHex = fills[fillIndex].colorHex
+                style.fillPattern = fills[fillIndex].pattern
+                style.fillGradient = fills[fillIndex].gradient
             }
             if let borderIndex = element.attribute("borderId").flatMap(Int.init),
                borders.indices.contains(borderIndex) {

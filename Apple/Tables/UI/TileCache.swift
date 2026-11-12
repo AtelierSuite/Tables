@@ -68,16 +68,17 @@ final class TileCache {
         return tiles
     }
 
-    /// A sheet's metrics at `zoom`, measured again only once its lines change.
+    /// A sheet's metrics at `zoom` on a display of `pixelScale`, measured
+    /// again only once its lines, the zoom or the display change.
     ///
     /// For the tables on a canvas other than the one being worked on, which
     /// have no metrics kept for them elsewhere. Measuring a sheet with sized
     /// lines walks all of them, and the new offsets would not compare equal
     /// to the old ones without a walk of their own.
-    func metrics(of sheet: Worksheet, zoom: Double) -> SheetMetrics {
-        let geometry = Geometry(sheet, zoom: zoom)
+    func metrics(of sheet: Worksheet, zoom: Double, pixelScale: Double? = nil) -> SheetMetrics {
+        let geometry = Geometry(sheet, zoom: zoom, pixelScale: pixelScale)
         if let kept = metrics[sheet.id], kept.geometry == geometry { return kept.metrics }
-        let measured = SheetMetrics(sheet: sheet, zoom: zoom)
+        let measured = SheetMetrics(sheet: sheet, zoom: zoom, pixelScale: pixelScale)
         if metrics.count >= 32 { metrics.removeAll() }
         metrics[sheet.id] = (geometry, measured)
         return measured
@@ -93,8 +94,9 @@ final class TileCache {
         let rowCount: Int
         let columnCount: Int
         let zoom: Double
+        let pixelScale: Double?
 
-        init(_ sheet: Worksheet, zoom: Double) {
+        init(_ sheet: Worksheet, zoom: Double, pixelScale: Double?) {
             columnWidths = sheet.columnWidths
             rowHeights = sheet.rowHeights
             hiddenRows = sheet.hiddenRows
@@ -103,6 +105,7 @@ final class TileCache {
             rowCount = sheet.rowCount
             columnCount = sheet.columnCount
             self.zoom = zoom
+            self.pixelScale = pixelScale
         }
     }
 }
