@@ -31,6 +31,9 @@ final class CanvasView: NSView {
 
     /// The tables as last laid out, in the canvas's order.
     private var placed: [Placed] = []
+    /// Each table's merges, comments and colour scheme, kept from one draw
+    /// to the next.
+    private let lookups = SheetLookupCache()
     /// The table being dragged: where the drag started, and how far it has
     /// come once kept on the page and snapped into line.
     private var drag: (id: Worksheet.ID, start: CGPoint, offset: CGSize)?
@@ -169,7 +172,9 @@ final class CanvasView: NSView {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         // The tables share their sheet's page, and its colour.
         let page = placed.first.map {
-            CellRenderer(sheet: $0.sheet, metrics: $0.metrics, appearance: effectiveAppearance).paper
+            CellRenderer(
+                sheet: $0.sheet, metrics: $0.metrics, appearance: effectiveAppearance, lookup: lookups.lookup(for: $0.sheet)
+            ).paper
         }
         (page ?? .textBackgroundColor).setFill()
         dirtyRect.fill()
@@ -181,8 +186,11 @@ final class CanvasView: NSView {
                 let area = dirtyRect.offsetBy(dx: -table.frame.minX, dy: -table.frame.minY)
                     .intersection(CGRect(origin: .zero, size: table.frame.size))
                 context.clip(to: area)
-                CellRenderer(sheet: table.sheet, metrics: table.metrics, appearance: effectiveAppearance)
-                    .draw(in: area, context: context, gridLineColor: lines)
+                CellRenderer(
+                    sheet: table.sheet, metrics: table.metrics, appearance: effectiveAppearance,
+                    lookup: lookups.lookup(for: table.sheet)
+                )
+                .draw(in: area, context: context, gridLineColor: lines)
                 context.restoreGState()
             }
             // An edge round every table, so one without gridlines still reads as one.

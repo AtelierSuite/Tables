@@ -54,6 +54,10 @@ struct SheetGridView: View {
     @State private var renamingTableID: Worksheet.ID?
     @State private var tableNameDraft = ""
     @FocusState private var isTableNameFocused: Bool
+    /// What each tile draws, kept while the sheet and its size stay the same,
+    /// so that a scroll frame only looks tiles up. A reference held across
+    /// updates, which nothing observes: filling it never redraws the grid.
+    @State private var tileCache = TileCache()
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
     #if os(macOS)
@@ -330,13 +334,9 @@ struct SheetGridView: View {
         // computed properties reaching through the workbook, and a tile asking
         // for them apiece is work repeated on every scroll frame.
         let sheet = activeSheet
-        let plans = tilePlans(rows: visibleRows, columns: visibleColumns, metrics: metrics)
-        // Measured against the tiles rather than the viewport, so that what a
-        // tile holds depends only on which tile it is. A merge found only once
-        // the window had scrolled onto it would leave the tile's cached drawing
-        // showing the cells underneath instead of the merge.
-        let merges = visibleMerges(in: sheet, coveredBy: plans, metrics: metrics)
-        let scheme = sheet.colorScheme(for: colorScheme)
+        let plans = Self.tilePlans(rows: visibleRows, columns: visibleColumns, metrics: metrics)
+        let drawing = tileCache.tiles(of: sheet, metrics: metrics)
+        let scheme = drawing.scheme(for: colorScheme)
 
         return ZStack(alignment: .topLeading) {
             ForEach(plans) { plan in
@@ -348,7 +348,7 @@ struct SheetGridView: View {
                     size: frame.size,
                     hiddenRows: sheet.hiddenRows,
                     hiddenColumns: sheet.hiddenColumns,
-                    contents: contents(of: plan, in: sheet, merges: merges, metrics: metrics),
+                    contents: contents(of: plan, in: sheet, drawing: drawing, metrics: metrics),
                     metrics: metrics,
                     scheme: scheme
                 )
@@ -696,15 +696,15 @@ struct SheetGridView: View {
 
     /// Another table on the canvas, drawn only as far as it is in view.
     private func canvasTable(_ sheet: Worksheet, at origin: CGPoint, zoom: Double) -> some View {
-        let metrics = SheetMetrics(sheet: sheet, zoom: zoom, pixelScale: displayScale)
+        let metrics = tileCache.metrics(of: sheet, zoom: zoom, pixelScale: displayScale)
         let top = state.scrollOffset.y - origin.y
         let left = state.scrollOffset.x - origin.x
         let height = max(state.viewportSize.height, 200), width = max(state.viewportSize.width, 200)
         let rows = metrics.rows(in: max(0, top)...max(0, top + height))
         let columns = metrics.columns(in: max(0, left)...max(0, left + width))
-        let plans = top + height < 0 || left + width < 0 ? [] : tilePlans(rows: rows, columns: columns, metrics: metrics)
-        let merges = visibleMerges(in: sheet, coveredBy: plans, metrics: metrics)
-        let scheme = sheet.colorScheme(for: colorScheme)
+        let plans = top + height < 0 || left + width < 0 ? [] : Self.tilePlans(rows: rows, columns: columns, metrics: metrics)
+        let drawing = tileCache.tiles(of: sheet, metrics: metrics)
+        let scheme = drawing.scheme(for: colorScheme)
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
@@ -716,7 +716,7 @@ struct SheetGridView: View {
                     rows: plan.rows, columns: plan.columns,
                     origin: frame.origin, size: frame.size,
                     hiddenRows: sheet.hiddenRows, hiddenColumns: sheet.hiddenColumns,
-                    contents: contents(of: plan, in: sheet, merges: merges, metrics: metrics),
+                    contents: contents(of: plan, in: sheet, drawing: drawing, metrics: metrics),
                     metrics: metrics, scheme: scheme
                 )
                 .equatable()
@@ -744,7 +744,7 @@ struct SheetGridView: View {
     // MARK: - Tiles
 
     /// One tile's place in the grid.
-    private struct TilePlan: Identifiable {
+    struct TilePlan: Identifiable {
         let id: Int
         let rows: Range<Int>
         let columns: Range<Int>
@@ -767,7 +767,7 @@ struct SheetGridView: View {
     /// Bands are cut from the sheet's own line numbering, never from the window:
     /// bands measured from the viewport would shift under every frame and no
     /// tile would ever be reused.
-    private func tilePlans(rows: Range<Int>, columns: Range<Int>, metrics: SheetMetrics) -> [TilePlan] {
+    static func tilePlans(rows: Range<Int>, columns: Range<Int>, metrics: SheetMetrics) -> [TilePlan] {
         guard !rows.isEmpty, !columns.isEmpty else { return [] }
         let rowSpan = tileSpan(extent: metrics.totalHeight, lines: metrics.rowCount)
         let columnSpan = tileSpan(extent: metrics.totalWidth, lines: metrics.columnCount)
@@ -790,10 +790,20 @@ struct SheetGridView: View {
 
     /// How many lines make up a band, from the average line size so that zoom
     /// and unusually tall rows both land on a sensible tile.
-    private func tileSpan(extent: Double, lines: Int) -> Int {
+    private static func tileSpan(extent: Double, lines: Int) -> Int {
         guard lines > 0, extent > 0 else { return 16 }
         let average = extent / Double(lines)
-        return max(2, min(64, Int((Self.tileExtent / average).rounded())))
+        return max(2, min(64, Int((tileExtent / average).rounded())))
+    }
+
+    /// What a tile draws: kept from an earlier frame, or worked out now and
+    /// kept for the next.
+    private func contents(
+        of plan: TilePlan, in sheet: Worksheet, drawing: TileCache.SheetTiles, metrics: SheetMetrics
+    ) -> TileContents {
+        drawing.contents(of: plan.range) {
+            Self.contents(of: plan, in: sheet, lookup: drawing.lookup, metrics: metrics)
+        }
     }
 
     /// Everything inside a tile that has something to draw.
@@ -802,14 +812,19 @@ struct SheetGridView: View {
     /// derives from its line ranges. On a sheet that is mostly empty — which is
     /// most sheets — that is the difference between a handful of entries per
     /// tile and a hundred.
-    private func contents(
-        of plan: TilePlan, in sheet: Worksheet, merges: [CellRange], metrics: SheetMetrics
+    ///
+    /// What a tile holds depends only on which tile it is, never on the tiles
+    /// around it or the window they fill, so it can be kept as the sheet
+    /// scrolls. `lookup` must be built from this version of `sheet`.
+    static func contents(
+        of plan: TilePlan, in sheet: Worksheet, lookup: SheetLookup, metrics: SheetMetrics
     ) -> TileContents {
         var painted = TileContents()
 
-        let window = plan.range
-        for merge in merges where merge.intersects(window) {
-            let box = merge.normalized
+        // Merges get a pass of their own rather than being drawn by the cell at
+        // their top-left corner: that corner is frequently outside the tile the
+        // rest of the region falls in, and the region still has to draw.
+        for box in lookup.merges.ranges(intersecting: plan.range) {
             painted.merges.append(PaintedMerge(
                 range: box,
                 frame: metrics.frame(for: box),
@@ -836,15 +851,15 @@ struct SheetGridView: View {
                 let cell = sheet.displayedCell(at: address)
                 guard !cell.isEmptyEntirely else { continue }
                 var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
-                (entry.overflow, entry.overflowSpan) = overflow(of: address, in: sheet, metrics: metrics)
+                (entry.overflow, entry.overflowSpan) = overflow(of: address, in: sheet, lookup: lookup, metrics: metrics)
                 painted.cells.append(entry)
             }
-            spillsFromOutside(row: row, of: plan, in: sheet, metrics: metrics, into: &painted)
+            spillsFromOutside(row: row, of: plan, in: sheet, lookup: lookup, metrics: metrics, into: &painted)
         }
-        borders(of: plan, in: sheet, merges: merges, metrics: metrics, into: &painted)
+        borders(of: plan, in: sheet, lookup: lookup, metrics: metrics, into: &painted)
         // A comment on a merged cell marks the whole region's corner, so it
         // is drawn by the tile holding that corner, over the merge's fill.
-        for (address, comment, range) in sheet.commentMarks(rows: plan.rows, columns: plan.columns) {
+        for (address, comment, range) in sheet.commentMarks(rows: plan.rows, columns: plan.columns, lookup: lookup) {
             painted.comments.append(CommentMark(
                 address: address, frame: metrics.frame(for: range), kind: comment.kind, isResolved: comment.isResolved))
         }
@@ -855,8 +870,8 @@ struct SheetGridView: View {
     /// centred on a gridline, so half of one on the tile's edge falls inside
     /// the tile, and an edge two cells share is drawn by the one whose border
     /// wins.
-    private func borders(
-        of plan: TilePlan, in sheet: Worksheet, merges: [CellRange], metrics: SheetMetrics,
+    private static func borders(
+        of plan: TilePlan, in sheet: Worksheet, lookup: SheetLookup, metrics: SheetMetrics,
         into painted: inout TileContents
     ) {
         let rows = metrics.rowsBordering(plan.rows)
@@ -872,7 +887,7 @@ struct SheetGridView: View {
             guard !edges.isEmpty || diagonal?.isVisible == true else { return }
             painted.borders.append(PaintedBorders(frame: metrics.frame(for: region), edges: edges, diagonal: diagonal))
         }
-        let nearby = merges.map(\.normalized).filter { $0.intersects(reach) }
+        let nearby = lookup.merges.ranges(intersecting: reach).map(\.normalized)
         nearby.forEach(add)
         for row in rows where !sheet.hiddenRows.contains(row) {
             for column in columns where !sheet.hiddenColumns.contains(column) {
@@ -888,10 +903,10 @@ struct SheetGridView: View {
     /// How far a cell's text may spill, as a frame and as the columns it
     /// spans. Which of their gridlines make way for it is left to the
     /// painter, which can measure the text.
-    private func overflow(
-        of address: CellAddress, in sheet: Worksheet, metrics: SheetMetrics
+    private static func overflow(
+        of address: CellAddress, in sheet: Worksheet, lookup: SheetLookup, metrics: SheetMetrics
     ) -> (CGRect?, ClosedRange<Int>?) {
-        guard let span = sheet.overflowSpan(of: address) else { return (nil, nil) }
+        guard let span = sheet.overflowSpan(of: address, lookup: lookup) else { return (nil, nil) }
         let frame = metrics.frame(for: CellRange(
             start: CellAddress(row: address.row, column: span.lowerBound),
             end: CellAddress(row: address.row, column: span.upperBound)
@@ -902,8 +917,9 @@ struct SheetGridView: View {
     /// Text that starts in a cell outside the tile and runs into it. The
     /// nearest filled cell on either side is the only one that can: anything
     /// further away is stopped by it.
-    private func spillsFromOutside(
-        row: Int, of plan: TilePlan, in sheet: Worksheet, metrics: SheetMetrics, into painted: inout TileContents
+    private static func spillsFromOutside(
+        row: Int, of plan: TilePlan, in sheet: Worksheet, lookup: SheetLookup, metrics: SheetMetrics,
+        into painted: inout TileContents
     ) {
         let reach = 24
         let before = stride(from: plan.columns.lowerBound - 1, through: max(0, plan.columns.lowerBound - reach), by: -1)
@@ -913,38 +929,16 @@ struct SheetGridView: View {
                 let address = CellAddress(row: row, column: column)
                 let cell = sheet.displayedCell(at: address)
                 guard !cell.isBlank else { continue }
-                if let span = sheet.overflowSpan(of: address, reach: reach),
+                if let span = sheet.overflowSpan(of: address, reach: reach, lookup: lookup),
                    span.overlaps(plan.columns.lowerBound...(plan.columns.upperBound - 1)) {
                     var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
-                    (entry.overflow, entry.overflowSpan) = overflow(of: address, in: sheet, metrics: metrics)
+                    (entry.overflow, entry.overflowSpan) = overflow(of: address, in: sheet, lookup: lookup, metrics: metrics)
                     entry.textOnly = true
                     painted.cells.append(entry)
                 }
                 break
             }
         }
-    }
-
-    /// Merged regions intersecting the tiles being built.
-    ///
-    /// Merges get a pass of their own rather than being drawn by the cell at
-    /// their top-left corner: that corner is frequently outside the tile the
-    /// rest of the region falls in, and the region still has to draw. Testing
-    /// the whole rectangle against the window — not just its origin — is what
-    /// makes that case work.
-    private func visibleMerges(in sheet: Worksheet, coveredBy plans: [TilePlan], metrics: SheetMetrics) -> [CellRange] {
-        // The bands run row-major, so the first and last plans are opposite
-        // corners of everything they cover between them.
-        guard !sheet.mergedRanges.isEmpty,
-              let first = plans.first, let last = plans.last else { return [] }
-        // Widened to the lines around them, whose borders reach in.
-        let rows = metrics.rowsBordering(first.rows.lowerBound..<last.rows.upperBound)
-        let columns = metrics.columnsBordering(first.columns.lowerBound..<last.columns.upperBound)
-        let window = CellRange(
-            start: CellAddress(row: rows.lowerBound, column: columns.lowerBound),
-            end: CellAddress(row: rows.upperBound - 1, column: columns.upperBound - 1)
-        )
-        return sheet.mergedRanges.filter { $0.intersects(window) }
     }
 
     /// The cell under a point in the grid's own coordinates.
@@ -1640,9 +1634,9 @@ struct SheetGridView: View {
     /// cell beneath, as they would on the sheet.
     private func frozenPane(rows: Range<Int>, columns: Range<Int>, shift: CGPoint) -> some View {
         let sheet = activeSheet
-        let plans = tilePlans(rows: rows, columns: columns, metrics: metrics)
-        let merges = visibleMerges(in: sheet, coveredBy: plans, metrics: metrics)
-        let scheme = sheet.colorScheme(for: colorScheme)
+        let plans = Self.tilePlans(rows: rows, columns: columns, metrics: metrics)
+        let drawing = tileCache.tiles(of: sheet, metrics: metrics)
+        let scheme = drawing.scheme(for: colorScheme)
         let selection = metrics.frame(for: sheet.expandedToMerges(state.selection))
 
         return ZStack(alignment: .topLeading) {
@@ -1658,7 +1652,7 @@ struct SheetGridView: View {
                     size: frame.size,
                     hiddenRows: sheet.hiddenRows,
                     hiddenColumns: sheet.hiddenColumns,
-                    contents: contents(of: plan, in: sheet, merges: merges, metrics: metrics),
+                    contents: contents(of: plan, in: sheet, drawing: drawing, metrics: metrics),
                     metrics: metrics,
                     scheme: scheme
                 )

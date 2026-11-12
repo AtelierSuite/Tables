@@ -36,6 +36,10 @@ final class GridView: NSView, NSTextFieldDelegate {
     }
 
     private var drag: Drag?
+    /// The sheet's merges, comments and colour scheme, kept from one draw to
+    /// the next: a scroll draws the sheet a strip at a time, and the frozen
+    /// panes over it, every frame.
+    private let lookups = SheetLookupCache()
     private var objectViews: [AnyHashable: FloatingObjectView] = [:]
 
     override var isFlipped: Bool { true }
@@ -163,8 +167,10 @@ final class GridView: NSView, NSTextFieldDelegate {
     /// and for the frozen panes, which show parts of it in place.
     func drawSheet(_ dirtyRect: NSRect, in context: CGContext) {
         guard let document else { return }
+        let sheet = document.activeSheet
         let renderer = CellRenderer(
-            sheet: document.activeSheet, metrics: document.state.metrics, appearance: effectiveAppearance
+            sheet: sheet, metrics: document.state.metrics, appearance: effectiveAppearance,
+            lookup: lookups.lookup(for: sheet)
         )
         renderer.paper.setFill()
         dirtyRect.fill()
