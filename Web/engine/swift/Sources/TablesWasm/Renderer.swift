@@ -195,7 +195,7 @@ struct Renderer {
         }
         var string = CellFormatter.displayText(for: cell)
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
-        if style.isTextStacked { string = string.map(String.init).joined(separator: "\n") }
+        if style.isTextStacked { string = TextFitting.stacked(string) }
 
         let horizontal = style.horizontalAlignment == .automatic
             ? CellFormatter.naturalAlignment(for: cell.value)
@@ -216,6 +216,7 @@ struct Renderer {
         if let textColor { operation["c"] = textColor } else if cell.value.errorValue != nil { operation["err"] = true }
         if isNumber { operation["num"] = true }
         if (style.wrapsText && !isNumber) || style.isTextStacked { operation["wrap"] = true }
+        if style.isTextStacked { operation["stk"] = true }
         if style.rotationDegrees != 0 { operation["rot"] = style.rotationDegrees }
         if style.indentPoints > 0 { operation["ind"] = style.indentPoints }
         if let overflow { operation["ov"] = frameArray(overflow) }
