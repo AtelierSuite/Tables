@@ -307,7 +307,8 @@ public enum XLSXReader {
                 guard sheets.indices.contains(position) else { continue }
                 scope = sheets[position].id
             }
-            result.append(DefinedName(name: name, formula: FormulaDialect.fromFile(formula), scope: scope))
+            result.append(DefinedName(name: name, formula: FormulaDialect.fromFile(formula), scope: scope,
+                                      isHidden: isTrue(element.attribute("hidden"))))
         }
         return result
     }
