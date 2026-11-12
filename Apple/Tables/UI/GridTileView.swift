@@ -32,11 +32,15 @@ struct PaintedMerge: Equatable, Sendable {
     var ownsElement: Bool
 }
 
-/// The borders of a cell or merge outside a tile, whose halves on the
-/// gridlines it shares with the tile fall inside it.
+/// The borders a cell or merge draws, in the tile or just outside it, where
+/// the halves of them on the gridlines it shares with the tile fall inside.
+/// Each edge it shares with a neighbour is already resolved to one border.
 struct PaintedBorders: Equatable, Sendable {
+    /// The cell or merge.
     var frame: CGRect
-    var style: CellStyle
+    /// The stretches of its edges whose border wins against the neighbour's.
+    var edges: [DrawnBorder]
+    var diagonal: DiagonalBorder?
 }
 
 /// Everything a tile draws, gathered by the grid before the tile is built.
@@ -50,8 +54,8 @@ struct TileContents: Equatable, Sendable {
     var covered: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
-    /// Borders of the cells and merges just outside the tile.
-    var neighbourBorders: [PaintedBorders] = []
+    /// Borders of the cells and merges in the tile and just outside it.
+    var borders: [PaintedBorders] = []
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -215,25 +219,21 @@ enum CellPainter {
         // neighbour's fill, and borders on top of the text.
         let own = contents.cells.filter { !$0.textOnly }
         for cell in own {
-            paintBackground(cell.cell, in: cell.frame, openEdge: edges.contains(cell.address), into: &context, scheme: scheme)
+            paintBackground(
+                cell.cell, in: cell.frame, openEdge: edges.contains(cell.address), metrics: metrics, into: &context, scheme: scheme
+            )
         }
         for cell in contents.cells {
             paintText(cell.cell, in: cell.frame, overflow: cell.overflow, zoom: metrics.zoom, scheme: scheme, into: &context)
         }
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in contents.merges {
-            paint(merge.cell, in: merge.frame, zoom: metrics.zoom, scheme: scheme, into: &context)
+            paint(merge.cell, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
         }
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell.
-        for cell in own {
-            paintBorders(cell.cell.style, in: cell.frame, metrics: metrics, scheme: scheme, into: &context)
-        }
-        for merge in contents.merges {
-            paintBorders(merge.cell.style, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
-        }
-        for neighbour in contents.neighbourBorders {
-            paintBorders(neighbour.style, in: neighbour.frame, metrics: metrics, scheme: scheme, into: &context)
+        for borders in contents.borders {
+            paintBorders(borders, metrics: metrics, scheme: scheme, into: &context)
         }
         for mark in contents.comments {
             paintCommentMark(mark, zoom: metrics.zoom, into: &context)
@@ -276,52 +276,47 @@ enum CellPainter {
             for column in columns where !hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
                 guard !skipping.contains(address) else { continue }
-                addHairlines(of: metrics.frame(for: address), openEdge: openEdges.contains(address), to: &path)
+                addHairlines(of: metrics.frame(for: address), openEdge: openEdges.contains(address), metrics: metrics, to: &path)
             }
         }
         guard !path.isEmpty else { return }
-        context.stroke(path, with: .color(.gridLine), lineWidth: hairlineWidth)
+        context.stroke(path, with: .color(.gridLine), lineWidth: metrics.gridLineWidth)
     }
-
-    private static let hairlineWidth: Double = 1
 
     /// The trailing and bottom separators of one cell.
     ///
     /// Both sit a half-width inside the cell rather than straddling its edge, so
     /// that a line on a tile boundary is drawn whole by the tile that owns it
     /// instead of half by each of two.
-    private static func addHairlines(of rect: CGRect, openEdge: Bool = false, to path: inout Path) {
-        let inset = hairlineWidth / 2
-        if openEdge {
-            path.move(to: CGPoint(x: rect.maxX, y: rect.maxY - inset))
-        } else {
-            path.move(to: CGPoint(x: rect.maxX - inset, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.maxY - inset))
+    private static func addHairlines(of rect: CGRect, openEdge: Bool = false, metrics: SheetMetrics, to path: inout Path) {
+        for (start, end) in metrics.gridLines(of: rect, openEdge: openEdge) {
+            path.move(to: start)
+            path.addLine(to: end)
         }
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - inset))
     }
 
     /// A merge's fill and text, which nothing spills across. Its borders are
     /// drawn with everyone else's.
     private static func paint(
-        _ cell: Cell, in frame: CGRect, zoom: Double, scheme: ColorScheme,
+        _ cell: Cell, in frame: CGRect, metrics: SheetMetrics, scheme: ColorScheme,
         into context: inout GraphicsContext
     ) {
         guard frame.width > 0, frame.height > 0 else { return }
-        paintBackground(cell, in: frame, openEdge: false, into: &context, scheme: scheme)
-        paintText(cell, in: frame, overflow: nil, zoom: zoom, scheme: scheme, into: &context)
+        paintBackground(cell, in: frame, openEdge: false, metrics: metrics, into: &context, scheme: scheme)
+        paintText(cell, in: frame, overflow: nil, zoom: metrics.zoom, scheme: scheme, into: &context)
     }
 
     private static func paintBackground(
-        _ cell: Cell, in frame: CGRect, openEdge: Bool, into context: inout GraphicsContext, scheme: ColorScheme
+        _ cell: Cell, in frame: CGRect, openEdge: Bool, metrics: SheetMetrics,
+        into context: inout GraphicsContext, scheme: ColorScheme
     ) {
         guard frame.width > 0, frame.height > 0 else { return }
         if let fill = cell.style.fillColor(for: scheme) {
             context.fill(Path(frame), with: .color(fill))
         }
         var hairlines = Path()
-        addHairlines(of: frame, openEdge: openEdge, to: &hairlines)
-        context.stroke(hairlines, with: .color(.gridLine), lineWidth: hairlineWidth)
+        addHairlines(of: frame, openEdge: openEdge, metrics: metrics, to: &hairlines)
+        context.stroke(hairlines, with: .color(.gridLine), lineWidth: metrics.gridLineWidth)
     }
 
     /// Cells whose trailing edge spilled text runs across, which draw no
@@ -548,39 +543,36 @@ enum CellPainter {
     // MARK: - Borders
 
     private static func paintBorders(
-        _ style: CellStyle, in frame: CGRect, metrics: SheetMetrics, scheme: ColorScheme,
+        _ borders: PaintedBorders, metrics: SheetMetrics, scheme: ColorScheme,
         into context: inout GraphicsContext
     ) {
-        let zoom = metrics.zoom
-        guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { return }
-
         // Each edge gets its own stroke because line width, dash pattern and
         // colour all vary per edge in OOXML.
-        for edge in BorderEdge.allCases {
-            guard let side = style.borderSides[edge] else { continue }
-            stroke(side.lineStyle, colorHex: side.colorHex, zoom: zoom, scheme: scheme, into: &context) {
-                edgePath(edge, in: frame, width: side.lineStyle.lineWidth * zoom, offset: $0, metrics: metrics)
+        for border in borders.edges {
+            let side = border.side
+            let frame = metrics.frame(for: border.range)
+            stroke(side.lineStyle, colorHex: side.colorHex, metrics: metrics, scheme: scheme, into: &context) {
+                edgePath(border.edge, in: frame, width: metrics.lineWidth(of: side.lineStyle), offset: $0, metrics: metrics)
             }
         }
-        if let diagonal = style.diagonalBorder, diagonal.isVisible {
-            stroke(diagonal.lineStyle, colorHex: diagonal.colorHex, zoom: zoom, scheme: scheme, into: &context) {
-                diagonalPath(diagonal, in: frame, offset: $0)
+        if let diagonal = borders.diagonal, diagonal.isVisible {
+            stroke(diagonal.lineStyle, colorHex: diagonal.colorHex, metrics: metrics, scheme: scheme, into: &context) {
+                diagonalPath(diagonal, in: borders.frame, offset: $0)
             }
         }
     }
 
     /// Strokes a line style, drawing a double rule as two offset passes.
     private static func stroke(
-        _ lineStyle: BorderLineStyle, colorHex: String?, zoom: Double, scheme: ColorScheme,
+        _ lineStyle: BorderLineStyle, colorHex: String?, metrics: SheetMetrics, scheme: ColorScheme,
         into context: inout GraphicsContext, path: (Double) -> Path
     ) {
         let paint = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true) ?? .primary
         let style = StrokeStyle(
-            lineWidth: lineStyle.lineWidth * zoom,
-            dash: lineStyle.dashPattern.map { CGFloat($0 * zoom) }
+            lineWidth: metrics.lineWidth(of: lineStyle),
+            dash: lineStyle.dashPattern.map { CGFloat($0 * metrics.zoom) }
         )
-        let offsets: [Double] = lineStyle.doubleLineGap.map { [-$0 * zoom / 2, $0 * zoom / 2] } ?? [0]
-        for offset in offsets {
+        for offset in metrics.passOffsets(of: lineStyle) {
             context.stroke(path(offset), with: .color(paint), style: style)
         }
     }

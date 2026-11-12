@@ -88,7 +88,7 @@ struct CellRenderer {
 
         if drawsGridlines {
             context.setStrokeColor(gridLineColor.cgColor)
-            context.setLineWidth(1)
+            context.setLineWidth(metrics.gridLineWidth)
             for row in rows where !sheet.hiddenRows.contains(row) {
                 for column in columns where !sheet.hiddenColumns.contains(column) {
                     let address = CellAddress(row: row, column: column)
@@ -122,7 +122,7 @@ struct CellRenderer {
             // since the background above covered the ones beneath it.
             if drawsGridlines {
                 context.setStrokeColor(gridLineColor.cgColor)
-                context.setLineWidth(1)
+                context.setLineWidth(metrics.gridLineWidth)
                 strokeHairlines(of: frame, openEdge: false, in: context)
             }
             context.restoreGState()
@@ -131,17 +131,19 @@ struct CellRenderer {
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell. The cells around `rect` draw only as far as it:
         // the rest of their borders is drawn with them.
+        // An edge two cells share is drawn once, by the one whose border wins.
         context.saveGState()
         context.clip(to: rect)
+        let resolver = BorderResolver(sheet: sheet, metrics: metrics, near: reach)
         for row in borderRows where !sheet.hiddenRows.contains(row) {
             for column in borderColumns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
-                guard !covered.contains(address), let cell = sheet.cells[address] else { continue }
-                drawBorders(cell.style, in: metrics.frame(for: address), context: context)
+                guard !covered.contains(address), sheet.cells[address] != nil else { continue }
+                drawBorders(of: CellRange(address), resolver: resolver, context: context)
             }
         }
         for merge in nearby {
-            drawBorders(sheet[merge.start].style, in: metrics.frame(for: merge), context: context)
+            drawBorders(of: merge, resolver: resolver, context: context)
         }
         context.restoreGState()
         drawCommentMarks(rows: rows, columns: columns, context: context)
@@ -205,15 +207,11 @@ struct CellRenderer {
     /// The trailing and bottom separators of one cell, held a half-width
     /// inside it.
     private func strokeHairlines(of rect: CGRect, openEdge: Bool, in context: CGContext) {
-        let inset = 0.5
         context.beginPath()
-        if openEdge {
-            context.move(to: CGPoint(x: rect.maxX, y: rect.maxY - inset))
-        } else {
-            context.move(to: CGPoint(x: rect.maxX - inset, y: rect.minY))
-            context.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.maxY - inset))
+        for (start, end) in metrics.gridLines(of: rect, openEdge: openEdge) {
+            context.move(to: start)
+            context.addLine(to: end)
         }
-        context.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - inset))
         context.strokePath()
     }
 
@@ -223,7 +221,7 @@ struct CellRenderer {
         context.fill(frame)
         if drawsGridlines {
             context.setStrokeColor(gridLineColor.cgColor)
-            context.setLineWidth(1)
+            context.setLineWidth(metrics.gridLineWidth)
             strokeHairlines(of: frame, openEdge: openEdge, in: context)
         }
     }
@@ -449,19 +447,21 @@ struct CellRenderer {
 
     // MARK: - Borders
 
-    private func drawBorders(_ style: CellStyle, in frame: CGRect, context: CGContext) {
-        guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { return }
-        let zoom = metrics.zoom
-        for edge in BorderEdge.allCases {
-            guard let side = style.borderSides[edge] else { continue }
+    /// The borders of a cell or merge: the stretches of its edges its border
+    /// wins against the neighbour's, and its diagonal.
+    private func drawBorders(of region: CellRange, resolver: BorderResolver, context: CGContext) {
+        for border in resolver.drawnBorders(of: region) {
+            let side = border.side
+            let frame = metrics.frame(for: border.range)
             stroke(side.lineStyle, colorHex: side.colorHex, context: context) { offset in
                 let (start, end) = metrics.borderSegment(
-                    edge, of: frame, lineWidth: side.lineStyle.lineWidth * zoom, offset: offset, shown: shownArea
+                    border.edge, of: frame, lineWidth: metrics.lineWidth(of: side.lineStyle), offset: offset, shown: shownArea
                 )
                 return [start, end]
             }
         }
-        if let diagonal = style.diagonalBorder, diagonal.isVisible {
+        if let diagonal = sheet.cells[region.start]?.style.diagonalBorder, diagonal.isVisible {
+            let frame = metrics.frame(for: region)
             stroke(diagonal.lineStyle, colorHex: diagonal.colorHex, context: context) { offset in
                 var points: [CGPoint] = []
                 if diagonal.goesDown {
@@ -485,10 +485,9 @@ struct CellRenderer {
             ?? Self.automaticBorderColor
         context.saveGState()
         context.setStrokeColor(color.cgColor)
-        context.setLineWidth(lineStyle.lineWidth * zoom)
+        context.setLineWidth(metrics.lineWidth(of: lineStyle))
         context.setLineDash(phase: 0, lengths: lineStyle.dashPattern.map { CGFloat($0 * zoom) })
-        let offsets: [Double] = lineStyle.doubleLineGap.map { [-$0 * zoom / 2, $0 * zoom / 2] } ?? [0]
-        for offset in offsets {
+        for offset in metrics.passOffsets(of: lineStyle) {
             context.strokeLineSegments(between: segments(offset))
         }
         context.restoreGState()

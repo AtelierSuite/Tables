@@ -69,7 +69,7 @@ export function paint(ctx, list, palette) {
   for (const op of list.ops) {
     switch (op.k) {
       case "grid":
-        strokeSegments(ctx, op.p, palette.grid, 1);
+        strokeSegments(ctx, op.p, palette.grid, op.w ?? 1);
         break;
       case "fill":
         ctx.fillStyle = cssColor(op.c);
