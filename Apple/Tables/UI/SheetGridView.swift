@@ -824,7 +824,7 @@ struct SheetGridView: View {
             }
             spillsFromOutside(row: row, of: plan, in: sheet, metrics: metrics, into: &painted)
         }
-        neighbourBorders(of: plan, in: sheet, merges: merges, metrics: metrics, into: &painted)
+        borders(of: plan, in: sheet, merges: merges, metrics: metrics, into: &painted)
         // A comment on a merged cell marks the whole region's corner, so it
         // is drawn by the tile holding that corner, over the merge's fill.
         for (address, comment, range) in sheet.commentMarks(rows: plan.rows, columns: plan.columns) {
@@ -834,9 +834,11 @@ struct SheetGridView: View {
         return painted
     }
 
-    /// The borders of the cells and merges around a tile. Each is centred on
-    /// a gridline, so half of one on the tile's edge falls inside the tile.
-    private func neighbourBorders(
+    /// The borders of the cells and merges in and around a tile. Each is
+    /// centred on a gridline, so half of one on the tile's edge falls inside
+    /// the tile, and an edge two cells share is drawn by the one whose border
+    /// wins.
+    private func borders(
         of plan: TilePlan, in sheet: Worksheet, merges: [CellRange], metrics: SheetMetrics,
         into painted: inout TileContents
     ) {
@@ -846,20 +848,22 @@ struct SheetGridView: View {
             start: CellAddress(row: rows.lowerBound, column: columns.lowerBound),
             end: CellAddress(row: rows.upperBound - 1, column: columns.upperBound - 1)
         )
-        let nearby = merges.map(\.normalized).filter { $0.intersects(reach) }
-        for merge in nearby where !merge.intersects(plan.range) {
-            let style = sheet[merge.start].style
-            guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { continue }
-            painted.neighbourBorders.append(PaintedBorders(frame: metrics.frame(for: merge), style: style))
+        let resolver = BorderResolver(sheet: sheet, metrics: metrics, near: reach)
+        func add(_ region: CellRange) {
+            let edges = resolver.drawnBorders(of: region)
+            let diagonal = sheet.cells[region.start]?.style.diagonalBorder
+            guard !edges.isEmpty || diagonal?.isVisible == true else { return }
+            painted.borders.append(PaintedBorders(frame: metrics.frame(for: region), edges: edges, diagonal: diagonal))
         }
+        let nearby = merges.map(\.normalized).filter { $0.intersects(reach) }
+        nearby.forEach(add)
         for row in rows where !sheet.hiddenRows.contains(row) {
             for column in columns where !sheet.hiddenColumns.contains(column) {
-                guard !plan.rows.contains(row) || !plan.columns.contains(column) else { continue }
                 let address = CellAddress(row: row, column: column)
                 guard let cell = sheet.cells[address],
                       !cell.style.borderSides.isEmpty || cell.style.diagonalBorder != nil,
                       !nearby.contains(where: { $0.contains(address) }) else { continue }
-                painted.neighbourBorders.append(PaintedBorders(frame: metrics.frame(for: address), style: cell.style))
+                add(CellRange(address))
             }
         }
     }

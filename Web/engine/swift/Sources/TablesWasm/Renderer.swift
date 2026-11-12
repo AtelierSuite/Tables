@@ -98,16 +98,18 @@ struct Renderer {
             text(of: cell, in: frame, overflow: nil)
         }
 
+        // An edge two cells share is drawn once, by the one whose border wins.
         operations.append(["k": "clip", "r": frameArray(rect)])
+        let resolver = BorderResolver(sheet: sheet, metrics: metrics, near: reach)
         for row in borderRows where !sheet.hiddenRows.contains(row) {
             for column in borderColumns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
-                guard !covered.contains(address), let cell = sheet.cells[address] else { continue }
-                borders(cell.style, in: metrics.frame(for: address))
+                guard !covered.contains(address), sheet.cells[address] != nil else { continue }
+                borders(of: CellRange(address), resolver: resolver)
             }
         }
         for merge in nearby {
-            borders(sheet[merge.start].style, in: metrics.frame(for: merge))
+            borders(of: merge, resolver: resolver)
         }
         operations.append(["k": "unclip"])
         commentMarks(rows: rows, columns: columns)
@@ -222,17 +224,21 @@ struct Renderer {
 
     // MARK: - Borders
 
-    private mutating func borders(_ style: CellStyle, in frame: CGRect) {
-        guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { return }
+    /// The borders of a cell or merge: the stretches of its edges its border
+    /// wins against the neighbour's, and its diagonal.
+    private mutating func borders(of region: CellRange, resolver: BorderResolver) {
         let metrics = self.metrics
-        for edge in BorderEdge.allCases {
-            guard let side = style.borderSides[edge] else { continue }
-            stroke(side.lineStyle, colorHex: side.colorHex) { offset in
-                let (start, end) = metrics.borderSegment(edge, of: frame, lineWidth: side.lineStyle.lineWidth, offset: offset)
+        for border in resolver.drawnBorders(of: region) {
+            let frame = metrics.frame(for: border.range)
+            stroke(border.side.lineStyle, colorHex: border.side.colorHex) { offset in
+                let (start, end) = metrics.borderSegment(
+                    border.edge, of: frame, lineWidth: border.side.lineStyle.lineWidth, offset: offset
+                )
                 return [start, end]
             }
         }
-        if let diagonal = style.diagonalBorder, diagonal.isVisible {
+        if let diagonal = sheet.cells[region.start]?.style.diagonalBorder, diagonal.isVisible {
+            let frame = metrics.frame(for: region)
             stroke(diagonal.lineStyle, colorHex: diagonal.colorHex) { offset in
                 var points: [CGPoint] = []
                 if diagonal.goesDown {
