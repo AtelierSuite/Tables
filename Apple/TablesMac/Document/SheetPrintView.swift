@@ -1,23 +1,41 @@
 import AppKit
+import SwiftUI
 import TablesEngine
 
 /// A sheet laid out for printing: every row and column out to the last cell
-/// with anything in it, drawn as the grid draws it, without the selection.
+/// with anything in it, and the charts and pictures floating over them,
+/// drawn as the grid draws them, without the selection.
 ///
 /// Pages break between rows and between columns, never through one, as
 /// `PrintPagination` cuts them.
 @MainActor
 final class SheetPrintView: NSView {
     private let sheet: Worksheet
+    private let workbook: Workbook
     private let metrics: SheetMetrics
+    private let objects: [PrintedObject]
     private let range: CellRange
     private var pagination: PrintPagination?
 
-    init(sheet: Worksheet) {
+    /// A chart or picture, where it sits on the sheet.
+    private struct PrintedObject {
+        enum Content {
+            case chart(TablesEngine.Chart, ResolvedChart)
+            case picture(CGImage)
+        }
+
+        let frame: CGRect
+        let content: Content
+    }
+
+    init(sheet: Worksheet, in workbook: Workbook) {
         self.sheet = sheet
+        self.workbook = workbook
         let metrics = SheetMetrics(sheet: sheet)
         self.metrics = metrics
-        range = PrintPagination.printedRange(of: sheet, objectFrames: [], metrics: metrics)
+        let objects = Self.objects(on: sheet, in: workbook, metrics: metrics)
+        self.objects = objects
+        range = PrintPagination.printedRange(of: sheet, objectFrames: objects.map(\.frame), metrics: metrics)
             ?? CellRange(CellAddress(row: 0, column: 0))
         let frame = metrics.frame(for: range)
         super.init(frame: CGRect(x: 0, y: 0, width: frame.maxX, height: frame.maxY))
@@ -68,6 +86,58 @@ final class SheetPrintView: NSView {
             // Borders on a page's edges stay on that page.
             renderer.shownArea = page
             renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: appearance))
+            for object in objects where object.frame.intersects(dirtyRect) {
+                draw(object, in: context)
+            }
         }
+    }
+
+    /// An object across a page break prints on each page it reaches, cut at
+    /// the page's edge.
+    private func draw(_ object: PrintedObject, in context: CGContext) {
+        let frame = object.frame
+        switch object.content {
+        case .picture(let image):
+            NSImage(cgImage: image, size: frame.size).draw(
+                in: frame, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        case .chart(let chart, let data):
+            let renderer = ImageRenderer(content: ChartView(chart: chart, data: data)
+                .frame(width: frame.width, height: frame.height)
+                .environment(\.colorScheme, .light))
+            renderer.proposedSize = ProposedViewSize(frame.size)
+            renderer.render { _, render in
+                // Drawn the right way up for an unflipped context, as paper is.
+                context.saveGState()
+                context.translateBy(x: frame.minX, y: frame.maxY)
+                context.scaleBy(x: 1, y: -1)
+                render(context)
+                context.restoreGState()
+            }
+        }
+    }
+
+    /// The charts and pictures on the sheet, in the order the grid stacks
+    /// them. Objects Tables keeps but cannot draw print nothing, rather than
+    /// the placeholder the grid shows for them.
+    private static func objects(on sheet: Worksheet, in workbook: Workbook, metrics: SheetMetrics) -> [PrintedObject] {
+        var objects: [PrintedObject] = []
+        if !sheet.isChartSheet {
+            for chart in sheet.charts {
+                let frame = chart.placement.frame(in: metrics)
+                guard frame.width > 0, frame.height > 0 else { continue }
+                objects.append(PrintedObject(frame: frame, content: .chart(chart, chart.resolved(in: workbook))))
+            }
+        }
+        let controlIDs = Set(sheet.formControls.map(\.id))
+        for anchor in sheet.preservedDrawingAnchors {
+            guard let placement = anchor.placement, !(anchor.vmlShapeID.map(controlIDs.contains) ?? false),
+                  let picture = anchor.picture,
+                  let data = workbook.preservedPackage.parts[picture.target],
+                  let image = PictureCache.shared.image(for: picture, data: data) else { continue }
+            let frame = placement.frame(in: metrics)
+            guard frame.width > 0, frame.height > 0 else { continue }
+            objects.append(PrintedObject(frame: frame, content: .picture(image)))
+        }
+        return objects
     }
 }
