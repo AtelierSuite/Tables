@@ -234,6 +234,7 @@ final class WorkbookDocument: NSDocument {
     private func prepareSession() {
         if let id = file.workbook.openingSheetID { state.selectSheet(id, in: file.workbook) }
         state.allowsComments = !file.isPlainText && !file.isNumbers
+        state.allowsDefinedNames = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
         state.allowsLayingOutTables = !file.isPlainText
@@ -245,6 +246,7 @@ final class WorkbookDocument: NSDocument {
     /// Numbers document.
     func refreshCapabilities() {
         state.allowsComments = !file.isPlainText && !file.isNumbers
+        state.allowsDefinedNames = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
         state.allowsLayingOutTables = !file.isPlainText

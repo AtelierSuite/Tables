@@ -57,6 +57,7 @@ struct WorkbookView: View {
             Divider()
             // A chart sheet has no cells to show a formula for.
             if !activeSheet.isChartSheet {
+                FormulaSuggestionsBar(workbook: document.workbook, state: state)
                 FormulaBarView(workbook: workbook, state: state)
                 Divider()
             }
@@ -104,6 +105,7 @@ struct WorkbookView: View {
         }
         .onAppear {
             state.allowsComments = !document.isPlainText && !document.isNumbers
+            state.allowsDefinedNames = !document.isPlainText && !document.isNumbers
             state.allowsFreezingPanes = !document.isPlainText && !document.isNumbers
             state.allowsArrangingCanvases = !document.isPlainText && !document.isNumbers
             state.allowsLayingOutTables = !document.isPlainText
@@ -204,6 +206,7 @@ struct WorkbookView: View {
         case .chart: ChartPanel(workbook: workbook, state: state)
         case .comment: CommentPanel(workbook: workbook, state: state)
         case .find: FindPanel(workbook: workbook, state: state)
+        case .names: NamesPanel(workbook: workbook, state: state)
         }
     }
 
@@ -212,7 +215,7 @@ struct WorkbookView: View {
     private func panelDetents(_ panel: EditorPanel) -> Set<PresentationDetent> {
         switch panel {
         case .format, .numberFormat, .rowsAndColumns: return [.medium]
-        case .functions, .chart, .comment, .find: return [.medium, .large]
+        case .functions, .chart, .comment, .find, .names: return [.medium, .large]
         }
     }
     #endif
@@ -417,6 +420,14 @@ struct WorkbookView: View {
                 Section { clipboardButtons }
                 Section { findButton }
                 Section { shareButton }
+            }
+            if state.allowsDefinedNames {
+                Section {
+                    Button("Toolbar.Names", systemImage: "character.textbox") {
+                        state.presentedPanel = .names
+                    }
+                    .accessibilityIdentifier("names")
+                }
             }
             Section {
                 if !document.unsupportedFeatures.isEmpty {

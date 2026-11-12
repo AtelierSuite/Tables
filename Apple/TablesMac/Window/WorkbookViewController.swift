@@ -34,6 +34,9 @@ final class WorkbookViewController: NSViewController {
     var colorTarget = ColorTarget.fill
     /// The popover the comment on the selected cell is shown in.
     var commentPopover: NSPopover?
+    /// The sheet listing the workbook's names, while it is up.
+    var namesSheet: NSViewController?
+    var namesObserver: NSObjectProtocol?
     /// The workbook's macros window, once opened.
     var macrosWindow: MacrosWindowController?
     /// Whether the user agreed to run this workbook's macros.
