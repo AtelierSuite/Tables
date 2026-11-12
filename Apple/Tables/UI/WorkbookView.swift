@@ -442,6 +442,8 @@ struct WorkbookView: View {
         Menu("Toolbar.View", systemImage: "eye") {
             Toggle("View.GridLines", systemImage: "grid", isOn: viewOption(\.showsGridLines))
             Toggle("View.Headings", systemImage: "textformat.abc", isOn: viewOption(\.showsHeadings))
+            Toggle("View.ShowZeros", systemImage: "0.square", isOn: viewOption(\.showsZeros))
+            Toggle("View.ShowFormulas", systemImage: "function", isOn: viewOption(\.showsFormulas))
         }
         .accessibilityIdentifier("viewOptions")
     }

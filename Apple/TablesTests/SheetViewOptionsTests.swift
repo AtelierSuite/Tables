@@ -206,6 +206,61 @@ struct SheetViewOptionsTests {
         #expect(workbook.differsOnlyInZoom(from: before))
     }
 
+    // MARK: - Zeros and formulas
+
+    @Test("Zeros hidden and formulas shown are read and written back")
+    func readsAndWritesZerosAndFormulas() throws {
+        var workbook = try XLSXReader.workbook(from: try package(sheets: [
+            "<sheetViews><sheetView showZeros=\"0\" workbookViewId=\"0\"/></sheetViews>",
+            "<sheetViews><sheetView showFormulas=\"1\" workbookViewId=\"0\"/></sheetViews>",
+        ]))
+        #expect(!workbook.sheets[0].showsZeros && !workbook.sheets[0].showsFormulas)
+        #expect(workbook.sheets[1].showsZeros && workbook.sheets[1].showsFormulas)
+
+        workbook.sheets[0].showsZeros = true
+        workbook.sheets[0].showsFormulas = true
+        workbook.sheets[1].showsFormulas = false
+        let first = try #require(try savedViews(of: workbook, sheet: 1))
+        #expect(!first.contains("showZeros"))
+        #expect(first.contains("showFormulas=\"1\""))
+        #expect(try savedViews(of: workbook, sheet: 2)?.contains("showFormulas") == false)
+        let reread = try reopened(workbook)
+        #expect(reread.sheets[0].showsZeros && reread.sheets[0].showsFormulas)
+        #expect(!reread.sheets[1].showsFormulas)
+    }
+
+    @Test("A hidden zero is drawn blank, and a shown formula as its text, keeping the cell itself")
+    func displayedCellFollowsOptions() {
+        var sheet = Worksheet(name: "Sheet1")
+        let zero = CellAddress(row: 0, column: 0), sum = CellAddress(row: 0, column: 1)
+        let zeroResult = CellAddress(row: 0, column: 2), text = CellAddress(row: 0, column: 3)
+        var percent = CellStyle.default
+        percent.numberFormat = "0%"
+        sheet[zero] = Cell(value: .number(0))
+        sheet[sum] = Cell(value: .number(2), formula: "1+1", style: percent)
+        sheet[zeroResult] = Cell(value: .number(0), formula: "1-1")
+        sheet[text] = Cell(value: .text("0"))
+        let plain = SheetDrawingKey(sheet)
+
+        sheet.showsZeros = false
+        #expect(sheet.displayedCell(at: zero).value == .empty)
+        #expect(sheet.displayedCell(at: zeroResult).value == .empty)
+        #expect(sheet.displayedCell(at: sum).value == .number(2))
+        #expect(sheet.displayedCell(at: text).value == .text("0"))
+        #expect(sheet[zero].value == .number(0))
+        #expect(SheetDrawingKey(sheet) != plain)
+
+        sheet.showsZeros = true
+        sheet.showsFormulas = true
+        let shown = sheet.displayedCell(at: sum)
+        #expect(shown.value == .text("=1+1"))
+        #expect(CellFormatter.displayText(for: shown) == "=1+1")
+        #expect(sheet.displayedCell(at: zeroResult).value == .text("=1-1"))
+        #expect(sheet.displayedCell(at: zero).value == .number(0))
+        #expect(sheet[sum].value == .number(2))
+        #expect(SheetDrawingKey(sheet) != plain)
+    }
+
     @Test("A change to the zoom alone is no step to undo; any other change is")
     func zoomIsNotAnEdit() {
         let workbook = Workbook(sheets: [Worksheet(name: "One")])

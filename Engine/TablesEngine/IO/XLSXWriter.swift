@@ -739,6 +739,8 @@ public enum XLSXWriter {
             ("showGridLines", sheet.showsGridLines ? nil : "0"),
             ("showRowColHeaders", sheet.showsHeadings ? nil : "0"),
             ("zoomScale", sheet.zoomScale == 100 ? nil : String(sheet.zoomScale)),
+            ("showZeros", sheet.showsZeros ? nil : "0"),
+            ("showFormulas", sheet.showsFormulas ? "1" : nil),
         ]
     }
 

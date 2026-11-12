@@ -434,6 +434,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
 
     @objc func toggleGridLines(_ sender: Any?) { toggleViewOption(\.showsGridLines) }
     @objc func toggleHeadings(_ sender: Any?) { toggleViewOption(\.showsHeadings) }
+    @objc func toggleZeros(_ sender: Any?) { toggleViewOption(\.showsZeros) }
+    @objc func toggleFormulas(_ sender: Any?) { toggleViewOption(\.showsFormulas) }
 
     private func toggleViewOption(_ option: WritableKeyPath<Worksheet, Bool>) {
         guard let document else { return }
@@ -536,6 +538,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             menuItem.state = sheet.frozenRows == 0 && sheet.frozenColumns == 1 ? .on : .off
         case #selector(toggleGridLines(_:)): menuItem.state = sheet.showsGridLines ? .on : .off
         case #selector(toggleHeadings(_:)): menuItem.state = sheet.showsHeadings ? .on : .off
+        case #selector(toggleZeros(_:)): menuItem.state = sheet.showsZeros ? .on : .off
+        case #selector(toggleFormulas(_:)): menuItem.state = sheet.showsFormulas ? .on : .off
         case #selector(toggleBold(_:)): menuItem.state = style.isBold ? .on : .off
         case #selector(toggleItalic(_:)): menuItem.state = style.isItalic ? .on : .off
         case #selector(toggleUnderline(_:)): menuItem.state = style.isUnderlined ? .on : .off
@@ -614,7 +618,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
                 && state.selection.normalized.start != CellAddress(row: 0, column: 0)
         case #selector(unfreezePanes(_:)):
             return isCells && state.allowsFreezingPanes && !onCanvas && (sheet.frozenRows > 0 || sheet.frozenColumns > 0)
-        case #selector(toggleGridLines(_:)), #selector(toggleHeadings(_:)):
+        case #selector(toggleGridLines(_:)), #selector(toggleHeadings(_:)), #selector(toggleZeros(_:)),
+             #selector(toggleFormulas(_:)):
             return isCells && state.allowsFreezingPanes && !onCanvas
         case #selector(newTable(_:)):
             return isCells && state.allowsArrangingCanvases

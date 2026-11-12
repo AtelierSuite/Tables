@@ -210,6 +210,12 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// How far the sheet is zoomed when it opens, in percent — Excel's
     /// `zoomScale`, from 10 to 400.
     public var zoomScale = 100
+    /// Whether a cell whose value is zero shows it, or is left blank —
+    /// Excel's "Show a zero in cells that have zero value".
+    public var showsZeros = true
+    /// Whether cells with a formula show it in place of its result — Excel's
+    /// Show Formulas.
+    public var showsFormulas = false
     /// Rectangular regions drawn, selected and edited as a single cell. They
     /// never overlap, and only the top-left cell of each keeps its content.
     public var mergedRanges: [CellRange] = []
