@@ -709,6 +709,11 @@ public enum XLSXWriter {
            let views = try? XMLLite.parse(Data(elements[index].xml.utf8)),
            let view = views.firstChild(named: "sheetView") {
             for option in options { view.setAttribute(option.name, option.value) }
+            // Excel keeps the normal view's zoom beside the current one, and
+            // reads it once the sheet is shown in that view again.
+            if view.attribute("zoomScaleNormal") != nil, (view.attribute("view") ?? "normal") == "normal" {
+                view.setAttribute("zoomScaleNormal", sheet.zoomScale == 100 ? nil : String(sheet.zoomScale))
+            }
             // The pane leads the view: it comes before any selection in the schema.
             if isFrozen, let paneElement = XMLLite.fragment(pane, namespaces: [:]) {
                 view.insertChild(paneElement, at: 0)
@@ -733,6 +738,7 @@ public enum XLSXWriter {
         [
             ("showGridLines", sheet.showsGridLines ? nil : "0"),
             ("showRowColHeaders", sheet.showsHeadings ? nil : "0"),
+            ("zoomScale", sheet.zoomScale == 100 ? nil : String(sheet.zoomScale)),
         ]
     }
 

@@ -259,7 +259,10 @@ struct SheetGridView: View {
                     y: offset.y - state.scrollInsets.height
                 ))
             }
-            .onEnded { _ in zoomAnchor = nil }
+            .onEnded { _ in
+                zoomAnchor = nil
+                state.keepZoom(in: &workbook)
+            }
     }
 
     // MARK: - Visible window

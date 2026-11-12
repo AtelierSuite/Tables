@@ -145,6 +145,7 @@ final class EditorState {
         selectedChartID = sheet?.isChartSheet == true ? sheet?.charts.first?.id : nil
         selectedDrawingID = nil
         if selectedChartID == nil, presentedPanel == .chart { presentedPanel = nil }
+        adoptSavedZoom(in: workbook)
         refreshMetrics(in: workbook)
     }
 

@@ -473,6 +473,7 @@ final class Bridge {
             "frozenRows": sheet.frozenRows,
             "frozenColumns": sheet.frozenColumns,
             "showsHeadings": sheet.showsHeadings,
+            "zoomScale": sheet.zoomScale,
             "chart": sheet.isChartSheet,
             "merges": sheet.mergedRanges.map(range),
         ]

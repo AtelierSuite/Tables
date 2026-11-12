@@ -341,7 +341,7 @@ final class WorkbookViewController: NSViewController {
 
         state.zoom = clamped
         state.refreshMetrics(in: document.workbook)
-        document.notify()
+        document.edit { state.keepZoom(in: &$0) }
         let new = state.metrics
         let moved = CGPoint(
             x: new.x(ofColumn: column) + columnFraction * new.width(ofColumn: column),

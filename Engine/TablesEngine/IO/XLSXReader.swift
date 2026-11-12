@@ -687,6 +687,10 @@ public enum XLSXReader {
         }
         sheet.showsGridLines = flag("showGridLines", default: true)
         sheet.showsHeadings = flag("showRowColHeaders", default: true)
+        // Zero, which some writers put down, stands for the default.
+        if let scale = view.attribute("zoomScale").flatMap(Double.init), scale >= 1 {
+            sheet.zoomScale = min(max(Int(scale.rounded()), 10), 400)
+        }
     }
 
     /// The `<dxfs>` table, in the order rules index into it.

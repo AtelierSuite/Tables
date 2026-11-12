@@ -162,6 +162,10 @@ export class GridView extends EventTarget {
     // A table on a canvas is shown whole, where it sits: nothing in it scrolls, so nothing freezes.
     const onCanvas = Boolean(this.canvasContaining(layout.sheet));
     this.metrics = new SheetMetrics(onCanvas ? { ...layout, frozenRows: 0, frozenColumns: 0 } : layout);
+    // A sheet of its own opens at the zoom it was saved at.
+    const savedZoom = sheetChanged && !onCanvas && layout.zoomScale
+      ? Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, layout.zoomScale / 100)) : null;
+    if (savedZoom !== null) this.zoom = savedZoom;
     this.refreshCanvas();
     this.tiles.clear();
     this.updateSpacer();
@@ -172,6 +176,7 @@ export class GridView extends EventTarget {
       if (this.onCanvas) this.revealTableHead(!wasOnCanvas);
       else this.scroller.scrollTo(0, 0);
     }
+    if (savedZoom !== null) this.dispatchEvent(new CustomEvent("zoom", { detail: savedZoom }));
     this.requestDraw();
   }
 

@@ -207,6 +207,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// Whether the column letters and row numbers round the grid are shown —
     /// Excel's Headings view option.
     public var showsHeadings = true
+    /// How far the sheet is zoomed when it opens, in percent — Excel's
+    /// `zoomScale`, from 10 to 400.
+    public var zoomScale = 100
     /// Rectangular regions drawn, selected and edited as a single cell. They
     /// never overlap, and only the top-left cell of each keeps its content.
     public var mergedRanges: [CellRange] = []

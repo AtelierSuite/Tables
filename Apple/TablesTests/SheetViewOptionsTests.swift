@@ -153,4 +153,69 @@ struct SheetViewOptionsTests {
         state.setViewOption(\.showsGridLines, to: true, in: &workbook)
         #expect(!workbook.sheets[1].showsGridLines)
     }
+
+    // MARK: - Zoom
+
+    @Test("A sheet's saved zoom is read, kept in Excel's range, and written back with its normal view's")
+    func readsAndWritesZoom() throws {
+        var workbook = try XLSXReader.workbook(from: try package(sheets: [
+            "<sheetViews><sheetView zoomScale=\"150\" zoomScaleNormal=\"150\" workbookViewId=\"0\"/></sheetViews>",
+            "<sheetViews><sheetView zoomScale=\"900\" workbookViewId=\"0\"/></sheetViews>",
+            "<sheetViews><sheetView zoomScale=\"0\" workbookViewId=\"0\"/></sheetViews>",
+        ]))
+        #expect(workbook.sheets.map(\.zoomScale) == [150, 400, 100])
+        #expect(try savedViews(of: workbook)?.contains("zoomScale=\"150\"") == true)
+
+        workbook.sheets[0].zoomScale = 85
+        let saved = try #require(try savedViews(of: workbook))
+        #expect(saved.contains("zoomScale=\"85\""))
+        #expect(saved.contains("zoomScaleNormal=\"85\""))
+        workbook.sheets[0].zoomScale = 100
+        let reset = try #require(try savedViews(of: workbook))
+        #expect(!reset.contains("zoomScale"))
+        #expect(try reopened(workbook).sheets[0].zoomScale == 100)
+
+        var fresh = Worksheet(name: "Sheet1")
+        fresh.zoomScale = 175
+        #expect(try reopened(Workbook(sheets: [fresh])).sheets[0].zoomScale == 175)
+    }
+
+    @Test("A sheet opens at its saved zoom, and a zoom made on it is kept with it")
+    @MainActor
+    func adoptsAndKeepsZoom() {
+        var first = Worksheet(name: "One")
+        first.zoomScale = 150
+        var second = Worksheet(name: "Two")
+        second.zoomScale = 400
+        var workbook = Workbook(sheets: [first, second])
+        let state = EditorState()
+        state.selectSheet(workbook.sheets[0].id, in: workbook)
+        #expect(state.zoom == 1.5)
+        #expect(state.metrics.zoom == 1.5)
+        // Further in than the app goes: shown as near as it can, and kept as
+        // the file had it until the zoom is changed here.
+        state.selectSheet(workbook.sheets[1].id, in: workbook)
+        #expect(state.zoom == EditorState.zoomRange.upperBound)
+        let before = workbook
+        state.keepZoom(in: &workbook)
+        #expect(workbook.sheets[1].zoomScale == 300)
+        state.zoom = 0.75
+        state.keepZoom(in: &workbook)
+        #expect(workbook.sheets[1].zoomScale == 75)
+        #expect(workbook.sheets[0].zoomScale == 150)
+        #expect(workbook.differsOnlyInZoom(from: before))
+    }
+
+    @Test("A change to the zoom alone is no step to undo; any other change is")
+    func zoomIsNotAnEdit() {
+        let workbook = Workbook(sheets: [Worksheet(name: "One")])
+        var zoomed = workbook
+        zoomed.sheets[0].zoomScale = 120
+        #expect(zoomed.differsOnlyInZoom(from: workbook))
+        #expect(!workbook.differsOnlyInZoom(from: workbook))
+        var edited = zoomed
+        edited.sheets[0][CellAddress(row: 0, column: 0)] = Cell(value: .number(1))
+        #expect(!edited.differsOnlyInZoom(from: workbook))
+        #expect(!edited.differsOnlyInZoom(from: zoomed))
+    }
 }

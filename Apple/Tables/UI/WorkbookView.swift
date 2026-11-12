@@ -110,6 +110,7 @@ struct WorkbookView: View {
             state.isNumbersDocument = document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.openingSheetID
+                state.adoptSavedZoom(in: document.workbook)
                 state.refreshMetrics(in: document.workbook)
             }
             state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)
