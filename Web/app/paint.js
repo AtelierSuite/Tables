@@ -75,6 +75,16 @@ export function paint(ctx, list, palette) {
         ctx.fillStyle = cssColor(op.c);
         ctx.fillRect(op.r[0], op.r[1], op.r[2], op.r[3]);
         break;
+      case "pattern":
+        drawPattern(ctx, op);
+        break;
+      case "lgrad": {
+        const gradient = ctx.createLinearGradient(op.p[0], op.p[1], op.p[2], op.p[3]);
+        for (const [position, color] of op.s) gradient.addColorStop(Math.min(Math.max(position, 0), 1), cssColor(color));
+        ctx.fillStyle = gradient;
+        ctx.fillRect(op.r[0], op.r[1], op.r[2], op.r[3]);
+        break;
+      }
       case "paper":
         ctx.fillStyle = paper;
         ctx.fillRect(op.r[0], op.r[1], op.r[2], op.r[3]);
@@ -113,6 +123,45 @@ export function paint(ctx, list, palette) {
     }
   }
   if (clipped) ctx.restore();
+}
+
+// Pattern tiles, by bits, colour and device pixels to a bit.
+const patternTiles = new Map();
+
+/**
+ * A fill pattern: eight rows of eight bits, the leftmost the high bit, set bits
+ * in the pattern colour. Tiled from the sheet's origin so a patterned range
+ * joins up, and a bit is a CSS pixel on screen at every zoom, as in Excel.
+ */
+function drawPattern(ctx, op) {
+  const transform = ctx.getTransform();
+  const scale = Math.hypot(transform.a, transform.b) || 1; // device pixels per sheet point
+  const ratio = globalThis.devicePixelRatio || 1;
+  const pixels = Math.max(1, Math.round(ratio)); // device pixels to a bit
+  const key = `${op.b.join(",")}|${op.c}|${pixels}`;
+  let tile = patternTiles.get(key);
+  if (!tile) {
+    tile = document.createElement("canvas");
+    tile.width = tile.height = 8 * pixels;
+    const tileContext = tile.getContext("2d");
+    tileContext.fillStyle = cssColor(op.c);
+    for (let row = 0; row < 8; row++) {
+      for (let column = 0; column < 8; column++) {
+        if (op.b[row] & (0x80 >> column)) tileContext.fillRect(column * pixels, row * pixels, pixels, pixels);
+      }
+    }
+    if (patternTiles.size > 256) patternTiles.clear();
+    patternTiles.set(key, tile);
+  }
+  const pattern = ctx.createPattern(tile, "repeat");
+  // One tile pixel to 1/pixels of a CSS pixel: sheet points are scale / ratio CSS pixels.
+  const unit = ratio / (pixels * scale);
+  pattern.setTransform(new DOMMatrix([unit, 0, 0, unit, 0, 0]));
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = pattern;
+  ctx.fillRect(op.r[0], op.r[1], op.r[2], op.r[3]);
+  ctx.restore();
 }
 
 function strokeSegments(ctx, points, color, width) {

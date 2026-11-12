@@ -91,14 +91,14 @@ struct FormatPanel: View {
                     customColor: Binding(
                         get: { style.fillColor ?? .clear },
                         set: { newValue in
-                            state.applyStyle(in: &workbook) { $0.fillColorHex = newValue.argbHex }
+                            state.applyStyle(in: &workbook) { $0.setSolidFill(newValue.argbHex) }
                         }
                     ),
                     onSelect: { swatch in
-                        state.applyStyle(in: &workbook) { $0.fillColorHex = swatch.argbHex }
+                        state.applyStyle(in: &workbook) { $0.setSolidFill(swatch.argbHex) }
                     },
                     onClear: {
-                        state.applyStyle(in: &workbook) { $0.fillColorHex = nil }
+                        state.applyStyle(in: &workbook) { $0.setSolidFill(nil) }
                     }
                 )
             }

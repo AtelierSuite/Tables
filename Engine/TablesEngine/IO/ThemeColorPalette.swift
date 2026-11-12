@@ -126,8 +126,10 @@ public enum ThemeColorPalette {
         guard let element else { return nil }
         if element.attribute("auto") == "1" { return nil }
 
+        // Excel ignores the alpha byte of a literal colour, and openpyxl writes
+        // its colours with a zero one: "00FF0000" is opaque red, not nothing.
         if let direct = element.attribute("rgb") {
-            return normalizedARGB(direct)
+            return normalizedRGB(direct).map { "FF" + $0 }
         }
         if let index = element.attribute("indexed").flatMap(Int.init) {
             guard palette.indices.contains(index) else { return nil }
@@ -179,14 +181,6 @@ public enum ThemeColorPalette {
         if text.count == 8 { text.removeFirst(2) }
         guard text.count == 6, text.allSatisfy(\.isHexDigit) else { return nil }
         return text
-    }
-
-    /// Widens a six-digit colour to eight digits; leaves valid ARGB untouched.
-    private static func normalizedARGB(_ value: String) -> String? {
-        var text = value.trimmed.uppercased()
-        if text.hasPrefix("#") { text.removeFirst() }
-        guard text.count == 6 || text.count == 8, text.allSatisfy(\.isHexDigit) else { return nil }
-        return text.count == 6 ? "FF" + text : text
     }
 }
 

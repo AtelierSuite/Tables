@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 import TablesEngine
 
@@ -311,12 +312,68 @@ enum CellPainter {
         into context: inout GraphicsContext, scheme: ColorScheme
     ) {
         guard frame.width > 0, frame.height > 0 else { return }
-        if let fill = cell.style.fillColor(for: scheme) {
-            context.fill(Path(frame), with: .color(fill))
-        }
+        paintFill(of: cell.style, in: frame, scheme: scheme, into: &context)
         var hairlines = Path()
         addHairlines(of: frame, openEdge: openEdge, metrics: metrics, to: &hairlines)
         context.stroke(hairlines, with: .color(.gridLine), lineWidth: metrics.gridLineWidth)
+    }
+
+    /// A cell's fill: its colour, then any pattern over it, or its gradient.
+    private static func paintFill(
+        of style: CellStyle, in frame: CGRect, scheme: ColorScheme, into context: inout GraphicsContext
+    ) {
+        if let gradient = style.fillGradient(for: scheme) {
+            paintGradient(gradient, in: frame, into: &context)
+            return
+        }
+        if let fill = style.fillColor(for: scheme) {
+            context.fill(Path(frame), with: .color(fill))
+        }
+        if let pattern = style.fillPattern, let ink = style.fillPatternColor(for: scheme),
+           let tile = patternTile(pattern.type, ink: ink, scale: context.environment.displayScale) {
+            // Tiled from the content origin, which is the sheet's, so the
+            // cells of a patterned range join up. Content coordinates are
+            // points on screen at any zoom, so a bit stays a point.
+            context.fill(Path(frame), with: .tiledImage(tile, origin: .zero, scale: FillPattern.bitSize))
+        }
+    }
+
+    private static func paintGradient(_ gradient: FillGradient, in frame: CGRect, into context: inout GraphicsContext) {
+        if case .path = gradient.kind {
+            // A ring a point apart on screen is too close to see a step in.
+            for band in gradient.pathBands(in: frame, step: 1) {
+                context.fill(Path(band.rect), with: .color(Color(argbHex: band.colorHex) ?? .white))
+            }
+            return
+        }
+        let stops = gradient.stops.map {
+            Gradient.Stop(color: Color(argbHex: $0.colorHex) ?? .white, location: $0.position)
+        }
+        let ends = gradient.linearEndpoints(in: frame)
+        context.fill(Path(frame), with: .linearGradient(Gradient(stops: stops), startPoint: ends.start, endPoint: ends.end))
+    }
+
+    private struct PatternTileKey: Hashable {
+        var type: FillPatternType
+        var ink: String
+        var scale: Int
+    }
+
+    /// Tiles drawn so far, by pattern, colour and screen scale. Painting runs
+    /// off the main actor, hence the lock.
+    private static let patternTiles = OSAllocatedUnfairLock<[PatternTileKey: Image]>(initialState: [:])
+
+    private static func patternTile(_ type: FillPatternType, ink: Color, scale: CGFloat) -> Image? {
+        let pixels = max(1, Int(scale.rounded()))
+        let key = PatternTileKey(type: type, ink: ink.argbHex ?? "", scale: pixels)
+        if let cached = patternTiles.withLock({ $0[key] }) { return cached }
+        guard let image = type.tileImage(ink: UIColor(ink).cgColor, scale: pixels) else { return nil }
+        let tile = Image(decorative: image, scale: CGFloat(pixels)).interpolation(.none)
+        patternTiles.withLock { tiles in
+            if tiles.count > 256 { tiles.removeAll() }
+            tiles[key] = tile
+        }
+        return tile
     }
 
     /// Cells whose trailing edge spilled text runs across, which draw no

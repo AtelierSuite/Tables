@@ -229,3 +229,21 @@ extension CellStyle {
         AdaptiveColor.resolve(hex: borderColorHex, for: scheme, isText: true) ?? .secondary
     }
 }
+
+extension CellStyle {
+    /// The colour of the fill's pattern, adapted like the fill under it.
+    /// Automatic ink is black, so in dark mode it turns light with the paper.
+    public func fillPatternColor(for scheme: ColorScheme) -> Color? {
+        guard let pattern = fillPattern else { return nil }
+        return AdaptiveColor.resolve(
+            hex: pattern.colorHex ?? FillPattern.automaticColorHex, for: scheme, isText: false
+        )
+    }
+
+    /// The fill's gradient with each colour adapted like a fill colour.
+    public func fillGradient(for scheme: ColorScheme) -> FillGradient? {
+        fillGradient?.mapColors {
+            AdaptiveColor.resolve(hex: $0 ?? FillGradient.automaticColorHex, for: scheme, isText: false)?.argbHex
+        }
+    }
+}
