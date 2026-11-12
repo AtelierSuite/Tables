@@ -291,6 +291,9 @@ final class WorkbookViewController: NSViewController {
         let sheet = document.activeSheet
         let address = state.selectedAddress
         let rect = state.metrics.frame(for: sheet.mergedRange(containing: address) ?? CellRange(address))
+        // A frozen cell is shown by its pane, which shares the sheet's
+        // coordinates; the grid beneath it is covered there.
+        let host = grid.host(for: address)
         if let popover = commentPopover, popover.isShown {
             (popover.contentViewController as? CommentViewController)?.refresh()
             popover.positioningRect = rect
@@ -304,8 +307,8 @@ final class WorkbookViewController: NSViewController {
         popover.contentViewController = controller
         popover.behavior = .transient
         popover.delegate = self
-        grid.scrollToVisible(rect)
-        popover.show(relativeTo: rect, of: grid, preferredEdge: .maxX)
+        grid.reveal(address)
+        popover.show(relativeTo: rect, of: host, preferredEdge: .maxX)
         commentPopover = popover
     }
 

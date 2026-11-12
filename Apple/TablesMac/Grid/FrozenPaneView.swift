@@ -21,6 +21,9 @@ final class FrozenPaneView: NSView {
 
     let part: Part
     weak var grid: GridView?
+    /// The charts and pictures reaching into the pane's part of the sheet,
+    /// which it shows over its cells and cuts at its edge.
+    var objectViews: [AnyHashable: FloatingObjectView] = [:]
     private var pointerArea: NSTrackingArea?
 
     init(part: Part) {
@@ -113,6 +116,17 @@ final class FrozenPaneView: NSView {
 
     override func cursorUpdate(with event: NSEvent) { grid?.cursorUpdate(with: event) }
     override func mouseMoved(with event: NSEvent) { grid?.mouseMoved(with: event) }
+}
+
+extension FrozenPaneView.Part {
+    /// The part of the sheet the pane shows.
+    var pane: FrozenPanes.Pane {
+        switch self {
+        case .rows: .rows
+        case .columns: .columns
+        case .corner: .corner
+        }
+    }
 }
 
 /// Holds the frozen panes over the scroll view's clip view, taking only the

@@ -13,6 +13,9 @@ final class FloatingObjectView: NSView {
     var onSelect: () -> Void = {}
     var onCommit: (CGRect) -> Void = { _ in }
     var onDoubleClick: () -> Void = {}
+    /// The frame mid-move or mid-resize, for the other panes showing the
+    /// object to follow it.
+    var onDrag: (CGRect) -> Void = { _ in }
 
     private var isSelected = false
     private var isMovable = true
@@ -57,6 +60,11 @@ final class FloatingObjectView: NSView {
         chrome.isResizable = isResizable
         content.frame = bounds
         chrome.frame = bounds
+    }
+
+    /// Moves with a copy of the object being dragged in another pane.
+    func follow(_ frame: CGRect) {
+        if gesture == nil, self.frame != frame { self.frame = frame }
     }
 
     override func resizeSubviews(withOldSize oldSize: NSSize) {
@@ -118,6 +126,7 @@ final class FloatingObjectView: NSView {
             }
             frame.size = CGSize(width: width, height: height)
         }
+        onDrag(frame)
         superview.autoscroll(with: event)
     }
 

@@ -69,6 +69,23 @@ final class GridView: NSView, NSTextFieldDelegate {
         panes.contains { !$0.isHidden && $0.bounds.contains($0.convert(event.locationInWindow, from: nil)) }
     }
 
+    /// The chart or picture under the pointer in the frozen pane it is
+    /// over, if any.
+    private func paneObject(at event: NSEvent) -> FloatingObjectView? {
+        for pane in panes where !pane.isHidden {
+            guard let container = pane.superview else { continue }
+            let point = container.convert(event.locationInWindow, from: nil)
+            guard pane.frame.contains(point) else { continue }
+            return pane.hitTest(point) as? FloatingObjectView
+        }
+        return nil
+    }
+
+    /// How the frozen rows and columns split the sheet into panes.
+    var frozenPanes: FrozenPanes {
+        FrozenPanes(width: frozenExtent.width, height: frozenExtent.height)
+    }
+
     /// Whether the grid is a table on a canvas rather than the whole sheet,
     /// where nothing is frozen in place.
     var isOnCanvas = false
@@ -97,14 +114,15 @@ final class GridView: NSView, NSTextFieldDelegate {
         for pane in panes { pane.needsDisplay = true }
         if let target = document.state.scrollTarget {
             document.state.scrollTarget = nil
-            reveal(target, in: document)
+            reveal(target)
         }
     }
 
     /// Scrolls a cell into view, clear of the frozen panes: a frozen cell is
     /// always in view along the frozen axis, and any other has to land
     /// below and beside them rather than underneath.
-    private func reveal(_ address: CellAddress, in document: WorkbookDocument) {
+    func reveal(_ address: CellAddress) {
+        guard let document else { return }
         let sheet = document.activeSheet
         var frame = document.state.metrics.frame(for: address).insetBy(dx: -4, dy: -4)
         let frozen = frozenExtent
@@ -464,7 +482,12 @@ final class GridView: NSView, NSTextFieldDelegate {
     private func updatePointer(for event: NSEvent) {
         guard drag == nil, let document else { return }
         let point = sheetPoint(for: event)
-        if !isOverPane(event), let hit = superview.flatMap({ hitTest($0.convert(event.locationInWindow, from: nil)) }),
+        if isOverPane(event) {
+            if let object = paneObject(at: event) {
+                object.cursor(atWindowPoint: event.locationInWindow).set()
+                return
+            }
+        } else if let hit = superview.flatMap({ hitTest($0.convert(event.locationInWindow, from: nil)) }),
            hit !== self {
             if let object = hit as? FloatingObjectView {
                 object.cursor(atWindowPoint: event.locationInWindow).set()
@@ -724,7 +747,7 @@ final class GridView: NSView, NSTextFieldDelegate {
         let sheet = document.activeSheet
         let metrics = state.metrics
         let frame = metrics.frame(for: sheet.mergedRange(containing: address) ?? CellRange(address))
-        let host = editorHost(for: address, in: sheet)
+        let host = host(for: address)
         let field = editor ?? makeEditor(in: host)
         let isFormula = state.editingText.hasPrefix("=")
         let style = sheet[address].style
@@ -750,7 +773,9 @@ final class GridView: NSView, NSTextFieldDelegate {
         }
     }
 
-    private func editorHost(for address: CellAddress, in sheet: Worksheet) -> NSView {
+    /// The view showing a cell: the frozen pane it is in, or the grid.
+    func host(for address: CellAddress) -> NSView {
+        guard let sheet = document?.activeSheet else { return self }
         let inRows = address.row < sheet.frozenRows, inColumns = address.column < sheet.frozenColumns
         let part: FrozenPaneView.Part? = inRows && inColumns ? .corner : (inRows ? .rows : (inColumns ? .columns : nil))
         return panes.first { $0.part == part && !$0.isHidden } ?? self
@@ -819,64 +844,121 @@ final class GridView: NSView, NSTextFieldDelegate {
 
     // MARK: - Charts and pictures
 
-    /// Keeps a view for each chart and picture near the window.
+    /// A chart or picture to show: where it is, what it shows, and how it
+    /// is set up, for the grid and each frozen pane it reaches into.
+    private struct FloatingObject {
+        let key: AnyHashable
+        let frame: CGRect
+        let makeContent: () -> NSView
+        let configure: (FloatingObjectView) -> Void
+    }
+
+    /// Keeps a view for each chart and picture on the grid, and one in each
+    /// frozen pane for those reaching into its part of the sheet. The pane
+    /// cuts its copy at the freeze line, so a chart across it shows its
+    /// frozen part fixed in the pane and the rest scrolling with the sheet,
+    /// and the grid's copy, under the pane, shows the rest. Each copy is
+    /// picked out, moved and resized as the object, and a drag of one moves
+    /// the others with it.
     private func syncObjects(in document: WorkbookDocument) {
+        let objects = floatingObjects(in: document)
+        sync(objects, in: self, views: &objectViews, atBack: false)
+        let layout = frozenPanes
+        for pane in panes {
+            let shown = layout.panes.contains(pane.part.pane)
+                ? objects.filter { layout.shows($0.frame, in: pane.part.pane) } : []
+            sync(shown, in: pane, views: &pane.objectViews, atBack: true)
+        }
+    }
+
+    /// Brings one view's copies up to date: one per object, made where
+    /// missing and taken away where no longer wanted. In a pane they go
+    /// under the cell editor, which must never be covered.
+    private func sync(
+        _ objects: [FloatingObject], in host: NSView, views: inout [AnyHashable: FloatingObjectView], atBack: Bool
+    ) {
+        var wanted: Set<AnyHashable> = []
+        for object in objects {
+            wanted.insert(object.key)
+            let view: FloatingObjectView
+            if let existing = views[object.key] {
+                view = existing
+            } else {
+                view = FloatingObjectView(content: object.makeContent())
+                if atBack {
+                    host.addSubview(view, positioned: .below, relativeTo: nil)
+                } else {
+                    host.addSubview(view)
+                }
+                views[object.key] = view
+            }
+            object.configure(view)
+            let key = object.key
+            view.onDrag = { [weak self, weak view] frame in
+                guard let self, let view else { return }
+                for copy in self.copies(of: key) where copy !== view { copy.follow(frame) }
+            }
+        }
+        for (key, view) in views where !wanted.contains(key) {
+            view.removeFromSuperview()
+            views[key] = nil
+        }
+    }
+
+    /// Every view showing an object: the grid's and the frozen panes'.
+    private func copies(of key: AnyHashable) -> [FloatingObjectView] {
+        ([objectViews[key]] + panes.map { $0.objectViews[key] }).compactMap { $0 }
+    }
+
+    /// The charts and pictures on the sheet, each with its frame.
+    private func floatingObjects(in document: WorkbookDocument) -> [FloatingObject] {
         let state = document.state
         let sheet = document.activeSheet
         let metrics = state.metrics
-        var wanted: Set<AnyHashable> = []
+        var objects: [FloatingObject] = []
         let controlIDs = Set(sheet.formControls.map(\.id))
 
         if !sheet.isChartSheet {
             for chart in sheet.charts {
                 let frame = chart.placement.frame(in: metrics)
                 guard frame.width > 0, frame.height > 0 else { continue }
-                let key = AnyHashable(chart.id)
-                wanted.insert(key)
-                let view = objectViews[key] ?? addObject(key, content: ChartContentView())
-                (view.content as? ChartContentView)?.show(chart, data: chart.resolved(in: document.workbook), zoom: metrics.zoom)
-                view.configure(frame: frame, isSelected: state.selectedChartID == chart.id, isMovable: true,
-                               isResizable: true, keepsAspectRatio: false)
-                view.onSelect = { [weak self] in self?.selectObject(chart: chart.id) }
-                view.onCommit = { [weak self] frame in self?.moveObject(chart: chart.id, to: frame) }
-                view.onDoubleClick = { [weak self] in
-                    NSApp.sendAction(#selector(WorkbookViewController.editChart(_:)), to: nil, from: self)
-                }
-                view.menu = chartMenu()
+                let data = chart.resolved(in: document.workbook)
+                objects.append(FloatingObject(key: AnyHashable(chart.id), frame: frame, makeContent: { ChartContentView() }) {
+                    [weak self] view in
+                    (view.content as? ChartContentView)?.show(chart, data: data, zoom: metrics.zoom)
+                    view.configure(frame: frame, isSelected: state.selectedChartID == chart.id, isMovable: true,
+                                   isResizable: true, keepsAspectRatio: false)
+                    view.onSelect = { [weak self] in self?.selectObject(chart: chart.id) }
+                    view.onCommit = { [weak self] frame in self?.moveObject(chart: chart.id, to: frame) }
+                    view.onDoubleClick = { [weak self] in
+                        NSApp.sendAction(#selector(WorkbookViewController.editChart(_:)), to: nil, from: self)
+                    }
+                    view.menu = self?.chartMenu()
+                })
             }
         }
         for anchor in sheet.preservedDrawingAnchors {
             guard let placement = anchor.placement, !(anchor.vmlShapeID.map(controlIDs.contains) ?? false) else { continue }
             let frame = placement.frame(in: metrics)
             guard frame.width > 0, frame.height > 0 else { continue }
-            let key = AnyHashable(anchor.id)
-            wanted.insert(key)
             let image = anchor.picture.flatMap { picture in
                 document.workbook.preservedPackage.parts[picture.target].flatMap {
                     PictureCache.shared.image(for: picture, data: $0)
                 }
             }
-            let view = objectViews[key] ?? addObject(key, content: PictureContentView())
-            (view.content as? PictureContentView)?.show(image, isChart: anchor.isChart)
-            view.configure(frame: frame, isSelected: state.selectedDrawingID == anchor.id,
-                           isMovable: !anchor.locks.noMove, isResizable: !anchor.locks.noResize,
-                           keepsAspectRatio: anchor.locks.noChangeAspect)
-            view.onSelect = { [weak self] in self?.selectObject(drawing: anchor.id) }
-            view.onCommit = { [weak self] frame in self?.moveObject(drawing: anchor.id, to: frame) }
-            view.onDoubleClick = {}
-            view.menu = nil
+            objects.append(FloatingObject(key: AnyHashable(anchor.id), frame: frame, makeContent: { PictureContentView() }) {
+                view in
+                (view.content as? PictureContentView)?.show(image, isChart: anchor.isChart)
+                view.configure(frame: frame, isSelected: state.selectedDrawingID == anchor.id,
+                               isMovable: !anchor.locks.noMove, isResizable: !anchor.locks.noResize,
+                               keepsAspectRatio: anchor.locks.noChangeAspect)
+                view.onSelect = { [weak self] in self?.selectObject(drawing: anchor.id) }
+                view.onCommit = { [weak self] frame in self?.moveObject(drawing: anchor.id, to: frame) }
+                view.onDoubleClick = {}
+                view.menu = nil
+            })
         }
-        for (key, view) in objectViews where !wanted.contains(key) {
-            view.removeFromSuperview()
-            objectViews[key] = nil
-        }
-    }
-
-    private func addObject(_ key: AnyHashable, content: NSView) -> FloatingObjectView {
-        let view = FloatingObjectView(content: content)
-        addSubview(view)
-        objectViews[key] = view
-        return view
+        return objects
     }
 
     private func selectObject(chart: Chart.ID? = nil, drawing: PreservedDrawingAnchor.ID? = nil) {
