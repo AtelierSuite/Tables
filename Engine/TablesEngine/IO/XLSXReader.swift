@@ -244,6 +244,8 @@ public enum XLSXReader {
             case "printOptions", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "legacyDrawingHF":
                 feature = .printSetup
             case "protectedRanges": feature = .sheetProtection
+            case "customSheetViews": feature = .customViews
+            case "oleObjects": feature = .embeddedObjects
             case "sheetViews":
                 // Without a pane split this is only where the cursor was left,
                 // which nobody would call a feature.
