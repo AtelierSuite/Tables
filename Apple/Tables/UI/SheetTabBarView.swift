@@ -26,6 +26,32 @@ struct SheetTabBarView: View {
     private let tabSpacing: Double = 6
 
     var body: some View {
+        ScrollView(.horizontal) {
+            // A container of its own so the tabs never melt together:
+            // the buttons' spacing is wider than the gap between tabs,
+            // which bridged neighbours into one blob of glass.
+            GlassEffectContainer(spacing: 0) {
+                HStack(spacing: tabSpacing) {
+                    ForEach(tabSheets) { sheet in
+                        tab(for: sheet)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .animation(.snappy(duration: 0.22), value: tabSheets.map(\.id))
+        }
+        .scrollIndicators(.hidden)
+        // A tab being carried has to ride over its neighbours, and a
+        // scroll view clips to its bounds by default.
+        .scrollClipDisabled(draggingSheetID != nil)
+        // The tabs pass beneath the buttons and soften into them rather than
+        // being cut off at a hard edge beside them.
+        .safeAreaBar(edge: .leading, spacing: 0) { leadingControls }
+        .scrollEdgeEffectStyle(.soft, for: .leading)
+    }
+
+    private var leadingControls: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
                 Button {
@@ -45,30 +71,9 @@ struct SheetTabBarView: View {
                 // Beside the add button rather than after the tabs: at the
                 // trailing end, a long tab name ran on underneath it.
                 if !hiddenSheets.isEmpty { hiddenSheetsMenu }
-
-                ScrollView(.horizontal) {
-                    // A container of its own so the tabs never melt together:
-                    // the outer one's spacing is wider than the gap between
-                    // tabs, which bridged neighbours into one blob of glass.
-                    GlassEffectContainer(spacing: 0) {
-                        HStack(spacing: tabSpacing) {
-                            ForEach(tabSheets) { sheet in
-                                tab(for: sheet)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 2)
-                    .animation(.snappy(duration: 0.22), value: tabSheets.map(\.id))
-                }
-                .scrollIndicators(.hidden)
-                // A tab being carried has to ride over its neighbours, and a
-                // scroll view clips to its bounds by default.
-                .scrollClipDisabled(draggingSheetID != nil)
-
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.leading, 12)
     }
 
     private var hiddenSheets: [Worksheet] { workbook.sheets.filter(\.isHidden) }
