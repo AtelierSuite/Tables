@@ -280,11 +280,18 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public func commentMarks(
         rows: Range<Int>, columns: Range<Int>
     ) -> [(address: CellAddress, comment: CellComment, range: CellRange)] {
+        commentMarks(
+            at: comments.keys.filter { rows.contains($0.row) }, columns: columns, merges: mergedRange(containing:))
+    }
+
+    /// The marks of the comments at `addresses`, finding merges with `merges`.
+    func commentMarks(
+        at addresses: [CellAddress], columns: Range<Int>, merges: (CellAddress) -> CellRange?
+    ) -> [(address: CellAddress, comment: CellComment, range: CellRange)] {
         var marks: [(address: CellAddress, comment: CellComment, range: CellRange)] = []
-        for (address, comment) in comments
-        where rows.contains(address.row) && !hiddenRows.contains(address.row)
-            && !hiddenColumns.contains(address.column) {
-            guard let merge = mergedRange(containing: address)?.normalized else {
+        for address in addresses where !hiddenRows.contains(address.row) && !hiddenColumns.contains(address.column) {
+            guard let comment = comments[address] else { continue }
+            guard let merge = merges(address)?.normalized else {
                 if columns.contains(address.column) {
                     marks.append((address, comment, CellRange(start: address, end: address)))
                 }

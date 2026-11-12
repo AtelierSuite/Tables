@@ -16,6 +16,18 @@ extension Worksheet {
     /// walk across thousands of columns; past a screen's width there is
     /// nothing left to show anyway.
     public func overflowSpan(of address: CellAddress, reach: Int = 24) -> ClosedRange<Int>? {
+        overflowSpan(of: address, reach: reach, isMerged: isMerged)
+    }
+
+    /// `overflowSpan(of:reach:)`, finding merges through a lookup built from
+    /// this version of the sheet rather than walking them at every step.
+    public func overflowSpan(of address: CellAddress, reach: Int = 24, lookup: SheetLookup) -> ClosedRange<Int>? {
+        overflowSpan(of: address, reach: reach, isMerged: lookup.merges.contains)
+    }
+
+    private func overflowSpan(
+        of address: CellAddress, reach: Int, isMerged: (CellAddress) -> Bool
+    ) -> ClosedRange<Int>? {
         guard let cell = cells[address], case .text(let text) = cell.value, !text.isEmpty else { return nil }
         let style = cell.style
         guard !style.wrapsText, !style.isTextStacked, style.rotationDegrees == 0,
