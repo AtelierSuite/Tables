@@ -319,7 +319,7 @@ private struct PreviewCanvas {
         context.saveGState()
         context.clip(to: frame)
         string.draw(with: CGRect(x: box.minX, y: top, width: box.width, height: height),
-                    options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
+                    options: [.usesLineFragmentOrigin], context: nil)
         context.restoreGState()
     }
 
