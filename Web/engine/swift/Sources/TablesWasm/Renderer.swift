@@ -197,9 +197,7 @@ struct Renderer {
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
         if style.isTextStacked { string = TextFitting.stacked(string) }
 
-        let horizontal = style.horizontalAlignment == .automatic
-            ? CellFormatter.naturalAlignment(for: cell.value)
-            : style.horizontalAlignment
+        let horizontal = CellFormatter.alignment(for: cell)
         let isNumber: Bool
         if case .number = cell.value { isNumber = true } else { isNumber = false }
 
@@ -217,6 +215,9 @@ struct Renderer {
         if isNumber { operation["num"] = true }
         if (style.wrapsText && !isNumber) || style.isTextStacked { operation["wrap"] = true }
         if style.isTextStacked { operation["stk"] = true }
+        // Read right to left, so the canvas sets it that way and its
+        // ellipsis lands on the left.
+        if TextFitting.baseDirection(of: string) == .rightToLeft { operation["rtl"] = true }
         if style.rotationDegrees != 0 { operation["rot"] = style.rotationDegrees }
         if style.indentPoints > 0 { operation["ind"] = style.indentPoints }
         if let overflow { operation["ov"] = frameArray(overflow) }
