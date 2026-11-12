@@ -369,19 +369,15 @@ extension EditorState {
     }
 
     /// Merges the selection into one cell. As in Excel, the top-left cell's
-    /// content survives and everything else in the region is discarded.
+    /// content survives and everything else in the region is discarded, and
+    /// its borders become the merge's.
     func mergeSelection(in workbook: inout Workbook) {
         let index = activeIndex(in: workbook)
         let box = workbook.sheets[index].expandedToMerges(selection)
         guard !box.isSingleCell else { return }
-        guard workbook.sheets[index].merge(box) else {
+        guard workbook.sheets[index].mergeKeepingFirstCell(box) else {
             errorMessage = String(localized: "Error.Merge.CrossesExistingMerge")
             return
-        }
-        // Only stored cells have anything to discard, and a merge can cover
-        // rather more of the sheet than the sheet actually holds.
-        for address in workbook.sheets[index].storedAddresses(in: box) where address != box.start {
-            workbook.sheets[index][address] = Cell()
         }
         // Formulas elsewhere may have pointed at what was just discarded.
         workbook.recalculate()

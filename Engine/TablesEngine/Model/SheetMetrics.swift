@@ -9,6 +9,11 @@ import Foundation
 /// Arithmetic answers the same questions there, and in O(1) rather than by
 /// binary search. Offsets are only materialized once a sheet actually has
 /// custom sizes or hidden lines on that axis.
+///
+/// Given the display's pixel scale, every row and column edge is rounded to
+/// the nearest device pixel, so fills and lines land on whole pixels at any
+/// zoom. Each edge is rounded on its own rather than each size, so the
+/// rounding never adds up along a sheet.
 public struct SheetMetrics: Equatable, Sendable {
     /// Running offsets with a final entry equal to the total, or nil while the
     /// axis is uniform.
@@ -21,65 +26,88 @@ public struct SheetMetrics: Equatable, Sendable {
     public private(set) var columnCount = 0
     public private(set) var rowCount = 0
 
-    public var totalWidth: Double { columnOffsets?.last ?? Double(columnCount) * uniformColumnWidth }
-    public var totalHeight: Double { rowOffsets?.last ?? Double(rowCount) * uniformRowHeight }
+    public var totalWidth: Double { columnOffsets?.last ?? uniformOffset(columnCount, size: uniformColumnWidth) }
+    public var totalHeight: Double { rowOffsets?.last ?? uniformOffset(rowCount, size: uniformRowHeight) }
 
     /// The pinch-zoom factor already baked into these offsets.
     public private(set) var zoom: Double = 1
 
+    /// Device pixels to a point of these offsets, which edges and lines are
+    /// snapped to, or nil to leave them where they fall, as on paper or
+    /// when working out where something sits in a file.
+    public private(set) var pixelScale: Double?
+
     public init() {}
 
-    public init(sheet: Worksheet, zoom: Double = 1) {
+    public init(sheet: Worksheet, zoom: Double = 1, pixelScale: Double? = nil) {
         self.zoom = zoom
+        self.pixelScale = pixelScale.flatMap { $0 > 0 && $0.isFinite ? $0 : nil }
         columnCount = sheet.columnCount
         rowCount = sheet.rowCount
 
         if sheet.hasUniformColumnWidths {
             uniformColumnWidth = Worksheet.defaultColumnWidth * zoom
         } else {
-            columnOffsets = Self.offsets(count: sheet.columnCount, zoom: zoom, size: sheet.width(ofColumn:))
+            columnOffsets = offsets(count: sheet.columnCount, zoom: zoom, size: sheet.width(ofColumn:))
         }
         if sheet.hasUniformRowHeights {
             uniformRowHeight = sheet.standardRowHeight * zoom
         } else {
-            rowOffsets = Self.offsets(count: sheet.rowCount, zoom: zoom, size: sheet.height(ofRow:))
+            rowOffsets = offsets(count: sheet.rowCount, zoom: zoom, size: sheet.height(ofRow:))
         }
     }
 
     /// Running totals with the zoom folded in as they are built, rather than
-    /// mapped over a second array afterwards.
-    private static func offsets(count: Int, zoom: Double, size: (Int) -> Double) -> [Double] {
+    /// mapped over a second array afterwards. The total runs on unrounded,
+    /// and only the offset stored is snapped.
+    private func offsets(count: Int, zoom: Double, size: (Int) -> Double) -> [Double] {
         var offsets: [Double] = [0]
         offsets.reserveCapacity(count + 1)
         var running: Double = 0
         for index in 0..<count {
             running += size(index) * zoom
-            offsets.append(running)
+            offsets.append(snapped(running))
         }
         return offsets
     }
 
+    /// A position rounded to the nearest device pixel, or as it is when
+    /// nothing is snapped.
+    public func snapped(_ position: Double) -> Double {
+        guard let pixelScale else { return position }
+        return (position * pixelScale).rounded() / pixelScale
+    }
+
+    /// The start of line `index` on a uniform axis.
+    private func uniformOffset(_ index: Int, size: Double) -> Double {
+        snapped(Double(index) * size)
+    }
+
     public func x(ofColumn column: Int) -> Double {
         let index = min(max(0, column), columnCount)
-        guard let columnOffsets else { return Double(index) * uniformColumnWidth }
+        guard let columnOffsets else { return uniformOffset(index, size: uniformColumnWidth) }
         return columnOffsets[min(index, columnOffsets.count - 1)]
     }
 
     public func y(ofRow row: Int) -> Double {
         let index = min(max(0, row), rowCount)
-        guard let rowOffsets else { return Double(index) * uniformRowHeight }
+        guard let rowOffsets else { return uniformOffset(index, size: uniformRowHeight) }
         return rowOffsets[min(index, rowOffsets.count - 1)]
     }
 
     public func width(ofColumn column: Int) -> Double {
         guard column >= 0, column < columnCount else { return 0 }
-        guard let columnOffsets else { return uniformColumnWidth }
+        guard let columnOffsets else {
+            return uniformOffset(column + 1, size: uniformColumnWidth) - uniformOffset(column, size: uniformColumnWidth)
+        }
         return columnOffsets[column + 1] - columnOffsets[column]
     }
 
     public func height(ofRow row: Int) -> Double {
         guard row >= 0, row < rowCount else { return 0 }
-        guard let rowOffsets else { return uniformRowHeight }
+        guard let rowOffsets else {
+            return uniformOffset(row + 1, size: uniformRowHeight) - uniformOffset(row, size: uniformRowHeight)
+        }
         return rowOffsets[row + 1] - rowOffsets[row]
     }
 
@@ -134,7 +162,12 @@ public struct SheetMetrics: Equatable, Sendable {
 
     private func uniformIndex(at position: Double, size: Double) -> Int {
         guard size > 0, position > 0 else { return 0 }
-        return Int(position / size)
+        var index = Int(position / size)
+        // A snapped edge is up to half a pixel from where it would fall.
+        guard pixelScale != nil else { return index }
+        while index > 0, uniformOffset(index, size: size) > position { index -= 1 }
+        while uniformOffset(index + 1, size: size) <= position { index += 1 }
+        return index
     }
 
     /// Index of the last offset less than or equal to `position`.
