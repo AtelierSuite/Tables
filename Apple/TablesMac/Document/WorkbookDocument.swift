@@ -136,6 +136,9 @@ final class WorkbookDocument: NSDocument {
 
     override func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey: Any]) throws -> NSPrintOperation {
         let view = SheetPrintView(sheet: activeSheet)
+        // Pages start at the top left of the paper, as Excel prints them.
+        printInfo.isHorizontallyCentered = false
+        printInfo.isVerticallyCentered = false
         let operation = NSPrintOperation(view: view, printInfo: printInfo)
         operation.jobTitle = displayName
         return operation
