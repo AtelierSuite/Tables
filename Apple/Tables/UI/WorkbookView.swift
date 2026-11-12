@@ -17,6 +17,7 @@ struct WorkbookView: View {
     /// Asked once per window: after that, running a macro just runs it.
     @State private var hasAllowedMacros = false
     @State private var macroInput = ""
+    @State private var isShowingDocumentProperties = false
     /// A conversion waiting on the user's say-so because it would drop macros.
     @State private var pendingConversion: DocumentConversion.Target?
     /// A change to a Numbers document with what it couldn't keep taken out,
@@ -83,6 +84,14 @@ struct WorkbookView: View {
             Text("Macros.Confirm.Message")
         }
         .toolbarTitleMenu { titleMenu }
+        .sheet(isPresented: $isShowingDocumentProperties) {
+            NavigationStack {
+                DocumentPropertiesPanel(properties: document.workbook.documentProperties) { edited in
+                    if let edited { document.workbook.documentProperties = edited }
+                    isShowingDocumentProperties = false
+                }
+            }
+        }
         .confirmationDialog(
             "Convert.DropMacros.Title",
             isPresented: Binding(get: { pendingConversion != nil }, set: { if !$0 { pendingConversion = nil } }),
@@ -215,6 +224,12 @@ struct WorkbookView: View {
     @ViewBuilder
     private var titleMenu: some View {
         RenameButton()
+        // Delimited text and Numbers documents have nowhere to keep them.
+        if !document.isPlainText && !document.isNumbers {
+            Button("TitleMenu.DocumentProperties", systemImage: "info.circle") {
+                isShowingDocumentProperties = true
+            }
+        }
         if let fileURL, document.isNumbers {
             Section {
                 Button("TitleMenu.SaveAsXLSX", systemImage: "square.and.arrow.down.on.square") {

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import TablesEngine
 import TablesMacros
 import UniformTypeIdentifiers
@@ -130,6 +131,29 @@ final class WorkbookDocument: NSDocument {
                 self.presentError(error, modalFor: window, delegate: nil, didPresent: nil, contextInfo: nil)
             }
         }
+    }
+
+    // MARK: - Properties
+
+    /// Shows the title, author and the rest in a sheet on the window.
+    @objc func showDocumentProperties(_ sender: Any?) {
+        guard let presenter = windowControllers.first?.window?.contentViewController else { return }
+        weak var sheet: NSViewController?
+        let host = NSHostingController(rootView: DocumentPropertiesPanel(
+            properties: workbook.documentProperties
+        ) { [weak self] edited in
+            if let edited { self?.edit { $0.documentProperties = edited } }
+            if let sheet { presenter.dismiss(sheet) }
+        })
+        host.sizingOptions = .preferredContentSize
+        sheet = host
+        presenter.presentAsSheet(host)
+    }
+
+    override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        // Delimited text and Numbers documents have nowhere to keep them.
+        if item.action == #selector(showDocumentProperties(_:)) { return !file.isPlainText && !file.isNumbers }
+        return super.validateUserInterfaceItem(item)
     }
 
     // MARK: - Printing
