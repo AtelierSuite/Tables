@@ -1,7 +1,7 @@
 // Draws the engine's drawing operations (Web/engine/swift/Sources/TablesWasm/Renderer.swift)
 // onto a canvas. The engine decides what goes where; this measures and lays out
 // text, which only the browser can do, following the Mac's CellRenderer:
-// elided text, #s for a number too wide, wrapping, rotation and accounting fills.
+// clipped text, #s for a number too wide, wrapping, rotation and accounting fills.
 //
 // All coordinates are sheet points; the caller scales the context for zoom.
 
@@ -235,29 +235,6 @@ function wrapLines(ctx, text, width) {
 }
 
 /**
- * The longest prefix that fits in `width`, with an ellipsis. The ellipsis
- * follows the kept text in reading order: drawn right to left (`op.rtl`),
- * it lands on the left.
- */
-function elided(ctx, text, width) {
-  const characters = Array.from(text);
-  let low = 0;
-  let high = characters.length - 1;
-  let best = "…";
-  while (low <= high) {
-    const middle = (low + high) >> 1;
-    const candidate = characters.slice(0, middle).join("") + "…";
-    if (ctx.measureText(candidate).width <= width) {
-      best = candidate;
-      low = middle + 1;
-    } else {
-      high = middle - 1;
-    }
-  }
-  return best;
-}
-
-/**
  * The length a line `lineHeight` tall may run along its baseline in a box
  * `width` by `height`, turned `degrees` counter-clockwise: the box's width
  * upright, its height a quarter turn either way, and in between as long as
@@ -318,9 +295,6 @@ function drawText(ctx, op, palette) {
   if (wraps) {
     lines = wrapLines(ctx, text, box[2]);
     measuredWidth = box[2];
-    // Stacked text has as many glyphs as fit down the box, the ellipsis taking the last line.
-    const fitting = Math.max(Math.floor(box[3] / lineHeight), 1);
-    if (op.stk && lines.length > fitting) lines = [...lines.slice(0, fitting - 1), "…"];
   } else {
     lines = text.split("\n");
     measuredWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
@@ -332,8 +306,10 @@ function drawText(ctx, op, palette) {
       box = [box[0] - spare, box[1], box[2] + 2 * spare, box[3]];
       room = box[2];
     }
-    if (measuredWidth > room) {
-      lines = lines.map((line) => (op.num ? hashes(ctx, room) : ctx.measureText(line).width > room ? elided(ctx, line, room) : line));
+    // Text too long for its room runs on from the edge it is aligned to and
+    // is clipped at the cell's edge, as Excel and Numbers clip it.
+    if (op.num && measuredWidth > room) {
+      lines = lines.map(() => hashes(ctx, room));
       measuredWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
     }
   }
