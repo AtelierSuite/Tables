@@ -277,7 +277,7 @@ final class Bridge {
                 session.applyStyle { $0.fontSize = min(max($0.fontSize + delta, 4), 400) }
             }
             if r.keys.contains("textColor") { session.applyStyle { $0.textColorHex = Self.argb(r["textColor"] as? String) } }
-            if r.keys.contains("fill") { session.applyStyle { $0.fillColorHex = Self.argb(r["fill"] as? String) } }
+            if r.keys.contains("fill") { session.applyStyle { $0.setSolidFill(Self.argb(r["fill"] as? String)) } }
         }
         if formatting.contains(.fonts), r.keys.contains("fontName") {
             // A family name, or null for the system font.
@@ -480,7 +480,10 @@ final class Bridge {
     private func render(_ r: [String: Any]) -> [String: Any] {
         let rect = CGRect(x: number(r["x"]) ?? 0, y: number(r["y"]) ?? 0,
                           width: number(r["w"]) ?? 0, height: number(r["h"]) ?? 0)
-        var renderer = Renderer(sheet: sheet(r), viewer: r["dark"] as? Bool == true ? .dark : .light)
+        // The device pixels a sheet point comes to at the page's zoom, which
+        // the tile's edges and lines are snapped to.
+        var renderer = Renderer(sheet: sheet(r), viewer: r["dark"] as? Bool == true ? .dark : .light,
+                                pixelScale: number(r["scale"]))
         var body: [String: Any] = ["ops": renderer.render(rect)]
         if let paper = renderer.paper { body["paper"] = paper }
         return body

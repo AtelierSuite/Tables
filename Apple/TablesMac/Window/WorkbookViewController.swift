@@ -343,10 +343,18 @@ final class WorkbookViewController: NSViewController {
         )
         // Shifting the clip view by as much as the anchor moved keeps it under
         // the pointer, whatever the rulers overlapping the clip view add.
+        scrollClip(by: CGPoint(x: moved.x - point.x, y: moved.y - point.y))
+    }
+
+    /// Scrolls by `delta`, landing on whole device pixels: the cells are
+    /// snapped to them, and a scroll part of the way into one would blur
+    /// every line again.
+    private func scrollClip(by delta: CGPoint) {
         let clip = scrollView.contentView
+        let scale = view.window?.backingScaleFactor ?? 2
         var bounds = clip.bounds
-        bounds.origin.x += moved.x - point.x
-        bounds.origin.y += moved.y - point.y
+        bounds.origin.x = ((bounds.origin.x + delta.x) * scale).rounded() / scale
+        bounds.origin.y = ((bounds.origin.y + delta.y) * scale).rounded() / scale
         clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
         scrollView.reflectScrolledClipView(clip)
     }
@@ -367,12 +375,7 @@ final class WorkbookViewController: NSViewController {
         state.refreshMetrics(in: document.workbook)
         document.notify()
         let scale = zoom / old
-        let clip = scrollView.contentView
-        var bounds = clip.bounds
-        bounds.origin.x += point.x * scale - point.x
-        bounds.origin.y += point.y * scale - point.y
-        clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
-        scrollView.reflectScrolledClipView(clip)
+        scrollClip(by: CGPoint(x: point.x * scale - point.x, y: point.y * scale - point.y))
     }
 
     private func zoomAnchor(in document: WorkbookDocument) -> CGPoint {

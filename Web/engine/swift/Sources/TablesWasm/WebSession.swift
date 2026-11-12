@@ -548,12 +548,9 @@ final class WebSession {
         guard !box.isSingleCell else { return }
         var merged = true
         change(layout: true) {
-            guard workbook.sheets[index].merge(box) else {
+            guard workbook.sheets[index].mergeKeepingFirstCell(box) else {
                 merged = false
                 return
-            }
-            for address in workbook.sheets[index].storedAddresses(in: box) where address != box.start {
-                workbook.sheets[index][address] = Cell()
             }
             workbook.recalculate()
         }

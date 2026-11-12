@@ -98,7 +98,7 @@ struct CellRenderer {
 
         if drawsGridlines {
             context.setStrokeColor(gridLineColor.cgColor)
-            context.setLineWidth(1)
+            context.setLineWidth(metrics.gridLineWidth)
             for row in rows where !sheet.hiddenRows.contains(row) {
                 for column in columns where !sheet.hiddenColumns.contains(column) {
                     let address = CellAddress(row: row, column: column)
@@ -124,15 +124,12 @@ struct CellRenderer {
             context.saveGState()
             paper.setFill()
             context.fill(frame)
-            if let fill = cell.style.fillColor(for: scheme) {
-                context.setFillColor(NSColor(fill).cgColor)
-                context.fill(frame)
-            }
+            paintFill(of: cell.style, in: frame, context: context)
             // The merge's own trailing and bottom gridlines, filled or not,
             // since the background above covered the ones beneath it.
             if drawsGridlines {
                 context.setStrokeColor(gridLineColor.cgColor)
-                context.setLineWidth(1)
+                context.setLineWidth(metrics.gridLineWidth)
                 strokeHairlines(of: frame, openEdge: false, in: context)
             }
             context.restoreGState()
@@ -141,17 +138,19 @@ struct CellRenderer {
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell. The cells around `rect` draw only as far as it:
         // the rest of their borders is drawn with them.
+        // An edge two cells share is drawn once, by the one whose border wins.
         context.saveGState()
         context.clip(to: rect)
+        let resolver = BorderResolver(sheet: sheet, metrics: metrics, near: reach)
         for row in borderRows where !sheet.hiddenRows.contains(row) {
             for column in borderColumns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
-                guard !covered.contains(address), let cell = sheet.cells[address] else { continue }
-                drawBorders(cell.style, in: metrics.frame(for: address), context: context)
+                guard !covered.contains(address), sheet.cells[address] != nil else { continue }
+                drawBorders(of: CellRange(address), resolver: resolver, context: context)
             }
         }
         for merge in nearby {
-            drawBorders(sheet[merge.start].style, in: metrics.frame(for: merge), context: context)
+            drawBorders(of: merge, resolver: resolver, context: context)
         }
         context.restoreGState()
         drawCommentMarks(rows: rows, columns: columns, context: context)
@@ -172,7 +171,7 @@ struct CellRenderer {
         ).size().width
         if let reach = Worksheet.overflowReach(
             of: address.column, within: span, textWidth: width,
-            alignment: style.horizontalAlignment, padding: 6 * zoom, indent: style.indentPoints * zoom,
+            alignment: CellFormatter.alignment(for: cell), padding: 6 * zoom, indent: style.indentPoints * zoom,
             columnWidth: { metrics.frame(for: CellAddress(row: address.row, column: $0)).width }
         ) {
             for column in reach.lowerBound..<reach.upperBound {
@@ -215,27 +214,112 @@ struct CellRenderer {
     /// The trailing and bottom separators of one cell, held a half-width
     /// inside it.
     private func strokeHairlines(of rect: CGRect, openEdge: Bool, in context: CGContext) {
-        let inset = 0.5
         context.beginPath()
-        if openEdge {
-            context.move(to: CGPoint(x: rect.maxX, y: rect.maxY - inset))
-        } else {
-            context.move(to: CGPoint(x: rect.maxX - inset, y: rect.minY))
-            context.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.maxY - inset))
+        for (start, end) in metrics.gridLines(of: rect, openEdge: openEdge) {
+            context.move(to: start)
+            context.addLine(to: end)
         }
-        context.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - inset))
         context.strokePath()
     }
 
     private func fill(_ cell: Cell, in frame: CGRect, context: CGContext, gridLineColor: NSColor, openEdge: Bool) {
-        guard frame.width > 0, frame.height > 0, let fill = cell.style.fillColor(for: scheme) else { return }
-        context.setFillColor(NSColor(fill).cgColor)
-        context.fill(frame)
+        guard frame.width > 0, frame.height > 0, cell.style.hasFill else { return }
+        paintFill(of: cell.style, in: frame, context: context)
         if drawsGridlines {
             context.setStrokeColor(gridLineColor.cgColor)
-            context.setLineWidth(1)
+            context.setLineWidth(metrics.gridLineWidth)
             strokeHairlines(of: frame, openEdge: openEdge, in: context)
         }
+    }
+
+    /// A cell's fill: its colour, then any pattern over it, or its gradient.
+    private func paintFill(of style: CellStyle, in frame: CGRect, context: CGContext) {
+        guard frame.width > 0, frame.height > 0 else { return }
+        if let gradient = style.fillGradient(for: scheme) {
+            paintGradient(gradient, in: frame, context: context)
+            return
+        }
+        if let fill = style.fillColor(for: scheme) {
+            context.setFillColor(NSColor(fill).cgColor)
+            context.fill(frame)
+        }
+        if let pattern = style.fillPattern, let ink = style.fillPatternColor(for: scheme) {
+            paintPattern(pattern.type, ink: NSColor(ink).cgColor, in: frame, context: context)
+        }
+    }
+
+    /// Tiles the pattern across the frame from the sheet's origin, so the
+    /// cells of a patterned range join up. The context is in points on
+    /// screen at any zoom, so a bit stays a point however far in it goes.
+    private func paintPattern(_ type: FillPatternType, ink: CGColor, in frame: CGRect, context: CGContext) {
+        // Sheet coordinates run down the screen however the view or layer
+        // gets them to, so a bitmap always lands upside down: the tile is
+        // laid out to suit. The backing scale makes a bit whole device pixels.
+        let scale = max(1, Int(hypot(context.ctm.c, context.ctm.d).rounded()))
+        guard let image = Self.patternTile(type, ink: ink, scale: scale, flipped: true) else { return }
+        let side = FillPattern.bitSize * Double(FillPattern.tileBits)
+        context.saveGState()
+        context.clip(to: frame)
+        context.interpolationQuality = .none
+        var y = (frame.minY / side).rounded(.down) * side
+        while y < frame.maxY {
+            var x = (frame.minX / side).rounded(.down) * side
+            while x < frame.maxX {
+                context.draw(image, in: CGRect(x: x, y: y, width: side, height: side))
+                x += side
+            }
+            y += side
+        }
+        context.restoreGState()
+    }
+
+    private struct PatternTileKey: Hashable {
+        var type: FillPatternType
+        var ink: String
+        var scale: Int
+        var flipped: Bool
+    }
+
+    private static var patternTiles: [PatternTileKey: CGImage] = [:]
+
+    private static func patternTile(_ type: FillPatternType, ink: CGColor, scale: Int, flipped: Bool) -> CGImage? {
+        let key = PatternTileKey(
+            type: type, ink: (ink.components ?? []).map { String(format: "%.3f", $0) }.joined(separator: ","),
+            scale: scale, flipped: flipped
+        )
+        if let cached = patternTiles[key] { return cached }
+        let image = type.tileImage(ink: ink, scale: scale, flipped: flipped)
+        if patternTiles.count > 256 { patternTiles.removeAll() }
+        patternTiles[key] = image
+        return image
+    }
+
+    private func paintGradient(_ gradient: FillGradient, in frame: CGRect, context: CGContext) {
+        context.saveGState()
+        context.clip(to: frame)
+        if case .path = gradient.kind {
+            // A ring a point apart on screen is too close to see a step in.
+            for band in gradient.pathBands(in: frame, step: 1) {
+                context.setFillColor(Self.cgColor(band.colorHex))
+                context.fill(band.rect)
+            }
+        } else {
+            let colors = gradient.stops.map { Self.cgColor($0.colorHex ?? FillGradient.automaticColorHex) }
+            let locations = gradient.stops.map { CGFloat($0.position) }
+            if let space = CGColorSpace(name: CGColorSpace.sRGB),
+               let shading = CGGradient(colorsSpace: space, colors: colors as CFArray, locations: locations) {
+                let ends = gradient.linearEndpoints(in: frame)
+                context.drawLinearGradient(
+                    shading, start: ends.start, end: ends.end,
+                    options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+                )
+            }
+        }
+        context.restoreGState()
+    }
+
+    private static func cgColor(_ hex: String) -> CGColor {
+        Color(argbHex: hex).map { NSColor($0).cgColor } ?? NSColor.white.cgColor
     }
 
     // MARK: - Text
@@ -283,13 +367,11 @@ struct CellRenderer {
         var string = CellFormatter.layoutText(for: cell)
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
         if style.isTextStacked {
-            string = CellFormatter.displayText(for: cell).map(String.init).joined(separator: "\n")
+            string = TextFitting.stacked(CellFormatter.displayText(for: cell))
         }
         let zoom = metrics.zoom
 
-        let horizontal = style.horizontalAlignment == .automatic
-            ? CellFormatter.naturalAlignment(for: cell.value)
-            : style.horizontalAlignment
+        let horizontal = CellFormatter.alignment(for: cell)
         // An error takes the cell's own text colour when it has one, like
         // Excel; red is only the default.
         let color: NSColor = cell.textColor(for: scheme).map { NSColor($0) }
@@ -332,9 +414,26 @@ struct CellRenderer {
             with: CGSize(width: wraps ? box.width : Self.unbounded, height: Self.unbounded),
             options: [.usesLineFragmentOrigin]
         ).size
+        // Turned text runs along its turned box rather than across the cell.
+        let turned = style.rotationDegrees != 0
+        if turned, !wraps {
+            room = TextFitting.runLength(of: style, in: box.size, lineHeight: measured.height)
+        }
+        // Stacked text has as many glyphs as fit down the box.
+        if style.isTextStacked, measured.height > box.height {
+            let fitting = TextFitting.elided(CellFormatter.displayText(for: cell), stacked: true) { candidate in
+                Self.attributed(candidate, attributes: attributes).boundingRect(
+                    with: CGSize(width: box.width, height: Self.unbounded), options: [.usesLineFragmentOrigin]
+                ).height <= box.height
+            }
+            text = Self.attributed(fitting, attributes: attributes)
+            measured = text.boundingRect(
+                with: CGSize(width: box.width, height: Self.unbounded), options: [.usesLineFragmentOrigin]
+            ).size
+        }
         // A number a hair too wide may take some of the cell's padding before
         // it gives way to #s.
-        if isNumber, !wraps, measured.width > room, measured.width <= frame.width - 2 * zoom {
+        if isNumber, !wraps, !turned, measured.width > room, measured.width <= frame.width - 2 * zoom {
             let spare = (frame.width - 2 * zoom - box.width) / 2
             box = box.insetBy(dx: -spare, dy: 0)
             room = box.width
@@ -345,7 +444,7 @@ struct CellRenderer {
                 NSAttributedString(string: candidate, attributes: attributes).size().width <= room
             }
             let shortened = isNumber ? fitted ?? hashes(filling: room, attributes: attributes)
-                : elided(string, to: room, attributes: attributes)
+                : TextFitting.elided(string) { Self.attributed($0, attributes: attributes).size().width <= room }
             text = Self.attributed(shortened, attributes: attributes)
             measured = text.size()
         }
@@ -432,25 +531,6 @@ struct CellRenderer {
         return result
     }
 
-    /// The longest prefix that fits in `width`, with an ellipsis.
-    private func elided(_ string: String, to width: Double, attributes: [NSAttributedString.Key: Any]) -> String {
-        let characters = Array(string)
-        var low = 0
-        var high = characters.count - 1
-        var best = "…"
-        while low <= high {
-            let middle = (low + high) / 2
-            let candidate = String(characters[0..<middle]) + "…"
-            if Self.attributed(candidate, attributes: attributes).size().width <= width {
-                best = candidate
-                low = middle + 1
-            } else {
-                high = middle - 1
-            }
-        }
-        return best
-    }
-
     /// As many #s as fit in `width`, which is what Excel shows for a number
     /// its cell is too narrow for.
     private func hashes(filling width: Double, attributes: [NSAttributedString.Key: Any]) -> String {
@@ -461,19 +541,21 @@ struct CellRenderer {
 
     // MARK: - Borders
 
-    private func drawBorders(_ style: CellStyle, in frame: CGRect, context: CGContext) {
-        guard !style.borderSides.isEmpty || style.diagonalBorder != nil else { return }
-        let zoom = metrics.zoom
-        for edge in BorderEdge.allCases {
-            guard let side = style.borderSides[edge] else { continue }
+    /// The borders of a cell or merge: the stretches of its edges its border
+    /// wins against the neighbour's, and its diagonal.
+    private func drawBorders(of region: CellRange, resolver: BorderResolver, context: CGContext) {
+        for border in resolver.drawnBorders(of: region) {
+            let side = border.side
+            let frame = metrics.frame(for: border.range)
             stroke(side.lineStyle, colorHex: side.colorHex, context: context) { offset in
                 let (start, end) = metrics.borderSegment(
-                    edge, of: frame, lineWidth: side.lineStyle.lineWidth * zoom, offset: offset, shown: shownArea
+                    border.edge, of: frame, lineWidth: metrics.lineWidth(of: side.lineStyle), offset: offset, shown: shownArea
                 )
                 return [start, end]
             }
         }
-        if let diagonal = style.diagonalBorder, diagonal.isVisible {
+        if let diagonal = sheet.cells[region.start]?.style.diagonalBorder, diagonal.isVisible {
+            let frame = metrics.frame(for: region)
             stroke(diagonal.lineStyle, colorHex: diagonal.colorHex, context: context) { offset in
                 var points: [CGPoint] = []
                 if diagonal.goesDown {
@@ -497,10 +579,9 @@ struct CellRenderer {
             ?? Self.automaticBorderColor
         context.saveGState()
         context.setStrokeColor(color.cgColor)
-        context.setLineWidth(lineStyle.lineWidth * zoom)
+        context.setLineWidth(metrics.lineWidth(of: lineStyle))
         context.setLineDash(phase: 0, lengths: lineStyle.dashPattern.map { CGFloat($0 * zoom) })
-        let offsets: [Double] = lineStyle.doubleLineGap.map { [-$0 * zoom / 2, $0 * zoom / 2] } ?? [0]
-        for offset in offsets {
+        for offset in metrics.passOffsets(of: lineStyle) {
             context.strokeLineSegments(between: segments(offset))
         }
         context.restoreGState()

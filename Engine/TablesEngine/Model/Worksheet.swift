@@ -337,6 +337,37 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         return true
     }
 
+    /// Merges a range as the editor does, like Excel: the first cell's content
+    /// survives, every other cell's is discarded, and the first cell's borders
+    /// are carried out to the cells along the merge's edges, where a merge's
+    /// outline is kept. A boxed cell merged with its neighbours boxes the merge.
+    @discardableResult
+    public mutating func mergeKeepingFirstCell(_ range: CellRange) -> Bool {
+        let box = range.normalized
+        guard merge(box) else { return false }
+        // Only stored cells have anything to discard, and a merge can cover
+        // rather more of the sheet than the sheet actually holds.
+        for address in storedAddresses(in: box) where address != box.start {
+            self[address] = Cell()
+        }
+        let sides = self[box.start].style.borderSides
+        guard !sides.isEmpty else { return true }
+        func carry(_ edge: BorderEdge, along cells: [CellAddress]) {
+            guard let side = sides[edge] else { return }
+            for address in cells where address != box.start {
+                var cell = self[address]
+                cell.style.borderSides[edge] = side
+                self[address] = cell
+            }
+        }
+        let columns = box.start.column...box.end.column, rows = box.start.row...box.end.row
+        carry(.top, along: columns.map { CellAddress(row: box.start.row, column: $0) })
+        carry(.bottom, along: columns.map { CellAddress(row: box.end.row, column: $0) })
+        carry(.leading, along: rows.map { CellAddress(row: $0, column: box.start.column) })
+        carry(.trailing, along: rows.map { CellAddress(row: $0, column: box.end.column) })
+        return true
+    }
+
     /// Drops every merge the range touches.
     public mutating func unmerge(_ range: CellRange) {
         let box = range.normalized
