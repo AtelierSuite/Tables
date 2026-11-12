@@ -573,40 +573,45 @@ export class GridView extends EventTarget {
     const key = this.tileKey(tx, ty, sheet ?? this.metrics.layout.sheet);
     const version = this.engine.versions.content * 100000 + this.engine.versions.layout;
     const cached = this.tiles.get(key);
-    const stale = !cached || cached.version !== version || (cached.zoom !== this.zoom && !this.isZooming);
+    const dpr = window.devicePixelRatio || 1;
+    const stale = !cached || cached.version !== version
+      || ((cached.zoom !== this.zoom || cached.dpr !== dpr) && !this.isZooming);
     if (stale && !this.pendingTiles.has(key)) {
       this.pendingTiles.add(key);
       const dark = this.dark, zoom = this.zoom;
       const id = sheet ?? this.metrics.layout.sheet;
-      this.engine.render({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE }, dark, sheet).then((list) => {
+      // The engine snaps the tile's edges and lines to the pixels a sheet point comes to.
+      this.engine.render({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE, scale: zoom * dpr }, dark, sheet).then((list) => {
         this.pendingTiles.delete(key);
         if (dark !== this.dark) return;
         this.papers.set(id, list.paper ?? null);
         this.tiles.delete(key);
-        this.tiles.set(key, { version, zoom, canvas: this.rasterize(list, tx, ty, zoom) });
+        this.tiles.set(key, { version, zoom, dpr, ...this.rasterize(list, tx, ty, zoom, dpr) });
         if (this.tiles.size > TILE_LIMIT) this.tiles.delete(this.tiles.keys().next().value);
         this.requestDraw();
       }, () => this.pendingTiles.delete(key));
     }
-    return cached?.canvas ?? null;
+    return cached ?? null;
   }
 
-  rasterize(list, tx, ty, zoom = this.zoom) {
-    const dpr = window.devicePixelRatio || 1;
+  /**
+   * A tile's bitmap, pixel for pixel: it covers the device pixels from where
+   * its first sheet point rounds to up to where the next tile's does, so
+   * tiles side by side meet without a seam or an overlap, and the lines the
+   * engine snapped land on whole pixels in it.
+   */
+  rasterize(list, tx, ty, zoom = this.zoom, dpr = window.devicePixelRatio || 1) {
     const scale = zoom * dpr;
-    const size = Math.ceil(TILE * scale);
+    const left = Math.round(tx * TILE * scale), top = Math.round(ty * TILE * scale);
     const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = Math.max(1, Math.round((tx + 1) * TILE * scale) - left);
+    canvas.height = Math.max(1, Math.round((ty + 1) * TILE * scale) - top);
     const ctx = canvas.getContext("2d");
-    ctx.setTransform(scale, 0, 0, scale, -tx * TILE * scale, -ty * TILE * scale);
     ctx.fillStyle = cssColor(list.paper) ?? this.palette.paper;
-    ctx.fillRect(tx * TILE, ty * TILE, TILE, TILE);
-    ctx.beginPath();
-    ctx.rect(tx * TILE, ty * TILE, TILE, TILE);
-    ctx.clip();
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(scale, 0, 0, scale, -left, -top);
     paint(ctx, list, this.palette);
-    return canvas;
+    return { canvas, left, top };
   }
 
   /** The four panes: frozen corner, frozen top, frozen left, and the scrolling rest. On a canvas, the one table. */
@@ -651,12 +656,19 @@ export class GridView extends EventTarget {
     ctx.rect(screen.x, screen.y, Math.min(screen.width, sheetRight - screen.x), Math.min(screen.height, sheetBottom - screen.y));
     ctx.clip();
     const x1 = sheetX + screen.width / z, y1 = sheetY + screen.height / z;
+    // Where the sheet's first point falls, on a whole device pixel, which
+    // tiles drawn at this zoom are laid from without being resampled.
+    const dpr = window.devicePixelRatio || 1;
+    const originX = Math.round((screen.x - sheetX * z) * dpr), originY = Math.round((screen.y - sheetY * z) * dpr);
     for (let ty = Math.floor(sheetY / TILE); ty * TILE < Math.min(y1, metrics.totalHeight); ty++) {
       for (let tx = Math.floor(sheetX / TILE); tx * TILE < Math.min(x1, metrics.totalWidth); tx++) {
-        const bitmap = this.tile(tx, ty, sheet);
+        const tile = this.tile(tx, ty, sheet);
         const dx = screen.x + (tx * TILE - sheetX) * z, dy = screen.y + (ty * TILE - sheetY) * z;
-        if (bitmap) {
-          ctx.drawImage(bitmap, dx, dy, TILE * z, TILE * z);
+        if (tile && tile.zoom === z && tile.dpr === dpr) {
+          const { canvas, left, top } = tile;
+          ctx.drawImage(canvas, (originX + left) / dpr, (originY + top) / dpr, canvas.width / dpr, canvas.height / dpr);
+        } else if (tile) {
+          ctx.drawImage(tile.canvas, dx, dy, TILE * z, TILE * z);
         } else {
           ctx.fillStyle = this.paperFor(sheet);
           ctx.fillRect(dx, dy, TILE * z, TILE * z);

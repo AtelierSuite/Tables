@@ -55,6 +55,7 @@ struct SheetGridView: View {
     @State private var tableNameDraft = ""
     @FocusState private var isTableNameFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
     #if os(macOS)
     /// Where the pointer last was, for the right-click menu to read.
     ///
@@ -85,7 +86,15 @@ struct SheetGridView: View {
         }
         let dragged = tableDrag?.id == activeSheet.id ? tableDrag?.offset ?? .zero : .zero
         let page = CanvasSnapping.pageInset(zoom: state.zoom)
-        return CGPoint(x: page.x + table.x * state.zoom + dragged.width, y: page.y + table.y * state.zoom + dragged.height)
+        return pixelAligned(CGPoint(
+            x: page.x + table.x * state.zoom + dragged.width, y: page.y + table.y * state.zoom + dragged.height
+        ))
+    }
+
+    /// A table's place on the canvas rounded to whole pixels, so its cells'
+    /// edges, snapped within it, stay on them.
+    private func pixelAligned(_ point: CGPoint) -> CGPoint {
+        CGPoint(x: (point.x * displayScale).rounded() / displayScale, y: (point.y * displayScale).rounded() / displayScale)
     }
 
     /// How much of the top and leading edges the pinned headers cover.
@@ -136,6 +145,12 @@ struct SheetGridView: View {
             state.refreshMetrics(in: workbook)
             // On a canvas, a table just picked or added comes into view.
             if canvas != nil { revealActiveTable() }
+        }
+        .onChange(of: displayScale, initial: true) { _, scale in
+            // Cell edges are snapped to this display's pixels.
+            guard state.displayScale != scale else { return }
+            state.displayScale = scale
+            state.refreshMetrics(in: workbook)
         }
         .onChange(of: activeSheet.rowCount) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.columnCount) { _, _ in state.refreshMetrics(in: workbook) }
@@ -384,7 +399,9 @@ struct SheetGridView: View {
             ForEach(workbook.sheets(on: canvas)) { sheet in
                 if let table = canvas.table(for: sheet.id) {
                     let dragged = tableDrag?.id == sheet.id ? tableDrag?.offset ?? .zero : .zero
-                    let origin = CGPoint(x: page.x + table.x * zoom + dragged.width, y: page.y + table.y * zoom + dragged.height)
+                    let origin = pixelAligned(CGPoint(
+                        x: page.x + table.x * zoom + dragged.width, y: page.y + table.y * zoom + dragged.height
+                    ))
                     if sheet.id != active {
                         canvasTable(sheet, at: origin, zoom: zoom)
                     }
@@ -679,7 +696,7 @@ struct SheetGridView: View {
 
     /// Another table on the canvas, drawn only as far as it is in view.
     private func canvasTable(_ sheet: Worksheet, at origin: CGPoint, zoom: Double) -> some View {
-        let metrics = SheetMetrics(sheet: sheet, zoom: zoom)
+        let metrics = SheetMetrics(sheet: sheet, zoom: zoom, pixelScale: displayScale)
         let top = state.scrollOffset.y - origin.y
         let left = state.scrollOffset.x - origin.x
         let height = max(state.viewportSize.height, 200), width = max(state.viewportSize.width, 200)

@@ -6,16 +6,18 @@ import TablesEngine
 /// only thing left to the page is measuring text, since the browser owns the
 /// fonts: eliding text that doesn't fit, and showing #s for a number too wide.
 ///
-/// Works in sheet coordinates at 100%; the page scales for zoom.
+/// Works in sheet coordinates at 100%; the page scales for zoom. Given the
+/// device pixels a sheet point comes to at that zoom, edges and lines are
+/// snapped to them, as on the Mac.
 struct Renderer {
     let sheet: Worksheet
     let metrics: SheetMetrics
     /// The appearance colours are adapted for, corrected for a sheet whose author made it dark.
     let scheme: ColorScheme
 
-    init(sheet: Worksheet, viewer: ColorScheme) {
+    init(sheet: Worksheet, viewer: ColorScheme, pixelScale: Double? = nil) {
         self.sheet = sheet
-        metrics = SheetMetrics(sheet: sheet)
+        metrics = SheetMetrics(sheet: sheet, pixelScale: pixelScale)
         scheme = sheet.colorScheme(for: viewer)
     }
 
@@ -76,7 +78,7 @@ struct Renderer {
                 appendHairlines(of: metrics.frame(for: address), openEdge: openEdges.contains(address), to: &hairlines)
             }
         }
-        if !hairlines.isEmpty { operations.append(["k": "grid", "p": hairlines]) }
+        if !hairlines.isEmpty { operations.append(["k": "grid", "p": hairlines, "w": metrics.gridLineWidth]) }
 
         let own = painted.filter { columns.contains($0.address.column) }
         for entry in own {
@@ -94,12 +96,15 @@ struct Renderer {
             }
             var lines: [Double] = []
             appendHairlines(of: frame, openEdge: false, to: &lines)
-            operations.append(["k": "grid", "p": lines])
+            operations.append(["k": "grid", "p": lines, "w": metrics.gridLineWidth])
             text(of: cell, in: frame, overflow: nil)
         }
 
         // An edge two cells share is drawn once, by the one whose border wins.
-        operations.append(["k": "clip", "r": frameArray(rect)])
+        let shown = CGRect(x: metrics.snapped(rect.minX), y: metrics.snapped(rect.minY),
+                           width: metrics.snapped(rect.maxX) - metrics.snapped(rect.minX),
+                           height: metrics.snapped(rect.maxY) - metrics.snapped(rect.minY))
+        operations.append(["k": "clip", "r": frameArray(shown)])
         let resolver = BorderResolver(sheet: sheet, metrics: metrics, near: reach)
         for row in borderRows where !sheet.hiddenRows.contains(row) {
             for column in borderColumns where !sheet.hiddenColumns.contains(column) {
@@ -161,13 +166,9 @@ struct Renderer {
     /// it, as line segments (x1, y1, x2, y2). Text running on into the next
     /// cell leaves out the trailing one.
     private func appendHairlines(of frame: CGRect, openEdge: Bool, to points: inout [Double]) {
-        let inset = 0.5
-        let bottom = Double(frame.maxY) - inset
-        if !openEdge {
-            let x = Double(frame.maxX) - inset
-            points += [x, Double(frame.minY), x, bottom]
+        for (start, end) in metrics.gridLines(of: frame, openEdge: openEdge) {
+            points += [Double(start.x), Double(start.y), Double(end.x), Double(end.y)]
         }
-        points += [Double(frame.minX), bottom, Double(frame.maxX), bottom]
     }
 
     private mutating func fill(_ cell: Cell, in frame: CGRect, openEdge: Bool) {
@@ -175,7 +176,7 @@ struct Renderer {
         operations.append(["k": "fill", "r": frameArray(frame), "c": fill])
         var lines: [Double] = []
         appendHairlines(of: frame, openEdge: openEdge, to: &lines)
-        operations.append(["k": "grid", "p": lines])
+        operations.append(["k": "grid", "p": lines, "w": metrics.gridLineWidth])
     }
 
     // MARK: - Text
@@ -232,7 +233,7 @@ struct Renderer {
             let frame = metrics.frame(for: border.range)
             stroke(border.side.lineStyle, colorHex: border.side.colorHex) { offset in
                 let (start, end) = metrics.borderSegment(
-                    border.edge, of: frame, lineWidth: border.side.lineStyle.lineWidth, offset: offset
+                    border.edge, of: frame, lineWidth: metrics.lineWidth(of: border.side.lineStyle), offset: offset
                 )
                 return [start, end]
             }
@@ -254,12 +255,11 @@ struct Renderer {
 
     /// One line style along `segments`, as pairs of points; a double rule is two offset passes.
     private mutating func stroke(_ lineStyle: BorderLineStyle, colorHex: String?, segments: (Double) -> [CGPoint]) {
-        let offsets: [Double] = lineStyle.doubleLineGap.map { [-$0 / 2, $0 / 2] } ?? [0]
         var points: [Double] = []
-        for offset in offsets {
+        for offset in metrics.passOffsets(of: lineStyle) {
             for point in segments(offset) { points += [Double(point.x), Double(point.y)] }
         }
-        var operation: [String: Any] = ["k": "line", "p": points, "w": lineStyle.lineWidth]
+        var operation: [String: Any] = ["k": "line", "p": points, "w": metrics.lineWidth(of: lineStyle)]
         if !lineStyle.dashPattern.isEmpty { operation["d"] = lineStyle.dashPattern }
         if let color = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true)?.argbHex { operation["c"] = color }
         operations.append(operation)
