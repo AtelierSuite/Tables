@@ -894,7 +894,7 @@ struct SheetGridView: View {
         let resolver = BorderResolver(sheet: sheet, metrics: metrics, near: reach)
         func add(_ region: CellRange) {
             let edges = resolver.drawnBorders(of: region)
-            let diagonal = sheet.cells[region.start]?.style.diagonalBorder
+            let diagonal = sheet[region.start].style.diagonalBorder
             guard !edges.isEmpty || diagonal?.isVisible == true else { return }
             painted.borders.append(PaintedBorders(frame: metrics.frame(for: region), edges: edges, diagonal: diagonal))
         }
@@ -903,8 +903,9 @@ struct SheetGridView: View {
         for row in rows where !sheet.hiddenRows.contains(row) {
             for column in columns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
-                guard let cell = sheet.cells[address],
-                      !cell.style.borderSides.isEmpty || cell.style.diagonalBorder != nil,
+                guard sheet.cells[address] != nil || sheet.inheritsStyle(at: address) else { continue }
+                let style = sheet[address].style
+                guard !style.borderSides.isEmpty || style.diagonalBorder != nil,
                       !nearby.contains(where: { $0.contains(address) }) else { continue }
                 add(CellRange(address))
             }
