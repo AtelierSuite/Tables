@@ -191,8 +191,20 @@ public enum CellFormatter {
     /// Where `cell`'s text sits: its own alignment, or under automatic
     /// alignment, wherever its value naturally goes.
     public static func alignment(for cell: Cell) -> HorizontalTextAlignment {
-        cell.style.horizontalAlignment == .automatic
-            ? naturalAlignment(for: cell.value) : cell.style.horizontalAlignment
+        guard cell.style.horizontalAlignment == .automatic else { return cell.style.horizontalAlignment }
+        // Text set in a reading order of its own goes to that order's start.
+        if case .text(let text) = cell.value, cell.style.readingOrder != .context {
+            return cell.style.readingOrder.direction(of: text) == .rightToLeft ? .trailing : .leading
+        }
+        return naturalAlignment(for: cell.value)
+    }
+
+    /// `text`, drawn for `cell`, as a renderer should be given it to set it
+    /// in the cell's reading order. Only text takes one: a number keeps the
+    /// order its format gives it.
+    public static func directed(_ text: String, for cell: Cell) -> String {
+        guard case .text = cell.value else { return text }
+        return cell.style.readingOrder.directed(text)
     }
 
     // MARK: - Number formatting

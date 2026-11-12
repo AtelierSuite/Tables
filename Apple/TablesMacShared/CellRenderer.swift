@@ -368,6 +368,9 @@ struct CellRenderer {
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
         if style.isTextStacked {
             string = TextFitting.stacked(CellFormatter.displayText(for: cell))
+        } else {
+            // Led by the mark that sets the cell's reading order, if it has one.
+            string = CellFormatter.directed(string, for: cell)
         }
         let zoom = metrics.zoom
 

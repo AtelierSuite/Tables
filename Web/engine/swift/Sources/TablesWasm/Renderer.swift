@@ -226,7 +226,12 @@ struct Renderer {
         }
         var string = CellFormatter.displayText(for: cell)
         guard !string.isEmpty, frame.width > 0, frame.height > 0 else { return }
-        if style.isTextStacked { string = TextFitting.stacked(string) }
+        if style.isTextStacked {
+            string = TextFitting.stacked(string)
+        } else {
+            // Led by the mark that sets the cell's reading order, if it has one.
+            string = CellFormatter.directed(string, for: cell)
+        }
 
         let horizontal = CellFormatter.alignment(for: cell)
         let isNumber: Bool
