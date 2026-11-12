@@ -15,17 +15,27 @@ struct CellRenderer {
     /// The appearance colours are adapted for, already corrected for a sheet
     /// whose author made it dark.
     let scheme: ColorScheme
+    /// The sheet's merges and comments, found without walking them.
+    let lookup: SheetLookup
     var drawsGridlines = true
     /// The part of the sheet on show, when that stops short of all of it, as
     /// a printout or preview of the cells in use does. Borders on its edges
     /// are kept inside it.
     var shownArea: CGRect?
 
-    init(sheet: Worksheet, metrics: SheetMetrics, appearance: NSAppearance, drawsGridlines: Bool = true) {
+    /// `lookup` is one built from this version of `sheet`, kept from an
+    /// earlier draw by a `SheetLookupCache`. Without one, it is built here,
+    /// which is fine for a one-off but not for every draw of a scroll.
+    init(
+        sheet: Worksheet, metrics: SheetMetrics, appearance: NSAppearance, lookup: SheetLookup? = nil,
+        drawsGridlines: Bool = true
+    ) {
         self.sheet = sheet
         self.metrics = metrics
+        let lookup = lookup ?? SheetLookup(sheet)
+        self.lookup = lookup
         let viewer: ColorScheme = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
-        scheme = sheet.colorScheme(for: viewer)
+        scheme = lookup.colorScheme(for: viewer)
         self.drawsGridlines = drawsGridlines
     }
 
@@ -61,7 +71,7 @@ struct CellRenderer {
             start: CellAddress(row: borderRows.lowerBound, column: borderColumns.lowerBound),
             end: CellAddress(row: borderRows.upperBound - 1, column: borderColumns.upperBound - 1)
         )
-        let nearby = sheet.mergedRanges.map(\.normalized).filter { $0.intersects(reach) }
+        let nearby = lookup.merges.ranges(intersecting: reach)
         let merges = nearby.filter { $0.intersects(window) }
         var covered = Set<CellAddress>()
         for merge in nearby {
@@ -152,7 +162,7 @@ struct CellRenderer {
     /// How far a cell's text may spill, noting the cell edges it actually
     /// runs across so their gridlines can make way for it.
     private func overflow(of address: CellAddress, edges: inout Set<CellAddress>) -> CGRect? {
-        guard let span = sheet.overflowSpan(of: address) else { return nil }
+        guard let span = sheet.overflowSpan(of: address, lookup: lookup) else { return nil }
         let cell = sheet.displayedCell(at: address)
         let style = cell.style
         let zoom = metrics.zoom
@@ -190,7 +200,7 @@ struct CellRenderer {
                 let address = CellAddress(row: row, column: column)
                 let cell = sheet.displayedCell(at: address)
                 guard !cell.isBlank else { continue }
-                if let span = sheet.overflowSpan(of: address, reach: reach),
+                if let span = sheet.overflowSpan(of: address, reach: reach, lookup: lookup),
                    span.overlaps(columns.lowerBound...(columns.upperBound - 1)) {
                     found.append((address, cell, overflow(of: address, edges: &edges)))
                 }
@@ -507,7 +517,7 @@ struct CellRenderer {
     /// Notes are marked red and conversations purple, as Excel marks them;
     /// a resolved conversation fades to grey.
     private func drawCommentMarks(rows: Range<Int>, columns: Range<Int>, context: CGContext) {
-        for (_, comment, range) in sheet.commentMarks(rows: rows, columns: columns) {
+        for (_, comment, range) in sheet.commentMarks(rows: rows, columns: columns, lookup: lookup) {
             let frame = metrics.frame(for: range)
             let size = min(8 * metrics.zoom, frame.width / 2, frame.height / 2)
             guard size > 0 else { continue }
