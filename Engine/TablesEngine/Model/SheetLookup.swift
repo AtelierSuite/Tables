@@ -114,7 +114,8 @@ public struct SheetLookup: Sendable {
 }
 
 /// The parts of a sheet its cells are drawn from: their contents, styles and
-/// conditional styles, merges, comments, hidden lines, size and page colour.
+/// conditional styles, the styles of whole rows and columns, merges, comments,
+/// hidden lines, size and page colour.
 ///
 /// Two keys are equal when the sheet would draw the same, so a key kept from
 /// the last frame tells whether anything drawn from the sheet is still good.
@@ -132,6 +133,8 @@ public struct SheetDrawingKey: Equatable, Sendable {
     private let comments: [CellAddress: CellComment]
     private let hiddenRows: Set<Int>
     private let hiddenColumns: Set<Int>
+    private let columnStyles: [Int: CellStyle]
+    private let rowStyles: [Int: CellStyle]
     private let rowCount: Int
     private let columnCount: Int
     private let backgroundColorHex: String?
@@ -144,6 +147,8 @@ public struct SheetDrawingKey: Equatable, Sendable {
         comments = sheet.comments
         hiddenRows = sheet.hiddenRows
         hiddenColumns = sheet.hiddenColumns
+        columnStyles = sheet.columnStyles
+        rowStyles = sheet.rowStyles
         rowCount = sheet.rowCount
         columnCount = sheet.columnCount
         backgroundColorHex = sheet.backgroundColorHex
