@@ -1,15 +1,11 @@
 import Foundation
 
-/// How much of a cell's text fits in the box it is drawn in, shared by every
-/// renderer so the grid, printing, Quick Look and the web app cut text short
-/// in the same place.
+/// How much room a cell's text has, shared by every renderer so the grid,
+/// printing, Quick Look and the web app clip text in the same place.
 ///
-/// The renderers measure; this decides what to measure against and which
-/// candidates to try.
+/// The renderers measure; this decides what to measure against and where a
+/// line too long for its room is drawn.
 public enum TextFitting {
-    /// What text cut short ends with.
-    public static let ellipsis = "…"
-
     /// The length a single line of text may run along its own baseline in a
     /// `box` it is turned `rotationDegrees` counter-clockwise inside.
     ///
@@ -41,45 +37,28 @@ public enum TextFitting {
         text.map(String.init).joined(separator: "\n")
     }
 
-    /// The longest start of `text` that `fits`, with an ellipsis, or `text`
-    /// itself when it fits whole.
+    /// Where a line `length` long is drawn when only `shown` of it fits,
+    /// `shown` being where the renderer aligned the part that does.
     ///
-    /// Stacked text keeps one glyph per line, the ellipsis taking the last.
-    /// Text cut short reads as longer than it shows, where text simply clipped
-    /// reads as a shorter value. A binary search keeps this to a handful of
-    /// measurements; `fits` is given each candidate as it would be drawn.
-    ///
-    /// The ellipsis follows the kept text in reading order, so text read
-    /// right to left ends in one on its left. Each renderer sets a line in
-    /// the direction of its first strong character, which a cut can take
-    /// away — `"123 שלום"` cut to `"12…"` would turn to read left to right,
-    /// its ellipsis on the right — so such a cut starts with the mark that
-    /// keeps the direction of the whole text.
-    public static func elided(_ text: String, stacked isStacked: Bool = false, fits: (String) -> Bool) -> String {
-        let characters = Array(text)
-        let direction = baseDirection(of: text)
-        let render: ([Character], Bool) -> String = { glyphs, cut in
-            let shown = glyphs.map(String.init) + (cut ? [ellipsis] : [])
-            let joined = shown.joined(separator: isStacked ? "\n" : "")
-            guard cut, !isStacked, baseDirection(of: joined) != direction else { return joined }
-            return String(direction.mark) + joined
+    /// Text too long for its cell is not cut short with an ellipsis but runs
+    /// on and is clipped at the cell's edge, as Excel and Numbers clip it. So
+    /// the line keeps the edge it is aligned to and runs past the other one:
+    /// left-aligned text loses its right end, right-aligned text (and text
+    /// read right to left, which sits right) its left, and centred text both.
+    /// Turned text runs along its own baseline, so the renderer turns the
+    /// result about the centre of `shown`.
+    public static func clippedLine(
+        _ shown: CGRect, length: Double, alignment: HorizontalTextAlignment
+    ) -> CGRect {
+        guard length > shown.width else { return shown }
+        var line = shown
+        line.size.width = length
+        switch alignment {
+        case .trailing: line.origin.x = shown.maxX - length
+        case .center: line.origin.x = shown.midX - length / 2
+        case .automatic, .leading: break
         }
-        let whole = render(characters, false)
-        if fits(whole) { return whole }
-        var low = 0
-        var high = characters.count - 1
-        var best = render([], true)
-        while low <= high {
-            let middle = (low + high) / 2
-            let candidate = render(Array(characters[0..<middle]), true)
-            if fits(candidate) {
-                best = candidate
-                low = middle + 1
-            } else {
-                high = middle - 1
-            }
-        }
-        return best
+        return line
     }
 
     // MARK: - Direction
@@ -87,11 +66,6 @@ public enum TextFitting {
     /// Which way a run of text reads.
     public enum WritingDirection: Sendable {
         case leftToRight, rightToLeft
-
-        /// The invisible mark that sets a line's direction when it leads it.
-        var mark: Unicode.Scalar {
-            self == .rightToLeft ? "\u{200F}" : "\u{200E}"
-        }
     }
 
     /// The direction `text` reads in as a whole: that of its first letter

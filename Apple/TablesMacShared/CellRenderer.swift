@@ -419,18 +419,6 @@ struct CellRenderer {
         if turned, !wraps {
             room = TextFitting.runLength(of: style, in: box.size, lineHeight: measured.height)
         }
-        // Stacked text has as many glyphs as fit down the box.
-        if style.isTextStacked, measured.height > box.height {
-            let fitting = TextFitting.elided(CellFormatter.displayText(for: cell), stacked: true) { candidate in
-                Self.attributed(candidate, attributes: attributes).boundingRect(
-                    with: CGSize(width: box.width, height: Self.unbounded), options: [.usesLineFragmentOrigin]
-                ).height <= box.height
-            }
-            text = Self.attributed(fitting, attributes: attributes)
-            measured = text.boundingRect(
-                with: CGSize(width: box.width, height: Self.unbounded), options: [.usesLineFragmentOrigin]
-            ).size
-        }
         // A number a hair too wide may take some of the cell's padding before
         // it gives way to #s.
         if isNumber, !wraps, !turned, measured.width > room, measured.width <= frame.width - 2 * zoom {
@@ -438,14 +426,12 @@ struct CellRenderer {
             box = box.insetBy(dx: -spare, dy: 0)
             room = box.width
         }
-        if !wraps, measured.width > room {
+        if isNumber, !wraps, measured.width > room {
             // A General number is rounded to fit before it gives way to #s.
             let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
                 NSAttributedString(string: candidate, attributes: attributes).size().width <= room
             }
-            let shortened = isNumber ? fitted ?? hashes(filling: room, attributes: attributes)
-                : TextFitting.elided(string) { Self.attributed($0, attributes: attributes).size().width <= room }
-            text = Self.attributed(shortened, attributes: attributes)
+            text = Self.attributed(fitted ?? hashes(filling: room, attributes: attributes), attributes: attributes)
             measured = text.size()
         }
 
@@ -508,7 +494,8 @@ struct CellRenderer {
             wrapped.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: wrapped.length))
             wrapped.draw(with: target, options: [.usesLineFragmentOrigin])
         } else {
-            text.draw(at: target.origin)
+            // Text longer than its room runs on and is clipped at the edge.
+            text.draw(at: TextFitting.clippedLine(target, length: measured.width, alignment: horizontal).origin)
         }
         context.restoreGState()
     }
