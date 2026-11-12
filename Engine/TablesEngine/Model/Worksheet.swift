@@ -216,6 +216,10 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// Whether cells with a formula show it in place of its result — Excel's
     /// Show Formulas.
     public var showsFormulas = false
+    /// Whether the sheet runs from right to left, column A at the right —
+    /// Excel's `rightToLeft`. Kept through a save; the grids do not lay a
+    /// sheet out that way yet.
+    public var isRightToLeft = false
     /// Rectangular regions drawn, selected and edited as a single cell. They
     /// never overlap, and only the top-left cell of each keeps its content.
     public var mergedRanges: [CellRange] = []

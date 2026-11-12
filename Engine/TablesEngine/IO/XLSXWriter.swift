@@ -741,6 +741,7 @@ public enum XLSXWriter {
             ("zoomScale", sheet.zoomScale == 100 ? nil : String(sheet.zoomScale)),
             ("showZeros", sheet.showsZeros ? nil : "0"),
             ("showFormulas", sheet.showsFormulas ? "1" : nil),
+            ("rightToLeft", sheet.isRightToLeft ? "1" : nil),
         ]
     }
 

@@ -261,6 +261,29 @@ struct SheetViewOptionsTests {
         #expect(SheetDrawingKey(sheet) != plain)
     }
 
+    // MARK: - Right to left
+
+    @Test("A right-to-left sheet is read as one and saved as one")
+    func keepsRightToLeft() throws {
+        var workbook = try XLSXReader.workbook(from: try package(sheets: [
+            "<sheetViews><sheetView rightToLeft=\"1\" workbookViewId=\"0\"><selection activeCell=\"B2\" sqref=\"B2\"/>"
+                + "</sheetView></sheetViews>",
+            "",
+        ]))
+        #expect(workbook.sheets[0].isRightToLeft)
+        #expect(!workbook.sheets[1].isRightToLeft)
+        let saved = try #require(try savedViews(of: workbook))
+        #expect(saved.contains("rightToLeft=\"1\""))
+        #expect(saved.contains("activeCell=\"B2\""))
+
+        workbook.sheets[1].isRightToLeft = true
+        workbook.sheets[0].isRightToLeft = false
+        let reread = try reopened(workbook)
+        #expect(!reread.sheets[0].isRightToLeft)
+        #expect(reread.sheets[1].isRightToLeft)
+        #expect(try savedViews(of: workbook)?.contains("rightToLeft") == false)
+    }
+
     @Test("A change to the zoom alone is no step to undo; any other change is")
     func zoomIsNotAnEdit() {
         let workbook = Workbook(sheets: [Worksheet(name: "One")])

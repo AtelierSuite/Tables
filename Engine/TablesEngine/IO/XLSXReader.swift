@@ -689,6 +689,7 @@ public enum XLSXReader {
         sheet.showsHeadings = flag("showRowColHeaders", default: true)
         sheet.showsZeros = flag("showZeros", default: true)
         sheet.showsFormulas = flag("showFormulas", default: false)
+        sheet.isRightToLeft = flag("rightToLeft", default: false)
         // Zero, which some writers put down, stands for the default.
         if let scale = view.attribute("zoomScale").flatMap(Double.init), scale >= 1 {
             sheet.zoomScale = min(max(Int(scale.rounded()), 10), 400)
