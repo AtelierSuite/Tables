@@ -241,7 +241,9 @@ public enum XLSXReader {
             case "sheetProtection": feature = .sheetProtection
             case "hyperlinks": feature = .hyperlinks
             case "tableParts": feature = .tables
-            case "printOptions", "pageSetup": feature = .printSetup
+            case "printOptions", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "legacyDrawingHF":
+                feature = .printSetup
+            case "protectedRanges": feature = .sheetProtection
             case "sheetViews":
                 // Without a pane split this is only where the cursor was left,
                 // which nobody would call a feature.
@@ -740,10 +742,18 @@ public enum XLSXReader {
     /// `<drawing>` is here even though nothing in the app draws one: without
     /// it, a chart or image part we carried through the package would sit in
     /// the file with no sheet pointing at it.
+    ///
+    /// `<customSheetViews>` and `<oleObjects>` are left out. A custom view is
+    /// a whole second copy of the sheet's view and print settings, full of
+    /// cell references that would go stale as rows and columns move, and it
+    /// pairs with workbook views we do not write. An embedded object's parts
+    /// live outside what the package keeps, and its picture inside the VML
+    /// drawing we regenerate for notes.
     private static let preservedWorksheetChildNames: Set<String> = [
-        "sheetViews", "sheetProtection", "autoFilter", "conditionalFormatting",
-        "dataValidations", "hyperlinks", "printOptions", "pageMargins", "pageSetup",
-        "drawing", "legacyDrawing", "controls", "tableParts", "extLst",
+        "sheetViews", "sheetProtection", "protectedRanges", "autoFilter", "sortState",
+        "phoneticPr", "conditionalFormatting", "dataValidations", "hyperlinks",
+        "printOptions", "pageMargins", "pageSetup", "headerFooter", "rowBreaks", "colBreaks",
+        "ignoredErrors", "drawing", "legacyDrawing", "legacyDrawingHF", "controls", "tableParts", "extLst",
     ]
 
     private static func preservedChildren(
@@ -764,6 +774,11 @@ public enum XLSXReader {
             if child.name == "conditionalFormatting", !hasDifferentialFormats,
                child.children(named: "cfRule").contains(where: { $0.attribute("dxfId") != nil }) {
                 return nil
+            }
+            // The phonetic font indexes into a font table we write afresh, in
+            // which only the first entry is sure to exist: the default font.
+            if child.name == "phoneticPr", child.attribute("fontId") != nil {
+                child.setAttribute("fontId", "0")
             }
             if child.name == "extLst" {
                 // Slicers and timelines name parts through the workbook, which
