@@ -28,12 +28,18 @@ public final class CalculationEngine: FormulaContext {
     private let hints: SpillMap
     /// For each cell inside a hinted spill, the formula that spills into it.
     private var owners: [Int: [CellAddress: CellAddress]] = [:]
+    /// Whether the workbook asks for circular references to be iterated
+    /// rather than reported, as Excel's iterative calculation does.
+    private let iterates: Bool
+    /// Whether this pass ran into a formula that reads its own result.
+    private var metCycle = false
 
     private struct FormulaParseFailure: Error { var message: String }
 
     private init(workbook: Workbook, hints: SpillMap) {
         self.workbook = workbook
         self.hints = hints
+        self.iterates = workbook.settings.iteration != nil
         for (index, sheet) in workbook.sheets.enumerated() {
             sheetIndicesByName[sheet.name.lowercased()] = index
         }
@@ -82,7 +88,36 @@ public final class CalculationEngine: FormulaContext {
             engine = CalculationEngine(workbook: workbook, hints: hints)
         }
         engine.evaluateAllFormulas()
-        return engine.apply(to: workbook)
+        var result = engine.apply(to: workbook)
+        // A cycle under iterative calculation runs again from the results
+        // just found, until they stop moving or the passes run out.
+        guard engine.metCycle, let iteration = workbook.settings.iteration else { return result }
+        for _ in 1..<iteration.maximumCount {
+            let next = CalculationEngine(workbook: result, hints: hints)
+            next.evaluateAllFormulas()
+            let previous = result
+            result = next.apply(to: result)
+            if largestChange(from: previous, to: result) <= iteration.maximumChange { break }
+        }
+        return result
+    }
+
+    /// How far the furthest formula result moved between two passes, with
+    /// anything other than one number becoming another counting as no limit.
+    private static func largestChange(from old: Workbook, to new: Workbook) -> Double {
+        var largest = 0.0
+        for (index, sheet) in new.sheets.enumerated() where old.sheets.indices.contains(index) {
+            let before = old.sheets[index].cells
+            for (address, cell) in sheet.cells where cell.formula != nil {
+                let earlier = before[address]?.value ?? .empty
+                switch (earlier, cell.value) {
+                case (.number(let a), .number(let b)): largest = max(largest, abs(a - b))
+                case (.empty, .number(let b)): largest = max(largest, abs(b))
+                default: if earlier != cell.value { return .infinity }
+                }
+            }
+        }
+        return largest
     }
 
     /// Evaluates a formula body in the context of a sheet without storing anything.
@@ -502,7 +537,13 @@ public final class CalculationEngine: FormulaContext {
             results[key] = kept
             return kept
         }
-        guard !evaluating.contains(key) else { return .failure(.circularReference) }
+        guard !evaluating.contains(key) else {
+            metCycle = true
+            // Iterating, a formula met again inside its own cycle answers with
+            // its result from the pass before.
+            if iterates { return .scalar(workbook.sheets[sheetIndex].cells[address]?.value ?? .empty) }
+            return .failure(.circularReference)
+        }
         evaluating.insert(key)
         defer { evaluating.remove(key) }
 
