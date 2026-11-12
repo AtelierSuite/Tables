@@ -114,6 +114,12 @@ public struct SheetMetrics: Equatable, Sendable {
         return first <= last ? first..<(last + 1) : 0..<0
     }
 
+    /// Whether a point lies on the grid itself, rather than past its last
+    /// row or column, where `row(atY:)` and `column(atX:)` would only clamp.
+    public func contains(_ point: CGPoint) -> Bool {
+        (0..<totalWidth).contains(point.x) && (0..<totalHeight).contains(point.y)
+    }
+
     public func column(atX position: Double) -> Int {
         min(max(0, columnIndex(at: position)), max(0, columnCount - 1))
     }
