@@ -151,6 +151,13 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public var fittedRows: Set<Int> = []
     public var hiddenRows: Set<Int> = []
     public var hiddenColumns: Set<Int> = []
+    /// Formats given to whole columns and rows, which every cell in them
+    /// without a record of its own shows and takes on when something is
+    /// typed into it. A row's wins over a column's, as in Excel. Kept by line
+    /// rather than copied into cells: a formatted column covers every row
+    /// the sheet could ever have.
+    public var columnStyles: [Int: CellStyle] = [:]
+    public var rowStyles: [Int: CellStyle] = [:]
     /// Rows at the top and columns at the left that stay in view while the
     /// rest of the sheet scrolls — Excel's frozen panes. Zero for none.
     public var frozenRows = 0
@@ -226,14 +233,29 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     // MARK: - Cell access
 
     public subscript(address: CellAddress) -> Cell {
-        get { cells[address] ?? Cell() }
+        get { cells[address] ?? Cell(style: inheritedStyle(at: address)) }
         set {
-            if newValue.isEmptyEntirely {
+            // A blank cell styled as its row or column would be is no
+            // different from having no record at all.
+            if newValue.isBlank && newValue.style == inheritedStyle(at: address) {
                 cells.removeValue(forKey: address)
             } else {
                 cells[address] = newValue
             }
         }
+    }
+
+    /// The style a cell without a record of its own has: its row's, else
+    /// its column's, else the default.
+    public func inheritedStyle(at address: CellAddress) -> CellStyle {
+        guard !rowStyles.isEmpty || !columnStyles.isEmpty else { return .default }
+        return rowStyles[address.row] ?? columnStyles[address.column] ?? .default
+    }
+
+    /// Whether a cell's style may come from its row or column, so that an
+    /// address with no record can still have a fill or borders to draw.
+    public func inheritsStyle(at address: CellAddress) -> Bool {
+        rowStyles[address.row] != nil || columnStyles[address.column] != nil
     }
 
     public func contains(_ address: CellAddress) -> Bool {
@@ -429,6 +451,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         rowHeights = Self.shift(rowHeights, from: index, by: count)
         fittedRows = Self.shift(fittedRows, from: index, by: count)
         hiddenRows = Self.shift(hiddenRows, from: index, by: count)
+        rowStyles = Self.shift(rowStyles, from: index, by: count)
         remapMerges(along: \.row) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .row)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .row, scope: ownScope)
@@ -445,6 +468,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapCells { $0.column >= index ? CellAddress(row: $0.row, column: $0.column + count) : $0 }
         columnWidths = Self.shift(columnWidths, from: index, by: count)
         hiddenColumns = Self.shift(hiddenColumns, from: index, by: count)
+        columnStyles = Self.shift(columnStyles, from: index, by: count)
         remapMerges(along: \.column) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .column)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .column, scope: ownScope)
@@ -463,6 +487,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         rowHeights = Self.shift(rowHeights.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         fittedRows = Self.shift(fittedRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         hiddenRows = Self.shift(hiddenRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
+        rowStyles = Self.shift(rowStyles.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         remapMerges(along: \.row) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .row)
         shiftConditionalFormats(.remove(range: range), axis: .row, scope: ownScope)
@@ -480,6 +505,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapCells { $0.column > range.upperBound ? CellAddress(row: $0.row, column: $0.column - count) : $0 }
         columnWidths = Self.shift(columnWidths.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         hiddenColumns = Self.shift(hiddenColumns.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
+        columnStyles = Self.shift(
+            columnStyles.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         remapMerges(along: \.column) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .column)
         shiftConditionalFormats(.remove(range: range), axis: .column, scope: ownScope)
@@ -529,8 +556,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         spills = [:]
     }
 
-    private static func shift(_ values: [Int: Double], from index: Int, by delta: Int) -> [Int: Double] {
-        var result: [Int: Double] = [:]
+    private static func shift<Value>(_ values: [Int: Value], from index: Int, by delta: Int) -> [Int: Value] {
+        var result: [Int: Value] = [:]
         for (key, value) in values { result[key >= index ? key + delta : key] = value }
         return result
     }

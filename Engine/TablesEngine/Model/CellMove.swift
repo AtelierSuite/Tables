@@ -52,7 +52,9 @@ extension Workbook {
             moved[landing] = cell
             comments[landing] = sheets[index].comments[address]
             if !copying {
-                sheets[index][address] = Cell()
+                // Dropped rather than blanked, so it shows its row's or
+                // column's format again, as in Excel.
+                sheets[index].cells[address] = nil
                 sheets[index].comments[address] = nil
             }
         }
