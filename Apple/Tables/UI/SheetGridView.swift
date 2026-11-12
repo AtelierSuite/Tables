@@ -360,7 +360,12 @@ struct SheetGridView: View {
         }
         .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
         .contentShape(.rect)
-        .onTapGesture(coordinateSpace: .local) { point in tap(address(at: point)) }
+        .onTapGesture(coordinateSpace: .local) { point in
+            // SwiftUI hands a tap to a view the finger only came near, and the
+            // nearest cell is no answer for a tap on the page beside the grid.
+            guard metrics.contains(point) else { return tapOutsideCells() }
+            tap(address(at: point))
+        }
         #if canImport(UIKit)
         // A long press raises the same menu the double tap does. It comes from
         // UIKit rather than from a SwiftUI gesture because only UIKit's
@@ -729,6 +734,9 @@ struct SheetGridView: View {
         .clipped()
         .contentShape(.rect)
         .onTapGesture(coordinateSpace: .local) { point in
+            // A tap on the page only near the table, which SwiftUI still hands
+            // to it, leaves no table worked on rather than picking this one.
+            guard metrics.contains(point) else { return tapOutsideCells() }
             pickTable(sheet, at: CellAddress(row: metrics.row(atY: point.y), column: metrics.column(atX: point.x)))
         }
         .offset(x: origin.x, y: origin.y)

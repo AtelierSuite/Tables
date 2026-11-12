@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 @testable import Tables
 @testable import TablesEngine
@@ -166,6 +167,17 @@ struct WorksheetStructureTests {
         #expect(metrics.column(atX: 10) == 0)
         #expect(metrics.column(atX: 250) >= 2)
         #expect(metrics.totalHeight == Worksheet.defaultRowHeight * 20)
+    }
+
+    @Test("A point past a sheet's last row or column is not on its grid, though it clamps to a cell")
+    func metricsContainOnlyTheGrid() {
+        let metrics = SheetMetrics(sheet: Worksheet(name: "Sheet 1"))
+        #expect(metrics.contains(CGPoint(x: 1, y: 1)))
+        #expect(metrics.contains(CGPoint(x: metrics.totalWidth - 1, y: metrics.totalHeight - 1)))
+        #expect(!metrics.contains(CGPoint(x: metrics.totalWidth + 4, y: 1)))
+        #expect(!metrics.contains(CGPoint(x: 1, y: metrics.totalHeight + 4)))
+        #expect(!metrics.contains(CGPoint(x: -4, y: 1)))
+        #expect(metrics.column(atX: metrics.totalWidth + 4) == metrics.columnCount - 1)
     }
 
     @Test("Frozen rows and columns grow and shrink with the lines inserted and removed among them")
