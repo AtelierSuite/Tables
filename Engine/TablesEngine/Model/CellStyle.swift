@@ -252,6 +252,18 @@ public struct CellStyle: Hashable, Sendable {
     /// turns on and off: a Numbers checkbox. Excel has none, and shows the
     /// value as it is.
     public var showsCheckbox = false
+    /// The direction the cell's text reads in, OOXML's `readingOrder`.
+    public var readingOrder: ReadingOrder = .context
+    /// Whether a protected sheet keeps the cell from being changed. OOXML's
+    /// `<protection locked>`, which is on unless a file turns it off.
+    public var isLocked = true
+    /// Whether a protected sheet hides the cell's formula, showing only its
+    /// value. OOXML's `<protection hidden>`.
+    public var isFormulaHidden = false
+    /// Whether the cell's text was entered with a leading apostrophe, which
+    /// keeps text that looks like a number or a formula as text. OOXML's
+    /// `quotePrefix`; the apostrophe itself is not part of the value.
+    public var hasQuotePrefix = false
 
     /// The rotation value OOXML reserves for stacked (top-to-bottom) text.
     public static let stackedTextRotation = 255

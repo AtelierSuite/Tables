@@ -913,7 +913,11 @@ public enum XLSXWriter {
                 let borderID = hasBorder ? index + 1 : 0
                 xml += "<xf numFmtId=\"\(formatID)\" fontId=\"\(index)\" fillId=\"\(fillID)\" borderId=\"\(borderID)\""
                 xml += " xfId=\"0\" applyFont=\"1\" applyNumberFormat=\"1\" applyFill=\"1\" applyBorder=\"1\""
-                xml += " applyAlignment=\"1\">"
+                xml += " applyAlignment=\"1\""
+                let isProtectionDefault = style.isLocked && !style.isFormulaHidden
+                if !isProtectionDefault { xml += " applyProtection=\"1\"" }
+                if style.hasQuotePrefix { xml += " quotePrefix=\"1\"" }
+                xml += ">"
                 xml += "<alignment"
                 switch style.horizontalAlignment {
                 case .automatic: break
@@ -929,7 +933,16 @@ public enum XLSXWriter {
                 if style.wrapsText { xml += " wrapText=\"1\"" }
                 if style.indent > 0 { xml += " indent=\"\(style.indent)\"" }
                 if style.textRotation != 0 { xml += " textRotation=\"\(style.textRotation)\"" }
-                xml += "/></xf>"
+                if style.readingOrder != .context { xml += " readingOrder=\"\(style.readingOrder.rawValue)\"" }
+                xml += "/>"
+                // <protection> follows <alignment> in the schema.
+                if !isProtectionDefault {
+                    xml += "<protection"
+                    if !style.isLocked { xml += " locked=\"0\"" }
+                    if style.isFormulaHidden { xml += " hidden=\"1\"" }
+                    xml += "/>"
+                }
+                xml += "</xf>"
             }
             xml += "</cellXfs>"
             xml += "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
