@@ -58,6 +58,9 @@ struct SheetGridView: View {
     /// so that a scroll frame only looks tiles up. A reference held across
     /// updates, which nothing observes: filling it never redraws the grid.
     @State private var tileCache = TileCache()
+    /// A chart or picture being moved or resized, shared by the panes that
+    /// show parts of it so they move together.
+    @State private var objectDrags = FloatingObjectDrags()
     @Environment(\.colorScheme) private var colorScheme
     #if os(macOS)
     /// Where the pointer last was, for the right-click menu to read.
@@ -275,8 +278,8 @@ struct SheetGridView: View {
                 .frame(width: metrics.totalWidth, height: metrics.totalHeight)
 
             tiles
-            if !state.isTableUnfocused { selectionOverlay }
-            chartOverlay
+            if !state.isTableUnfocused { selectionOverlay() }
+            floatingObjects(in: scrollingWindow, pane: nil)
             editorOverlay
             cellMenuAnchor
         }
@@ -1014,8 +1017,11 @@ struct SheetGridView: View {
 
     /// Everything selected: the active range with its fill and drag handle, and
     /// behind it any further ranges picked up by the multi-range gesture.
+    ///
+    /// A frozen pane draws it too, over its own cells, without the grips:
+    /// `interactive` is false there.
     @ViewBuilder
-    private var selectionOverlay: some View {
+    private func selectionOverlay(interactive: Bool = true) -> some View {
         // A plain `ZStack` of siblings rather than one path over the lot: each
         // range is positioned by its own offset, which is what lets the active
         // one keep the grip and the anchor hole the others do not have.
@@ -1034,7 +1040,7 @@ struct SheetGridView: View {
                     rangeBox(range, color: .accentColor)
                 }
             }
-            activeSelectionOverlay
+            activeSelectionOverlay(interactive: interactive)
         }
     }
 
@@ -1075,7 +1081,7 @@ struct SheetGridView: View {
             .offset(x: frame.minX, y: frame.minY)
     }
 
-    private var activeSelectionOverlay: some View {
+    private func activeSelectionOverlay(interactive: Bool) -> some View {
         let box = state.isEnteringFormula
             ? (state.pendingReferenceRange ?? state.selection).normalized
             : state.selection.normalized
@@ -1109,13 +1115,13 @@ struct SheetGridView: View {
         // the grip takes touches.
         .allowsHitTesting(false)
         .overlay(alignment: .bottomTrailing) {
-            if !isEditing, !state.isAutoFilling { selectionHandle(from: box, tint: tint) }
+            if interactive, !isEditing, !state.isAutoFilling { selectionHandle(from: box, tint: tint) }
         }
         .overlay(alignment: .bottom) {
-            if state.isAutoFilling, !isEditing { fillHandle(from: box, vertical: true) }
+            if interactive, state.isAutoFilling, !isEditing { fillHandle(from: box, vertical: true) }
         }
         .overlay(alignment: .trailing) {
-            if state.isAutoFilling, !isEditing { fillHandle(from: box, vertical: false) }
+            if interactive, state.isAutoFilling, !isEditing { fillHandle(from: box, vertical: false) }
         }
         .overlay(alignment: .topLeading) {
             if state.isAutoFilling, let fillTarget {
@@ -1227,21 +1233,38 @@ struct SheetGridView: View {
 
     // MARK: - Charts
 
+    /// The part of the sheet the scrolling grid has in view, and some way
+    /// round it.
+    private var scrollingWindow: CGRect {
+        CGRect(
+            x: state.scrollOffset.x - gridOrigin.x + headerInsets.width,
+            y: state.scrollOffset.y - gridOrigin.y + headerInsets.height,
+            width: state.viewportSize.width, height: state.viewportSize.height
+        )
+    }
+
     /// The charts and kept drawing objects floating over the sheet, above the
     /// cells and the selection — where Excel draws them — and below the
     /// in-cell editor, which must never be covered.
     ///
-    /// Only the ones near the window are built: a chart is a whole Swift
+    /// The scrolling grid has them all (`pane` nil); a frozen pane has those
+    /// reaching into its part of the sheet, and its clip cuts them at the
+    /// freeze line, so a chart across it shows its frozen part fixed in the
+    /// pane and the rest scrolling with the sheet. Each copy works the same:
+    /// a tap on any part picks the object out, and a drag of any part moves
+    /// all of them.
+    ///
+    /// Only the ones near `window` are built: a chart is a whole Swift
     /// Charts view, and a sheet can carry dozens.
     @ViewBuilder
-    private var chartOverlay: some View {
+    private func floatingObjects(in window: CGRect, pane: FrozenPanes.Pane?) -> some View {
         let sheet = activeSheet
         if !sheet.charts.isEmpty || !sheet.preservedDrawingAnchors.isEmpty || !sheet.formControls.isEmpty {
-            let window = CGRect(
-                x: state.scrollOffset.x - gridOrigin.x + headerInsets.width,
-                y: state.scrollOffset.y - gridOrigin.y + headerInsets.height,
-                width: state.viewportSize.width, height: state.viewportSize.height
-            ).insetBy(dx: -200, dy: -200)
+            let window = window.insetBy(dx: -200, dy: -200)
+            let panes = frozenPanesLayout
+            let panesShown = arePanesShown
+            let isHome = { (frame: CGRect) in Self.isHome(frame, in: pane, of: panes, panesShown: panesShown) }
+            let wanted = { (frame: CGRect) in Self.shows(frame, in: pane, of: panes, near: window) }
 
             // A form control's hidden DrawingML twin gives way to the control.
             let controlIDs = Set(sheet.formControls.map(\.id))
@@ -1250,25 +1273,47 @@ struct SheetGridView: View {
                 ForEach(sheet.preservedDrawingAnchors) { anchor in
                     if let placement = anchor.placement, !(anchor.vmlShapeID.map(controlIDs.contains) ?? false) {
                         let frame = placement.frame(in: metrics)
-                        if frame.intersects(window), frame.width > 0, frame.height > 0 {
+                        if wanted(frame) {
                             keptDrawing(anchor, frame: frame)
+                                .accessibilityHidden(!isHome(frame))
                         }
                     }
                 }
                 ForEach(sheet.charts) { chart in
                     let frame = chart.placement.frame(in: metrics)
-                    if frame.intersects(window), frame.width > 0, frame.height > 0 {
+                    if wanted(frame) {
                         embeddedChart(chart, frame: frame)
+                            .accessibilityHidden(!isHome(frame))
                     }
                 }
                 ForEach(sheet.formControls) { control in
                     let frame = control.placement.frame(in: metrics)
-                    if !control.isHidden, frame.intersects(window), frame.width > 0, frame.height > 0 {
+                    if !control.isHidden, wanted(frame) {
                         formControl(control, frame: frame)
+                            .accessibilityHidden(!isHome(frame))
                     }
                 }
             }
         }
+    }
+
+    /// Whether a pane (nil for the scrolling grid) builds a floating object
+    /// near its part of the sheet.
+    private static func shows(
+        _ frame: CGRect, in pane: FrozenPanes.Pane?, of panes: FrozenPanes, near window: CGRect
+    ) -> Bool {
+        guard frame.intersects(window), frame.width > 0, frame.height > 0 else { return false }
+        guard let pane else { return true }
+        return panes.shows(frame, in: pane)
+    }
+
+    /// Whether a pane's copy of a floating object is the one in the pane it
+    /// belongs to, which alone is offered to accessibility.
+    private static func isHome(
+        _ frame: CGRect, in pane: FrozenPanes.Pane?, of panes: FrozenPanes, panesShown: Bool
+    ) -> Bool {
+        guard panesShown else { return pane == nil }
+        return panes.home(of: frame) == (pane ?? .scrolling)
     }
 
     private func formControl(_ control: FormControl, frame: CGRect) -> some View {
@@ -1333,7 +1378,8 @@ struct SheetGridView: View {
                 )
             },
             onMoveToNewSheet: { state.moveSelectedChartToNewSheet(in: &workbook) },
-            onDelete: { state.deleteSelectedChart(in: &workbook) }
+            onDelete: { state.deleteSelectedChart(in: &workbook) },
+            drags: objectDrags
         )
     }
 
@@ -1350,6 +1396,7 @@ struct SheetGridView: View {
             isMovable: !anchor.locks.noMove, isResizable: !anchor.locks.noResize,
             keepsAspectRatio: anchor.locks.noChangeAspect,
             gripIdentifier: "drawingResizeGrip", gripLabel: image != nil ? "Picture.Resize" : "Drawing.Resize",
+            dragID: anchor.id, drags: objectDrags,
             onSelect: {
                 if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
                 state.selectDrawing(anchor.id)
@@ -1569,6 +1616,16 @@ struct SheetGridView: View {
         )
     }
 
+    /// How the frozen rows and columns split the sheet into panes.
+    private var frozenPanesLayout: FrozenPanes {
+        FrozenPanes(width: frozenExtent.width, height: frozenExtent.height)
+    }
+
+    /// Whether the frozen panes are over the sheet now.
+    private var arePanesShown: Bool {
+        frozenPanesLayout.isFrozen && !isEditingFrozenCell
+    }
+
     /// While a frozen cell is edited the panes step aside: the editor is one
     /// of the scrolling cells, and the sheet scrolls back to it.
     private var isEditingFrozenCell: Bool {
@@ -1589,75 +1646,79 @@ struct SheetGridView: View {
             let columns = 0..<min(sheet.frozenColumns, metrics.columnCount)
             ZStack(alignment: .topLeading) {
                 if frozen.height > 0 {
+                    let size = CGSize(width: width, height: min(height, frozen.height))
                     let shift = CGPoint(x: state.scrollOffset.x, y: 0)
-                    pinned(frozenPane(rows: rows, columns: visibleColumns, shift: shift),
-                           width: width, height: min(height, frozen.height), shift: shift)
+                    pinned(frozenPane(.rows, rows: rows, columns: visibleColumns, shift: shift, size: size),
+                           size: size, shift: shift)
                         .overlay(alignment: .bottom) { frozenEdge(horizontal: true) }
                 }
                 if frozen.width > 0 {
+                    let size = CGSize(width: min(width, frozen.width), height: height)
                     let shift = CGPoint(x: 0, y: state.scrollOffset.y)
-                    pinned(frozenPane(rows: visibleRows, columns: columns, shift: shift),
-                           width: min(width, frozen.width), height: height, shift: shift)
+                    pinned(frozenPane(.columns, rows: visibleRows, columns: columns, shift: shift, size: size),
+                           size: size, shift: shift)
                         .overlay(alignment: .trailing) { frozenEdge(horizontal: false) }
                 }
                 if frozen.width > 0, frozen.height > 0 {
-                    pinned(frozenPane(rows: rows, columns: columns, shift: .zero),
-                           width: min(width, frozen.width), height: min(height, frozen.height), shift: .zero)
+                    let size = CGSize(width: min(width, frozen.width), height: min(height, frozen.height))
+                    pinned(frozenPane(.corner, rows: rows, columns: columns, shift: .zero, size: size),
+                           size: size, shift: .zero)
                 }
             }
         }
     }
 
-    /// One frozen pane: the tiles covering it and the selection over them,
-    /// in the sheet's coordinates moved back by `shift`. Taps land on the
-    /// cell beneath, as they would on the sheet.
-    private func frozenPane(rows: Range<Int>, columns: Range<Int>, shift: CGPoint) -> some View {
+    /// One frozen pane: the tiles covering it, the selection, the formula's
+    /// references and the floating objects over them, in the sheet's
+    /// coordinates moved back by `shift`; `size` is how much of it shows.
+    /// Taps on a cell land on the cell beneath, as they would on the sheet,
+    /// and a chart or picture takes its own.
+    private func frozenPane(
+        _ pane: FrozenPanes.Pane, rows: Range<Int>, columns: Range<Int>, shift: CGPoint, size: CGSize
+    ) -> some View {
         let sheet = activeSheet
         let plans = Self.tilePlans(rows: rows, columns: columns, metrics: metrics)
         let drawing = tileCache.tiles(of: sheet, metrics: metrics)
         let scheme = drawing.scheme(for: colorScheme)
-        let selection = metrics.frame(for: sheet.expandedToMerges(state.selection))
 
         return ZStack(alignment: .topLeading) {
-            Rectangle()
-                .fill(paper(of: sheet))
-                .frame(width: metrics.totalWidth, height: metrics.totalHeight)
-            ForEach(plans) { plan in
-                let frame = metrics.frame(for: plan.range)
-                GridTileView(
-                    rows: plan.rows,
-                    columns: plan.columns,
-                    origin: frame.origin,
-                    size: frame.size,
-                    hiddenRows: sheet.hiddenRows,
-                    hiddenColumns: sheet.hiddenColumns,
-                    contents: contents(of: plan, in: sheet, drawing: drawing, metrics: metrics),
-                    metrics: metrics,
-                    scheme: scheme
-                )
-                .equatable()
+            ZStack(alignment: .topLeading) {
+                Rectangle()
+                    .fill(paper(of: sheet))
+                    .frame(width: metrics.totalWidth, height: metrics.totalHeight)
+                ForEach(plans) { plan in
+                    let frame = metrics.frame(for: plan.range)
+                    GridTileView(
+                        rows: plan.rows,
+                        columns: plan.columns,
+                        origin: frame.origin,
+                        size: frame.size,
+                        hiddenRows: sheet.hiddenRows,
+                        hiddenColumns: sheet.hiddenColumns,
+                        contents: contents(of: plan, in: sheet, drawing: drawing, metrics: metrics),
+                        metrics: metrics,
+                        scheme: scheme
+                    )
+                    .equatable()
+                }
+                if !state.isTableUnfocused { selectionOverlay(interactive: false) }
             }
-            if !state.isEnteringFormula, !state.isTableUnfocused {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.14))
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
-                    .frame(width: max(selection.width, 1), height: max(selection.height, 1))
-                    .offset(x: selection.minX, y: selection.minY)
-                    .allowsHitTesting(false)
-            }
+            // The cells and the selection take no touches of their own: the
+            // pane hands taps on them to the cell beneath.
+            .allowsHitTesting(false)
+            floatingObjects(in: CGRect(origin: shift, size: size), pane: pane)
         }
         .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
         .offset(x: -shift.x, y: -shift.y)
-        // Clipping a view leaves its touches where they were: the sheet-sized
-        // drawing takes none, and the pane, once clipped, takes them instead.
-        .allowsHitTesting(false)
     }
 
     /// Clips a frozen pane to its place and sends its taps to the cell under
-    /// them, `shift` being how far the pane's drawing is scrolled.
-    private func pinned(_ pane: some View, width: Double, height: Double, shift: CGPoint) -> some View {
+    /// them, `shift` being how far the pane's drawing is scrolled. What the
+    /// clip cuts off takes no touches either, so a chart running out of the
+    /// pane leaves the cells beyond the freeze line to the sheet.
+    private func pinned(_ pane: some View, size: CGSize, shift: CGPoint) -> some View {
         pane
-            .frame(width: width, height: height, alignment: .topLeading)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
             .clipped()
             .contentShape(.rect)
             .onTapGesture(coordinateSpace: .local) { point in

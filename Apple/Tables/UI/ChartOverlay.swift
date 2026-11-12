@@ -16,11 +16,15 @@ struct EmbeddedChartView: View {
     var onCommit: (CGRect) -> Void
     var onMoveToNewSheet: () -> Void
     var onDelete: () -> Void
+    /// Where a move or resize of it in progress has got to, shared by
+    /// every pane it shows in.
+    var drags: FloatingObjectDrags? = nil
 
     var body: some View {
         FloatingObjectView(
             frame: frame, isSelected: isSelected, minimumSize: CGSize(width: 48, height: 36),
             gripIdentifier: "chartResizeGrip", gripLabel: "Chart.Resize",
+            dragID: chart.id, drags: drags,
             onSelect: onSelect, onDeselect: onDeselect, onCommit: onCommit
         ) { size in
             ChartView(chart: chart, data: data, zoom: zoom)
@@ -70,6 +74,12 @@ struct FloatingObjectView<Content: View, MenuItems: View>: View {
     var keepsAspectRatio = false
     let gripIdentifier: String
     let gripLabel: LocalizedStringKey
+    /// What the object is known by in `drags`.
+    var dragID: AnyHashable? = nil
+    /// Where a move or resize in progress has got to, when the object shows
+    /// in more than one pane: each draws it there, so the parts on either
+    /// side of a freeze line move together.
+    var drags: FloatingObjectDrags? = nil
     var onSelect: () -> Void
     var onDeselect: () -> Void
     /// The new frame, in the grid's zoomed coordinates.
@@ -78,10 +88,35 @@ struct FloatingObjectView<Content: View, MenuItems: View>: View {
     @ViewBuilder var content: (CGSize) -> Content
     @ViewBuilder var menu: () -> MenuItems
 
-    @State private var translation: CGSize = .zero
-    @State private var growth: CGSize = .zero
+    @State private var ownTranslation: CGSize = .zero
+    @State private var ownGrowth: CGSize = .zero
 
     private let gripDiameter: Double = 18
+
+    /// How far the object is being dragged: kept with the other panes
+    /// showing it when there are any, or else by this view alone.
+    private var translation: CGSize {
+        get {
+            guard let drags, let dragID else { return ownTranslation }
+            return drags.live?.id == dragID ? drags.live?.translation ?? .zero : .zero
+        }
+        nonmutating set {
+            guard let drags, let dragID else { return ownTranslation = newValue }
+            drags.update(dragID) { $0.translation = newValue }
+        }
+    }
+
+    /// How far the grip has been dragged, shared the same way.
+    private var growth: CGSize {
+        get {
+            guard let drags, let dragID else { return ownGrowth }
+            return drags.live?.id == dragID ? drags.live?.growth ?? .zero : .zero
+        }
+        nonmutating set {
+            guard let drags, let dragID else { return ownGrowth = newValue }
+            drags.update(dragID) { $0.growth = newValue }
+        }
+    }
 
     var body: some View {
         let size = resized(by: growth)
@@ -168,6 +203,26 @@ struct FloatingObjectView<Content: View, MenuItems: View>: View {
             )
             .accessibilityIdentifier(gripIdentifier)
             .accessibilityLabel(gripLabel)
+    }
+}
+
+/// The move or resize of a floating object in progress, for every pane
+/// that shows a part of it to draw it where the finger has it.
+@Observable
+final class FloatingObjectDrags {
+    struct Live: Equatable {
+        var id: AnyHashable
+        var translation: CGSize = .zero
+        var growth: CGSize = .zero
+    }
+
+    private(set) var live: Live?
+
+    /// Changes the drag of one object, which ends once it is back at rest.
+    func update(_ id: AnyHashable, _ change: (inout Live) -> Void) {
+        var drag = live?.id == id ? live! : Live(id: id)
+        change(&drag)
+        live = drag.translation == .zero && drag.growth == .zero ? nil : drag
     }
 }
 
