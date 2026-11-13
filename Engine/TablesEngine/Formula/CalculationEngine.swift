@@ -721,6 +721,17 @@ extension Workbook {
 // MARK: - Parsing user input
 
 public enum CellInputParser {
+    /// The cell that typing `input` over `existing` leaves: its style kept,
+    /// and its text's runs too when the text is what it already was, so
+    /// stepping through a cell in the editor does not flatten it.
+    public static func cell(from input: String, replacing existing: Cell) -> Cell {
+        var cell = cell(from: input, inheriting: existing.style)
+        if existing.formula == nil, cell.formula == nil, cell.value == existing.value {
+            cell.richText = existing.richText
+        }
+        return cell
+    }
+
     /// Interprets raw text typed into a cell: formulas, numbers, percentages,
     /// booleans, and everything else as text.
     public static func cell(from input: String, inheriting style: CellStyle) -> Cell {

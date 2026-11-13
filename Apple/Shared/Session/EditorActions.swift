@@ -66,7 +66,7 @@ extension EditorState {
         let wasEditingInFormulaBar = isFormulaBarActive
         let index = activeIndex(in: workbook)
         let existing = workbook.sheets[index][address]
-        workbook.sheets[index][address] = CellInputParser.cell(from: editingText, inheriting: existing.style)
+        workbook.sheets[index][address] = CellInputParser.cell(from: editingText, replacing: existing)
         workbook.recalculate()
 
         editingAddress = nil

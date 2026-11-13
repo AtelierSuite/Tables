@@ -325,7 +325,7 @@ final class WebSession {
         let target = sheet.mergedRange(containing: address)?.normalized.start ?? address
         change {
             let existing = workbook.sheets[index][target]
-            workbook.sheets[index][target] = CellInputParser.cell(from: text, inheriting: existing.style)
+            workbook.sheets[index][target] = CellInputParser.cell(from: text, replacing: existing)
             workbook.recalculate()
         }
         select(target)

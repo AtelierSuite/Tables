@@ -169,9 +169,9 @@ struct CellRenderer {
         let cell = sheet.displayedCell(at: address)
         let style = cell.style
         let zoom = metrics.zoom
-        let width = NSAttributedString(
-            string: CellFormatter.displayText(for: cell),
-            attributes: [.font: Self.font(for: style, zoom: zoom)]
+        let width = Self.attributed(
+            CellFormatter.displayText(for: cell), attributes: [.font: Self.font(for: style, zoom: zoom)],
+            runsOf: cell, zoom: zoom, scheme: scheme
         ).size().width
         if let reach = Worksheet.overflowReach(
             of: address.column, within: span, textWidth: width,
@@ -416,7 +416,8 @@ struct CellRenderer {
             room = max(room, box.width)
         }
 
-        var text = Self.attributed(string, attributes: attributes)
+        // The cell's text in its runs, where it has them.
+        var text = Self.attributed(string, attributes: attributes, runsOf: cell, zoom: zoom, scheme: scheme)
         var measured = text.boundingRect(
             with: CGSize(width: wraps ? box.width : Self.unbounded, height: Self.unbounded),
             options: [.usesLineFragmentOrigin]
@@ -521,6 +522,38 @@ struct CellRenderer {
             var partAttributes = attributes
             if part.isReserved { partAttributes[.foregroundColor] = NSColor.clear }
             result.append(NSAttributedString(string: part.text, attributes: partAttributes))
+        }
+        return result
+    }
+
+    /// `string`, which is the text of `cell` as it is about to be drawn, set
+    /// in the cell's runs: each in its own font, a run without a colour of
+    /// its own in the colour of `attributes`. A cell whose text is all in
+    /// one font is set in `attributes` alone.
+    private static func attributed(
+        _ string: String, attributes: [NSAttributedString.Key: Any], runsOf cell: Cell, zoom: Double,
+        scheme: ColorScheme
+    ) -> NSAttributedString {
+        guard let pieces = cell.styledPieces(of: string) else {
+            return attributed(string, attributes: attributes)
+        }
+        let result = NSMutableAttributedString()
+        for piece in pieces {
+            var partAttributes = attributes
+            var style = piece.style
+            if let font = piece.font {
+                // A raised or lowered run is set smaller, off the line.
+                style.fontSize = font.glyphSize(of: piece.style.fontSize)
+                let offset = font.baselineOffset(of: piece.style.fontSize) * zoom
+                if offset != 0 { partAttributes[.baselineOffset] = offset }
+                if font.colorHex != nil, let color = style.textColor(for: scheme) {
+                    partAttributes[.foregroundColor] = NSColor(color)
+                }
+            }
+            partAttributes[.font] = Self.font(for: style, zoom: zoom)
+            partAttributes[.underlineStyle] = style.isUnderlined ? NSUnderlineStyle.single.rawValue : nil
+            partAttributes[.strikethroughStyle] = style.isStruckThrough ? NSUnderlineStyle.single.rawValue : nil
+            result.append(NSAttributedString(string: piece.text, attributes: partAttributes))
         }
         return result
     }

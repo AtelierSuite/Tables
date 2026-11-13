@@ -2,13 +2,25 @@ import Foundation
 
 /// One cell's stored content: either a literal value or a formula plus its cached result.
 public struct Cell: Hashable, Sendable {
-    public var value: CellValue = .empty
-    public var formula: String?
+    public var value: CellValue = .empty {
+        // Runs describe the text they were read with, and go when it does.
+        didSet { if richText != nil { dropStaleRuns() } }
+    }
+    public var formula: String? {
+        didSet { if richText != nil { dropStaleRuns() } }
+    }
     public var style: CellStyle = .default
     /// Set on a cell holding part of a neighbour's spilled array. The value is
     /// that formula's, not the cell's own: it does not block the spill, and it
     /// is cleared when the spill shrinks away.
     public var isSpilled = false
+    /// The text's runs, when parts of it have fonts of their own; nil for
+    /// text all in the cell's font. They are kept only while `value` is the
+    /// text they add up to: changing the value or giving the cell a formula
+    /// drops them.
+    public var richText: RichText? {
+        didSet { dropStaleRuns() }
+    }
     /// For a legacy array formula, entered with Ctrl+Shift+Enter in Excel, the
     /// fixed block its result fills, counted from this cell.
     public var arrayExtent: ArrayExtent?
@@ -23,7 +35,8 @@ public struct Cell: Hashable, Sendable {
         style: CellStyle = .default,
         isSpilled: Bool = false,
         arrayExtent: ArrayExtent? = nil,
-        savedResultInputs: Int? = nil
+        savedResultInputs: Int? = nil,
+        richText: RichText? = nil
     ) {
         self.value = value
         self.formula = formula
@@ -31,6 +44,13 @@ public struct Cell: Hashable, Sendable {
         self.isSpilled = isSpilled
         self.arrayExtent = arrayExtent
         self.savedResultInputs = savedResultInputs
+        self.richText = richText
+        dropStaleRuns()
+    }
+
+    private mutating func dropStaleRuns() {
+        guard let richText else { return }
+        if formula != nil || value != .text(richText.plainText) { self.richText = nil }
     }
 
     /// Marks a result read from a file, before its inputs have been seen.
@@ -53,9 +73,28 @@ public struct Cell: Hashable, Sendable {
 }
 
 /// The size of a legacy array formula's block.
+///
+/// Held in half the room two `Int`s take, which a sheet's row and column
+/// limits fit many times over: that is the room a cell's `richText` takes,
+/// so a cell is no bigger for having it.
 public struct ArrayExtent: Hashable, Sendable {
-    public var rows: Int
-    public var columns: Int
+    private var storedRows: Int32
+    private var storedColumns: Int32
+
+    public var rows: Int {
+        get { Int(storedRows) }
+        set { storedRows = Int32(clamping: newValue) }
+    }
+
+    public var columns: Int {
+        get { Int(storedColumns) }
+        set { storedColumns = Int32(clamping: newValue) }
+    }
+
+    public init(rows: Int, columns: Int) {
+        storedRows = Int32(clamping: rows)
+        storedColumns = Int32(clamping: columns)
+    }
 }
 
 /// The rows and columns at a Numbers table's edges: its header rows at the

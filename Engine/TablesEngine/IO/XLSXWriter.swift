@@ -770,7 +770,7 @@ public enum XLSXWriter {
                 body += "<v>\(XMLLite.escape(text))</v>"
             } else {
                 attributes += " t=\"s\""
-                body += "<v>\(strings.index(for: text))</v>"
+                body += "<v>\(strings.index(for: text, richText: cell.richText))</v>"
             }
         }
 
@@ -781,7 +781,7 @@ public enum XLSXWriter {
     }
 
     /// Round-trip-safe number rendering: full precision, no separators.
-    private static func format(_ value: Double) -> String {
+    static func format(_ value: Double) -> String {
         if value == value.rounded(), abs(value) < 1e15 { return String(Int64(value)) }
         return String(format: "%.15g", value)
     }
@@ -791,6 +791,10 @@ public enum XLSXWriter {
     public final class SharedStringTable {
         public private(set) var strings: [String] = []
         private var lookup: [String: Int] = [:]
+        /// Strings with runs, by their place in `strings`, which holds their
+        /// plain text. The same text plain and in runs are two strings.
+        private var richTexts: [Int: RichText] = [:]
+        private var richLookup: [RichText: Int] = [:]
         private var referenceCount = 0
 
         public init(workbook: Workbook) {
@@ -799,7 +803,7 @@ public enum XLSXWriter {
                 where address.row < sheet.rowCount && address.column < sheet.columnCount {
                     guard cell.formula == nil, case .text(let text) = cell.value else { continue }
                     referenceCount += 1
-                    _ = index(for: text)
+                    _ = index(for: text, richText: cell.richText)
                 }
             }
         }
@@ -813,11 +817,28 @@ public enum XLSXWriter {
             return index
         }
 
+        /// The index of `text` set in `richText`'s runs, or of the plain
+        /// string when it has none.
+        @discardableResult
+        public func index(for text: String, richText: RichText?) -> Int {
+            guard let richText else { return index(for: text) }
+            if let existing = richLookup[richText] { return existing }
+            let index = strings.count
+            strings.append(text)
+            richTexts[index] = richText
+            richLookup[richText] = index
+            return index
+        }
+
         public var xml: String {
             var xml = XLSXWriter.declaration
             xml += "<sst xmlns=\"\(XLSXWriter.mainNamespace)\" count=\"\(referenceCount)\" uniqueCount=\"\(strings.count)\">"
-            for text in strings {
-                xml += "<si><t xml:space=\"preserve\">\(XMLLite.escape(text))</t></si>"
+            for (index, text) in strings.enumerated() {
+                if let richText = richTexts[index] {
+                    xml += "<si>\(RichTextParts.xml(for: richText))</si>"
+                } else {
+                    xml += "<si><t xml:space=\"preserve\">\(XMLLite.escape(text))</t></si>"
+                }
             }
             xml += "</sst>"
             return xml

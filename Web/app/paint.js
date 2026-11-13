@@ -204,32 +204,147 @@ function drawCheckbox(ctx, op, palette) {
 
 // MARK: - Text
 
-/** Lines of `text` wrapped to `width`, breaking at spaces and, for long words, anywhere. */
-function wrapLines(ctx, text, width) {
+/**
+ * How an operation's text is measured and drawn: in the cell's one font, or,
+ * for a cell with runs (`op.runs`), each stretch in the font of its run.
+ *
+ * A line is a piece of `op.t` and where it starts in it, counted in UTF-16
+ * units, which is how a stretch finds its run: the runs' text adds up to
+ * `op.t`.
+ */
+function typesetter(ctx, op) {
+  const cellFont = fontFor(op);
+  ctx.font = cellFont;
+  const metricsOf = (size) => {
+    const metrics = ctx.measureText("Hg");
+    return [metrics.fontBoundingBoxAscent ?? size * 0.8, metrics.fontBoundingBoxDescent ?? size * 0.2];
+  };
+  const rule = (run, x, width, baseline, ascent) => {
+    if (!run.u && !run.s) return;
+    ctx.lineWidth = Math.max(1, run.fs / 14);
+    ctx.beginPath();
+    if (run.u) {
+      ctx.moveTo(x, baseline + Math.max(1.5, run.fs * 0.12));
+      ctx.lineTo(x + width, baseline + Math.max(1.5, run.fs * 0.12));
+    }
+    if (run.s) {
+      ctx.moveTo(x, baseline - ascent * 0.32);
+      ctx.lineTo(x + width, baseline - ascent * 0.32);
+    }
+    ctx.stroke();
+  };
+
+  if (!op.runs) {
+    const [ascent, descent] = metricsOf(op.fs);
+    return {
+      ascent,
+      descent,
+      width: (text) => ctx.measureText(text).width,
+      /** Draws `text` from `x` rightwards, in `color`. */
+      draw(text, offset, x, baseline, color) {
+        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+        ctx.textAlign = "left";
+        ctx.fillText(text, x, baseline);
+        rule(op, x, ctx.measureText(text).width, baseline, ascent);
+      },
+    };
+  }
+
+  let start = 0;
+  let ascent = 0;
+  let descent = 0;
+  const runs = op.runs.map((run) => {
+    const font = fontFor(run);
+    ctx.font = font;
+    const [runAscent, runDescent] = metricsOf(run.fs);
+    const lift = run.dy ?? 0;
+    ascent = Math.max(ascent, runAscent + lift);
+    descent = Math.max(descent, runDescent - lift);
+    const entry = { ...run, font, start, ascent: runAscent };
+    start += run.t.length;
+    return entry;
+  });
+  /** The stretches of `text`, which starts at `offset` in `op.t`, by run. */
+  const stretches = (text, offset) => {
+    const found = [];
+    let index = runs.findIndex((run) => offset < run.start + run.t.length);
+    if (index < 0) index = runs.length - 1;
+    let position = 0;
+    while (position < text.length) {
+      const run = runs[index];
+      const end = index === runs.length - 1 ? text.length : Math.min(text.length, run.start + run.t.length - offset);
+      if (end > position) found.push({ run, text: text.slice(position, end) });
+      position = Math.max(end, position);
+      if (index < runs.length - 1) index++;
+    }
+    return found;
+  };
+  const measured = (stretch) => {
+    ctx.font = stretch.run.font;
+    return ctx.measureText(stretch.text).width;
+  };
+  return {
+    ascent,
+    descent,
+    width: (text, offset) => stretches(text, offset).reduce((sum, stretch) => sum + measured(stretch), 0),
+    draw(text, offset, x, baseline, color) {
+      const parts = stretches(text, offset);
+      // Read right to left, the first stretch is the rightmost.
+      if (op.rtl) parts.reverse();
+      ctx.textAlign = "left";
+      for (const stretch of parts) {
+        const width = measured(stretch);
+        const ink = cssColor(stretch.run.c) ?? color;
+        ctx.fillStyle = ink;
+        ctx.strokeStyle = ink;
+        const line = baseline - (stretch.run.dy ?? 0);
+        ctx.fillText(stretch.text, x, line);
+        rule(stretch.run, x, width, line, stretch.run.ascent);
+        x += width;
+      }
+    },
+  };
+}
+
+/**
+ * Lines of `text` wrapped to `width`, breaking at spaces and, for long words,
+ * anywhere: each with where it starts in `text`, for `measure` to find its font by.
+ */
+function wrapLines(measure, text, width) {
   const lines = [];
+  let start = 0;
   for (const paragraph of text.split("\n")) {
     if (paragraph === "") {
-      lines.push("");
+      lines.push({ text: "", offset: start });
+      start += 1;
       continue;
     }
     let line = "";
+    let lineOffset = start;
+    let cursor = start;
     for (const word of paragraph.split(/(\s+)/)) {
       const candidate = line + word;
-      if (line === "" || ctx.measureText(candidate).width <= width) {
+      if (line === "" || measure(candidate, lineOffset) <= width) {
         line = candidate;
+        cursor += word.length;
         continue;
       }
-      lines.push(line.trimEnd());
+      lines.push({ text: line.trimEnd(), offset: lineOffset });
       line = word.trimStart();
+      lineOffset = cursor + word.length - line.length;
+      cursor += word.length;
       // A single word wider than the box breaks between characters.
-      while (line.length > 1 && ctx.measureText(line).width > width) {
+      while (line.length > 1 && measure(line, lineOffset) > width) {
         let cut = line.length - 1;
-        while (cut > 1 && ctx.measureText(line.slice(0, cut)).width > width) cut--;
-        lines.push(line.slice(0, cut));
+        while (cut > 1 && measure(line.slice(0, cut), lineOffset) > width) cut--;
+        lines.push({ text: line.slice(0, cut), offset: lineOffset });
         line = line.slice(cut);
+        lineOffset += cut;
       }
     }
-    lines.push(line);
+    lines.push({ text: line, offset: lineOffset });
+    start += paragraph.length + 1;
   }
   return lines;
 }
@@ -262,12 +377,12 @@ function hashes(ctx, width) {
 function drawText(ctx, op, palette) {
   const frame = op.r;
   if (frame[2] <= 0 || frame[3] <= 0) return;
-  ctx.font = fontFor(op);
+  const set = typesetter(ctx, op);
+  const measure = set.width;
   const color = cssColor(op.c) ?? (op.err ? palette.error : palette.text);
-  const metrics = ctx.measureText("Hg");
-  const ascent = metrics.fontBoundingBoxAscent ?? op.fs * 0.8;
-  const descent = metrics.fontBoundingBoxDescent ?? op.fs * 0.2;
-  const lineHeight = ascent + descent;
+  // A cell with runs has every line as tall as its tallest run.
+  const ascent = set.ascent;
+  const lineHeight = ascent + set.descent;
 
   // The same padding the cell editor has, so opening it does not shift the text.
   let box = [frame[0] + 6, frame[1] + 2, frame[2] - 12, frame[3] - 4];
@@ -293,11 +408,17 @@ function drawText(ctx, op, palette) {
   let lines;
   let measuredWidth;
   if (wraps) {
-    lines = wrapLines(ctx, text, box[2]);
+    lines = wrapLines(measure, text, box[2]);
     measuredWidth = box[2];
   } else {
-    lines = text.split("\n");
-    measuredWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    let start = 0;
+    lines = text.split("\n").map((line) => {
+      const entry = { text: line, offset: start };
+      start += line.length + 1;
+      return entry;
+    });
+    const widest = () => Math.max(...lines.map((line) => measure(line.text, line.offset)));
+    measuredWidth = widest();
     // Turned text runs along its turned box rather than across the cell.
     if (op.rot) room = runLength(box[2], box[3], op.rot, lineHeight * lines.length);
     // A number a hair too wide may take some of the cell's padding before it gives way to #s.
@@ -309,8 +430,8 @@ function drawText(ctx, op, palette) {
     // Text too long for its room runs on from the edge it is aligned to and
     // is clipped at the cell's edge, as Excel and Numbers clip it.
     if (op.num && measuredWidth > room) {
-      lines = lines.map(() => hashes(ctx, room));
-      measuredWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+      lines = lines.map((line) => ({ text: hashes(ctx, room), offset: line.offset }));
+      measuredWidth = widest();
     }
   }
   const size = [wraps ? box[2] : Math.min(measuredWidth, room), lines.length * lineHeight];
@@ -335,6 +456,7 @@ function drawText(ctx, op, palette) {
     ctx.rect(frame[0], frame[1], frame[2], frame[3]);
     ctx.clip();
     const baseline = target[1] + ascent;
+    ctx.font = fontFor(op);
     ctx.textAlign = "left";
     ctx.fillText(op.parts[0], box[0], baseline);
     ctx.textAlign = "right";
@@ -358,26 +480,12 @@ function drawText(ctx, op, palette) {
     ctx.translate(-(target[0] + target[2] / 2), -(target[1] + target[3] / 2));
   }
   const align = op.h === "r" ? "right" : op.h === "c" ? "center" : "left";
-  ctx.textAlign = align;
   const anchorX = align === "right" ? target[0] + target[2] : align === "center" ? target[0] + target[2] / 2 : target[0];
   lines.forEach((line, index) => {
     const baseline = target[1] + index * lineHeight + ascent;
-    ctx.fillText(line, anchorX, baseline);
-    if (op.u || op.s) {
-      const width = ctx.measureText(line).width;
-      const startX = align === "right" ? anchorX - width : align === "center" ? anchorX - width / 2 : anchorX;
-      ctx.lineWidth = Math.max(1, op.fs / 14);
-      ctx.beginPath();
-      if (op.u) {
-        ctx.moveTo(startX, baseline + Math.max(1.5, op.fs * 0.12));
-        ctx.lineTo(startX + width, baseline + Math.max(1.5, op.fs * 0.12));
-      }
-      if (op.s) {
-        ctx.moveTo(startX, baseline - ascent * 0.32);
-        ctx.lineTo(startX + width, baseline - ascent * 0.32);
-      }
-      ctx.stroke();
-    }
+    const width = measure(line.text, line.offset);
+    const startX = align === "right" ? anchorX - width : align === "center" ? anchorX - width / 2 : anchorX;
+    set.draw(line.text, line.offset, startX, baseline, color);
   });
   ctx.restore();
 }

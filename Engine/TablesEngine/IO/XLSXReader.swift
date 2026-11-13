@@ -15,8 +15,9 @@ public enum XLSXReader {
         }
         let workbookXML = try XMLLite.parse(workbookEntry)
         let relationships = parseRelationships(entries["xl/_rels/workbook.xml.rels"])
-        let sharedStrings = parseSharedStrings(entries["xl/sharedStrings.xml"])
         let theme = parseTheme(entries)
+        let sharedStrings = RichTextParts.stringTable(
+            entries["xl/sharedStrings.xml"], theme: theme, styleSheet: entries["xl/styles.xml"])
         let styles = parseStyles(entries["xl/styles.xml"], theme: theme)
         let styleSheetElements = preservedStyleSheetElements(entries["xl/styles.xml"])
         let hasDifferentialFormats = styleSheetElements.contains { $0.name == "dxfs" }
@@ -341,15 +342,6 @@ public enum XLSXReader {
         return ThemeColorScheme(themeXML: root)
     }
 
-    private static func parseSharedStrings(_ data: Data?) -> [String] {
-        guard let data, let root = try? XMLLite.parse(data) else { return [] }
-        return root.children(named: "si").map { item in
-            if let direct = item.firstChild(named: "t") { return direct.text }
-            // Rich text: concatenate every run.
-            return item.children(named: "r").compactMap { $0.firstChild(named: "t")?.text }.joined()
-        }
-    }
-
     // MARK: - Styles
 
     /// The formats Excel means by the ids a file leaves undefined. 37–40 pad
@@ -554,7 +546,7 @@ public enum XLSXReader {
     // MARK: - Sheet content
 
     private static func parseSheet(
-        _ root: XMLElement, name: String, sharedStrings: [String], styles: [CellStyle],
+        _ root: XMLElement, name: String, sharedStrings: RichTextParts.StringTable, styles: [CellStyle],
         usesMacEpoch: Bool, hasDifferentialFormats: Bool, differentialStyles: [ConditionalStyle]
     ) -> Worksheet {
         var sheet = Worksheet(name: name)
@@ -639,7 +631,9 @@ public enum XLSXReader {
                         }
                     }
                 }
-                cell.value = decodeValue(cellElement, sharedStrings: sharedStrings)
+                let decoded = decodeValue(cellElement, sharedStrings: sharedStrings)
+                cell.value = decoded.value
+                cell.richText = decoded.richText
                 if usesMacEpoch, case .number(let serial) = cell.value,
                    CellFormatter.isDateFormat(cell.style.numberFormat) {
                     cell.value = .number(serial + macEpochOffset)
@@ -1312,18 +1306,27 @@ public enum XLSXReader {
     /// serials, so only they get shifted.
     private static let macEpochOffset = 1462.0
 
-    private static func decodeValue(_ element: XMLElement, sharedStrings: [String]) -> CellValue {
-        let type = element.attribute("t") ?? "n"
-        switch type {
+    /// A cell's value, with the runs of text that has them.
+    private static func decodeValue(
+        _ element: XMLElement, sharedStrings: RichTextParts.StringTable
+    ) -> (value: CellValue, richText: RichText?) {
+        switch element.attribute("t") {
         case "s":
             guard let raw = element.firstChild(named: "v")?.text.trimmed, let index = Int(raw),
-                  sharedStrings.indices.contains(index) else { return .empty }
-            return .text(sharedStrings[index])
+                  sharedStrings.texts.indices.contains(index) else { return (.empty, nil) }
+            return (.text(sharedStrings.texts[index]), sharedStrings.richTexts[index])
         case "inlineStr":
-            guard let inline = element.firstChild(named: "is") else { return .empty }
-            if let direct = inline.firstChild(named: "t") { return .text(direct.text) }
-            let runs = inline.children(named: "r").compactMap { $0.firstChild(named: "t")?.text }
-            return .text(runs.joined())
+            guard let inline = element.firstChild(named: "is") else { return (.empty, nil) }
+            let string = RichTextParts.string(in: inline, colors: sharedStrings.colors)
+            return (.text(string.text), string.richText)
+        default:
+            return (decodePlainValue(element), nil)
+        }
+    }
+
+    private static func decodePlainValue(_ element: XMLElement) -> CellValue {
+        let type = element.attribute("t") ?? "n"
+        switch type {
         case "str":
             return .text(element.firstChild(named: "v")?.text ?? "")
         case "b":
