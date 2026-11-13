@@ -261,6 +261,9 @@ public struct Workbook: Hashable, Sendable {
     /// The name the macros know the workbook by, `ThisWorkbook` unless the
     /// file renamed it. Like a sheet's, it binds the workbook to its module.
     public var codeName: String?
+    /// Calculation, protection and window settings carried through from the
+    /// file's workbook part.
+    public var settings = WorkbookSettings()
 
     /// Whether the file came with macros that a save can carry through.
     public var hasMacros: Bool { preservedPackage.macroProjectPath != nil }
@@ -311,12 +314,13 @@ public struct Workbook: Hashable, Sendable {
 
     /// Hides or reveals a sheet. Hiding the last visible one fails: Excel
     /// requires at least one, and a workbook without it opens to nothing.
+    /// A very hidden sheet is kept off the list offered to unhide.
     @discardableResult
-    public mutating func setSheet(_ sheetID: Worksheet.ID, hidden: Bool) -> Bool {
+    public mutating func setSheet(_ sheetID: Worksheet.ID, hidden: Bool, veryHidden: Bool = false) -> Bool {
         guard let index = index(of: sheetID) else { return false }
-        guard sheets[index].isHidden != hidden else { return true }
-        if hidden, visibleSheets.count <= 1 { return false }
+        if sheets[index].isHidden != hidden, hidden, visibleSheets.count <= 1 { return false }
         sheets[index].isHidden = hidden
+        sheets[index].isVeryHidden = hidden && veryHidden
         return true
     }
 

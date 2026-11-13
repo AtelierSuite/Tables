@@ -76,7 +76,7 @@ struct SheetTabBarView: View {
         .padding(.leading, 12)
     }
 
-    private var hiddenSheets: [Worksheet] { workbook.sheets.filter(\.isHidden) }
+    private var hiddenSheets: [Worksheet] { workbook.unhidableSheets }
 
     /// The sheets that get a tab: every visible one, but only the first of
     /// the tables a canvas holds — the rest are picked on the canvas.

@@ -381,7 +381,8 @@ public final class VBAWorksheetObject: VBAObject {
         case "index":
             return .integer(try host.sheetIndex(sheetID) + 1)
         case "visible":
-            return .integer(sheet.isHidden ? 0 : -1)
+            // xlSheetVisible, xlSheetHidden, xlSheetVeryHidden.
+            return .integer(sheet.isVeryHidden ? 2 : sheet.isHidden ? 0 : -1)
         case "range", "cells", "rows", "columns":
             return try host.range(sheetID, wholeSheet).member(name, arguments, in: interpreter)
         case "usedrange":
@@ -469,9 +470,16 @@ public final class VBAWorksheetObject: VBAObject {
         case "visible":
             let visible = try lettered(value, interpreter)
             let isVisible: Bool
-            if case .boolean(let flag) = visible { isVisible = flag } else { isVisible = try visible.asInteger() == -1 }
+            var isVeryHidden = false
+            if case .boolean(let flag) = visible {
+                isVisible = flag
+            } else {
+                let number = try visible.asInteger()
+                isVisible = number == -1
+                isVeryHidden = number == 2
+            }
             var succeeded = true
-            host.modifyWorkbook { succeeded = $0.setSheet(sheetID, hidden: !isVisible) }
+            host.modifyWorkbook { succeeded = $0.setSheet(sheetID, hidden: !isVisible, veryHidden: isVeryHidden) }
             guard succeeded else { throw VBAError(number: 1004, "Unable to set the Visible property of the Worksheet class") }
         case "autofiltermode", "enableselection", "scrollarea", "displaypagebreaks":
             return

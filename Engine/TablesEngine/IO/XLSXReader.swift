@@ -44,14 +44,16 @@ public enum XLSXReader {
             let target = element.attribute("id").flatMap { relationships[$0] }
             let fallbackPath = "xl/worksheets/sheet\(position + 1).xml"
             let path = resolvePath(target) ?? fallbackPath
-            // `veryHidden` only differs in whether Excel's own UI offers to
-            // reveal it, which is a distinction we have no place to keep.
+            // `veryHidden` is hidden too, but kept off the list of sheets
+            // offered to unhide.
             let state = element.attribute("state")
             let isHidden = state == "hidden" || state == "veryHidden"
+            let isVeryHidden = state == "veryHidden"
 
             guard let payload = entries[path] ?? entries[fallbackPath] else {
                 var placeholder = Worksheet(name: name)
                 placeholder.isHidden = isHidden
+                placeholder.isVeryHidden = isVeryHidden
                 placeholder.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
                 sheets.append(placeholder)
                 sheetPaths.append(path)
@@ -81,6 +83,7 @@ public enum XLSXReader {
             sheet.preservedElements.removeAll { $0.name == "drawing" }
             sheet.name = name
             sheet.isHidden = isHidden
+            sheet.isVeryHidden = isVeryHidden
             sheet.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
             if sheet.kind == .worksheet {
                 sheet.codeName = sheetXML.firstChild(named: "sheetPr")?.attribute("codeName")
@@ -93,10 +96,14 @@ public enum XLSXReader {
         guard !sheets.isEmpty else { throw ReadError(message: "The workbook contains no sheets.") }
         // A file claiming every sheet is hidden is malformed — Excel requires
         // one visible — and honouring it would leave the tab strip empty.
-        if sheets.allSatisfy(\.isHidden) { sheets[0].isHidden = false }
+        if sheets.allSatisfy(\.isHidden) {
+            sheets[0].isHidden = false
+            sheets[0].isVeryHidden = false
+        }
         var workbook = Workbook(sheets: sheets, definedNames: parseDefinedNames(workbookXML, sheets: sheets))
         workbook.themeAccentColors = theme.accentColors
         workbook.codeName = workbookXML.firstChild(named: "workbookPr")?.attribute("codeName")
+        workbook.settings = workbookSettings(workbookXML, sheets: sheets)
         workbook.canvases = CanvasPart.canvases(
             entries: entries,
             workbookRelationships: PackagePreservation.relationships(in: entries["xl/_rels/workbook.xml.rels"]),
@@ -783,6 +790,37 @@ public enum XLSXReader {
         "printOptions", "pageMargins", "pageSetup", "headerFooter", "rowBreaks", "colBreaks",
         "ignoredErrors", "drawing", "legacyDrawing", "legacyDrawingHF", "controls", "tableParts", "extLst",
     ]
+
+    /// The workbook part's settings beside its sheets, with each window's
+    /// tab positions turned into the sheets they name.
+    private static func workbookSettings(_ workbookXML: XMLElement, sheets: [Worksheet]) -> WorkbookSettings {
+        func attributes(of element: XMLElement?, known: [String], except: Set<String> = []) -> [String: String] {
+            guard let element else { return [:] }
+            return element.attributes.filter { known.contains($0.key) && !except.contains($0.key) }
+        }
+        func sheetID(_ position: String?) -> Worksheet.ID? {
+            guard let position = position.flatMap(Int.init), sheets.indices.contains(position) else { return nil }
+            return sheets[position].id
+        }
+        var settings = WorkbookSettings()
+        settings.properties = attributes(
+            of: workbookXML.firstChild(named: "workbookPr"), known: WorkbookSettings.propertyAttributes,
+            except: ["codeName", "date1904"])
+        if let protection = workbookXML.firstChild(named: "workbookProtection") {
+            settings.protection = attributes(of: protection, known: WorkbookSettings.protectionAttributes)
+        }
+        settings.views = workbookXML.firstChild(named: "bookViews")?.children(named: "workbookView").map { view in
+            WorkbookWindow(
+                attributes: attributes(of: view, known: WorkbookSettings.viewAttributes,
+                                       except: ["activeTab", "firstSheet"]),
+                activeSheetID: sheetID(view.attribute("activeTab") ?? "0"),
+                firstSheetID: sheetID(view.attribute("firstSheet")))
+        } ?? []
+        settings.calculation = attributes(
+            of: workbookXML.firstChild(named: "calcPr"), known: WorkbookSettings.calculationAttributes,
+            except: ["calcId", "fullCalcOnLoad"])
+        return settings
+    }
 
     private static func preservedChildren(
         of root: XMLElement, hasDifferentialFormats: Bool

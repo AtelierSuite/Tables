@@ -453,9 +453,16 @@ public enum XLSXWriter {
     private static func workbookPart(_ workbook: Workbook) -> String {
         var xml = declaration
         xml += "<workbook xmlns=\"\(mainNamespace)\" xmlns:r=\"\(relationshipNamespace)\">"
-        if let codeName = workbook.codeName {
-            xml += "<workbookPr codeName=\"\(XMLLite.escape(codeName))\"/>"
+        let settings = workbook.settings
+        var properties = settings.properties
+        properties["codeName"] = workbook.codeName
+        if !properties.isEmpty {
+            xml += "<workbookPr\(attributes(properties, in: WorkbookSettings.propertyAttributes))/>"
         }
+        if let protection = settings.protection {
+            xml += "<workbookProtection\(attributes(protection, in: WorkbookSettings.protectionAttributes))/>"
+        }
+        xml += bookViews(of: workbook)
         xml += "<sheets>"
         let hasVisibleSheet = workbook.sheets.contains { !$0.isHidden }
         let sheetIDs = fileSheetIDs(of: workbook)
@@ -463,7 +470,9 @@ public enum XLSXWriter {
             xml += "<sheet name=\"\(XMLLite.escape(sheet.name))\" sheetId=\"\(sheetIDs[index])\""
             // Excel refuses to open a workbook with nothing visible, so the
             // first sheet stays visible however the model got into that state.
-            if sheet.isHidden, hasVisibleSheet || index > 0 { xml += " state=\"hidden\"" }
+            if sheet.isHidden, hasVisibleSheet || index > 0 {
+                xml += sheet.isVeryHidden ? " state=\"veryHidden\"" : " state=\"hidden\""
+            }
             xml += " r:id=\"rId\(index + 1)\"/>"
         }
         xml += "</sheets>"
@@ -489,9 +498,37 @@ public enum XLSXWriter {
         }
         // Ask Excel to recalculate on open: we store our own cached results, and
         // where a function differs in the last digit its answer should win.
-        xml += "<calcPr calcId=\"0\" fullCalcOnLoad=\"1\"/>"
+        var calculation = settings.calculation
+        calculation["calcId"] = "0"
+        calculation["fullCalcOnLoad"] = "1"
+        xml += "<calcPr\(attributes(calculation, in: WorkbookSettings.calculationAttributes))/>"
         xml += "</workbook>"
         return xml
+    }
+
+    /// Attributes in the order the schema lists them.
+    private static func attributes(_ values: [String: String], in order: [String]) -> String {
+        order.compactMap { name in values[name].map { " \(name)=\"\(XMLLite.escape($0))\"" } }.joined()
+    }
+
+    /// The file's windows, with their tabs pointed at wherever their sheets
+    /// now are. A sheet that is gone or hidden gives way to the first visible
+    /// one, since Excel will not open on a tab it does not show.
+    private static func bookViews(of workbook: Workbook) -> String {
+        guard !workbook.settings.views.isEmpty else { return "" }
+        let fallback = workbook.sheets.firstIndex { !$0.isHidden } ?? 0
+        func position(of id: Worksheet.ID?) -> Int? { id.flatMap { workbook.index(of: $0) } }
+        var xml = "<bookViews>"
+        for view in workbook.settings.views {
+            var values = view.attributes
+            let active = position(of: view.activeSheetID).flatMap { workbook.sheets[$0].isHidden ? nil : $0 } ?? fallback
+            if active != 0 { values["activeTab"] = String(active) }
+            if let first = position(of: view.firstSheetID), first != 0 {
+                values["firstSheet"] = String(first)
+            }
+            xml += "<workbookView\(attributes(values, in: WorkbookSettings.viewAttributes))/>"
+        }
+        return xml + "</bookViews>"
     }
 
     // MARK: - Worksheets
