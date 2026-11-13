@@ -25,6 +25,8 @@ struct CellRenderer {
     /// a printout or preview of the cells in use does. Borders on its edges
     /// are kept inside it.
     var shownArea: CGRect?
+    /// Finds another sheet by name, for sparklines that plot its cells.
+    var sheets: ((String) -> Worksheet?)?
 
     /// `lookup` is one built from this version of `sheet`, kept from an
     /// earlier draw by a `SheetLookupCache`. Without one, it is built here,
@@ -120,6 +122,7 @@ struct CellRenderer {
         for entry in painted {
             drawText(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow, context: context)
         }
+        drawSparklines(rows: rows, columns: columns, context: context)
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in merges {
             let frame = metrics.frame(for: merge)
@@ -158,6 +161,49 @@ struct CellRenderer {
         }
         context.restoreGState()
         if drawsCommentMarks { drawCommentMarks(rows: rows, columns: columns, context: context) }
+    }
+
+    // MARK: - Sparklines
+
+    /// The sparklines of the cells in view, from the values the sheet has now.
+    private func drawSparklines(rows: Range<Int>, columns: Range<Int>, context: CGContext) {
+        for address in sheet.sparklineLocations
+        where rows.contains(address.row) && columns.contains(address.column)
+            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
+            let frame = metrics.frame(for: sheet.mergedRange(containing: address)?.normalized ?? CellRange(address))
+            let shapes = sheet.sparklineShapes(at: address, in: frame, zoom: metrics.zoom, sheets: sheets)
+            guard !shapes.isEmpty else { continue }
+            context.saveGState()
+            context.clip(to: frame)
+            for shape in shapes {
+                switch shape {
+                case .polyline(let points, let width, let hex):
+                    context.setStrokeColor(sparklineColor(hex))
+                    context.setLineWidth(width)
+                    context.setLineJoin(.round)
+                    context.setLineCap(.round)
+                    context.addLines(between: points)
+                    context.strokePath()
+                case .axis(let from, let to, let width, let hex):
+                    context.setStrokeColor(sparklineColor(hex))
+                    context.setLineWidth(width)
+                    context.addLines(between: [from, to])
+                    context.strokePath()
+                case .bar(let rect, let hex):
+                    context.setFillColor(sparklineColor(hex))
+                    context.fill(rect)
+                case .marker(let center, let radius, let hex):
+                    context.setFillColor(sparklineColor(hex))
+                    context.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius,
+                                                   width: radius * 2, height: radius * 2))
+                }
+            }
+            context.restoreGState()
+        }
+    }
+
+    private func sparklineColor(_ hex: String) -> CGColor {
+        AdaptiveColor.resolve(hex: hex, for: scheme, isText: false).map { NSColor($0).cgColor } ?? Self.cgColor(hex)
     }
 
     // MARK: - Overflow
