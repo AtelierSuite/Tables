@@ -45,6 +45,10 @@ public enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Compar
     case slicers
     case documentProperties
     case macros
+    /// Excel's custom views: named sets of view and print settings.
+    case customViews
+    /// Objects embedded from other apps, such as a Word document.
+    case embeddedObjects
     /// A Numbers table's formatting, kept but not editable, where the table
     /// has no list of styles for changes to go in.
     case formatting
@@ -77,6 +81,8 @@ public enum UnsupportedFeature: String, CaseIterable, Hashable, Sendable, Compar
         case .slicers: return String(localized: "UnsupportedFeature.Slicers", bundle: .engine)
         case .documentProperties: return String(localized: "UnsupportedFeature.DocumentProperties", bundle: .engine)
         case .macros: return String(localized: "UnsupportedFeature.Macros", bundle: .engine)
+        case .customViews: return String(localized: "UnsupportedFeature.CustomViews", bundle: .engine)
+        case .embeddedObjects: return String(localized: "UnsupportedFeature.EmbeddedObjects", bundle: .engine)
         case .formatting: return String(localized: "UnsupportedFeature.Formatting", bundle: .engine)
         case .fontsAndBorders: return String(localized: "UnsupportedFeature.FontsAndBorders", bundle: .engine)
         case .richTextFormatting: return String(localized: "UnsupportedFeature.RichTextFormatting", bundle: .engine)
@@ -160,7 +166,7 @@ public struct PreservedElement: Hashable, Sendable {
     /// `_rels` part survives alongside them, and a dangling id is what makes
     /// Excel offer to repair a file.
     public static let relationshipDependentNames: Set<String> = [
-        "hyperlinks", "legacyDrawing", "controls", "tableParts", "drawing",
+        "hyperlinks", "legacyDrawing", "legacyDrawingHF", "controls", "tableParts", "drawing",
     ]
 
     public var needsSheetRelationships: Bool { Self.relationshipDependentNames.contains(name) }

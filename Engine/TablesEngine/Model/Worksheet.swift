@@ -455,6 +455,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.row) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .row)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .row, scope: ownScope)
+        shiftKeptReferences(.insert(index: index, count: count), axis: .row)
         origins?.insertRows(count, at: index, rowCount: rowCount)
         rowCount += count
         // Rows inserted among the frozen ones join them, as in Excel.
@@ -472,6 +473,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.column) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .column)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .column, scope: ownScope)
+        shiftKeptReferences(.insert(index: index, count: count), axis: .column)
         origins?.insertColumns(count, at: index, columnCount: columnCount)
         columnCount += count
         if index < frozenColumns { frozenColumns += count }
@@ -491,6 +493,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.row) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .row)
         shiftConditionalFormats(.remove(range: range), axis: .row, scope: ownScope)
+        shiftKeptReferences(.remove(range: range), axis: .row)
         origins?.removeRows(range, rowCount: rowCount)
         rowCount -= count
         frozenRows -= Self.overlap(of: range, withFirst: frozenRows)
@@ -510,6 +513,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.column) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .column)
         shiftConditionalFormats(.remove(range: range), axis: .column, scope: ownScope)
+        shiftKeptReferences(.remove(range: range), axis: .column)
         origins?.removeColumns(range, columnCount: columnCount)
         columnCount -= count
         frozenColumns -= Self.overlap(of: range, withFirst: frozenColumns)
