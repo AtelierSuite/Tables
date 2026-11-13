@@ -57,6 +57,8 @@ struct TileContents: Equatable, Sendable {
     var comments: [CommentMark] = []
     /// Borders of the cells and merges in the tile and just outside it.
     var borders: [PaintedBorders] = []
+    /// The marks of the sparklines in the tile, drawn from the sheet's values.
+    var sparklines: [SparklineShape] = []
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -227,6 +229,7 @@ enum CellPainter {
         for cell in contents.cells {
             paintText(cell.cell, in: cell.frame, overflow: cell.overflow, zoom: metrics.zoom, scheme: scheme, into: &context)
         }
+        paintSparklines(contents.sparklines, scheme: scheme, into: &context)
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in contents.merges {
             paint(merge.cell, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
@@ -238,6 +241,32 @@ enum CellPainter {
         }
         for mark in contents.comments {
             paintCommentMark(mark, zoom: metrics.zoom, into: &context)
+        }
+    }
+
+    private static func paintSparklines(
+        _ shapes: [SparklineShape], scheme: ColorScheme, into context: inout GraphicsContext
+    ) {
+        func color(_ hex: String) -> Color {
+            AdaptiveColor.resolve(hex: hex, for: scheme, isText: false) ?? .accentColor
+        }
+        for shape in shapes {
+            switch shape {
+            case .polyline(let points, let width, let hex):
+                var path = Path()
+                path.addLines(points)
+                context.stroke(path, with: .color(color(hex)),
+                               style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            case .axis(let from, let to, let width, let hex):
+                var path = Path()
+                path.addLines([from, to])
+                context.stroke(path, with: .color(color(hex)), lineWidth: width)
+            case .bar(let rect, let hex):
+                context.fill(Path(rect), with: .color(color(hex)))
+            case .marker(let center, let radius, let hex):
+                context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
+                                                    width: radius * 2, height: radius * 2)), with: .color(color(hex)))
+            }
         }
     }
 
