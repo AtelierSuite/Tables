@@ -570,9 +570,13 @@ public enum XLSXReader {
             let style = column.attribute("style").flatMap(Int.init)
                 .flatMap { styles.indices.contains($0) ? styles[$0] : nil }
                 .flatMap { $0.isDefault ? nil : $0 }
+            let outlineLevel = column.attribute("outlineLevel").flatMap(Int.init) ?? 0
+            let collapsed = isTrue(column.attribute("collapsed"))
             for index in first...upper {
                 let zeroBased = index - 1
                 if hidden { sheet.hiddenColumns.insert(zeroBased) }
+                if outlineLevel > 0 { sheet.columnOutline.setLevel(outlineLevel, of: zeroBased) }
+                if collapsed { sheet.columnOutline.collapsed.insert(zeroBased) }
                 if let style { sheet.columnStyles[zeroBased] = style }
                 if let width, width > 0, isTrue(column.attribute("customWidth")) {
                     sheet.columnWidths[zeroBased] = width
@@ -586,6 +590,10 @@ public enum XLSXReader {
             maximumRow = max(maximumRow, rowNumber)
 
             if isTrue(rowElement.attribute("hidden")) { sheet.hiddenRows.insert(rowIndex) }
+            if let level = rowElement.attribute("outlineLevel").flatMap(Int.init), level > 0 {
+                sheet.rowOutline.setLevel(level, of: rowIndex)
+            }
+            if isTrue(rowElement.attribute("collapsed")) { sheet.rowOutline.collapsed.insert(rowIndex) }
             // `s` counts only with `customFormat`. A row's format wins over its
             // columns', so even the default one is kept when a column has its own.
             if isTrue(rowElement.attribute("customFormat")),
@@ -662,6 +670,16 @@ public enum XLSXReader {
         sheet.hiddenRows = sheet.hiddenRows.filter { $0 < sheet.rowCount }
         sheet.rowStyles = sheet.rowStyles.filter { $0.key < sheet.rowCount }
         sheet.hiddenColumns = sheet.hiddenColumns.filter { $0 < sheet.columnCount }
+        // Where each group's button goes, before or after it.
+        if let outline = root.firstChild(named: "sheetPr")?.firstChild(named: "outlinePr") {
+            sheet.rowOutline.summaryAfter = outline.attribute("summaryBelow").map(isTrue) ?? true
+            sheet.columnOutline.summaryAfter = outline.attribute("summaryRight").map(isTrue) ?? true
+        }
+        sheet.rowOutline.levels = sheet.rowOutline.levels.filter { $0.key < sheet.rowCount }
+        sheet.columnOutline.levels = sheet.columnOutline.levels.filter { $0.key < sheet.columnCount }
+        // A collapsed mark may sit on the line just past the sheet's last.
+        sheet.rowOutline.collapsed = sheet.rowOutline.collapsed.filter { $0 <= sheet.rowCount }
+        sheet.columnOutline.collapsed = sheet.columnOutline.collapsed.filter { $0 <= sheet.columnCount }
         // `merge` rejects anything that would overlap what is already there, so
         // a file with contradictory regions loses the later ones rather than
         // becoming a sheet we cannot draw.
