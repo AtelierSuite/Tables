@@ -26,7 +26,9 @@ struct SheetGridView: View {
     /// the floating controls.
     private let trailingPadding: Double = 120
     private let bottomPadding: Double = 160
-    private let columnHeaderHeight: Double = 28
+    /// The column letters' strip, and the outline gutter above it.
+    private var columnHeaderHeight: Double { columnLabelHeight + columnOutlineGutter }
+    private let columnLabelHeight: Double = 28
     private let selectionHandleDiameter: Double = 18
 
     @State private var scrollPosition = ScrollPosition()
@@ -127,9 +129,21 @@ struct SheetGridView: View {
         return CGSize(width: extent.width + trailingPadding, height: extent.height + bottomPadding)
     }
 
-    private var rowHeaderWidth: Double {
+    private var rowHeaderWidth: Double { rowLabelWidth + rowOutlineGutter }
+
+    private var rowLabelWidth: Double {
         // Widen the gutter as row numbers get longer.
         44 + Double(max(0, String(activeSheet.rowCount).count - 3)) * 9
+    }
+
+    /// The outline gutters beside the row numbers and above the column
+    /// letters, there only while the sheet groups lines on that axis.
+    private var rowOutlineGutter: Double {
+        canvas == nil ? OutlineGutterView.thickness(for: activeSheet.rowOutline) : 0
+    }
+
+    private var columnOutlineGutter: Double {
+        canvas == nil ? OutlineGutterView.thickness(for: activeSheet.columnOutline) : 0
     }
 
     var body: some View {
@@ -1529,16 +1543,35 @@ struct SheetGridView: View {
                 .offset(x: rowHeaderWidth, y: columnHeaderHeight)
 
             columnHeaders
-                .frame(width: visibleGridWidth, height: columnHeaderHeight)
-                .offset(x: rowHeaderWidth)
+                .frame(width: visibleGridWidth, height: columnLabelHeight)
+                .offset(x: rowHeaderWidth, y: columnOutlineGutter)
 
             rowHeaders(viewportHeight: proxy.size.height)
-                .frame(width: rowHeaderWidth, height: visibleGridHeight)
-                .offset(y: columnHeaderHeight)
+                .frame(width: rowLabelWidth, height: visibleGridHeight)
+                .offset(x: rowOutlineGutter, y: columnHeaderHeight)
+
+            if columnOutlineGutter > 0 {
+                outlineGutter(.column)
+                    .frame(width: visibleGridWidth, height: columnOutlineGutter)
+                    .offset(x: rowHeaderWidth)
+            }
+            if rowOutlineGutter > 0 {
+                outlineGutter(.row)
+                    .frame(width: rowOutlineGutter, height: visibleGridHeight)
+                    .offset(y: columnHeaderHeight)
+            }
 
             cornerButton
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func outlineGutter(_ axis: OutlineAxis) -> some View {
+        OutlineGutterView(
+            axis: axis, sheet: activeSheet, metrics: metrics,
+            scrollOffset: axis == .row ? state.scrollOffset.y : state.scrollOffset.x,
+            onToggle: { group in state.toggleOutlineGroup(group, axis: axis, in: &workbook) }
+        )
     }
 
     private var columnHeaders: some View {
@@ -1549,7 +1582,7 @@ struct SheetGridView: View {
                     ColumnHeaderCell(
                         title: CellAddress.columnName(column),
                         width: metrics.width(ofColumn: column),
-                        height: columnHeaderHeight,
+                        height: columnLabelHeight,
                         isSelected: !state.isTableUnfocused && state.selectedRanges.contains { $0.columnRange.contains(column) },
                         isHiddenNeighbor: activeSheet.hiddenColumns.contains(column + 1),
                         onSelect: { state.selectEntireColumns(column...column, in: activeSheet) },
@@ -1576,7 +1609,7 @@ struct SheetGridView: View {
                     .background(alignment: .topLeading) {
                         if column < activeSheet.frozenColumns {
                             Color.headerBackground.background(.regularMaterial)
-                                .frame(width: metrics.width(ofColumn: column), height: columnHeaderHeight)
+                                .frame(width: metrics.width(ofColumn: column), height: columnLabelHeight)
                                 .offset(x: metrics.x(ofColumn: column))
                         }
                     }
@@ -1598,7 +1631,7 @@ struct SheetGridView: View {
                 if !activeSheet.hiddenRows.contains(row) {
                     RowHeaderCell(
                         title: String(row + 1),
-                        width: rowHeaderWidth,
+                        width: rowLabelWidth,
                         height: metrics.height(ofRow: row),
                         isSelected: !state.isTableUnfocused && state.selectedRanges.contains { $0.rowRange.contains(row) },
                         isHiddenNeighbor: activeSheet.hiddenRows.contains(row + 1),
@@ -1624,7 +1657,7 @@ struct SheetGridView: View {
                     .background(alignment: .topLeading) {
                         if row < activeSheet.frozenRows {
                             Color.headerBackground.background(.regularMaterial)
-                                .frame(width: rowHeaderWidth, height: metrics.height(ofRow: row))
+                                .frame(width: rowLabelWidth, height: metrics.height(ofRow: row))
                                 .offset(y: metrics.y(ofRow: row))
                         }
                     }
