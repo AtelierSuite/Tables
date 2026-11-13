@@ -43,6 +43,7 @@ extension Workbook {
 
         var moved: [CellAddress: Cell] = [:]
         var comments: [CellAddress: CellComment] = [:]
+        var links: [CellAddress: CellHyperlink] = [:]
         box.forEachAddress { address in
             var cell = sheets[index][address]
             let landing = CellAddress(row: address.row + rowDelta, column: address.column + columnDelta)
@@ -51,11 +52,13 @@ extension Workbook {
             }
             moved[landing] = cell
             comments[landing] = sheets[index].comments[address]
+            links[landing] = sheets[index].hyperlinks[address]
             if !copying {
                 // Dropped rather than blanked, so it shows its row's or
                 // column's format again, as in Excel.
                 sheets[index].cells[address] = nil
                 sheets[index].comments[address] = nil
+                sheets[index].hyperlinks[address] = nil
             }
         }
 
@@ -64,6 +67,7 @@ extension Workbook {
             cell.isSpilled = false
             sheets[index][address] = cell
             sheets[index].comments[address] = comments[address]
+            sheets[index].hyperlinks[address] = links[address]
         }
         recalculate()
         return true
