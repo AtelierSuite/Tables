@@ -73,6 +73,9 @@ enum MainMenu {
         export.addItem(item(String(localized: "Mac.Menu.Export.TSV"), #selector(WorkbookDocument.exportAsTSV(_:))))
         menu.addItem(submenu(export))
         menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Mac.Menu.Properties"),
+                          #selector(WorkbookDocument.showDocumentProperties(_:)), "p", [.command, .option]))
+        menu.addItem(.separator())
         menu.addItem(item(String(localized: "Mac.Menu.PageSetup"), #selector(NSDocument.runPageLayout(_:)),
                           "p", [.command, .shift]))
         menu.addItem(item(String(localized: "Mac.Menu.Print"), #selector(NSDocument.printDocument(_:)), "p"))

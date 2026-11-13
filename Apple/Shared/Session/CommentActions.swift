@@ -15,7 +15,7 @@ extension EditorState {
         return String(localized: "Comment.Author.Unknown")
     }
 
-    static let commentAuthorKey = "Comments.AuthorName"
+    nonisolated static let commentAuthorKey = "Comments.AuthorName"
 
     func comment(at address: CellAddress, in workbook: Workbook) -> CellComment? {
         activeSheet(in: workbook).comments[address]

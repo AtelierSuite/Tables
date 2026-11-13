@@ -70,6 +70,11 @@ struct WorkbookFile {
 
     init(workbook: Workbook = Workbook()) {
         self.workbook = workbook
+        // A workbook made here is created now, not whenever it is first saved.
+        if DocumentPropertiesParts.corePropertiesPath(in: workbook.preservedPackage) == nil,
+           workbook.documentProperties.created == nil {
+            self.workbook.documentProperties.created = Date()
+        }
         isPlainText = false
         isMacroEnabled = false
         numbersSource = nil
@@ -132,9 +137,17 @@ struct WorkbookFile {
         } else if contentType.conforms(to: .commaSeparatedText) {
             data = CSVCodec.data(from: workbook.sheet(at: exportSheetIndex))
         } else {
+            var workbook = workbook
+            workbook.stampDocumentProperties(savedAt: Date(), by: Self.savingAuthor)
             data = try XLSXWriter.data(from: workbook, macroEnabled: contentType.conforms(to: .macroEnabledWorkbook))
         }
         return FileWrapper(regularFileWithContents: data)
+    }
+
+    /// The name a save records as the last author: only one the person
+    /// gave Tables themselves, for signing comments. Nothing is looked up.
+    static var savingAuthor: String? {
+        UserDefaults.standard.string(forKey: EditorState.commentAuthorKey)
     }
 
     static func isNumbers(_ type: UTType) -> Bool {

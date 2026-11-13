@@ -248,6 +248,8 @@ public struct Workbook: Hashable, Sendable {
     public var preservedPackage = PreservedPackage()
     /// What that file used that we cannot edit, for the notice shown on open.
     public var unsupportedFeatures = UnsupportedFeatureReport()
+    /// Title, author and the rest, as `docProps` holds them.
+    public var documentProperties = DocumentProperties()
     /// The theme's six accent colours, as six-digit RGB. Chart series without
     /// a colour of their own take these in turn, exactly as Excel draws them.
     public var themeAccentColors = ThemeColorScheme.office.accentColors
