@@ -111,6 +111,22 @@ export function paint(ctx, list, palette) {
         strokeSegments(ctx, op.p, cssColor(op.c) ?? palette.border, op.w);
         ctx.setLineDash([]);
         break;
+      case "poly":
+        ctx.strokeStyle = cssColor(op.c);
+        ctx.lineWidth = op.w;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(op.p[0], op.p[1]);
+        for (let i = 2; i < op.p.length; i += 2) ctx.lineTo(op.p[i], op.p[i + 1]);
+        ctx.stroke();
+        break;
+      case "dot":
+        ctx.fillStyle = cssColor(op.c);
+        ctx.beginPath();
+        ctx.arc(op.p[0], op.p[1], op.w, 0, Math.PI * 2);
+        ctx.fill();
+        break;
       case "tri":
         ctx.fillStyle = cssColor(op.c);
         ctx.beginPath();

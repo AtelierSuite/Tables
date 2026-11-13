@@ -87,6 +87,7 @@ struct Renderer {
         for entry in painted {
             text(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow)
         }
+        sparklines(rows: rows, columns: columns)
         for merge in merges {
             let frame = metrics.frame(for: merge)
             let cell = sheet.displayedCell(at: merge.start)
@@ -321,6 +322,34 @@ struct Renderer {
         if !lineStyle.dashPattern.isEmpty { operation["d"] = lineStyle.dashPattern }
         if let color = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true)?.argbHex { operation["c"] = color }
         operations.append(operation)
+    }
+
+    // MARK: - Sparklines
+
+    /// The sparklines of the cells in view, as polylines, bars and dots.
+    private mutating func sparklines(rows: Range<Int>, columns: Range<Int>) {
+        func color(_ hex: String) -> String {
+            AdaptiveColor.resolve(hex: hex, for: scheme, isText: false)?.argbHex ?? hex
+        }
+        for address in sheet.sparklineLocations
+        where rows.contains(address.row) && columns.contains(address.column)
+            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
+            let frame = metrics.frame(for: sheet.mergedRange(containing: address)?.normalized ?? CellRange(address))
+            for shape in sheet.sparklineShapes(at: address, in: frame, zoom: 1) {
+                switch shape {
+                case .polyline(let points, let width, let hex):
+                    operations.append(["k": "poly", "p": points.flatMap { [Double($0.x), Double($0.y)] },
+                                       "w": width, "c": color(hex)])
+                case .axis(let from, let to, let width, let hex):
+                    operations.append(["k": "line", "p": [Double(from.x), Double(from.y), Double(to.x), Double(to.y)],
+                                       "w": width, "c": color(hex)])
+                case .bar(let rect, let hex):
+                    operations.append(["k": "fill", "r": frameArray(rect), "c": color(hex)])
+                case .marker(let center, let radius, let hex):
+                    operations.append(["k": "dot", "p": [Double(center.x), Double(center.y)], "w": radius, "c": color(hex)])
+                }
+            }
+        }
     }
 
     // MARK: - Comments
