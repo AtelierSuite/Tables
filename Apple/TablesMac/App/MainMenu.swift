@@ -231,6 +231,12 @@ enum MainMenu {
         menu.addItem(item(String(localized: "HeaderMenu.Column.Hide"), #selector(WorkbookViewController.hideColumns(_:))))
         menu.addItem(item(String(localized: "Mac.Menu.UnhideAll"), #selector(WorkbookViewController.unhideAll(_:))))
         menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Outline.GroupRows"), #selector(WorkbookViewController.groupRows(_:))))
+        menu.addItem(item(String(localized: "Outline.UngroupRows"), #selector(WorkbookViewController.ungroupRows(_:))))
+        menu.addItem(item(String(localized: "Outline.GroupColumns"), #selector(WorkbookViewController.groupColumns(_:))))
+        menu.addItem(item(String(localized: "Outline.UngroupColumns"),
+                          #selector(WorkbookViewController.ungroupColumns(_:))))
+        menu.addItem(.separator())
         menu.addItem(item(String(localized: "HeaderMenu.Column.FitToContents"),
                           #selector(WorkbookViewController.fitColumnWidth(_:))))
         menu.addItem(.separator())

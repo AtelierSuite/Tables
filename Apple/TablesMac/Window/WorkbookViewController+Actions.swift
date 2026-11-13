@@ -239,6 +239,10 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
     @objc func hideRows(_ sender: Any?) { edit { $0.setSelectedRows(hidden: true, in: &$1) } }
     @objc func hideColumns(_ sender: Any?) { edit { $0.setSelectedColumns(hidden: true, in: &$1) } }
     @objc func unhideAll(_ sender: Any?) { edit { $0.unhideEverything(in: &$1) } }
+    @objc func groupRows(_ sender: Any?) { edit { $0.groupSelection(.row, in: &$1) } }
+    @objc func ungroupRows(_ sender: Any?) { edit { $0.ungroupSelection(.row, in: &$1) } }
+    @objc func groupColumns(_ sender: Any?) { edit { $0.groupSelection(.column, in: &$1) } }
+    @objc func ungroupColumns(_ sender: Any?) { edit { $0.ungroupSelection(.column, in: &$1) } }
 
     @objc func fitColumnWidth(_ sender: Any?) {
         edit { state, workbook in
@@ -488,6 +492,9 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             menu.addItem(MainMenu.item(String(localized: "Mac.Menu.UnhideAll"), #selector(unhideAll(_:))))
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Column.FitToContents"), #selector(fitColumnWidth(_:))))
             menu.addItem(.separator())
+            menu.addItem(MainMenu.item(String(localized: "Outline.GroupColumns"), #selector(groupColumns(_:))))
+            menu.addItem(MainMenu.item(String(localized: "Outline.UngroupColumns"), #selector(ungroupColumns(_:))))
+            menu.addItem(.separator())
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Column.Delete"), #selector(deleteColumns(_:))))
         } else {
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.InsertAbove"), #selector(insertRowsAbove(_:))))
@@ -496,6 +503,9 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             menu.addItem(.separator())
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.Hide"), #selector(hideRows(_:))))
             menu.addItem(MainMenu.item(String(localized: "Mac.Menu.UnhideAll"), #selector(unhideAll(_:))))
+            menu.addItem(.separator())
+            menu.addItem(MainMenu.item(String(localized: "Outline.GroupRows"), #selector(groupRows(_:))))
+            menu.addItem(MainMenu.item(String(localized: "Outline.UngroupRows"), #selector(ungroupRows(_:))))
             menu.addItem(.separator())
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.Delete"), #selector(deleteRows(_:))))
         }
@@ -578,6 +588,12 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(insertRowsAbove(_:)), #selector(insertRowsBelow(_:)), #selector(insertColumnsBefore(_:)),
              #selector(insertColumnsAfter(_:)), #selector(deleteRows(_:)), #selector(deleteColumns(_:)):
             return isCells && state.allowsInsertingAndDeleting
+        case #selector(groupRows(_:)), #selector(groupColumns(_:)):
+            return isCells && !onCanvas && !document.isNumbers && !document.isPlainText
+        case #selector(ungroupRows(_:)):
+            return isCells && state.canUngroupSelection(.row, in: document.workbook)
+        case #selector(ungroupColumns(_:)):
+            return isCells && state.canUngroupSelection(.column, in: document.workbook)
         case #selector(insertChart(_:)):
             return isCells && !document.isPlainText && !document.isNumbers
         case #selector(editChart(_:)):
