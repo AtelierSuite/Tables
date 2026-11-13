@@ -698,7 +698,7 @@ public enum XLSXWriter {
     /// The sheet's kept fragments, with its frozen pane written into the
     /// first sheet view — the one the file had, or one of our own.
     private static func preservedElements(of sheet: Worksheet) -> [PreservedElement] {
-        var elements = sheet.preservedElements
+        var elements = SparklineParts.addingSparklines(sheet.sparklineGroups, to: sheet.preservedElements)
         guard sheet.frozenRows > 0 || sheet.frozenColumns > 0 else { return elements }
         let pane = frozenPane(for: sheet)
         if let index = elements.firstIndex(where: { $0.name == "sheetViews" }),
