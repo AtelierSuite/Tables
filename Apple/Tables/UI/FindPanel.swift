@@ -2,17 +2,21 @@ import SwiftUI
 import TablesEngine
 
 /// Finds text in the cells of every sheet, by what they show or by their
-/// formulas, and goes to the cell picked from the results.
+/// formulas, goes to the cell picked from the results, and replaces it in
+/// one cell or in all of them.
 struct FindPanel: View {
     @Binding var workbook: Workbook
     @Bindable var state: EditorState
 
     @State private var query = ""
-    @State private var matchesCase = false
+    @State private var replacement = ""
+    @State private var options = FindOptions()
+    /// What the last Replace did, until the search changes.
+    @State private var summary: String?
     @FocusState private var isSearching: Bool
 
     var body: some View {
-        let matches = workbook.matches(for: query, matchesCase: matchesCase)
+        let matches = workbook.matches(for: query, options: options)
         Form {
             Section {
                 TextField("Find.Placeholder", text: $query)
@@ -20,10 +24,33 @@ struct FindPanel: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .accessibilityIdentifier("findText")
-                Toggle("Find.MatchCase", isOn: $matchesCase)
+                TextField("Find.ReplacePlaceholder", text: $replacement)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier("replaceText")
             } footer: {
-                if !query.isEmpty {
+                if let summary {
+                    Text(summary)
+                } else if !query.isEmpty {
                     Text(String.localizedStringWithFormat(String(localized: "Find.Count"), matches.count))
+                }
+            }
+
+            Section {
+                Button("Find.Replace") { replaceOne(in: matches) }
+                    .accessibilityIdentifier("replaceOne")
+                Button("Find.ReplaceAll") { replaceAll() }
+                    .accessibilityIdentifier("replaceAll")
+            }
+            .disabled(matches.isEmpty)
+
+            Section {
+                Toggle("Find.MatchCase", isOn: $options.matchesCase)
+                Toggle("Find.MatchWholeCell", isOn: $options.matchesWholeCell)
+                Picker("Find.LookIn", selection: $options.lookIn) {
+                    ForEach(FindOptions.LookIn.allCases, id: \.self) { lookIn in
+                        Text(lookIn.title).tag(lookIn)
+                    }
                 }
             }
 
@@ -36,6 +63,33 @@ struct FindPanel: View {
             }
         }
         .onAppear { isSearching = true }
+        .onChange(of: query) { summary = nil }
+        .onChange(of: options) { summary = nil }
+    }
+
+    /// Replaces the selected match, or the next one, then goes to the match
+    /// after it.
+    private func replaceOne(in matches: [FindMatch]) {
+        guard let sheetID = state.activeSheetID,
+              let target = FindReplace.target(
+                  in: matches, sheetID: sheetID, address: state.selectedAddress, workbook: workbook
+              ) else { return }
+        var book = workbook
+        let result = book.replace([target], query: query, with: replacement, options: options)
+        workbook = book
+        summary = FindReplace.summary(of: result)
+        let remaining = book.matches(for: query, options: options)
+        if let next = FindReplace.next(after: target.sheetID, target.address, in: remaining, workbook: book) {
+            show(next)
+        }
+    }
+
+    /// Replaces every match in the workbook, as one step to undo.
+    private func replaceAll() {
+        var book = workbook
+        let result = book.replaceAll(query, with: replacement, options: options)
+        workbook = book
+        summary = FindReplace.summary(of: result)
     }
 
     private func result(_ match: FindMatch) -> some View {

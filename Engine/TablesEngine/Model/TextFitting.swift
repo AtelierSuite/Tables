@@ -66,6 +66,11 @@ public enum TextFitting {
     /// Which way a run of text reads.
     public enum WritingDirection: Sendable {
         case leftToRight, rightToLeft
+
+        /// The invisible mark that sets a line's direction when it leads it.
+        var mark: Unicode.Scalar {
+            self == .rightToLeft ? "\u{200F}" : "\u{200E}"
+        }
     }
 
     /// The direction `text` reads in as a whole: that of its first letter
