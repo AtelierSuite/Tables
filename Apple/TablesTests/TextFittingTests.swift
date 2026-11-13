@@ -3,7 +3,7 @@ import Testing
 @testable import TablesEngine
 
 /// How much room a cell's text has once it is turned or stacked, and where it
-/// is cut short when it has too little.
+/// is drawn when it has too little.
 @Suite("Text fitting")
 struct TextFittingTests {
     private let narrowTall = CGSize(width: 30, height: 120)
@@ -56,25 +56,50 @@ struct TextFittingTests {
         #expect(TextFitting.runLength(of: stacked, in: narrowTall, lineHeight: 14) == 120)
     }
 
-    @Test("Turned text is cut short against the turned room rather than the cell's width")
-    func elidesTurned() {
-        // Six points a character stands in for a font: the whole run is 102.
-        let text = "Quarterly Revenue"
-        let width = { (candidate: String) in Double(candidate.count) * 6 }
-        let upright = TextFitting.runLength(of: style(rotation: 0), in: narrowTall, lineHeight: 14)
-        let turned = TextFitting.runLength(of: style(rotation: 90), in: narrowTall, lineHeight: 14)
-        #expect(TextFitting.elided(text) { width($0) <= upright } == "Quar…")
-        #expect(TextFitting.elided(text) { width($0) <= turned } == text)
-        #expect(TextFitting.elided(text) { width($0) <= 60 } == "Quarterly…")
-        #expect(TextFitting.elided(text) { _ in false } == "…")
+    @Test("Stacked text is one glyph per line")
+    func stacked() {
+        #expect(TextFitting.stacked("Sales") == "S\na\nl\ne\ns")
     }
 
-    @Test("Stacked text keeps as many glyphs as fit down the box, the ellipsis taking the last line")
-    func elidesStacked() {
-        let lines = { (candidate: String) in candidate.split(separator: "\n", omittingEmptySubsequences: false).count }
-        #expect(TextFitting.stacked("Sales") == "S\na\nl\ne\ns")
-        #expect(TextFitting.elided("Sales", stacked: true) { lines($0) <= 5 } == "S\na\nl\ne\ns")
-        #expect(TextFitting.elided("Quarterly", stacked: true) { lines($0) <= 4 } == "Q\nu\na\n…")
+    // MARK: - Clipping
+
+    /// Where the renderer aligned the part of a line that fits: 60 wide.
+    private let shown = CGRect(x: 100, y: 10, width: 60, height: 14)
+
+    @Test("A line that fits is drawn where it was aligned")
+    func fitsWhole() {
+        for alignment in [HorizontalTextAlignment.leading, .center, .trailing, .automatic] {
+            #expect(TextFitting.clippedLine(shown, length: 60, alignment: alignment) == shown)
+            #expect(TextFitting.clippedLine(shown, length: 40, alignment: alignment) == shown)
+        }
+    }
+
+    @Test("Left-aligned text too long keeps its start and runs past the right edge, with no ellipsis")
+    func clipsLeading() {
+        let line = TextFitting.clippedLine(shown, length: 150, alignment: .leading)
+        #expect(line == CGRect(x: 100, y: 10, width: 150, height: 14))
+        #expect(TextFitting.clippedLine(shown, length: 150, alignment: .automatic) == line)
+    }
+
+    @Test("Right-aligned text too long keeps its right edge and runs past the left")
+    func clipsTrailing() {
+        let line = TextFitting.clippedLine(shown, length: 150, alignment: .trailing)
+        #expect(line == CGRect(x: 10, y: 10, width: 150, height: 14))
+        #expect(line.maxX == shown.maxX)
+    }
+
+    @Test("Centred text too long stays centred and runs past both edges")
+    func clipsCentred() {
+        let line = TextFitting.clippedLine(shown, length: 150, alignment: .center)
+        #expect(line == CGRect(x: 55, y: 10, width: 150, height: 14))
+        #expect(line.midX == shown.midX)
+    }
+
+    @Test("Right-to-left text sits right, so it keeps its start on the right and is clipped on the left")
+    func clipsRightToLeft() {
+        let alignment = CellFormatter.alignment(for: Cell(value: .text("שלום עולם, מה שלומך היום")))
+        #expect(alignment == .trailing)
+        #expect(TextFitting.clippedLine(shown, length: 150, alignment: alignment).maxX == shown.maxX)
     }
 
     // MARK: - Right-to-left text
@@ -111,35 +136,5 @@ struct TextFittingTests {
             cell.style.horizontalAlignment = alignment
             #expect(CellFormatter.alignment(for: cell) == alignment)
         }
-    }
-
-    @Test("Right-to-left text cut short keeps its start and ends in an ellipsis on its left")
-    func elidesRightToLeft() {
-        let width = { (candidate: String) in Double(candidate.count) * 6 }
-        let hebrew = "שלום עולם"
-        let cut = TextFitting.elided(hebrew) { width($0) <= 30 }
-        // Its first letters, the right-hand ones once set right to left,
-        // followed in reading order — on the left — by the ellipsis.
-        #expect(cut == "שלום…")
-        #expect(TextFitting.baseDirection(of: cut) == .rightToLeft)
-        #expect(TextFitting.elided("مرحبا بالعالم") { width($0) <= 36 } == "مرحبا…")
-        // A line that opens in Hebrew stays right to left with English in it.
-        let mixed = TextFitting.elided("שלום world") { width($0) <= 48 }
-        #expect(mixed == "שלום wo…")
-        #expect(TextFitting.baseDirection(of: mixed) == .rightToLeft)
-    }
-
-    @Test("A cut that leaves no letter keeps the whole text's direction")
-    func elidesKeepingDirection() {
-        // The mark is invisible and takes no room.
-        let width = { (candidate: String) in Double(candidate.unicodeScalars.filter { $0.value != 0x200F }.count) * 6 }
-        let cut = TextFitting.elided("123 שלום") { width($0) <= 18 }
-        #expect(cut == "\u{200F}12…")
-        #expect(TextFitting.baseDirection(of: cut) == .rightToLeft)
-        // Left-to-right text needs no mark: its digits read that way already.
-        #expect(TextFitting.elided("123 Hello") { width($0) <= 18 } == "12…")
-        #expect(TextFitting.elided("שלום") { _ in false } == "\u{200F}…")
-        // Stacked glyphs have no line to set a direction for.
-        #expect(TextFitting.elided("123 שלום", stacked: true) { $0.split(separator: "\n").count <= 3 } == "1\n2\n…")
     }
 }

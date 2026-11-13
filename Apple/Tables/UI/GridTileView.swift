@@ -504,25 +504,12 @@ enum CellPainter {
         if style.rotationDegrees != 0, !wraps {
             room = TextFitting.runLength(of: style, in: box.size, lineHeight: measured.height)
         }
-        // Stacked text has as many glyphs as fit down the box.
-        if style.isTextStacked, measured.height > box.height {
-            let fitting = TextFitting.elided(CellFormatter.displayText(for: cell), stacked: true) { candidate in
-                context.resolve(make(candidate)).measure(in: CGSize(width: box.width, height: unbounded)).height <= box.height
-            }
-            resolved = context.resolve(make(fitting))
-            measured = resolved.measure(in: CGSize(width: box.width, height: unbounded))
-        }
-        if !wraps, measured.width > room {
+        if isNumber, !wraps, measured.width > room {
             // A General number is rounded to fit before it gives way to #s.
             let fitted = CellFormatter.fittedGeneralText(for: cell) { candidate in
                 context.resolve(make(candidate)).measure(in: CGSize(width: unbounded, height: unbounded)).width <= room
             }
-            let shortened = isNumber
-                ? fitted ?? hashes(filling: room, make: make, in: context)
-                : TextFitting.elided(string) {
-                    context.resolve(make($0)).measure(in: CGSize(width: unbounded, height: unbounded)).width <= room
-                }
-            resolved = context.resolve(make(shortened))
+            resolved = context.resolve(make(fitted ?? hashes(filling: room, make: make, in: context)))
             measured = resolved.measure(in: CGSize(width: unbounded, height: unbounded))
         }
 
@@ -579,7 +566,8 @@ enum CellPainter {
                 layer.rotate(by: .degrees(-style.rotationDegrees))
                 layer.translateBy(x: -target.midX, y: -target.midY)
             }
-            layer.draw(resolved, in: target)
+            // Text longer than its room runs on and is clipped at the edge.
+            layer.draw(resolved, in: TextFitting.clippedLine(target, length: measured.width, alignment: horizontal))
         }
     }
 

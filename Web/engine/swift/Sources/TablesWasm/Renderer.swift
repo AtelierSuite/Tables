@@ -245,9 +245,7 @@ struct Renderer {
         if let textColor { operation["c"] = textColor } else if cell.value.errorValue != nil { operation["err"] = true }
         if isNumber { operation["num"] = true }
         if (style.wrapsText && !isNumber) || style.isTextStacked { operation["wrap"] = true }
-        if style.isTextStacked { operation["stk"] = true }
-        // Read right to left, so the canvas sets it that way and its
-        // ellipsis lands on the left.
+        // Read right to left, so the canvas sets it that way.
         if TextFitting.baseDirection(of: string) == .rightToLeft { operation["rtl"] = true }
         if style.rotationDegrees != 0 { operation["rot"] = style.rotationDegrees }
         if style.indentPoints > 0 { operation["ind"] = style.indentPoints }
