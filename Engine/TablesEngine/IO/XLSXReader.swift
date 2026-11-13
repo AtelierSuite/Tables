@@ -519,7 +519,17 @@ public enum XLSXReader {
                    rotation == CellStyle.stackedTextRotation || (0...180).contains(rotation) {
                     style.textRotation = rotation
                 }
+                if let order = alignment.attribute("readingOrder").flatMap(Int.init).flatMap(ReadingOrder.init) {
+                    style.readingOrder = order
+                }
             }
+            if let protection = element.firstChild(named: "protection") {
+                // Both have a default that differs from absence's: locked
+                // unless turned off, hidden only when turned on.
+                if let locked = protection.attribute("locked") { style.isLocked = isTrue(locked) }
+                style.isFormulaHidden = isTrue(protection.attribute("hidden"))
+            }
+            style.hasQuotePrefix = isTrue(element.attribute("quotePrefix"))
             return style
         }
     }

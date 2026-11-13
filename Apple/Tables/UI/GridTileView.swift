@@ -442,6 +442,9 @@ enum CellPainter {
         // the run, which is what Excel's `textRotation="255"` looks like.
         if style.isTextStacked {
             string = TextFitting.stacked(CellFormatter.displayText(for: cell))
+        } else {
+            // Led by the mark that sets the cell's reading order, if it has one.
+            string = CellFormatter.directed(string, for: cell)
         }
 
         let horizontal = CellFormatter.alignment(for: cell)
