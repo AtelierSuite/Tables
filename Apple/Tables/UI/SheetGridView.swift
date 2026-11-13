@@ -843,6 +843,9 @@ struct SheetGridView: View {
                 ownsElement: plan.rows.contains(box.start.row)
                     && plan.columns.contains(box.start.column)
             ))
+            if let conditional = sheet.conditionalStyles[box.start], conditional.hasMarks {
+                painted.mergeConditionalMarks += conditional.marks(in: metrics.frame(for: box), zoom: metrics.zoom)
+            }
             let firstRow = max(box.start.row, plan.rows.lowerBound)
             let lastRow = min(box.end.row, plan.rows.upperBound - 1)
             let firstColumn = max(box.start.column, plan.columns.lowerBound)
@@ -859,6 +862,10 @@ struct SheetGridView: View {
             for column in plan.columns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
                 guard !painted.covered.contains(address) else { continue }
+                // A bar or icon can stand in a cell with nothing else to show.
+                if let conditional = sheet.conditionalStyles[address], conditional.hasMarks {
+                    painted.conditionalMarks += conditional.marks(in: metrics.frame(for: address), zoom: metrics.zoom)
+                }
                 let cell = sheet.displayedCell(at: address)
                 guard !cell.isEmptyEntirely else { continue }
                 var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
