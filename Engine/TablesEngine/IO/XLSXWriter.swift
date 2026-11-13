@@ -533,20 +533,47 @@ public enum XLSXWriter {
         xml += " defaultColWidth=\"\(format(Worksheet.columnWidthCharacters(points: Worksheet.defaultColumnWidth)))\"/>"
         add("sheetFormatPr", xml)
 
-        // Column metadata: widths and hidden state.
-        var columnEntries: [String] = []
-        for column in 0..<sheet.columnCount {
-            let hidden = sheet.hiddenColumns.contains(column)
-            let custom = sheet.columnWidths[column]
-            guard hidden || custom != nil else { continue }
-            let points = custom ?? Worksheet.defaultColumnWidth
-            let characters = max(0, Worksheet.columnWidthCharacters(points: points))
-            var entry = "<col min=\"\(column + 1)\" max=\"\(column + 1)\" width=\"\(format(characters))\""
-            if custom != nil { entry += " customWidth=\"1\"" }
-            if hidden { entry += " hidden=\"1\"" }
-            entry += "/>"
-            columnEntries.append(entry)
+        // Column metadata: widths, hidden state and formats, in runs of alike
+        // columns, since a format can cover every column there is.
+        struct ColumnEntry: Equatable {
+            var custom: Double?
+            var hidden: Bool
+            var style: Int?
         }
+        var columnEntries: [String] = []
+        var run: (first: Int, last: Int, entry: ColumnEntry)?
+        func closeRun() {
+            guard let (first, last, entry) = run.map({ ($0.first, $0.last, $0.entry) }) else { return }
+            let points = entry.custom ?? Worksheet.defaultColumnWidth
+            let characters = max(0, Worksheet.columnWidthCharacters(points: points))
+            var xml = "<col min=\"\(first + 1)\" max=\"\(last + 1)\" width=\"\(format(characters))\""
+            if let style = entry.style { xml += " style=\"\(style)\"" }
+            if entry.custom != nil { xml += " customWidth=\"1\"" }
+            if entry.hidden { xml += " hidden=\"1\"" }
+            xml += "/>"
+            columnEntries.append(xml)
+            run = nil
+        }
+        let lastStyledColumn = sheet.columnStyles.keys.filter { $0 < Worksheet.maximumColumnCount }.max() ?? -1
+        for column in 0..<max(sheet.columnCount, lastStyledColumn + 1) {
+            let inGrid = column < sheet.columnCount
+            let entry = ColumnEntry(
+                custom: inGrid ? sheet.columnWidths[column] : nil,
+                hidden: inGrid && sheet.hiddenColumns.contains(column),
+                style: sheet.columnStyles[column].map { styles.index(for: $0) }.flatMap { $0 == 0 ? nil : $0 }
+            )
+            guard entry.hidden || entry.custom != nil || entry.style != nil else {
+                closeRun()
+                continue
+            }
+            if let current = run, current.entry == entry {
+                run?.last = column
+            } else {
+                closeRun()
+                run = (column, column, entry)
+            }
+        }
+        closeRun()
         if !columnEntries.isEmpty { add("cols", "<cols>" + columnEntries.joined() + "</cols>") }
 
         xml = "<sheetData>"
@@ -562,6 +589,7 @@ public enum XLSXWriter {
         let interestingRows = Set(cellsByRow.keys)
             .union(sheet.hiddenRows)
             .union(sheet.rowHeights.keys)
+            .union(sheet.rowStyles.keys)
             .filter { $0 < sheet.rowCount }
             .sorted()
 
@@ -572,6 +600,9 @@ public enum XLSXWriter {
                 if !sheet.fittedRows.contains(row) { attributes += " customHeight=\"1\"" }
             }
             if sheet.hiddenRows.contains(row) { attributes += " hidden=\"1\"" }
+            if let style = sheet.rowStyles[row] {
+                attributes += " s=\"\(styles.index(for: style))\" customFormat=\"1\""
+            }
 
             guard var cells = cellsByRow[row], !cells.isEmpty else {
                 xml += "<row \(attributes)/>"
@@ -776,6 +807,9 @@ public enum XLSXWriter {
                 for cell in sheet.cells.values where !cell.style.isDefault {
                     _ = index(for: cell.style)
                 }
+                // Whole columns' and rows' formats, in a stable order.
+                for column in sheet.columnStyles.keys.sorted() { _ = index(for: sheet.columnStyles[column]!) }
+                for row in sheet.rowStyles.keys.sorted() { _ = index(for: sheet.rowStyles[row]!) }
             }
         }
 

@@ -107,7 +107,8 @@ struct Renderer {
         for row in borderRows where !sheet.hiddenRows.contains(row) {
             for column in borderColumns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
-                guard !covered.contains(address), sheet.cells[address] != nil else { continue }
+                guard !covered.contains(address),
+                      sheet.cells[address] != nil || sheet.inheritsStyle(at: address) else { continue }
                 borders(of: CellRange(address), resolver: resolver)
             }
         }
@@ -269,7 +270,7 @@ struct Renderer {
                 return [start, end]
             }
         }
-        if let diagonal = sheet.cells[region.start]?.style.diagonalBorder, diagonal.isVisible {
+        if let diagonal = sheet[region.start].style.diagonalBorder, diagonal.isVisible {
             let frame = metrics.frame(for: region)
             stroke(diagonal.lineStyle, colorHex: diagonal.colorHex) { offset in
                 var points: [CGPoint] = []
