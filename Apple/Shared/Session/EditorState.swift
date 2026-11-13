@@ -97,6 +97,9 @@ final class EditorState {
     /// False for delimited text and Numbers documents, which have nowhere to
     /// keep frozen rows and columns.
     var allowsFreezingPanes = true
+    /// Delimited text and Numbers documents have nowhere to keep grouped
+    /// rows and columns either.
+    var allowsOutlines: Bool { allowsFreezingPanes }
     /// False for delimited text and Numbers documents, which can't keep
     /// sheets laid out together on a canvas, or moved about on one.
     var allowsArrangingCanvases = true

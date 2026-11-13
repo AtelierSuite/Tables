@@ -316,6 +316,49 @@ extension EditorState {
         finishStructuralEdit(in: workbook)
     }
 
+    // MARK: - Outlines
+
+    /// Groups the selected rows or columns one level deeper.
+    func groupSelection(_ axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let sheet = workbook.sheets[index]
+        workbook.sheets[index].group(axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet), axis: axis)
+        finishStructuralEdit(in: workbook)
+    }
+
+    func ungroupSelection(_ axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let sheet = workbook.sheets[index]
+        workbook.sheets[index].ungroup(axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet), axis: axis)
+        finishStructuralEdit(in: workbook)
+    }
+
+    /// Whether any selected line is grouped, so there is something to ungroup.
+    func canUngroupSelection(_ axis: OutlineAxis, in workbook: Workbook) -> Bool {
+        let sheet = activeSheet(in: workbook)
+        let lines = axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet)
+        return lines.contains { sheet.outline(axis).level(of: $0) > 0 }
+    }
+
+    /// Collapses an outline group when it is open and expands it when not:
+    /// what its button does.
+    func toggleOutlineGroup(_ group: LineOutline.Group, axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        if workbook.sheets[index].isCollapsed(group, axis: axis) {
+            workbook.sheets[index].expand(group, axis: axis)
+        } else {
+            workbook.sheets[index].collapse(group, axis: axis)
+        }
+        finishStructuralEdit(in: workbook)
+    }
+
+    /// Shows only the first `level` levels of an outline.
+    func showOutlineLevels(_ level: Int, axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        workbook.sheets[index].showOutlineLevels(level, axis: axis)
+        finishStructuralEdit(in: workbook)
+    }
+
     func resizeColumn(_ column: Int, to width: Double, in workbook: inout Workbook) {
         let index = activeIndex(in: workbook)
         workbook.sheets[index].columnWidths[column] = max(Worksheet.minimumColumnWidth, width)
