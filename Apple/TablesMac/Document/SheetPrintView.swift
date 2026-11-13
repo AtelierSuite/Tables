@@ -32,7 +32,11 @@ final class SheetPrintView: NSView {
     init(sheet: Worksheet, in workbook: Workbook) {
         self.sheet = sheet
         self.workbook = workbook
-        let metrics = SheetMetrics(sheet: sheet)
+        // Whether gridlines print is the print settings' say, not the
+        // sheet's view of them on screen.
+        var printed = sheet
+        printed.showsGridLines = true
+        let metrics = SheetMetrics(sheet: printed)
         self.metrics = metrics
         let objects = Self.objects(on: sheet, in: workbook, metrics: metrics)
         self.objects = objects
