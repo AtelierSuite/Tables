@@ -673,6 +673,8 @@ public enum XLSXWriter {
             add("mergeCells", xml)
         }
 
+        if let protection = sheet.protection { add("sheetProtection", protection.xml) }
+
         for element in preservedElements(of: sheet) {
             // A duplicated sheet carries its predecessor's fragments but not
             // its `_rels`, so the ids in them would resolve to nothing.

@@ -88,6 +88,9 @@ public enum XLSXReader {
             sheet.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
             if sheet.kind == .worksheet {
                 sheet.codeName = sheetXML.firstChild(named: "sheetPr")?.attribute("codeName")
+                // Protection is modelled, and written from the model.
+                sheet.protection = sheetXML.firstChild(named: "sheetProtection").map(SheetProtection.init)
+                sheet.preservedElements.removeAll { $0.name == "sheetProtection" }
             }
             sheets.append(sheet)
             sheetPaths.append(entries[path] != nil ? path : fallbackPath)
@@ -247,7 +250,6 @@ public enum XLSXReader {
             case "conditionalFormatting": feature = .conditionalFormatting
             case "dataValidations": feature = .dataValidation
             case "autoFilter": feature = .autoFilter
-            case "sheetProtection": feature = .sheetProtection
             case "hyperlinks": feature = .hyperlinks
             case "tableParts": feature = .tables
             case "printOptions", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "legacyDrawingHF":
