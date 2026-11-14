@@ -529,7 +529,8 @@ public enum DrawingReader {
                 placement: placement, isChart: isChart,
                 picture: inner.lazy.compactMap { picture(in: $0, relationships: kept) }.first,
                 locks: inner.first.map(locks(in:)) ?? DrawingLocks(),
-                vmlShapeID: vmlShapeID
+                vmlShapeID: vmlShapeID,
+                shape: inner.lazy.compactMap { DrawingShape.read(from: $0, theme: context.theme) }.first
             ))
         }
         return result
