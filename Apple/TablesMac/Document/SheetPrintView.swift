@@ -2,21 +2,26 @@ import AppKit
 import SwiftUI
 import TablesEngine
 
-/// A sheet laid out for printing: every row and column out to the last cell
-/// with anything in it, and the charts and pictures floating over them,
-/// drawn as the grid draws them, without the selection or comment marks.
+/// A sheet laid out for printing, as its page setup asks: the print area,
+/// or else every row and column out to the last cell with anything in it,
+/// with the charts and pictures floating over them, drawn as the grid draws
+/// them, without the selection or comment marks.
 ///
-/// Pages break between rows and between columns, never through one, as
-/// `PrintPagination` cuts them. Gridlines print only when asked for in the
-/// print panel, as in Excel.
+/// The view is a stack of whole sheets of paper. Each holds one page of
+/// cells, cut by `PrintPagination` between rows and between columns, inside
+/// the sheet's margins and at its scale, with the title rows and columns
+/// again beside them, and the header and footer in the margins. Gridlines
+/// print when the sheet or the print panel asks for them.
 @MainActor
 final class SheetPrintView: NSView {
     private let sheet: Worksheet
     private let workbook: Workbook
     private let metrics: SheetMetrics
     private let objects: [PrintedObject]
-    private let range: CellRange
-    private var pagination: PrintPagination?
+    private let areas: [CellRange]
+    private let setup: PrintSetup
+    private let fileName: String
+    private var layout: Layout?
 
     /// A chart or picture, where it sits on the sheet.
     private struct PrintedObject {
@@ -29,17 +34,33 @@ final class SheetPrintView: NSView {
         let content: Content
     }
 
-    init(sheet: Worksheet, in workbook: Workbook) {
+    /// The pages for one paper size, and how they sit on it.
+    private struct Layout {
+        var paper: CGSize
+        /// The paper inside the sheet's margins.
+        var content: CGRect
+        /// Sheet points to paper points.
+        var scale: CGFloat
+        var pages: [PrintPagination.Page]
+    }
+
+    init(sheet: Worksheet, in workbook: Workbook, fileName: String = "") {
         self.sheet = sheet
         self.workbook = workbook
+        self.fileName = fileName
         let metrics = SheetMetrics(sheet: sheet)
         self.metrics = metrics
         let objects = Self.objects(on: sheet, in: workbook, metrics: metrics)
         self.objects = objects
-        range = PrintPagination.printedRange(of: sheet, objectFrames: objects.map(\.frame), metrics: metrics)
-            ?? CellRange(CellAddress(row: 0, column: 0))
-        let frame = metrics.frame(for: range)
-        super.init(frame: CGRect(x: 0, y: 0, width: frame.maxX, height: frame.maxY))
+        let setup = workbook.printSetup(of: sheet.id)
+        self.setup = setup
+        if setup.areas.isEmpty {
+            areas = [PrintPagination.printedRange(of: sheet, objectFrames: objects.map(\.frame), metrics: metrics)
+                ?? CellRange(CellAddress(row: 0, column: 0))]
+        } else {
+            areas = setup.areas
+        }
+        super.init(frame: CGRect(x: 0, y: 0, width: 612, height: 792))
     }
 
     @available(*, unavailable)
@@ -47,38 +68,79 @@ final class SheetPrintView: NSView {
 
     override var isFlipped: Bool { true }
 
+    /// Puts the sheet's paper, orientation and gridlines into the print
+    /// info, and takes the margins out of it: the view draws whole sheets of
+    /// paper and keeps the sheet's own margins itself, so that the header
+    /// and footer can go in them.
+    static func apply(_ setup: PageSetup, to info: NSPrintInfo) {
+        if let paper = setup.paperSize.flatMap(PaperSize.known(code:)) {
+            info.orientation = .portrait
+            info.paperSize = CGSize(width: paper.width, height: paper.height)
+        }
+        info.orientation = setup.orientation == .landscape ? .landscape : .portrait
+        info.leftMargin = 0
+        info.rightMargin = 0
+        info.topMargin = 0
+        info.bottomMargin = 0
+        info.isHorizontallyCentered = false
+        info.isVerticallyCentered = false
+        SheetPrintSettings.setPrintsGridlines(setup.printsGridlines, in: info)
+    }
+
     // MARK: - Pages
 
-    /// The pages, cut for the paper, margins and scale chosen in the print
-    /// panel, which change while it is open.
+    /// The pages, cut for the paper and scale chosen in the print panel,
+    /// which change while it is open.
     override func knowsPageRange(_ range: NSRangePointer) -> Bool {
         let info = NSPrintOperation.current?.printInfo ?? NSPrintInfo.shared
-        let pagination = PrintPagination(range: self.range, metrics: metrics, pageSize: Self.printableSize(of: info))
-        self.pagination = pagination
-        range.pointee = NSRange(location: 1, length: max(1, pagination.pages.count))
+        let layout = makeLayout(for: info)
+        self.layout = layout
+        let count = max(1, layout.pages.count)
+        setFrameSize(CGSize(width: layout.paper.width, height: layout.paper.height * CGFloat(count)))
+        range.pointee = NSRange(location: 1, length: count)
         return true
     }
 
     override func rectForPage(_ page: Int) -> NSRect {
-        guard let pages = pagination?.pages, pages.indices.contains(page - 1) else { return bounds }
-        return pages[page - 1].frame
+        guard let layout else { return bounds }
+        return CGRect(x: 0, y: layout.paper.height * CGFloat(page - 1), width: layout.paper.width, height: layout.paper.height)
     }
 
-    /// What one page holds, in the sheet's points: the paper inside its
-    /// margins, grown or shrunk by the print panel's scale.
-    static func printableSize(of info: NSPrintInfo) -> CGSize {
-        let scale = info.scalingFactor > 0 ? info.scalingFactor : 1
-        return CGSize(
-            width: max(1, (info.paperSize.width - info.leftMargin - info.rightMargin) / scale),
-            height: max(1, (info.paperSize.height - info.topMargin - info.bottomMargin) / scale))
+    private func makeLayout(for info: NSPrintInfo) -> Layout {
+        // The print panel's own scale grows or shrinks the whole sheet of paper.
+        let panelScale = info.scalingFactor > 0 ? info.scalingFactor : 1
+        let paper = CGSize(width: info.paperSize.width / panelScale, height: info.paperSize.height / panelScale)
+        let margins = setup.page.margins
+        var content = CGRect(
+            x: margins.left * 72, y: margins.top * 72,
+            width: paper.width - (margins.left + margins.right) * 72,
+            height: paper.height - (margins.top + margins.bottom) * 72)
+        // Margins wider than the paper leave the whole of it.
+        if content.width < 36 || content.height < 36 { content = CGRect(origin: .zero, size: paper) }
+
+        let scale: CGFloat
+        if setup.page.fitsToPages {
+            scale = PrintPagination.fittedScale(
+                areas: areas, metrics: metrics, pageSize: content.size, titles: setup.titles,
+                wide: setup.page.fitWide, tall: setup.page.fitTall)
+        } else {
+            scale = CGFloat(setup.page.scale) / 100
+        }
+        // Excel leaves manual breaks out when fitting to pages.
+        let breaks = setup.page.fitsToPages ? (rows: Set<Int>(), columns: Set<Int>()) : sheet.manualPageBreaks
+        let pagination = PrintPagination(
+            areas: areas, metrics: metrics,
+            pageSize: CGSize(width: content.width / scale, height: content.height / scale),
+            titles: setup.titles, rowBreaks: breaks.rows, columnBreaks: breaks.columns)
+        return Layout(paper: paper, content: content, scale: scale, pages: pagination.pages)
     }
 
     // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let layout = self.layout ?? makeLayout(for: NSPrintOperation.current?.printInfo ?? NSPrintInfo.shared)
         let info = NSPrintOperation.current?.printInfo
-        let page = NSPrintOperation.current.flatMap { rectForPage($0.currentPage) } ?? bounds
         // Paper is white, whatever the screen's appearance.
         let appearance = NSAppearance(named: .aqua) ?? effectiveAppearance
         appearance.performAsCurrentDrawingAppearance {
@@ -86,14 +148,98 @@ final class SheetPrintView: NSView {
             dirtyRect.fill()
             var renderer = CellRenderer(
                 sheet: sheet, metrics: metrics, appearance: appearance,
-                drawsGridlines: info.map(SheetPrintSettings.printsGridlines) ?? false)
+                drawsGridlines: info.map(SheetPrintSettings.printsGridlines) ?? setup.page.printsGridlines)
             renderer.drawsCommentMarks = false
+            for (index, page) in layout.pages.enumerated() {
+                let paper = CGRect(
+                    x: 0, y: layout.paper.height * CGFloat(index), width: layout.paper.width, height: layout.paper.height)
+                guard paper.intersects(dirtyRect) else { continue }
+                context.saveGState()
+                context.translateBy(x: paper.minX, y: paper.minY)
+                draw(page, in: layout, renderer: renderer, context: context)
+                drawHeaderAndFooter(page: index + 1, of: layout.pages.count, in: layout)
+                context.restoreGState()
+            }
+        }
+    }
+
+    /// One page's cells on its sheet of paper, whose top left is the origin:
+    /// the title rows and columns, when it has them, then its own cells
+    /// below and to the right of those.
+    private func draw(_ page: PrintPagination.Page, in layout: Layout, renderer: CellRenderer, context: CGContext) {
+        func frame(rows: Range<Int>, columns: Range<Int>) -> CGRect {
+            metrics.frame(for: CellRange(
+                start: CellAddress(row: rows.lowerBound, column: columns.lowerBound),
+                end: CellAddress(row: rows.upperBound - 1, column: columns.upperBound - 1)))
+        }
+        let titleHeight = page.titleRows.map { frame(rows: $0, columns: page.columns).height } ?? 0
+        let titleWidth = page.titleColumns.map { frame(rows: page.rows, columns: $0).width } ?? 0
+        let used = CGSize(
+            width: (titleWidth + page.frame.width) * layout.scale, height: (titleHeight + page.frame.height) * layout.scale)
+        var origin = layout.content.origin
+        if setup.page.centersHorizontally { origin.x += max(0, (layout.content.width - used.width) / 2) }
+        if setup.page.centersVertically { origin.y += max(0, (layout.content.height - used.height) / 2) }
+
+        context.saveGState()
+        context.translateBy(x: origin.x, y: origin.y)
+        context.scaleBy(x: layout.scale, y: layout.scale)
+        var parts: [(cells: CGRect, at: CGPoint)] = [(page.frame, CGPoint(x: titleWidth, y: titleHeight))]
+        if let rows = page.titleRows {
+            parts.append((frame(rows: rows, columns: page.columns), CGPoint(x: titleWidth, y: 0)))
+        }
+        if let columns = page.titleColumns {
+            parts.append((frame(rows: page.rows, columns: columns), CGPoint(x: 0, y: titleHeight)))
+        }
+        if let rows = page.titleRows, let columns = page.titleColumns {
+            parts.append((frame(rows: rows, columns: columns), .zero))
+        }
+        for part in parts {
+            context.saveGState()
+            context.clip(to: CGRect(origin: part.at, size: part.cells.size))
+            context.translateBy(x: part.at.x - part.cells.minX, y: part.at.y - part.cells.minY)
+            var renderer = renderer
             // Borders on a page's edges stay on that page.
-            renderer.shownArea = page
-            renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: appearance))
-            for object in objects where object.frame.intersects(dirtyRect) {
+            renderer.shownArea = part.cells
+            renderer.draw(in: part.cells, context: context, gridLineColor: CellRenderer.gridLineColor(for: .init(named: .aqua)!))
+            for object in objects where object.frame.intersects(part.cells) {
                 draw(object, in: context)
             }
+            context.restoreGState()
+        }
+        context.restoreGState()
+    }
+
+    /// The header and footer, in the margins: each a left, middle and right
+    /// part, between the sheet's side margins.
+    private func drawHeaderAndFooter(page: Int, of count: Int, in layout: Layout) {
+        let header = setup.page.header, footer = setup.page.footer
+        guard !header.isEmpty || !footer.isEmpty else { return }
+        let now = Date()
+        let fields = HeaderFooterText.Fields(
+            page: page, pageCount: count,
+            date: now.formatted(date: .numeric, time: .omitted), time: now.formatted(date: .omitted, time: .shortened),
+            fileName: fileName, sheetName: sheet.name)
+        let margins = setup.page.margins
+        let band = CGRect(
+            x: layout.content.minX, y: 0, width: layout.content.width, height: layout.paper.height)
+
+        func draw(_ code: String, alignment: NSTextAlignment, isHeader: Bool) {
+            let text = HeaderFooterText.printed(code, fields: fields)
+            guard !text.isEmpty else { return }
+            let style = NSMutableParagraphStyle()
+            style.alignment = alignment
+            let string = NSAttributedString(string: text, attributes: [
+                .font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.black, .paragraphStyle: style,
+            ])
+            let height = ceil(string.boundingRect(
+                with: CGSize(width: band.width, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin]).height)
+            let y = isHeader ? margins.header * 72 : layout.paper.height - margins.footer * 72 - height
+            string.draw(with: CGRect(x: band.minX, y: y, width: band.width, height: height), options: [.usesLineFragmentOrigin])
+        }
+        for (text, isHeader) in [(header, true), (footer, false)] {
+            draw(text.left, alignment: .left, isHeader: isHeader)
+            draw(text.center, alignment: .center, isHeader: isHeader)
+            draw(text.right, alignment: .right, isHeader: isHeader)
         }
     }
 

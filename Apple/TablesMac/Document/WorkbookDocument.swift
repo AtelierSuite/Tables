@@ -159,11 +159,13 @@ final class WorkbookDocument: NSDocument {
     // MARK: - Printing
 
     override func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey: Any]) throws -> NSPrintOperation {
-        let view = SheetPrintView(sheet: activeSheet, in: workbook)
-        // Pages start at the top left of the paper, as Excel prints them.
-        printInfo.isHorizontallyCentered = false
-        printInfo.isVerticallyCentered = false
-        let operation = NSPrintOperation(view: view, printInfo: printInfo)
+        let sheet = activeSheet
+        let view = SheetPrintView(sheet: sheet, in: workbook, fileName: displayName)
+        // The sheet's own paper, orientation and gridlines, over whatever
+        // was last printed with.
+        let info = printInfo.copy() as? NSPrintInfo ?? printInfo
+        SheetPrintView.apply(sheet.pageSetup, to: info)
+        let operation = NSPrintOperation(view: view, printInfo: info)
         operation.jobTitle = displayName
         operation.printPanel.addAccessoryController(SheetPrintAccessory())
         return operation
