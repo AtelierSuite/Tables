@@ -37,6 +37,7 @@ struct WorkbookView: View {
     var body: some View {
         VStack(spacing: 0) {
             sheetContent
+                .modifier(HyperlinkEditor(workbook: workbook, state: state))
                 // Keyboard navigation belongs to the grid, and only while no
                 // text field is up — otherwise it holds focus away from them.
                 .focusable(state.editingAddress == nil && !state.isFormulaBarActive)
@@ -58,6 +59,7 @@ struct WorkbookView: View {
             Divider()
             // A chart sheet has no cells to show a formula for.
             if !activeSheet.isChartSheet {
+                FormulaSuggestionsBar(workbook: document.workbook, state: state)
                 FormulaBarView(workbook: workbook, state: state)
                 Divider()
             }
@@ -104,6 +106,44 @@ struct WorkbookView: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(
+            get: { state.isEditingDataValidation }, set: { state.isEditingDataValidation = $0 }
+        )) {
+            NavigationStack {
+                DataValidationPanel(rule: state.selectedDataValidation(in: document.workbook)) { outcome in
+                    switch outcome {
+                    case .cancel: break
+                    case .clear: state.setDataValidation(nil, in: &document.workbook)
+                    case .apply(let rule): state.setDataValidation(rule, in: &document.workbook)
+                    }
+                    state.isEditingDataValidation = false
+                }
+            }
+        }
+        .alert(
+            state.validationAlert?.title ?? "",
+            isPresented: Binding(
+                get: { state.validationAlert != nil },
+                set: { if !$0 { state.validationAlert = nil } }
+            ),
+            presenting: state.validationAlert
+        ) { alert in
+            // A stop only says so; the other two ask whether to keep the entry.
+            switch alert.style {
+            case .stop:
+                Button("Common.OK", role: .cancel) {}
+            case .warning:
+                Button("DataValidation.Alert.Yes") { state.keepEntry(of: alert, in: &document.workbook) }
+                Button("DataValidation.Alert.No", role: .cancel) {}
+            case .information:
+                Button("Common.OK") { state.keepEntry(of: alert, in: &document.workbook) }
+                Button("DataValidation.Alert.Cancel", role: .cancel) {}
+            }
+        } message: { alert in
+            Text(alert.style == .warning
+                 ? alert.message + "\n\n" + String(localized: "DataValidation.Alert.Continue")
+                 : alert.message)
+        }
         .confirmationDialog(
             "Convert.DropMacros.Title",
             isPresented: Binding(get: { pendingConversion != nil }, set: { if !$0 { pendingConversion = nil } }),
@@ -116,12 +156,15 @@ struct WorkbookView: View {
         }
         .onAppear {
             state.allowsComments = !document.isPlainText && !document.isNumbers
+            state.allowsDefinedNames = !document.isPlainText && !document.isNumbers
             state.allowsFreezingPanes = !document.isPlainText && !document.isNumbers
+            state.allowsDataValidation = !document.isPlainText && !document.isNumbers
             state.allowsArrangingCanvases = !document.isPlainText && !document.isNumbers
             state.allowsLayingOutTables = !document.isPlainText
             state.isNumbersDocument = document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.openingSheetID
+                state.adoptSavedZoom(in: document.workbook)
                 state.refreshMetrics(in: document.workbook)
             }
             state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)
@@ -179,6 +222,7 @@ struct WorkbookView: View {
             .presentationBackground(.regularMaterial)
         }
         #endif
+        .modifier(ProtectionPrompt(workbook: workbook, state: state))
         .alert(
             "Alert.Error.Title",
             isPresented: Binding(
@@ -216,6 +260,9 @@ struct WorkbookView: View {
         case .chart: ChartPanel(workbook: workbook, state: state)
         case .comment: CommentPanel(workbook: workbook, state: state)
         case .find: FindPanel(workbook: workbook, state: state)
+        case .sort: SortPanel(workbook: workbook, state: state)
+        case .filter: FilterPanel(workbook: workbook, state: state)
+        case .names: NamesPanel(workbook: workbook, state: state)
         }
     }
 
@@ -224,7 +271,7 @@ struct WorkbookView: View {
     private func panelDetents(_ panel: EditorPanel) -> Set<PresentationDetent> {
         switch panel {
         case .format, .numberFormat, .rowsAndColumns: return [.medium]
-        case .functions, .chart, .comment, .find: return [.medium, .large]
+        case .functions, .chart, .comment, .find, .sort, .filter, .names: return [.medium, .large]
         }
     }
     #endif
@@ -290,6 +337,7 @@ struct WorkbookView: View {
             state.formatting = document.formatting(in: state.activeSheetID)
             state.allowsComments = true
             state.allowsFreezingPanes = true
+            state.allowsDataValidation = true
             state.allowsArrangingCanvases = true
             state.allowsLayingOutTables = true
             state.isNumbersDocument = false
@@ -318,9 +366,16 @@ struct WorkbookView: View {
             pendingReconciliation = nil
             if reconciled == new { return }
         }
-        guard let source = document.numbersSource else { return history.record(from: old, to: new) }
-        let (allowed, violation) = NumbersEditPolicy.reconcile(new, from: old, source: source)
-        if let violation { state.errorMessage = violation.localizedDescription }
+        // An undo or redo puts back a workbook that was let through once already.
+        guard !history.isRestoring(new) else { return history.record(from: old, to: new) }
+        // Whatever a protected sheet or workbook doesn't allow is taken back out.
+        var (allowed, refusal) = ProtectionPolicy.reconcile(new, from: old)
+        if let refusal { state.errorMessage = refusal.localizedDescription }
+        if let source = document.numbersSource {
+            let (saveable, violation) = NumbersEditPolicy.reconcile(allowed, from: old, source: source)
+            if let violation { state.errorMessage = violation.localizedDescription }
+            allowed = saveable
+        }
         if allowed != new {
             // Putting it back is itself a change, reported in a moment; the
             // step it completes is the one recorded here.
@@ -433,6 +488,17 @@ struct WorkbookView: View {
                 Section { findButton }
                 Section { shareButton }
             }
+            if state.allowsFreezingPanes, !activeSheet.isChartSheet, state.activeCanvas(in: document.workbook) == nil {
+                Section { viewMenu }
+            }
+            if state.allowsDefinedNames {
+                Section {
+                    Button("Toolbar.Names", systemImage: "character.textbox") {
+                        state.presentedPanel = .names
+                    }
+                    .accessibilityIdentifier("names")
+                }
+            }
             Section {
                 if !document.unsupportedFeatures.isEmpty {
                     Button("Toolbar.UnsupportedFeatures.Label", systemImage: "exclamationmark.triangle") {
@@ -446,6 +512,24 @@ struct WorkbookView: View {
             }
         }
         .accessibilityIdentifier("more")
+    }
+
+    /// The active sheet's view options, each a toggle.
+    private var viewMenu: some View {
+        Menu("Toolbar.View", systemImage: "eye") {
+            Toggle("View.GridLines", systemImage: "grid", isOn: viewOption(\.showsGridLines))
+            Toggle("View.Headings", systemImage: "textformat.abc", isOn: viewOption(\.showsHeadings))
+            Toggle("View.ShowZeros", systemImage: "0.square", isOn: viewOption(\.showsZeros))
+            Toggle("View.ShowFormulas", systemImage: "function", isOn: viewOption(\.showsFormulas))
+        }
+        .accessibilityIdentifier("viewOptions")
+    }
+
+    private func viewOption(_ option: WritableKeyPath<Worksheet, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { activeSheet[keyPath: option] },
+            set: { state.setViewOption(option, to: $0, in: &document.workbook) }
+        )
     }
     #endif
 
@@ -848,5 +932,36 @@ private struct UnsupportedFeatureNotice: View {
         .frame(idealWidth: 300, maxWidth: 340, alignment: .leading)
         // iPhone turns a popover into a sheet unless it is told not to.
         .presentationCompactAdaptation(.popover)
+    }
+}
+
+/// Asks for the password, optional when protecting, while
+/// `state.protectionRequest` waits on an answer. A modifier of its own
+/// keeps the workbook view's body within what the type checker manages.
+private struct ProtectionPrompt: ViewModifier {
+    @Binding var workbook: Workbook
+    let state: EditorState
+    @State private var password = ""
+
+    func body(content: Content) -> some View {
+        content.alert(
+            state.protectionRequest?.heading ?? "",
+            isPresented: Binding(
+                get: { state.protectionRequest != nil },
+                set: { if !$0 { state.protectionRequest = nil } }
+            ),
+            presenting: state.protectionRequest
+        ) { request in
+            SecureField(
+                String(localized: request.isProtecting ? "Protection.Password.Optional" : "Protection.Password"),
+                text: $password)
+            Button(String(localized: request.isProtecting ? "Protection.Protect" : "Protection.Unprotect")) {
+                state.complete(request, password: password, in: &workbook)
+                password = ""
+            }
+            Button("Common.Cancel", role: .cancel) { password = "" }
+        } message: { request in
+            Text(request.message)
+        }
     }
 }

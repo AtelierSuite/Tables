@@ -197,10 +197,32 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// the sheet could ever have.
     public var columnStyles: [Int: CellStyle] = [:]
     public var rowStyles: [Int: CellStyle] = [:]
+    /// How rows and columns are grouped, and which groups are collapsed.
+    public var rowOutline = LineOutline()
+    public var columnOutline = LineOutline()
     /// Rows at the top and columns at the left that stay in view while the
     /// rest of the sheet scrolls — Excel's frozen panes. Zero for none.
     public var frozenRows = 0
     public var frozenColumns = 0
+    /// Whether the hairlines between cells are drawn — Excel's Gridlines
+    /// view option. Borders are drawn either way.
+    public var showsGridLines = true
+    /// Whether the column letters and row numbers round the grid are shown —
+    /// Excel's Headings view option.
+    public var showsHeadings = true
+    /// How far the sheet is zoomed when it opens, in percent — Excel's
+    /// `zoomScale`, from 10 to 400.
+    public var zoomScale = 100
+    /// Whether a cell whose value is zero shows it, or is left blank —
+    /// Excel's "Show a zero in cells that have zero value".
+    public var showsZeros = true
+    /// Whether cells with a formula show it in place of its result — Excel's
+    /// Show Formulas.
+    public var showsFormulas = false
+    /// Whether the sheet runs from right to left, column A at the right —
+    /// Excel's `rightToLeft`. Kept through a save; the grids do not lay a
+    /// sheet out that way yet.
+    public var isRightToLeft = false
     /// Rectangular regions drawn, selected and edited as a single cell. They
     /// never overlap, and only the top-left cell of each keeps its content.
     public var mergedRanges: [CellRange] = []
@@ -228,6 +250,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// scale: `fitToPage` in the file's `<pageSetUpPr>`. The numbers of pages
     /// are in the kept `<pageSetup>`; see `pageSetup`.
     public var printsFittedToPages = false
+    /// The sheet's protection, when the file has any: see `SheetProtection`.
+    public var protection: SheetProtection?
     /// Worksheet children we do not understand, in the order the file had them.
     public var preservedElements: [PreservedElement] = []
     /// Where rows and columns were in the file, kept for a file saved by
@@ -241,12 +265,22 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// address of the formula. Recalculation starts from this so that cells
     /// reading a spilled range see it on the first pass.
     public var spills: [CellAddress: CellRange] = [:]
+    /// The sheet's filter, if it has one: the header row with its buttons
+    /// and what each column shows.
+    public var autoFilter: AutoFilter?
+    /// The sparklines drawn in the sheet's cells, by group.
+    public var sparklineGroups: [SparklineGroup] = []
     /// The conditional formats the file set, highest priority first.
     public var conditionalRules: [ConditionalRule] = []
     /// What those rules settled on at the last recalculation, by cell.
     public var conditionalStyles: [CellAddress: ConditionalStyle] = [:]
+    /// The data validation rules: what may be entered where.
+    public var dataValidations: [DataValidation] = []
     /// Notes and threaded comments, by the cell they belong to.
     public var comments: [CellAddress: CellComment] = [:]
+    /// Links, by the cell they are on. A link the file set on a range is on
+    /// each of its cells.
+    public var hyperlinks: [CellAddress: CellHyperlink] = [:]
     /// Shapes from the file's VML drawing that are neither notes nor form
     /// controls, carried verbatim into the drawing written with the notes.
     public var preservedVMLShapes: String?
@@ -498,10 +532,13 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         fittedRows = Self.shift(fittedRows, from: index, by: count)
         hiddenRows = Self.shift(hiddenRows, from: index, by: count)
         rowStyles = Self.shift(rowStyles, from: index, by: count)
+        rowOutline.insert(count, at: index)
         remapMerges(along: \.row) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .row)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .row, scope: ownScope)
+        shiftDataValidations(.insert(index: index, count: count), axis: .row, scope: ownScope)
         shiftKeptReferences(.insert(index: index, count: count), axis: .row)
+        shiftSparklines(.insert(index: index, count: count), axis: .row)
         origins?.insertRows(count, at: index, rowCount: rowCount)
         rowCount += count
         // Rows inserted among the frozen ones join them, as in Excel.
@@ -516,10 +553,13 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         columnWidths = Self.shift(columnWidths, from: index, by: count)
         hiddenColumns = Self.shift(hiddenColumns, from: index, by: count)
         columnStyles = Self.shift(columnStyles, from: index, by: count)
+        columnOutline.insert(count, at: index)
         remapMerges(along: \.column) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .column)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .column, scope: ownScope)
+        shiftDataValidations(.insert(index: index, count: count), axis: .column, scope: ownScope)
         shiftKeptReferences(.insert(index: index, count: count), axis: .column)
+        shiftSparklines(.insert(index: index, count: count), axis: .column)
         origins?.insertColumns(count, at: index, columnCount: columnCount)
         columnCount += count
         if index < frozenColumns { frozenColumns += count }
@@ -531,15 +571,19 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         FormulaReferenceShifter.apply(.remove(range: range), axis: .row, to: &cells, scope: ownScope)
         cells = cells.filter { !range.contains($0.key.row) }
         comments = comments.filter { !range.contains($0.key.row) }
+        hyperlinks = hyperlinks.filter { !range.contains($0.key.row) }
         remapCells { $0.row > range.upperBound ? CellAddress(row: $0.row - count, column: $0.column) : $0 }
         rowHeights = Self.shift(rowHeights.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         fittedRows = Self.shift(fittedRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         hiddenRows = Self.shift(hiddenRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         rowStyles = Self.shift(rowStyles.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
+        rowOutline.remove(range)
         remapMerges(along: \.row) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .row)
         shiftConditionalFormats(.remove(range: range), axis: .row, scope: ownScope)
+        shiftDataValidations(.remove(range: range), axis: .row, scope: ownScope)
         shiftKeptReferences(.remove(range: range), axis: .row)
+        shiftSparklines(.remove(range: range), axis: .row)
         origins?.removeRows(range, rowCount: rowCount)
         rowCount -= count
         frozenRows -= Self.overlap(of: range, withFirst: frozenRows)
@@ -551,15 +595,19 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         FormulaReferenceShifter.apply(.remove(range: range), axis: .column, to: &cells, scope: ownScope)
         cells = cells.filter { !range.contains($0.key.column) }
         comments = comments.filter { !range.contains($0.key.column) }
+        hyperlinks = hyperlinks.filter { !range.contains($0.key.column) }
         remapCells { $0.column > range.upperBound ? CellAddress(row: $0.row, column: $0.column - count) : $0 }
         columnWidths = Self.shift(columnWidths.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         hiddenColumns = Self.shift(hiddenColumns.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         columnStyles = Self.shift(
             columnStyles.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
+        columnOutline.remove(range)
         remapMerges(along: \.column) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .column)
         shiftConditionalFormats(.remove(range: range), axis: .column, scope: ownScope)
+        shiftDataValidations(.remove(range: range), axis: .column, scope: ownScope)
         shiftKeptReferences(.remove(range: range), axis: .column)
+        shiftSparklines(.remove(range: range), axis: .column)
         origins?.removeColumns(range, columnCount: columnCount)
         columnCount -= count
         frozenColumns -= Self.overlap(of: range, withFirst: frozenColumns)
@@ -593,7 +641,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         hiddenColumns.removeAll()
     }
 
-    /// Moves cells, and the comments on them, to new addresses.
+    /// Moves cells, and the comments and links on them, to new addresses.
     private mutating func remapCells(_ transform: (CellAddress) -> CellAddress) {
         var moved: [CellAddress: Cell] = [:]
         moved.reserveCapacity(cells.count)
@@ -602,6 +650,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         var movedComments: [CellAddress: CellComment] = [:]
         for (address, comment) in comments { movedComments[transform(address)] = comment }
         comments = movedComments
+        var movedLinks: [CellAddress: CellHyperlink] = [:]
+        for (address, link) in hyperlinks { movedLinks[transform(address)] = link }
+        hyperlinks = movedLinks
         // Where arrays spilled is worked out again on the next recalculation.
         spills = [:]
     }

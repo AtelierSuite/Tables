@@ -68,13 +68,19 @@ final class WorkbookHistory {
         refresh()
     }
 
+    /// Whether `workbook` is what an undo or redo has just put back, rather
+    /// than a change the user made.
+    func isRestoring(_ workbook: Workbook) -> Bool {
+        restoring == workbook
+    }
+
     /// Notes a change the user made, unless it is one an undo or redo made.
     func record(from old: Workbook, to new: Workbook) {
         if let restoring {
             self.restoring = nil
             if restoring == new { return }
         }
-        guard let undoManager, old != new else { return }
+        guard let undoManager, old != new, !new.differsOnlyInZoom(from: old) else { return }
 
         let scope = new.editScope(from: old)
         let now = Date()
