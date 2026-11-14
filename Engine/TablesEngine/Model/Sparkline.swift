@@ -312,7 +312,8 @@ extension Worksheet {
                    source.sheet == nil || source.sheet?.caseInsensitiveCompare(ownName) == .orderedSame {
                     guard let range = ConditionalRule.moved([source.range], operation, axis: axis).first else { return nil }
                     if range != source.range {
-                        let sheet = source.sheet.map { ChartReference.quotedSheetName($0) + "!" } ?? ""
+                        // The sheet named as the file named it.
+                        let sheet = sparkline.formula.lastIndex(of: "!").map { String(sparkline.formula[...$0]) } ?? ""
                         moved.formula = sheet + range.a1
                     }
                 }
