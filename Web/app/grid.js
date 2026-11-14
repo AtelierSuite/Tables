@@ -138,7 +138,18 @@ export class GridView extends EventTarget {
   // MARK: - Geometry
 
   get rowHeaderWidth() {
+    if (this.hidesHeadings) return 0;
     return rowHeaderWidthFor(this.metrics ? this.metrics.layout.rows : 1);
+  }
+
+  /** How tall the column letters are: none on a sheet of its own with its headings turned off. */
+  get headerHeight() {
+    return this.hidesHeadings ? 0 : HEADER_HEIGHT;
+  }
+
+  /** Whether the sheet, shown as a grid of its own, has its headings turned off. */
+  get hidesHeadings() {
+    return !this.onCanvas && this.metrics?.layout.showsHeadings === false;
   }
 
   get viewport() {
@@ -151,6 +162,10 @@ export class GridView extends EventTarget {
     // A table on a canvas is shown whole, where it sits: nothing in it scrolls, so nothing freezes.
     const onCanvas = Boolean(this.canvasContaining(layout.sheet));
     this.metrics = new SheetMetrics(onCanvas ? { ...layout, frozenRows: 0, frozenColumns: 0 } : layout);
+    // A sheet of its own opens at the zoom it was saved at.
+    const savedZoom = sheetChanged && !onCanvas && layout.zoomScale
+      ? Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, layout.zoomScale / 100)) : null;
+    if (savedZoom !== null) this.zoom = savedZoom;
     this.refreshCanvas();
     this.tiles.clear();
     this.updateSpacer();
@@ -161,6 +176,7 @@ export class GridView extends EventTarget {
       if (this.onCanvas) this.revealTableHead(!wasOnCanvas);
       else this.scroller.scrollTo(0, 0);
     }
+    if (savedZoom !== null) this.dispatchEvent(new CustomEvent("zoom", { detail: savedZoom }));
     this.requestDraw();
   }
 
@@ -176,7 +192,7 @@ export class GridView extends EventTarget {
       return;
     }
     this.spacer.style.width = `${this.rowHeaderWidth + this.metrics.totalWidth * z + EXTRA_ROOM}px`;
-    this.spacer.style.height = `${HEADER_HEIGHT + this.metrics.totalHeight * z + EXTRA_ROOM}px`;
+    this.spacer.style.height = `${this.headerHeight + this.metrics.totalHeight * z + EXTRA_ROOM}px`;
   }
 
   /**
@@ -204,11 +220,11 @@ export class GridView extends EventTarget {
       this.dispatchEvent(new CustomEvent("zoom", { detail: clamped }));
       return;
     }
-    const point = anchor ?? { x: (this.rowHeaderWidth + width) / 2, y: (HEADER_HEIGHT + height) / 2 };
+    const point = anchor ?? { x: (this.rowHeaderWidth + width) / 2, y: (this.headerHeight + height) / 2 };
     const header = this.rowHeaderWidth;
     const m = this.metrics;
     // The sheet point under the anchor, before zooming.
-    const before = pinned ?? this.toSheet(Math.max(point.x, header), Math.max(point.y, HEADER_HEIGHT));
+    const before = pinned ?? this.toSheet(Math.max(point.x, header), Math.max(point.y, this.headerHeight));
     const previous = this.zoom;
     this.zoom = clamped;
     this.updateSpacer();
@@ -218,7 +234,7 @@ export class GridView extends EventTarget {
       ? (before.x - m.frozenWidth) * clamped - (point.x - header - m.frozenWidth * clamped)
       : this.scroller.scrollLeft * clamped / previous;
     const top = before.y >= m.frozenHeight
-      ? (before.y - m.frozenHeight) * clamped - (point.y - HEADER_HEIGHT - m.frozenHeight * clamped)
+      ? (before.y - m.frozenHeight) * clamped - (point.y - this.headerHeight - m.frozenHeight * clamped)
       : this.scroller.scrollTop * clamped / previous;
     this.scroller.scrollLeft = Math.max(0, left);
     this.scroller.scrollTop = Math.max(0, top);
@@ -230,7 +246,7 @@ export class GridView extends EventTarget {
   /** The sheet point under a screen point, for a gesture to hold under the fingers. */
   pinnedPoint(point) {
     if (this.onCanvas) return { page: this.pagePoint(point) };
-    return this.toSheet(Math.max(point.x, this.rowHeaderWidth), Math.max(point.y, HEADER_HEIGHT));
+    return this.toSheet(Math.max(point.x, this.rowHeaderWidth), Math.max(point.y, this.headerHeight));
   }
 
   /** While zooming, existing tiles are stretched; once it pauses they are drawn again sharp. */
@@ -253,7 +269,7 @@ export class GridView extends EventTarget {
   }
 
   get originY() {
-    return (this.onCanvas ? this.activePage().y : HEADER_HEIGHT) - this.scroller.scrollTop;
+    return (this.onCanvas ? this.activePage().y : this.headerHeight) - this.scroller.scrollTop;
   }
 
   /** Sheet x for a screen x inside the grid, or null over the row header. */
@@ -268,8 +284,8 @@ export class GridView extends EventTarget {
   sheetY(screenY) {
     const z = this.zoom, frozen = this.metrics.frozenHeight;
     if (this.onCanvas) return (screenY - this.originY) / z;
-    if (screenY < HEADER_HEIGHT) return null;
-    if (screenY < HEADER_HEIGHT + frozen * z) return (screenY - HEADER_HEIGHT) / z;
+    if (screenY < this.headerHeight) return null;
+    if (screenY < this.headerHeight + frozen * z) return (screenY - this.headerHeight) / z;
     return (screenY - this.originY) / z;
   }
 
@@ -277,7 +293,7 @@ export class GridView extends EventTarget {
     if (!this.metrics) return null;
     if (this.onCanvas) return { x: this.sheetX(screenX), y: this.sheetY(screenY) };
     const x = this.sheetX(Math.max(screenX, this.rowHeaderWidth));
-    const y = this.sheetY(Math.max(screenY, HEADER_HEIGHT));
+    const y = this.sheetY(Math.max(screenY, this.headerHeight));
     return { x, y };
   }
 
@@ -288,7 +304,7 @@ export class GridView extends EventTarget {
 
   screenY(sheetY) {
     const z = this.zoom, frozen = this.metrics.frozenHeight;
-    return sheetY < frozen ? HEADER_HEIGHT + sheetY * z : this.originY + sheetY * z;
+    return sheetY < frozen ? this.headerHeight + sheetY * z : this.originY + sheetY * z;
   }
 
   /** A sheet rectangle on screen, ignoring which pane it would be clipped to. */
@@ -327,7 +343,7 @@ export class GridView extends EventTarget {
     if (row >= this.metrics.frozenRows) {
       const top = (frame.y - this.metrics.frozenHeight) * z;
       const bottom = top + frame.height * z;
-      const visible = height - HEADER_HEIGHT - this.metrics.frozenHeight * z;
+      const visible = height - this.headerHeight - this.metrics.frozenHeight * z;
       if (top < this.scroller.scrollTop) this.scroller.scrollTop = top;
       else if (bottom > this.scroller.scrollTop + visible) this.scroller.scrollTop = bottom - visible;
     }
@@ -369,7 +385,7 @@ export class GridView extends EventTarget {
 
   /** How far down the page its tables start: room for a table's column letters and its name above them. */
   pageInsetY(zoom = this.zoom) {
-    return HEADER_HEIGHT + NAME_HEIGHT * zoom + 4;
+    return this.headerHeight + NAME_HEIGHT * zoom + 4;
   }
 
   /** A point on screen as a place on the page, in points at 100%, as tables are placed. */
@@ -420,7 +436,7 @@ export class GridView extends EventTarget {
       // The table worked on shows its headers and selection; none does once the page is clicked.
       const focused = frame.active && !this.unfocused;
       // Above its column letters on the table worked on, and straight on top of any other.
-      const reach = focused ? HEADER_HEIGHT + NAME_HEIGHT * z : NAME_HEIGHT * z;
+      const reach = focused ? this.headerHeight + NAME_HEIGHT * z : NAME_HEIGHT * z;
       const name = frame.table.showsName
         ? { x, y: y - reach, width: Math.max(frame.width, 120), height: NAME_HEIGHT * z }
         : null;
@@ -446,7 +462,7 @@ export class GridView extends EventTarget {
    */
   revealTableHead(entering) {
     const page = this.activePage();
-    const reach = HEADER_HEIGHT + NAME_HEIGHT * this.zoom;
+    const reach = this.headerHeight + NAME_HEIGHT * this.zoom;
     const header = this.rowHeaderWidth;
     if (entering) {
       this.scroller.scrollTo(Math.max(0, page.x - header - 24), Math.max(0, page.y - reach - 20));
@@ -632,10 +648,10 @@ export class GridView extends EventTarget {
     const add = (screen, sheetX, sheetY) => {
       if (screen.width > 0 && screen.height > 0) panes.push({ screen, sheetX, sheetY });
     };
-    add({ x: header + fw, y: HEADER_HEIGHT + fh, width: width - header - fw, height: height - HEADER_HEIGHT - fh }, sx, sy);
-    add({ x: header, y: HEADER_HEIGHT + fh, width: fw, height: height - HEADER_HEIGHT - fh }, 0, sy);
-    add({ x: header + fw, y: HEADER_HEIGHT, width: width - header - fw, height: fh }, sx, 0);
-    add({ x: header, y: HEADER_HEIGHT, width: fw, height: fh }, 0, 0);
+    add({ x: header + fw, y: this.headerHeight + fh, width: width - header - fw, height: height - this.headerHeight - fh }, sx, sy);
+    add({ x: header, y: this.headerHeight + fh, width: fw, height: height - this.headerHeight - fh }, 0, sy);
+    add({ x: header + fw, y: this.headerHeight, width: width - header - fw, height: fh }, sx, 0);
+    add({ x: header, y: this.headerHeight, width: fw, height: fh }, 0, 0);
     return panes;
   }
 
@@ -728,10 +744,10 @@ export class GridView extends EventTarget {
 
     // The lines where frozen panes meet the scrolling ones.
     ctx.fillStyle = style.getPropertyValue("--ds-border-strong-01");
-    if (m.frozenColumns > 0) ctx.fillRect(this.rowHeaderWidth + m.frozenWidth * z - 1, HEADER_HEIGHT, 1, height);
-    if (m.frozenRows > 0) ctx.fillRect(this.rowHeaderWidth, HEADER_HEIGHT + m.frozenHeight * z - 1, width, 1);
+    if (m.frozenColumns > 0) ctx.fillRect(this.rowHeaderWidth + m.frozenWidth * z - 1, this.headerHeight, 1, height);
+    if (m.frozenRows > 0) ctx.fillRect(this.rowHeaderWidth, this.headerHeight + m.frozenHeight * z - 1, width, 1);
 
-    this.drawHeaders(ctx, style);
+    if (!this.hidesHeadings) this.drawHeaders(ctx, style);
     this.placeAddButtons();
     this.positionEditor();
   }
@@ -862,7 +878,7 @@ export class GridView extends EventTarget {
     // Where the bars go: along the window's top and left edges, or round the table on a canvas.
     const onCanvas = this.onCanvas;
     const ox = this.originX, oy = this.originY;
-    const columnTop = onCanvas ? oy - HEADER_HEIGHT : 0;
+    const columnTop = onCanvas ? oy - this.headerHeight : 0;
     const rowLeft = onCanvas ? ox - header : 0;
     const columnsRight = onCanvas ? Math.min(width, ox + m.totalWidth * z) : width;
     const rowsBottom = onCanvas ? Math.min(height, oy + m.totalHeight * z) : height;
@@ -871,12 +887,12 @@ export class GridView extends EventTarget {
 
     // Column headers.
     ctx.fillStyle = token("--ds-grid-header");
-    if (onCanvas) ctx.fillRect(ox, columnTop, columnsRight - ox, HEADER_HEIGHT);
-    else ctx.fillRect(0, 0, width, HEADER_HEIGHT);
+    if (onCanvas) ctx.fillRect(ox, columnTop, columnsRight - ox, this.headerHeight);
+    else ctx.fillRect(0, 0, width, this.headerHeight);
     const drawColumns = (fromX, toX, sheetStart) => {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(fromX, columnTop, toX - fromX, HEADER_HEIGHT);
+      ctx.rect(fromX, columnTop, toX - fromX, this.headerHeight);
       ctx.clip();
       let column = m.columnAt(sheetStart);
       while (column < m.layout.columns) {
@@ -886,12 +902,12 @@ export class GridView extends EventTarget {
         if (w > 0) {
           if (selectedColumns.has(column)) {
             ctx.fillStyle = token("--ds-grid-header-selected");
-            ctx.fillRect(x, columnTop, w, HEADER_HEIGHT);
+            ctx.fillRect(x, columnTop, w, this.headerHeight);
           }
           ctx.fillStyle = selectedColumns.has(column) ? token("--ds-text-primary") : token("--ds-text-secondary");
-          ctx.fillText(columnName(column), x + w / 2, columnTop + HEADER_HEIGHT / 2);
+          ctx.fillText(columnName(column), x + w / 2, columnTop + this.headerHeight / 2);
           ctx.fillStyle = token("--ds-grid-line");
-          ctx.fillRect(x + w - 1, columnTop, 1, HEADER_HEIGHT);
+          ctx.fillRect(x + w - 1, columnTop, 1, this.headerHeight);
         }
         column++;
       }
@@ -909,7 +925,7 @@ export class GridView extends EventTarget {
     // Row headers.
     ctx.fillStyle = token("--ds-grid-header");
     if (onCanvas) ctx.fillRect(rowLeft, oy, header, rowsBottom - oy);
-    else ctx.fillRect(0, HEADER_HEIGHT, header, height - HEADER_HEIGHT);
+    else ctx.fillRect(0, this.headerHeight, header, height - this.headerHeight);
     const drawRows = (fromY, toY, sheetStart) => {
       ctx.save();
       ctx.beginPath();
@@ -939,21 +955,21 @@ export class GridView extends EventTarget {
       drawRows(fromY, rowsBottom, (fromY - oy) / z);
       // The corner where the bars meet: the table's handle.
       ctx.fillStyle = token("--ds-border-subtle-01");
-      ctx.fillRect(rowLeft, columnTop + HEADER_HEIGHT - 1, columnsRight - rowLeft, 1);
+      ctx.fillRect(rowLeft, columnTop + this.headerHeight - 1, columnsRight - rowLeft, 1);
       ctx.fillRect(rowLeft + header - 1, columnTop, 1, rowsBottom - columnTop);
       ctx.fillStyle = token("--ds-grid-header");
-      ctx.fillRect(rowLeft, columnTop, header - 1, HEADER_HEIGHT - 1);
+      ctx.fillRect(rowLeft, columnTop, header - 1, this.headerHeight - 1);
       ctx.restore();
     } else {
-      const frozenY = HEADER_HEIGHT + m.frozenHeight * z;
-      if (m.frozenRows > 0) drawRows(HEADER_HEIGHT, frozenY, 0);
+      const frozenY = this.headerHeight + m.frozenHeight * z;
+      if (m.frozenRows > 0) drawRows(this.headerHeight, frozenY, 0);
       drawRows(frozenY, height, m.frozenHeight + this.scroller.scrollTop / z);
 
       ctx.fillStyle = token("--ds-border-subtle-01");
-      ctx.fillRect(0, HEADER_HEIGHT - 1, width, 1);
+      ctx.fillRect(0, this.headerHeight - 1, width, 1);
       ctx.fillRect(header - 1, 0, 1, height);
       ctx.fillStyle = token("--ds-grid-header");
-      ctx.fillRect(0, 0, header - 1, HEADER_HEIGHT - 1);
+      ctx.fillRect(0, 0, header - 1, this.headerHeight - 1);
       ctx.restore();
     }
 
@@ -969,7 +985,7 @@ export class GridView extends EventTarget {
     const { width, height } = this.viewport;
     const right = this.screenX(m.totalWidth);
     const bottom = this.screenY(m.totalHeight);
-    const minX = this.onCanvas ? 0 : this.rowHeaderWidth, minY = this.onCanvas ? 0 : HEADER_HEIGHT;
+    const minX = this.onCanvas ? 0 : this.rowHeaderWidth, minY = this.onCanvas ? 0 : this.headerHeight;
     const show = (button, x, y) => {
       const visible = !this.tableDrag && !this.unfocused && x > minX && y > minY && x < width - 8 && y < height - 8;
       button.hidden = !visible;
@@ -981,7 +997,7 @@ export class GridView extends EventTarget {
       show(this.addRowButton, this.originX + 2, bottom + 4);
       return;
     }
-    show(this.addColumnButton, right + 4, Math.max(HEADER_HEIGHT + 4, Math.min(bottom - 28, HEADER_HEIGHT + 4)));
+    show(this.addColumnButton, right + 4, Math.max(this.headerHeight + 4, Math.min(bottom - 28, this.headerHeight + 4)));
     show(this.addRowButton, this.rowHeaderWidth + 4, bottom + 4);
   }
 
@@ -1278,8 +1294,8 @@ export class GridView extends EventTarget {
     if (named) return { kind: "tableName", id: named.table.id };
     // With no table worked on, the active one is hit as any other is, its headers put away.
     const focused = !this.unfocused;
-    if (focused && point.x >= ox - header && point.x < ox && point.y >= oy - HEADER_HEIGHT && point.y < oy) return { kind: "tableCorner", id: active };
-    if (focused && point.y >= oy - HEADER_HEIGHT && point.y < oy && point.x >= ox && point.x <= right + RESIZE_SLOP) return this.columnHit(point);
+    if (focused && point.x >= ox - header && point.x < ox && point.y >= oy - this.headerHeight && point.y < oy) return { kind: "tableCorner", id: active };
+    if (focused && point.y >= oy - this.headerHeight && point.y < oy && point.x >= ox && point.x <= right + RESIZE_SLOP) return this.columnHit(point);
     if (focused && point.x >= ox - header && point.x < ox && point.y >= oy && point.y <= bottom + RESIZE_SLOP) return this.rowHit(point);
     if (focused && this.fillHandleHit(point)) return { kind: "fillHandle" };
     if (focused && point.x >= ox && point.x < right && point.y >= oy && point.y < bottom) {
@@ -1301,8 +1317,8 @@ export class GridView extends EventTarget {
     if (!this.metrics) return { kind: "none" };
     if (this.onCanvas) return this.canvasHit(point);
     const header = this.rowHeaderWidth;
-    if (point.x < header && point.y < HEADER_HEIGHT) return { kind: "corner" };
-    if (point.y < HEADER_HEIGHT) return this.columnHit(point);
+    if (point.x < header && point.y < this.headerHeight) return { kind: "corner" };
+    if (point.y < this.headerHeight) return this.columnHit(point);
     if (point.x < header) return this.rowHit(point);
     if (!this.unfocused && this.fillHandleHit(point)) return { kind: "fillHandle" };
     const sheet = this.toSheet(point.x, point.y);
@@ -1618,7 +1634,7 @@ export class GridView extends EventTarget {
   /** Scrolls while a drag is held past the edge of the grid. */
   autoScroll(point) {
     const { width, height } = this.viewport;
-    const left = this.onCanvas ? 16 : this.rowHeaderWidth, top = this.onCanvas ? 16 : HEADER_HEIGHT;
+    const left = this.onCanvas ? 16 : this.rowHeaderWidth, top = this.onCanvas ? 16 : this.headerHeight;
     const dx = point.x > width - 16 ? 16 : point.x < left ? -16 : 0;
     const dy = point.y > height - 16 ? 16 : point.y < top ? -16 : 0;
     clearInterval(this.scrollTimer);
@@ -1757,7 +1773,7 @@ export class GridView extends EventTarget {
       case "PageDown":
       case "PageUp": {
         event.preventDefault();
-        const rows = Math.max(1, Math.floor((this.viewport.height - HEADER_HEIGHT) / ((this.metrics.layout.rowHeight || 20) * this.zoom)) - 1);
+        const rows = Math.max(1, Math.floor((this.viewport.height - this.headerHeight) / ((this.metrics.layout.rowHeight || 20) * this.zoom)) - 1);
         for (let i = 0; i < rows; i++) await this.engine.call("move", { dir: event.key === "PageDown" ? "down" : "up", extend: event.shiftKey });
         this.revealSelectionEnd();
         return;

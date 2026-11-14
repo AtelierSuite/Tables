@@ -119,6 +119,16 @@ struct CellRenderer {
             fill(entry.cell, in: metrics.frame(for: entry.address), context: context, gridLineColor: gridLineColor,
                  openEdge: openEdges.contains(entry.address))
         }
+        // A conditional format's bar or icon can stand in a cell with nothing else to show.
+        if !sheet.conditionalStyles.isEmpty {
+            for row in rows where !sheet.hiddenRows.contains(row) {
+                for column in columns where !sheet.hiddenColumns.contains(column) {
+                    let address = CellAddress(row: row, column: column)
+                    guard !covered.contains(address) else { continue }
+                    drawConditionalMarks(at: address, in: metrics.frame(for: address), context: context)
+                }
+            }
+        }
         for entry in painted {
             drawText(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow, context: context)
         }
@@ -139,6 +149,7 @@ struct CellRenderer {
                 strokeHairlines(of: frame, openEdge: false, in: context)
             }
             context.restoreGState()
+            drawConditionalMarks(at: merge.start, in: frame, context: context)
             drawText(of: cell, in: frame, overflow: nil, context: context)
         }
         // Last, so no fill covers the half of a border that falls in the
@@ -279,6 +290,21 @@ struct CellRenderer {
             context.setStrokeColor(gridLineColor.cgColor)
             context.setLineWidth(metrics.gridLineWidth)
             strokeHairlines(of: frame, openEdge: openEdge, in: context)
+        }
+    }
+
+    /// The data bar and icon a conditional format gives a cell, over its
+    /// fill and under its text.
+    private func drawConditionalMarks(at address: CellAddress, in frame: CGRect, context: CGContext) {
+        guard let style = sheet.conditionalStyles[address], style.hasMarks else { return }
+        for mark in style.marks(in: frame, zoom: metrics.zoom) {
+            guard let first = mark.points.first, let color = Color(argbHex: mark.colorHex) else { continue }
+            context.setFillColor(NSColor(color).cgColor)
+            context.beginPath()
+            context.move(to: first)
+            for point in mark.points.dropFirst() { context.addLine(to: point) }
+            context.closePath()
+            context.fillPath()
         }
     }
 

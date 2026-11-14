@@ -660,6 +660,28 @@ struct DeleteSheetIntent: AppIntent {
     }
 }
 
+struct CombineWorkbooksIntent: AppIntent {
+    static let title: LocalizedStringResource = "Intent.Combine.Title"
+    static let description = IntentDescription("Intent.Combine.Description")
+
+    @Parameter(title: "Intent.Parameter.Workbooks")
+    var workbooks: [WorkbookEntity]
+
+    @Parameter(title: "Intent.Parameter.Name", default: "Combined")
+    var name: String
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Intent.Combine.Summary \(\.$workbooks)") {
+            \.$name
+        }
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<WorkbookEntity> {
+        let combined = try WorkbookAutomation.combine(try workbooks.map { try $0.load() })
+        return .result(value: try WorkbookEntity(combined, name: name))
+    }
+}
+
 // MARK: - Saving and opening
 
 struct SaveWorkbookIntent: AppIntent {

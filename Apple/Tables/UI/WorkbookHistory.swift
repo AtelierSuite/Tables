@@ -74,7 +74,7 @@ final class WorkbookHistory {
             self.restoring = nil
             if restoring == new { return }
         }
-        guard let undoManager, old != new else { return }
+        guard let undoManager, old != new, !new.differsOnlyInZoom(from: old) else { return }
 
         let scope = new.editScope(from: old)
         let now = Date()

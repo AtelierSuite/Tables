@@ -809,6 +809,18 @@ final class GridView: NSView, NSTextFieldDelegate {
         guard let document, let editor else { return }
         document.state.editingText = editor.stringValue
         document.notify()
+        if let textView = editor.currentEditor() as? NSTextView {
+            FormulaAutocomplete.textDidChange(in: textView, document: document)
+        }
+    }
+
+    func control(
+        _ control: NSControl, textView: NSTextView, completions words: [String],
+        forPartialWordRange charRange: NSRange, indexOfSelectedItem index: UnsafeMutablePointer<Int>
+    ) -> [String] {
+        guard let document else { return [] }
+        return FormulaAutocomplete.completions(in: textView, partialWordRange: charRange, document: document,
+                                               indexOfSelectedItem: index)
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {

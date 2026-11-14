@@ -41,6 +41,8 @@ public enum XLSXReader {
         var drawingIDs: [String?] = []
         /// And its `<legacyDrawing>`, the VML drawing its notes are drawn in.
         var legacyDrawingIDs: [String?] = []
+        /// The relationships each sheet's links used, which are written afresh.
+        var hyperlinkRelationshipIDs: [Set<String>] = []
         let sheetElements = workbookXML.firstChild(named: "sheets")?.children(named: "sheet") ?? []
 
         for (position, element) in sheetElements.enumerated() {
@@ -64,6 +66,7 @@ public enum XLSXReader {
                 sheetFindings.append([])
                 drawingIDs.append(nil)
                 legacyDrawingIDs.append(nil)
+                hyperlinkRelationshipIDs.append([])
                 continue
             }
             let sheetXML = try XMLLite.parse(payload)
@@ -79,7 +82,7 @@ public enum XLSXReader {
                 sheet = parseSheet(
                     sheetXML, name: name, sharedStrings: sharedStrings, styles: styles,
                     usesMacEpoch: usesMacEpoch, hasDifferentialFormats: hasDifferentialFormats,
-                    differentialStyles: differentialStyles
+                    differentialStyles: differentialStyles, theme: theme
                 )
                 sheet.sparklineGroups = sparklines
             }
@@ -88,6 +91,11 @@ public enum XLSXReader {
             drawingIDs.append(sheetXML.firstChild(named: "drawing")?.attribute("id"))
             legacyDrawingIDs.append(sheetXML.firstChild(named: "legacyDrawing")?.attribute("id"))
             sheet.preservedElements.removeAll { $0.name == "drawing" }
+            // Links are read into the model and written afresh.
+            let links = HyperlinkParts.read(sheetXML, sheetPath: entries[path] != nil ? path : fallbackPath, entries: entries)
+            sheet.hyperlinks = links.links
+            hyperlinkRelationshipIDs.append(links.relationshipIDs)
+            sheet.preservedElements.removeAll { $0.name == "hyperlinks" }
             sheet.name = name
             sheet.isHidden = isHidden
             sheet.isVeryHidden = isVeryHidden
@@ -186,6 +194,7 @@ public enum XLSXReader {
             }
             commentParts.formUnion(found.parts)
             commentRelationshipIDs[workbook.sheets[index].id] = found.relationshipIDs
+                .union(hyperlinkRelationshipIDs[index])
             shapeTargets += found.shapeTargets
             if let legacy = legacyDrawingIDs[index], found.relationshipIDs.contains(legacy) {
                 workbook.sheets[index].preservedElements.removeAll { $0.name == "legacyDrawing" }
@@ -254,7 +263,6 @@ public enum XLSXReader {
             case "dataValidations": feature = .dataValidation
             case "autoFilter": feature = .autoFilter
             case "sheetProtection": feature = .sheetProtection
-            case "hyperlinks": feature = .hyperlinks
             case "tableParts": feature = .tables
             case "printOptions", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "legacyDrawingHF":
                 feature = .printSetup
@@ -312,7 +320,8 @@ public enum XLSXReader {
                 guard sheets.indices.contains(position) else { continue }
                 scope = sheets[position].id
             }
-            result.append(DefinedName(name: name, formula: FormulaDialect.fromFile(formula), scope: scope))
+            result.append(DefinedName(name: name, formula: FormulaDialect.fromFile(formula), scope: scope,
+                                      isHidden: isTrue(element.attribute("hidden"))))
         }
         return result
     }
@@ -552,7 +561,8 @@ public enum XLSXReader {
 
     private static func parseSheet(
         _ root: XMLElement, name: String, sharedStrings: RichTextParts.StringTable, styles: [CellStyle],
-        usesMacEpoch: Bool, hasDifferentialFormats: Bool, differentialStyles: [ConditionalStyle]
+        usesMacEpoch: Bool, hasDifferentialFormats: Bool, differentialStyles: [ConditionalStyle],
+        theme: ThemeColorScheme
     ) -> Worksheet {
         var sheet = Worksheet(name: name)
         var maximumRow = 0
@@ -575,9 +585,13 @@ public enum XLSXReader {
             let style = column.attribute("style").flatMap(Int.init)
                 .flatMap { styles.indices.contains($0) ? styles[$0] : nil }
                 .flatMap { $0.isDefault ? nil : $0 }
+            let outlineLevel = column.attribute("outlineLevel").flatMap(Int.init) ?? 0
+            let collapsed = isTrue(column.attribute("collapsed"))
             for index in first...upper {
                 let zeroBased = index - 1
                 if hidden { sheet.hiddenColumns.insert(zeroBased) }
+                if outlineLevel > 0 { sheet.columnOutline.setLevel(outlineLevel, of: zeroBased) }
+                if collapsed { sheet.columnOutline.collapsed.insert(zeroBased) }
                 if let style { sheet.columnStyles[zeroBased] = style }
                 if let width, width > 0, isTrue(column.attribute("customWidth")) {
                     sheet.columnWidths[zeroBased] = width
@@ -591,6 +605,10 @@ public enum XLSXReader {
             maximumRow = max(maximumRow, rowNumber)
 
             if isTrue(rowElement.attribute("hidden")) { sheet.hiddenRows.insert(rowIndex) }
+            if let level = rowElement.attribute("outlineLevel").flatMap(Int.init), level > 0 {
+                sheet.rowOutline.setLevel(level, of: rowIndex)
+            }
+            if isTrue(rowElement.attribute("collapsed")) { sheet.rowOutline.collapsed.insert(rowIndex) }
             // `s` counts only with `customFormat`. A row's format wins over its
             // columns', so even the default one is kept when a column has its own.
             if isTrue(rowElement.attribute("customFormat")),
@@ -667,6 +685,16 @@ public enum XLSXReader {
         sheet.hiddenRows = sheet.hiddenRows.filter { $0 < sheet.rowCount }
         sheet.rowStyles = sheet.rowStyles.filter { $0.key < sheet.rowCount }
         sheet.hiddenColumns = sheet.hiddenColumns.filter { $0 < sheet.columnCount }
+        // Where each group's button goes, before or after it.
+        if let outline = root.firstChild(named: "sheetPr")?.firstChild(named: "outlinePr") {
+            sheet.rowOutline.summaryAfter = outline.attribute("summaryBelow").map(isTrue) ?? true
+            sheet.columnOutline.summaryAfter = outline.attribute("summaryRight").map(isTrue) ?? true
+        }
+        sheet.rowOutline.levels = sheet.rowOutline.levels.filter { $0.key < sheet.rowCount }
+        sheet.columnOutline.levels = sheet.columnOutline.levels.filter { $0.key < sheet.columnCount }
+        // A collapsed mark may sit on the line just past the sheet's last.
+        sheet.rowOutline.collapsed = sheet.rowOutline.collapsed.filter { $0 <= sheet.rowCount }
+        sheet.columnOutline.collapsed = sheet.columnOutline.collapsed.filter { $0 <= sheet.columnCount }
         // `merge` rejects anything that would overlap what is already there, so
         // a file with contradictory regions loses the later ones rather than
         // becoming a sheet we cannot draw.
@@ -674,9 +702,31 @@ public enum XLSXReader {
         sheet.preservedElements = preservedChildren(
             of: root, hasDifferentialFormats: hasDifferentialFormats
         )
-        sheet.conditionalRules = conditionalRules(in: root, styles: differentialStyles)
+        sheet.conditionalRules = conditionalRules(in: root, styles: differentialStyles, theme: theme)
         readFrozenPanes(into: &sheet)
+        readViewOptions(into: &sheet)
         return sheet
+    }
+
+    /// Reads the view options off the sheet's first view. They stay in the
+    /// view kept for writing, which has the model's written over them.
+    private static func readViewOptions(into sheet: inout Worksheet) {
+        guard let element = sheet.preservedElements.first(where: { $0.name == "sheetViews" }),
+              let views = try? XMLLite.parse(Data(element.xml.utf8)),
+              let view = views.firstChild(named: "sheetView") else { return }
+        func flag(_ name: String, default value: Bool) -> Bool {
+            guard let text = view.attribute(name) else { return value }
+            return isTrue(text)
+        }
+        sheet.showsGridLines = flag("showGridLines", default: true)
+        sheet.showsHeadings = flag("showRowColHeaders", default: true)
+        sheet.showsZeros = flag("showZeros", default: true)
+        sheet.showsFormulas = flag("showFormulas", default: false)
+        sheet.isRightToLeft = flag("rightToLeft", default: false)
+        // Zero, which some writers put down, stands for the default.
+        if let scale = view.attribute("zoomScale").flatMap(Double.init), scale >= 1 {
+            sheet.zoomScale = min(max(Int(scale.rounded()), 10), 400)
+        }
     }
 
     /// The `<dxfs>` table, in the order rules index into it.
@@ -720,29 +770,109 @@ public enum XLSXReader {
         "containsBlanks", "notContainsBlanks", "containsErrors", "notContainsErrors", "timePeriod",
     ]
 
-    /// The sheet's rules that style a cell and can be tested, highest priority
-    /// first. Rules of other kinds are left to the kept XML.
-    private static func conditionalRules(in root: XMLElement, styles: [ConditionalStyle]) -> [ConditionalRule] {
+    /// The sheet's rules, highest priority first: those that test a cell,
+    /// those that rank it within its range, and colour scales, data bars and
+    /// icon sets. A rule of any other kind is left to the kept XML.
+    private static func conditionalRules(
+        in root: XMLElement, styles: [ConditionalStyle], theme: ThemeColorScheme
+    ) -> [ConditionalRule] {
+        func color(_ element: XMLElement?) -> String? { ThemeColorPalette.resolvedARGB(from: element, theme: theme) }
+        func thresholds(_ element: XMLElement) -> [ConditionalThreshold] {
+            element.children(named: "cfvo").compactMap { point in
+                guard let kind = point.attribute("type").flatMap(ConditionalThreshold.Kind.init(rawValue:)) else { return nil }
+                // Excel 2010 keeps the value in a child, where 2007 has an attribute.
+                let value = point.attribute("val") ?? point.firstChild(named: "f")?.text
+                return ConditionalThreshold(kind: kind, value: value, isInclusive: point.attribute("gte").map(isTrue) ?? true)
+            }
+        }
+        // Excel 2010's side of each data bar, by the id its 2007 rule names.
+        var extendedBars: [String: XMLElement] = [:]
+        for ext in root.firstChild(named: "extLst")?.children(named: "ext") ?? [] {
+            for format in ext.firstChild(named: "conditionalFormattings")?.children(named: "conditionalFormatting") ?? [] {
+                for rule in format.children(named: "cfRule") {
+                    if let id = rule.attribute("id"), let bar = rule.firstChild(named: "dataBar") { extendedBars[id] = bar }
+                }
+            }
+        }
+
         var rules: [ConditionalRule] = []
         for element in root.children(named: "conditionalFormatting") {
             let ranges = ConditionalRule.ranges(sqref: element.attribute("sqref") ?? "")
             guard !ranges.isEmpty else { continue }
             for rule in element.children(named: "cfRule") {
                 guard let type = rule.attribute("type"),
-                      let index = rule.attribute("dxfId").flatMap(Int.init), styles.indices.contains(index),
                       let priority = rule.attribute("priority").flatMap(Int.init) else { continue }
+                let differential = rule.attribute("dxfId").flatMap(Int.init)
+                    .flatMap { styles.indices.contains($0) ? styles[$0] : nil }
                 let formulas = rule.children(named: "formula").map(\.text)
+                var kind = ConditionalRule.Kind.test
                 var comparison: ConditionalRule.Comparison?
-                if type == "cellIs" {
+                // Every kind but the three that draw for themselves is styled by a `<dxf>`.
+                var needsStyle = true
+                switch type {
+                case "cellIs":
                     guard let parsed = rule.attribute("operator").flatMap(ConditionalRule.Comparison.init(rawValue:)),
                           formulas.count >= parsed.operandCount else { continue }
                     comparison = parsed
-                } else {
+                case "top10":
+                    kind = .rank(
+                        count: rule.attribute("rank").flatMap(Int.init) ?? 10,
+                        isPercent: isTrue(rule.attribute("percent")), isBottom: isTrue(rule.attribute("bottom"))
+                    )
+                case "aboveAverage":
+                    kind = .average(
+                        isAbove: rule.attribute("aboveAverage").map(isTrue) ?? true,
+                        includesEqual: isTrue(rule.attribute("equalAverage")),
+                        deviations: rule.attribute("stdDev").flatMap(Int.init) ?? 0
+                    )
+                case "duplicateValues": kind = .duplicates(isUnique: false)
+                case "uniqueValues": kind = .duplicates(isUnique: true)
+                case "colorScale":
+                    guard let scale = rule.firstChild(named: "colorScale") else { continue }
+                    let points = thresholds(scale)
+                    let colors = scale.children(named: "color").compactMap(color)
+                    guard points.count >= 2, points.count == colors.count else { continue }
+                    kind = .colorScale(thresholds: points, colors: colors)
+                    needsStyle = false
+                case "dataBar":
+                    guard let bar = rule.firstChild(named: "dataBar"), let barColor = color(bar.firstChild(named: "color"))
+                    else { continue }
+                    let points = thresholds(bar)
+                    guard points.count == 2 else { continue }
+                    var parsed = ConditionalDataBar(minimum: points[0], maximum: points[1], colorHex: barColor)
+                    parsed.showsValue = bar.attribute("showValue").map(isTrue) ?? true
+                    let id = rule.firstChild(named: "extLst")?.children(named: "ext")
+                        .compactMap { $0.firstChild(named: "id")?.text }.first
+                    // Excel 2010 and later draw from their own description of the bar.
+                    let drawn = id.flatMap { extendedBars[$0] } ?? bar
+                    if drawn !== bar {
+                        let extended = thresholds(drawn)
+                        if extended.count == 2 { (parsed.minimum, parsed.maximum) = (extended[0], extended[1]) }
+                        parsed.hasAxis = drawn.attribute("axisPosition") != "none"
+                        parsed.negativeColorHex = color(drawn.firstChild(named: "negativeFillColor")) ?? parsed.negativeColorHex
+                    }
+                    parsed.minimumLength = drawn.attribute("minLength").flatMap(Double.init) ?? 10
+                    parsed.maximumLength = drawn.attribute("maxLength").flatMap(Double.init) ?? 90
+                    kind = .dataBar(parsed)
+                    needsStyle = false
+                case "iconSet":
+                    guard let set = rule.firstChild(named: "iconSet") else { continue }
+                    let name = set.attribute("iconSet") ?? "3TrafficLights1"
+                    let points = thresholds(set)
+                    guard !points.isEmpty, points.count == ConditionalIcon.icons(ofSet: name).count else { continue }
+                    kind = .iconSet(ConditionalIconSet(
+                        name: name, thresholds: points, isReversed: isTrue(set.attribute("reverse")),
+                        showsValue: set.attribute("showValue").map(isTrue) ?? true
+                    ))
+                    needsStyle = false
+                default:
                     guard formulaRuleTypes.contains(type), !formulas.isEmpty else { continue }
                 }
+                guard !needsStyle || differential != nil else { continue }
                 rules.append(ConditionalRule(
-                    ranges: ranges, comparison: comparison, formulas: formulas, priority: priority,
-                    stopsIfTrue: isTrue(rule.attribute("stopIfTrue")), style: styles[index]
+                    ranges: ranges, kind: kind, comparison: comparison, formulas: kind == .test ? formulas : [],
+                    priority: priority, stopsIfTrue: isTrue(rule.attribute("stopIfTrue")),
+                    style: needsStyle ? differential ?? ConditionalStyle() : ConditionalStyle()
                 ))
             }
         }

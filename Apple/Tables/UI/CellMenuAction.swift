@@ -80,6 +80,7 @@ struct CellMenuBuilder {
                 ]
             }
         }
+        actions += hyperlinkActions()
         if state.formatting.contains(.merging) {
             actions += mergeActions()
         }
@@ -95,6 +96,58 @@ struct CellMenuBuilder {
             ]
         }
         return actions
+    }
+
+    /// Following the cell's link, and adding, editing or removing it.
+    private func hyperlinkActions() -> [HeaderMenuAction] {
+        var actions: [HeaderMenuAction] = []
+        if state.hyperlink(at: address, in: workbook.wrappedValue) != nil {
+            actions.append(HeaderMenuAction(title: String(localized: "Hyperlink.Menu.Open"), symbol: "arrow.up.right.square") {
+                openHyperlink()
+            })
+        }
+        if state.allowsHyperlinks {
+            let hasLink = activeSheet.hyperlinks[address] != nil
+            actions.append(HeaderMenuAction(
+                title: hasLink
+                    ? String(localized: "Hyperlink.Menu.EditExisting") : String(localized: "Hyperlink.Menu.Add"),
+                symbol: "link"
+            ) {
+                state.select(address, in: activeSheet)
+                state.hyperlinkEditorAddress = address
+            })
+            if hasLink {
+                actions.append(HeaderMenuAction(
+                    title: String(localized: "Hyperlink.Remove"), symbol: "link.badge.minus", kind: .destructive
+                ) {
+                    target()
+                    state.removeHyperlinks(in: &workbook.wrappedValue)
+                })
+            }
+        }
+        return actions.isEmpty ? [] : [.separator] + actions
+    }
+
+    /// Opens an outside address, or goes to the place in the workbook named.
+    private func openHyperlink() {
+        let workbook = workbook.wrappedValue
+        switch state.hyperlinkDestination(at: address, in: workbook) {
+        case .external(let address)?:
+            guard let url = EditorState.url(forHyperlinkAddress: address) else {
+                state.errorMessage = String(localized: "Hyperlink.CannotOpen")
+                return
+            }
+            #if canImport(UIKit)
+            UIApplication.shared.open(url)
+            #else
+            NSWorkspace.shared.open(url)
+            #endif
+        case .cells(let sheet, let range)?:
+            if state.activeSheetID != sheet { state.selectSheet(sheet, in: workbook) }
+            state.reveal(range, in: workbook)
+        case nil:
+            state.errorMessage = String(localized: "Hyperlink.CannotOpen")
+        }
     }
 
     /// Merging or splitting whichever is possible for the selection the menu
