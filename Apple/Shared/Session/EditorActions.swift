@@ -66,8 +66,15 @@ extension EditorState {
         let wasEditingInFormulaBar = isFormulaBarActive
         let index = activeIndex(in: workbook)
         let existing = workbook.sheets[index][address]
-        workbook.sheets[index][address] = CellInputParser.cell(from: editingText, replacing: existing)
-        workbook.recalculate()
+        let entered = CellInputParser.cell(from: editingText, replacing: existing)
+        // An entry the cell's validation rule fails is not written, and the
+        // selection stays on the cell for another try.
+        let isRefused = entered != existing
+            && refuses(entered, typedAs: editingText, at: address, in: workbook)
+        if !isRefused {
+            workbook.sheets[index][address] = entered
+            workbook.recalculate()
+        }
 
         editingAddress = nil
         editingText = ""
@@ -75,7 +82,7 @@ extension EditorState {
         pendingReferenceRange = nil
         select(address)
 
-        guard let advance else { return }
+        guard let advance, !isRefused else { return }
         move(advance, in: workbook.sheets[index])
         if keepingEditor {
             beginEditing(selectedAddress, in: workbook)

@@ -284,6 +284,8 @@ enum MainMenu {
         let menu = NSMenu(title: String(localized: "Mac.Menu.Tools"))
         menu.addItem(item(String(localized: "Toolbar.Macros"), #selector(WorkbookViewController.showMacros(_:)),
                           "m", [.command, .shift]))
+        menu.addItem(item(String(localized: "DataValidation.Menu"),
+                          #selector(WorkbookViewController.editDataValidation(_:))))
         menu.addItem(item(String(localized: "Toolbar.UnsupportedFeatures.Label"),
                           #selector(WorkbookViewController.showUnsupportedFeatures(_:))))
         return menu

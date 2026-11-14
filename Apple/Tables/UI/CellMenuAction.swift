@@ -94,7 +94,29 @@ struct CellMenuBuilder {
                 },
             ]
         }
+        if state.allowsDataValidation {
+            actions.append(.separator)
+            // The cell's list, for when its arrow is out of reach.
+            if state.selection.normalized == CellRange(address), state.dropDownRule(in: workbook.wrappedValue) != nil {
+                actions.append(HeaderMenuAction(
+                    title: String(localized: "DataValidation.ChooseFromList"), symbol: "list.bullet",
+                    children: Self.listActions(workbook: workbook, state: state)))
+            }
+            actions.append(HeaderMenuAction(
+                title: String(localized: "DataValidation.Menu"), symbol: "checkmark.shield"
+            ) {
+                target()
+                state.isEditingDataValidation = true
+            })
+        }
         return actions
+    }
+
+    /// The entries of the selected cell's validation list, each entering itself.
+    static func listActions(workbook: Binding<Workbook>, state: EditorState) -> [HeaderMenuAction] {
+        (state.dropDownItems(in: workbook.wrappedValue) ?? []).map { entry in
+            HeaderMenuAction(title: entry) { state.enter(entry, in: &workbook.wrappedValue) }
+        }
     }
 
     /// Merging or splitting whichever is possible for the selection the menu

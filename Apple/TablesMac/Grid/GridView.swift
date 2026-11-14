@@ -196,6 +196,7 @@ final class GridView: NSView, NSTextFieldDelegate {
         drawReferences(in: document, context: context)
         // With no table worked on, as after a click on the canvas's page, none shows a selection.
         if !document.state.isTableUnfocused { drawSelection(in: document, context: context) }
+        drawValidation(in: document, context: context)
         drawDragPreview(in: document, context: context)
     }
 
@@ -350,6 +351,12 @@ final class GridView: NSView, NSTextFieldDelegate {
             state.selectDrawing(nil)
         }
         window?.makeFirstResponder(self)
+
+        // A click on a list rule's arrow opens the list.
+        if event.clickCount == 1, dropDownRect(in: document)?.insetBy(dx: -2, dy: -2).contains(point) == true {
+            showDropDown()
+            return
+        }
 
         // A click on a checkbox ticks it or clears it, and selects its cell.
         let clicked = sheet[address]
@@ -547,6 +554,8 @@ final class GridView: NSView, NSTextFieldDelegate {
             return
         }
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // Option-Down opens the cell's list, as it does in Excel.
+        if event.keyCode == 125, modifiers.contains(.option), showDropDown() { return }
         // F2 edits the cell in place, as it does in Excel.
         if event.keyCode == 120 {
             beginEditing(at: document.state.selectedAddress, seed: nil)
