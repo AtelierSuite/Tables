@@ -175,9 +175,10 @@ extension EditorState {
         guard let reference = Self.parseRange(text, in: workbook, defaultSheet: fallbackSheet),
               let sheet = workbook[reference.sheetID],
               var layout = ChartBuilder.layout(of: reference.range, in: sheet, for: chart.kind) else { return false }
-        if let seriesInColumns, chart.kind != .scatter { layout.seriesInColumns = seriesInColumns }
+        if let seriesInColumns, !chart.kind.plotsXY { layout.seriesInColumns = seriesInColumns }
 
         var series = ChartBuilder.series(for: layout, in: sheet)
+        if chart.kind == .bubble { series = ChartBuilder.bubbles(from: series) }
         guard !series.isEmpty else { return false }
         for index in series.indices where chart.series.indices.contains(index) {
             let old = chart.series[index]
@@ -188,6 +189,11 @@ extension EditorState {
             series[index].isSmooth = old.isSmooth
             series[index].lineWidth = old.lineWidth
             series[index].pointColors = old.pointColors
+            series[index].plotKind = old.plotKind
+            series[index].usesSecondaryAxis = old.usesSecondaryAxis
+            series[index].dataLabels = old.dataLabels
+            series[index].trendlines = old.trendlines
+            series[index].errorBars = old.errorBars
         }
         if chart.kind.isRadial { series = Array(series.prefix(1)) }
         updateSelectedChart(in: &workbook) { $0.series = series }

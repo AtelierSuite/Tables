@@ -126,7 +126,7 @@ enum MainMenu {
         menu.addItem(item(String(localized: "Canvas.NewTable"), #selector(WorkbookViewController.newTable(_:)),
                           "t", [.command, .option]))
         let charts = NSMenu(title: String(localized: "Toolbar.InsertChart"))
-        for kind in ChartKind.allCases {
+        for kind in ChartKind.creatable {
             let entry = item(kind.label, #selector(WorkbookViewController.insertChart(_:)))
             entry.representedObject = kind.rawValue
             entry.image = NSImage(systemSymbolName: kind.symbolName, accessibilityDescription: nil)

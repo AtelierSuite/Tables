@@ -22,6 +22,7 @@ public enum ChartBuilder {
         guard let layout = layout(of: selection, in: sheet, for: kind) else { return nil }
         var chart = Chart(name: name, kind: kind)
         chart.series = series(for: layout, in: sheet)
+        if kind == .bubble { chart.series = bubbles(from: chart.series) }
         guard !chart.series.isEmpty else { return nil }
 
         switch kind {
@@ -35,7 +36,9 @@ public enum ChartBuilder {
             for index in chart.series.indices { chart.series[index].showsLine = false }
         case .line:
             for index in chart.series.indices { chart.series[index].showsMarkers = false }
-        case .column, .bar, .area:
+        case .radar:
+            chart.radarStyle = .marker
+        case .column, .bar, .area, .bubble, .stock:
             break
         }
         // Excel titles a one-series chart with the series name and leaves a
@@ -47,6 +50,17 @@ public enum ChartBuilder {
     }
 
     // MARK: - Reading the block
+
+    /// Pairs up the columns of a bubble chart's block: each Y beside the
+    /// sizes of its bubbles. A last column without a partner sizes nothing,
+    /// and its bubbles are all drawn alike.
+    public static func bubbles(from series: [ChartSeries]) -> [ChartSeries] {
+        stride(from: 0, to: series.count, by: 2).map { index in
+            var entry = series[index]
+            if series.indices.contains(index + 1) { entry.bubbleSizes = series[index + 1].values }
+            return entry
+        }
+    }
 
     public static func layout(of selection: CellRange, in sheet: Worksheet, for kind: ChartKind) -> Layout? {
         var box = selection.normalized
@@ -96,7 +110,7 @@ public enum ChartBuilder {
             hasLabelColumn = labels && numbersBeside
             // A scatter chart takes a numeric first column as its X values;
             // a text one it skips, plotting by position instead, as Excel does.
-            if kind == .scatter, bodyRows.contains(where: { value($0, first).value.chartNumber != nil }) {
+            if kind.plotsXY, bodyRows.contains(where: { value($0, first).value.chartNumber != nil }) {
                 hasLabelColumn = true
             }
         }
@@ -106,7 +120,7 @@ public enum ChartBuilder {
            !hasHeaderRow || !hasLabelColumn {
             let rowLabels = columns.dropFirst().allSatisfy { isLabel(value(rows.lowerBound, $0)) }
             let columnLabels = rows.dropFirst().allSatisfy { isLabel(value($0, columns.lowerBound)) }
-            if rowLabels, columnLabels, kind != .scatter {
+            if rowLabels, columnLabels, !kind.plotsXY {
                 hasHeaderRow = true
                 hasLabelColumn = true
             }
@@ -127,7 +141,7 @@ public enum ChartBuilder {
             return nil
         }
         // Scatter data always runs down columns: X beside each Y.
-        let seriesInColumns = kind == .scatter || dataRows >= dataColumns
+        let seriesInColumns = kind.plotsXY || dataRows >= dataColumns
         return Layout(
             range: box, hasHeaderRow: hasHeaderRow, hasLabelColumn: hasLabelColumn,
             seriesInColumns: seriesInColumns

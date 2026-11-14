@@ -78,9 +78,10 @@ struct ChartView: View, Equatable {
         } else {
             switch chart.kind {
             case .pie, .doughnut: radialPlot
-            case .column, .bar: barPlot
-            case .line, .area: linePlot
-            case .scatter: scatterPlot
+            case .bar: barPlot
+            case .column, .line, .area, .stock: categoryPlot
+            case .scatter, .bubble: scatterPlot
+            case .radar: RadarPlot(chart: self)
             }
         }
     }
@@ -92,18 +93,25 @@ struct ChartView: View, Equatable {
     /// Swift Charts merges equal categorical values, so two categories both
     /// called "Total" would draw as one. Keys are made unique with trailing
     /// zero-width spaces, which no label visibly shows.
-    private struct Point: Identifiable {
+    fileprivate struct Point: Identifiable {
         var id: Int
         var series: Int
         var seriesKey: String
         var index: Int
         var categoryKey: String
+        /// Where the point is drawn: stacked, and moved onto the main axis'
+        /// scale when it is measured along the second one.
         var value: Double
+        /// The value the cell holds, which its label shows.
+        var raw: Double
         var x: Double
+        var kind: ChartKind
+        /// A bubble's size.
+        var size: Double?
     }
 
-    private var seriesKeys: [String] { Self.uniqueKeys(data.series.map(\.name)) }
-    private var categoryKeys: [String] { Self.uniqueKeys(data.categories) }
+    fileprivate var seriesKeys: [String] { Self.uniqueKeys(data.series.map(\.name)) }
+    fileprivate var categoryKeys: [String] { Self.uniqueKeys(data.categories) }
 
     private static func uniqueKeys(_ labels: [String]) -> [String] {
         var seen: [String: Int] = [:]
@@ -114,20 +122,47 @@ struct ChartView: View, Equatable {
         }
     }
 
-    private static func label(_ key: String) -> String {
+    fileprivate static func label(_ key: String) -> String {
         key.replacingOccurrences(of: "\u{200B}", with: "")
+    }
+
+    /// The scales of a chart with a second value axis: the main one, and the
+    /// far one, given as many steps so that both share the gridlines.
+    fileprivate var dualScales: (primary: ChartAxisScale, secondary: ChartAxisScale)? {
+        guard let axis = chart.secondaryValueAxis, data.series.contains(where: \.usesSecondaryAxis) else { return nil }
+        let primary = ChartAxisScale.nice(
+            data.valueExtent(secondary: false, grouping: chart.grouping, kind: chart.kind),
+            axis: chart.valueAxis, includesZero: chart.kind != .stock
+        )
+        let secondary = ChartAxisScale.nice(
+            data.valueExtent(secondary: true, grouping: chart.grouping, kind: chart.kind),
+            axis: axis, includesZero: !data.series.contains { $0.usesSecondaryAxis && $0.kind == .stock },
+            intervals: max(1, primary.ticks.count - 1)
+        )
+        return (primary, secondary)
+    }
+
+    /// A value as the plot draws it: on the second axis, moved to where the
+    /// main axis has the same height.
+    fileprivate func plotted(_ value: Double, secondary: Bool) -> Double {
+        guard secondary, let scales = dualScales else { return value }
+        return scales.primary.minimum
+            + scales.secondary.fraction(value) * (scales.primary.maximum - scales.primary.minimum)
     }
 
     /// Every plottable point, with stacked lines accumulated here because
     /// line marks, unlike bars and areas, do not stack themselves.
-    private var points: [Point] {
+    fileprivate var points: [Point] {
         let categories = categoryKeys
         let seriesNames = seriesKeys
         let stacksLines = chart.kind == .line && chart.grouping != .standard
+        func stacks(_ series: ResolvedChart.Series) -> Bool {
+            stacksLines && series.kind == .line && !series.usesSecondaryAxis
+        }
         var running = [Double](repeating: 0, count: categories.count)
         var totals = [Double](repeating: 0, count: categories.count)
         if stacksLines, chart.grouping == .percentStacked {
-            for series in data.series {
+            for series in data.series where stacks(series) {
                 for (index, value) in series.values.enumerated() where index < totals.count {
                     totals[index] += abs(value ?? 0)
                 }
@@ -138,19 +173,21 @@ struct ChartView: View, Equatable {
         for (seriesIndex, series) in data.series.enumerated() {
             for (index, value) in series.values.enumerated() {
                 guard let value, index < categories.count else { continue }
-                var plotted = value
-                if stacksLines {
+                var plottedValue = value
+                if stacks(series) {
                     running[index] += value
-                    plotted = running[index]
+                    plottedValue = running[index]
                     if chart.grouping == .percentStacked {
-                        plotted = totals[index] == 0 ? 0 : plotted / totals[index]
+                        plottedValue = totals[index] == 0 ? 0 : plottedValue / totals[index]
                     }
                 }
+                plottedValue = plotted(plottedValue, secondary: series.usesSecondaryAxis)
                 let x = series.xValues.indices.contains(index) ? series.xValues[index] : nil
+                let size = series.sizes.indices.contains(index) ? series.sizes[index] : nil
                 result.append(Point(
                     id: result.count, series: seriesIndex, seriesKey: seriesNames[seriesIndex],
-                    index: index, categoryKey: categories[index], value: plotted,
-                    x: x ?? Double(index + 1)
+                    index: index, categoryKey: categories[index], value: plottedValue, raw: value,
+                    x: x ?? Double(index + 1), kind: series.kind, size: size
                 ))
             }
         }
@@ -160,7 +197,8 @@ struct ChartView: View, Equatable {
     /// One colour per point instead of per series: Excel's "vary colours by
     /// point", which only means anything with a single series.
     private var colorsByPoint: Bool {
-        chart.kind.isRadial || (chart.variesColors && data.series.count == 1 && chart.kind != .scatter)
+        chart.kind.isRadial
+            || (chart.variesColors && data.series.count == 1 && !chart.kind.plotsXY && chart.kind != .radar)
     }
 
     private var colorDomain: [String] { colorsByPoint ? categoryKeys : seriesKeys }
@@ -180,6 +218,10 @@ struct ChartView: View, Equatable {
         colorsByPoint ? point.categoryKey : point.seriesKey
     }
 
+    private func model(_ index: Int) -> ChartSeries {
+        chart.series.indices.contains(index) ? chart.series[index] : ChartSeries()
+    }
+
     // MARK: Bars
 
     private var barStacking: MarkStackingMethod {
@@ -190,104 +232,345 @@ struct ChartView: View, Equatable {
         }
     }
 
+    /// Horizontal bars.
     private var barPlot: some View {
-        let isHorizontal = chart.kind == .bar
         let isClustered = chart.grouping == .standard && data.series.count > 1
         return Charts.Chart(points) { point in
-            if isHorizontal {
-                if isClustered {
-                    BarMark(x: .value("Value", point.value), y: .value("Category", point.categoryKey))
-                        .foregroundStyle(by: .value("Color", colorKey(point)))
-                        .position(by: .value("Series", point.seriesKey))
-                        .annotation(position: .trailing) { dataLabel(point) }
-                } else {
-                    BarMark(
-                        x: .value("Value", point.value), y: .value("Category", point.categoryKey),
-                        stacking: barStacking
-                    )
+            if isClustered {
+                BarMark(x: .value("Value", point.value), y: .value("Category", point.categoryKey))
                     .foregroundStyle(by: .value("Color", colorKey(point)))
-                    .annotation(position: .overlay) { dataLabel(point) }
-                }
+                    .position(by: .value("Series", point.seriesKey))
+                    .annotation(position: .trailing) { dataLabel(point) }
             } else {
-                if isClustered {
-                    BarMark(x: .value("Category", point.categoryKey), y: .value("Value", point.value))
-                        .foregroundStyle(by: .value("Color", colorKey(point)))
-                        .position(by: .value("Series", point.seriesKey))
-                        .annotation(position: .top) { dataLabel(point) }
-                } else {
-                    BarMark(
-                        x: .value("Category", point.categoryKey), y: .value("Value", point.value),
-                        stacking: barStacking
-                    )
-                    .foregroundStyle(by: .value("Color", colorKey(point)))
-                    .annotation(position: chart.grouping == .standard ? .top : .overlay) { dataLabel(point) }
-                }
+                BarMark(
+                    x: .value("Value", point.value), y: .value("Category", point.categoryKey),
+                    stacking: barStacking
+                )
+                .foregroundStyle(by: .value("Color", colorKey(point)))
+                .annotation(position: .overlay) { dataLabel(point) }
             }
         }
-        .modifier(CartesianStyle(chart: self, categoryIsVertical: isHorizontal))
+        .modifier(CartesianStyle(chart: self, categoryIsVertical: true))
     }
 
-    // MARK: Lines and areas
+    // MARK: Columns, lines, areas and stock
 
-    private var linePlot: some View {
-        let isArea = chart.kind == .area
+    /// Every chart that lays its categories along the bottom, each series
+    /// drawn as its own kind, so that combination charts draw too.
+    private var categoryPlot: some View {
+        let columnSeries = Set(data.series.indices.filter { data.series[$0].kind == .column })
+        let isClustered = chart.grouping == .standard && columnSeries.count > 1
         let areaStacking: MarkStackingMethod = switch chart.grouping {
         case .standard: .unstacked
         case .stacked: .standard
         case .percentStacked: .normalized
         }
-        return Charts.Chart(points) { point in
-            let series = chart.series.indices.contains(point.series) ? chart.series[point.series] : ChartSeries()
-            if isArea {
-                AreaMark(
-                    x: .value("Category", point.categoryKey), y: .value("Value", point.value),
-                    stacking: areaStacking
-                )
-                .foregroundStyle(by: .value("Color", point.seriesKey))
-                .annotation(position: .top) { dataLabel(point) }
-            } else {
-                if series.showsLine {
-                    LineMark(x: .value("Category", point.categoryKey), y: .value("Value", point.value))
+        let stackOwn = chart.kind == .column || chart.kind == .area
+        return Charts.Chart {
+            ForEach(points) { point in
+                let series = model(point.series)
+                switch point.kind {
+                case .column:
+                    if isClustered {
+                        BarMark(x: .value("Category", point.categoryKey), y: .value("Value", point.value))
+                            .foregroundStyle(by: .value("Color", colorKey(point)))
+                            .position(by: .value("Series", point.seriesKey))
+                            .annotation(position: .top) { dataLabel(point) }
+                    } else {
+                        BarMark(
+                            x: .value("Category", point.categoryKey), y: .value("Value", point.value),
+                            stacking: stackOwn && point.kind == chart.kind ? barStacking : .unstacked
+                        )
+                        .foregroundStyle(by: .value("Color", colorKey(point)))
+                        .annotation(position: chart.grouping == .standard ? .top : .overlay) { dataLabel(point) }
+                    }
+                case .area:
+                    AreaMark(
+                        x: .value("Category", point.categoryKey), y: .value("Value", point.value),
+                        series: .value("Series", point.seriesKey),
+                        stacking: stackOwn && point.kind == chart.kind ? areaStacking : .unstacked
+                    )
+                    .foregroundStyle(by: .value("Color", point.seriesKey))
+                    .annotation(position: .top) { dataLabel(point) }
+                default:
+                    if series.showsLine {
+                        LineMark(
+                            x: .value("Category", point.categoryKey), y: .value("Value", point.value),
+                            series: .value("Series", point.seriesKey)
+                        )
                         .foregroundStyle(by: .value("Color", point.seriesKey))
                         .lineStyle(StrokeStyle(lineWidth: (series.lineWidth ?? 2.25) * zoom, lineCap: .round))
                         .interpolationMethod(series.isSmooth ? .catmullRom : .linear)
-                }
-                if series.showsMarkers {
+                    }
                     PointMark(x: .value("Category", point.categoryKey), y: .value("Value", point.value))
                         .foregroundStyle(by: .value("Color", point.seriesKey))
-                        .symbolSize(28 * zoom * zoom)
-                        .annotation(position: .top) { dataLabel(point) }
-                } else {
-                    PointMark(x: .value("Category", point.categoryKey), y: .value("Value", point.value))
-                        .foregroundStyle(by: .value("Color", point.seriesKey))
-                        .symbolSize(0)
+                        .symbolSize(series.showsMarkers ? 28 * zoom * zoom : 0)
                         .annotation(position: .top) { dataLabel(point) }
                 }
             }
+            ForEach(stockDays) { day in
+                if chart.hasHighLowLines, let high = day.high, let low = day.low {
+                    RuleMark(
+                        x: .value("Category", day.category),
+                        yStart: .value("Value", low), yEnd: .value("Value", high)
+                    )
+                    .foregroundStyle(Color.secondary)
+                    .lineStyle(StrokeStyle(lineWidth: 1 * zoom))
+                }
+                if let bars = chart.upDownBars, let open = day.open, let close = day.close {
+                    RectangleMark(
+                        x: .value("Category", day.category),
+                        yStart: .value("Value", min(open, close)), yEnd: .value("Value", max(open, close)),
+                        width: .ratio(1 / (1 + Double(bars.gapWidth) / 100))
+                    )
+                    .foregroundStyle(close >= open ? upBarColor(bars) : downBarColor(bars))
+                }
+            }
+            extras(xIsNumber: false)
         }
         .modifier(CartesianStyle(chart: self, categoryIsVertical: false))
     }
 
-    // MARK: Scatter
+    /// One day of a stock chart, from its series in Excel's order: high,
+    /// low, close, with open first when there are four.
+    fileprivate struct StockDay: Identifiable {
+        var id: Int
+        var category: String
+        var open: Double?
+        var high: Double?
+        var low: Double?
+        var close: Double?
+    }
+
+    private var stockDays: [StockDay] {
+        let stock = data.series.filter { $0.kind == .stock }
+        guard stock.count >= 3 else { return [] }
+        let roles: [ResolvedChart.Series?] = stock.count >= 4
+            ? stock.prefix(4).map { $0 } : [nil] + stock.prefix(3).map { $0 }
+        let categories = categoryKeys
+        func value(_ series: ResolvedChart.Series?, _ index: Int) -> Double? {
+            guard let series, series.values.indices.contains(index), let value = series.values[index] else { return nil }
+            return plotted(value, secondary: series.usesSecondaryAxis)
+        }
+        return categories.indices.map { index in
+            StockDay(
+                id: index, category: categories[index], open: value(roles[0], index), high: value(roles[1], index),
+                low: value(roles[2], index), close: value(roles[3], index)
+            )
+        }
+    }
+
+    /// Excel's up bars are white and its down bars black; drawn without the
+    /// outline that makes a white bar visible, a light grey stands in.
+    private func upBarColor(_ bars: ChartUpDownBars) -> Color {
+        Color(argbHex: bars.upColorHex) ?? Color(white: 0.85)
+    }
+
+    private func downBarColor(_ bars: ChartUpDownBars) -> Color {
+        Color(argbHex: bars.downColorHex) ?? Color(white: 0.25)
+    }
+
+    // MARK: Scatter and bubble
 
     private var scatterPlot: some View {
-        Charts.Chart(points) { point in
-            let series = chart.series.indices.contains(point.series) ? chart.series[point.series] : ChartSeries()
-            if series.showsLine {
-                LineMark(
-                    x: .value("X", point.x), y: .value("Y", point.value),
-                    series: .value("Series", point.seriesKey)
-                )
-                .foregroundStyle(by: .value("Color", point.seriesKey))
-                .lineStyle(StrokeStyle(lineWidth: (series.lineWidth ?? 2.25) * zoom, lineCap: .round))
-                .interpolationMethod(series.isSmooth ? .catmullRom : .linear)
+        let sizes = data.series.filter { $0.kind == .bubble }.flatMap { $0.sizes.compactMap { $0 } }
+        let largest = sizes.map(abs).max() ?? 0
+        return Charts.Chart {
+            ForEach(points) { point in
+                let series = model(point.series)
+                if point.kind == .bubble {
+                    PointMark(x: .value("X", point.x), y: .value("Y", point.value))
+                        .foregroundStyle(by: .value("Color", point.seriesKey))
+                        .symbolSize(bubbleArea(point.size, largest: largest))
+                        .opacity(0.8)
+                        .annotation(position: .overlay) { dataLabel(point) }
+                } else {
+                    if series.showsLine {
+                        LineMark(
+                            x: .value("X", point.x), y: .value("Y", point.value),
+                            series: .value("Series", point.seriesKey)
+                        )
+                        .foregroundStyle(by: .value("Color", point.seriesKey))
+                        .lineStyle(StrokeStyle(lineWidth: (series.lineWidth ?? 2.25) * zoom, lineCap: .round))
+                        .interpolationMethod(series.isSmooth ? .catmullRom : .linear)
+                    }
+                    PointMark(x: .value("X", point.x), y: .value("Y", point.value))
+                        .foregroundStyle(by: .value("Color", point.seriesKey))
+                        .symbolSize(series.showsMarkers ? 28 * zoom * zoom : 0)
+                        .annotation(position: .top) { dataLabel(point) }
+                }
             }
-            PointMark(x: .value("X", point.x), y: .value("Y", point.value))
-                .foregroundStyle(by: .value("Color", point.seriesKey))
-                .symbolSize(series.showsMarkers ? 28 * zoom * zoom : 0)
-                .annotation(position: .top) { dataLabel(point) }
+            extras(xIsNumber: true)
         }
         .modifier(CartesianStyle(chart: self, categoryIsVertical: false))
+    }
+
+    /// A bubble's area in square points. Excel sizes the largest bubble to a
+    /// quarter of the plot's shorter side; a fixed size stands in for that,
+    /// scaled as the chart asks. Sizes measure area unless they measure width.
+    private func bubbleArea(_ size: Double?, largest: Double) -> CGFloat {
+        guard let size, size > 0, largest > 0 else { return 0 }
+        let diameter = 44 * zoom * Double(chart.bubbleScale) / 100
+        let ratio = size / largest
+        let scaled = chart.bubbleSizeIsWidth ? diameter * ratio : diameter * ratio.squareRoot()
+        return scaled * scaled
+    }
+
+    // MARK: Trendlines and error bars
+
+    fileprivate struct TrendPoint: Identifiable {
+        var id: Int
+        var line: String
+        var category: String
+        var x: Double
+        var y: Double
+        var color: Color
+        var width: Double
+        /// The equation and R², on the line's last point.
+        var label: String?
+    }
+
+    fileprivate struct ErrorBar: Identifiable {
+        var id: Int
+        var seriesKey: String
+        var category: String
+        var x: Double
+        var y: Double
+        var low: Double
+        var high: Double
+        var isHorizontal: Bool
+        var hasEndCaps: Bool
+        var color: Color
+    }
+
+    private var trendPoints: [TrendPoint] {
+        let categories = categoryKeys
+        var result: [TrendPoint] = []
+        for (seriesIndex, series) in data.series.enumerated() {
+            for (lineIndex, line) in series.trendlines.enumerated() {
+                let color = Color(argbHex: line.colorHex) ?? .accentColor
+                for (pointIndex, point) in line.points.enumerated() {
+                    let position = Int(point.x.rounded()) - 1
+                    guard series.kind.plotsXY || categories.indices.contains(position) else { continue }
+                    result.append(TrendPoint(
+                        id: result.count, line: "trend-\(seriesIndex)-\(lineIndex)",
+                        category: series.kind.plotsXY ? "" : categories[position], x: point.x,
+                        y: plotted(point.y, secondary: series.usesSecondaryAxis), color: color,
+                        width: (line.lineWidth ?? 1.5) * zoom,
+                        label: pointIndex == line.points.count - 1 ? line.label : nil
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    private var errorBars: [ErrorBar] {
+        let categories = categoryKeys
+        let keys = seriesKeys
+        var result: [ErrorBar] = []
+        for (seriesIndex, series) in data.series.enumerated() {
+            for set in series.errorBars {
+                let color = set.colorHex.flatMap { Color(argbHex: $0) } ?? Color.primary.opacity(0.75)
+                for bar in set.bars where bar.index < categories.count {
+                    guard series.values.indices.contains(bar.index), let value = series.values[bar.index] else { continue }
+                    let x = series.xValues.indices.contains(bar.index) ? series.xValues[bar.index] : nil
+                    let isHorizontal = set.direction == .x
+                    result.append(ErrorBar(
+                        id: result.count, seriesKey: keys[seriesIndex], category: categories[bar.index],
+                        x: x ?? Double(bar.index + 1),
+                        y: plotted(value, secondary: series.usesSecondaryAxis),
+                        low: isHorizontal ? bar.low : plotted(bar.low, secondary: series.usesSecondaryAxis),
+                        high: isHorizontal ? bar.high : plotted(bar.high, secondary: series.usesSecondaryAxis),
+                        isHorizontal: isHorizontal, hasEndCaps: set.hasEndCaps, color: color
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    /// Trendlines and error bars, over whatever the plot drew. On a chart
+    /// with categories they sit at the categories; error bars on clustered
+    /// columns move to their own column.
+    @ChartContentBuilder
+    private func extras(xIsNumber: Bool) -> some ChartContent {
+        let clusters = chart.grouping == .standard && data.series.filter({ $0.kind == .column }).count > 1
+        let cap = 7 * zoom
+        ForEach(errorBars) { bar in
+            if xIsNumber {
+                if bar.isHorizontal {
+                    RuleMark(xStart: .value("X", bar.low), xEnd: .value("X", bar.high), y: .value("Y", bar.y))
+                        .foregroundStyle(bar.color)
+                        .lineStyle(StrokeStyle(lineWidth: 1 * zoom))
+                } else {
+                    RuleMark(x: .value("X", bar.x), yStart: .value("Y", bar.low), yEnd: .value("Y", bar.high))
+                        .foregroundStyle(bar.color)
+                        .lineStyle(StrokeStyle(lineWidth: 1 * zoom))
+                }
+            } else if clusters {
+                RuleMark(x: .value("Category", bar.category), yStart: .value("Value", bar.low), yEnd: .value("Value", bar.high))
+                    .foregroundStyle(bar.color)
+                    .lineStyle(StrokeStyle(lineWidth: 1 * zoom))
+                    .position(by: .value("Series", bar.seriesKey))
+            } else {
+                RuleMark(x: .value("Category", bar.category), yStart: .value("Value", bar.low), yEnd: .value("Value", bar.high))
+                    .foregroundStyle(bar.color)
+                    .lineStyle(StrokeStyle(lineWidth: 1 * zoom))
+            }
+            if bar.hasEndCaps, !clusters || xIsNumber {
+                ForEach([bar.low, bar.high], id: \.self) { end in
+                    if xIsNumber && bar.isHorizontal {
+                        PointMark(x: .value("X", end), y: .value("Y", bar.y))
+                            .symbol { Rectangle().fill(bar.color).frame(width: 1 * zoom, height: cap) }
+                    } else if xIsNumber {
+                        PointMark(x: .value("X", bar.x), y: .value("Y", end))
+                            .symbol { Rectangle().fill(bar.color).frame(width: cap, height: 1 * zoom) }
+                    } else {
+                        PointMark(x: .value("Category", bar.category), y: .value("Value", end))
+                            .symbol { Rectangle().fill(bar.color).frame(width: cap, height: 1 * zoom) }
+                    }
+                }
+            }
+        }
+        ForEach(trendPoints) { point in
+            if xIsNumber {
+                LineMark(x: .value("X", point.x), y: .value("Y", point.y), series: .value("Trend", point.line))
+                    .foregroundStyle(point.color)
+                    .lineStyle(StrokeStyle(lineWidth: point.width, dash: [3 * zoom, 2 * zoom]))
+            } else {
+                LineMark(
+                    x: .value("Category", point.category), y: .value("Value", point.y),
+                    series: .value("Trend", point.line)
+                )
+                .foregroundStyle(point.color)
+                .lineStyle(StrokeStyle(lineWidth: point.width, dash: [3 * zoom, 2 * zoom]))
+            }
+        }
+        // The equation and R² hang off an unseen point at the line's end:
+        // a line that names its own series draws no annotations.
+        ForEach(trendPoints.filter { $0.label != nil }) { point in
+            if xIsNumber {
+                PointMark(x: .value("X", point.x), y: .value("Y", point.y))
+                    .symbolSize(0)
+                    .annotation(position: .bottom, alignment: .trailing) { trendLabel(point) }
+            } else {
+                PointMark(x: .value("Category", point.category), y: .value("Value", point.y))
+                    .symbolSize(0)
+                    .annotation(position: .bottom, alignment: .trailing) { trendLabel(point) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func trendLabel(_ point: TrendPoint) -> some View {
+        if let label = point.label {
+            Text(label)
+                .font(font(labelStyle, defaultSize: 9))
+                .foregroundStyle(textColor(labelStyle))
+                .multilineTextAlignment(.trailing)
+                .fixedSize()
+        }
     }
 
     // MARK: Pie and doughnut
@@ -327,12 +610,14 @@ struct ChartView: View, Equatable {
 
     @ViewBuilder
     private func dataLabel(_ point: Point) -> some View {
-        let labels = chart.dataLabels
+        let labels = data.series.indices.contains(point.series) ? data.series[point.series].dataLabels : chart.dataLabels
         if labels.isVisible {
             let parts = [
                 labels.showsSeriesName ? Self.label(point.seriesKey) : nil,
-                labels.showsCategoryName ? Self.label(point.categoryKey) : nil,
-                labels.showsValue ? formatValue(point.value) : nil,
+                labels.showsCategoryName && !point.kind.plotsXY ? Self.label(point.categoryKey) : nil,
+                labels.showsCategoryName && point.kind.plotsXY ? formatX(point.x) : nil,
+                labels.showsValue ? formatValue(point.raw) : nil,
+                labels.showsBubbleSize ? point.size.map { formatValue($0) } : nil,
             ].compactMap { $0 }
             Text(parts.joined(separator: ", "))
                 .font(font(labelStyle, defaultSize: 9))
@@ -360,6 +645,15 @@ struct ChartView: View, Equatable {
     }
 
     fileprivate var labelStyle: ChartTextStyle { chart.textStyle }
+
+    /// The second value axis' tick label at a height on the main one.
+    fileprivate func secondaryLabel(_ value: Double) -> String {
+        guard let scales = dualScales, let axis = chart.secondaryValueAxis else { return "" }
+        let secondary = scales.secondary.minimum
+            + scales.primary.fraction(value) * (scales.secondary.maximum - scales.secondary.minimum)
+        let format = axis.numberFormat ?? data.valueFormat
+        return CellFormatter.displayText(for: .number(secondary), format: format)
+    }
 
     fileprivate var legendStyle: ChartTextStyle { chart.legendTextStyle.inheriting(from: chart.textStyle) }
 
@@ -411,16 +705,21 @@ private struct CartesianStyle: ViewModifier {
             .chartYAxis(verticalAxis.isVisible ? .automatic : .hidden)
             .chartXAxis {
                 marks(
-                    for: horizontalAxis, isValueAxis: categoryIsVertical || model.kind == .scatter,
-                    isScatterX: model.kind == .scatter
+                    for: horizontalAxis, isValueAxis: categoryIsVertical || model.kind.plotsXY,
+                    isScatterX: model.kind.plotsXY
                 )
             }
-            .chartYAxis { marks(for: verticalAxis, isValueAxis: !categoryIsVertical, isScatterX: false) }
+            .chartYAxis { verticalMarks }
             .chartXAxisLabel(position: .bottom, alignment: .center) {
                 axisTitle(horizontalAxis)
             }
             .chartYAxisLabel(position: .leading, alignment: .center) {
                 axisTitle(verticalAxis)
+            }
+            .chartYAxisLabel(position: .trailing, alignment: .center) {
+                if let secondary = model.secondaryValueAxis, chart.dualScalesValue != nil {
+                    axisTitle(secondary)
+                }
             }
             .modifier(ScaleStyle(chart: chart, categoryIsVertical: categoryIsVertical))
             .modifier(LegendStyle(chart: chart))
@@ -435,12 +734,43 @@ private struct CartesianStyle: ViewModifier {
         }
     }
 
-    private func marks(for axis: ChartAxis, isValueAxis: Bool, isScatterX: Bool) -> some AxisContent {
-        let values: AxisMarkValues = isValueAxis && axis.majorUnit != nil
-            ? .stride(by: axis.majorUnit ?? 1)
-            : .automatic
+    /// The value axis, and on a chart with a second one, that axis on the
+    /// far side, its labels placed at the main axis' gridlines.
+    @AxisContentBuilder
+    private var verticalMarks: some AxisContent {
+        if let scales = chart.dualScalesValue, !categoryIsVertical {
+            // The main axis takes the near side, as Excel draws it, so the
+            // two sets of labels do not land on each other.
+            marks(
+                for: verticalAxis, isValueAxis: true, isScatterX: false, ticks: scales.primary.ticks,
+                position: .leading
+            )
+            if let secondary = model.secondaryValueAxis, secondary.isVisible {
+                let style = chart.axisStyle(secondary)
+                AxisMarks(position: .trailing, values: scales.primary.ticks) { value in
+                    AxisValueLabel {
+                        Text(value.as(Double.self).map(chart.secondaryLabel) ?? "")
+                            .font(chart.font(style, defaultSize: 9))
+                            .foregroundStyle(chart.textColor(style))
+                    }
+                }
+            }
+        } else {
+            marks(for: verticalAxis, isValueAxis: !categoryIsVertical, isScatterX: false)
+        }
+    }
+
+    private func marks(
+        for axis: ChartAxis, isValueAxis: Bool, isScatterX: Bool, ticks: [Double]? = nil,
+        position: AxisMarkPosition = .automatic
+    ) -> some AxisContent {
+        let values: AxisMarkValues = if isValueAxis, let unit = axis.majorUnit {
+            .stride(by: unit)
+        } else {
+            .automatic
+        }
         let style = chart.axisStyle(axis)
-        return AxisMarks(values: values) { value in
+        return AxisMarks(position: position, values: ticks.map { AxisMarkValues.stride(by: ($0.count > 1 ? $0[1] - $0[0] : 1)) } ?? values) { value in
             if axis.showsMajorGridlines {
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
             }
@@ -472,7 +802,7 @@ private struct ScaleStyle: ViewModifier {
 
     func body(content: Content) -> some View {
         let categories = chart.categoryKeysValue
-        if model.kind == .scatter {
+        if model.kind.plotsXY {
             content
                 .modifier(NumericScale(
                     isHorizontal: true, range: domain(for: model.categoryAxis, values: allXValues),
@@ -491,11 +821,15 @@ private struct ScaleStyle: ViewModifier {
                     reversed: model.valueAxis.isReversed, includesZero: true
                 ))
         } else {
+            // A chart with a second axis has both scales worked out ahead,
+            // so that they can share gridlines; a stock chart's prices need
+            // not start from zero.
+            let dual = chart.dualScalesValue.map { $0.primary.minimum...$0.primary.maximum }
             content
                 .chartXScale(domain: model.categoryAxis.isReversed ? categories.reversed() : categories)
                 .modifier(NumericScale(
-                    isHorizontal: false, range: domain(for: model.valueAxis, values: allValues),
-                    reversed: model.valueAxis.isReversed, includesZero: true
+                    isHorizontal: false, range: dual ?? domain(for: model.valueAxis, values: allValues),
+                    reversed: model.valueAxis.isReversed, includesZero: model.kind != .stock
                 ))
         }
     }
@@ -569,6 +903,160 @@ extension ChartView {
     fileprivate var colorDomainValue: [String] { colorDomain }
     fileprivate var colorRangeValue: [Color] { colorRange }
     fileprivate var categoryKeysValue: [String] { categoryKeys }
+    fileprivate var dualScalesValue: (primary: ChartAxisScale, secondary: ChartAxisScale)? { dualScales }
+}
+
+// MARK: - Radar
+
+/// A radar chart, drawn by hand: Swift Charts has no polar plot. One spoke
+/// per category, clockwise from the top, the values measured out from the
+/// centre on one scale for every spoke.
+private struct RadarPlot: View {
+    let chart: ChartView
+
+    private var model: TablesEngine.Chart { chart.chart }
+    private var zoom: Double { chart.zoom }
+
+    var body: some View {
+        switch model.legend {
+        case nil: web
+        case .bottom?: VStack(spacing: 6 * zoom) { web; HStack(spacing: 10 * zoom) { legendEntries } }
+        case .top?, .topRight?:
+            VStack(alignment: model.legend == .topRight ? .trailing : .center, spacing: 6 * zoom) {
+                HStack(spacing: 10 * zoom) { legendEntries }
+                web
+            }
+        case .left?: HStack(spacing: 8 * zoom) { VStack(alignment: .leading, spacing: 4 * zoom) { legendEntries }; web }
+        case .right?: HStack(spacing: 8 * zoom) { web; VStack(alignment: .leading, spacing: 4 * zoom) { legendEntries } }
+        }
+    }
+
+    private func color(_ index: Int) -> Color {
+        Color(argbHex: chart.data.series[index].colorHex) ?? .accentColor
+    }
+
+    @ViewBuilder
+    private var legendEntries: some View {
+        ForEach(chart.data.series.indices, id: \.self) { index in
+            HStack(spacing: 4 * zoom) {
+                Circle().fill(color(index)).frame(width: 7 * zoom, height: 7 * zoom)
+                Text(chart.data.series[index].name)
+                    .font(chart.font(chart.legendStyle, defaultSize: 9))
+                    .foregroundStyle(chart.textColor(chart.legendStyle))
+            }
+        }
+    }
+
+    private var scale: ChartAxisScale {
+        ChartAxisScale.nice(chart.data.series.flatMap { $0.values.compactMap { $0 } }, axis: model.valueAxis)
+    }
+
+    private var web: some View {
+        Canvas { context, size in
+            let categories = chart.data.categories
+            guard !categories.isEmpty else { return }
+            let scale = scale
+            let labelRoom = 22 * zoom
+            let radius = max(10, min(size.width, size.height) / 2 - labelRoom)
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let direction: Double = model.categoryAxis.isReversed ? -1 : 1
+            let step: Double = 2 * Double.pi / Double(categories.count)
+            func angle(_ index: Int) -> Double {
+                let turned: Double = direction * step * Double(index)
+                return turned - Double.pi / 2
+            }
+            func point(_ index: Int, _ value: Double) -> CGPoint {
+                let fraction: Double = min(max(scale.fraction(value), 0), 1.05)
+                let distance: Double = radius * fraction
+                let x: Double = center.x + cos(angle(index)) * distance
+                let y: Double = center.y + sin(angle(index)) * distance
+                return CGPoint(x: x, y: y)
+            }
+            func ring(_ value: Double) -> Path {
+                Path { path in
+                    for index in categories.indices {
+                        if index == 0 { path.move(to: point(index, value)) } else { path.addLine(to: point(index, value)) }
+                    }
+                    path.closeSubpath()
+                }
+            }
+            let grid = Color.secondary.opacity(0.35)
+            if model.valueAxis.showsMajorGridlines {
+                for tick in scale.ticks where tick > scale.minimum {
+                    context.stroke(ring(tick), with: .color(grid), lineWidth: 0.5)
+                }
+            }
+            if model.categoryAxis.isVisible {
+                for index in categories.indices {
+                    var spoke = Path()
+                    spoke.move(to: center)
+                    spoke.addLine(to: point(index, scale.maximum))
+                    context.stroke(spoke, with: .color(grid), lineWidth: 0.5)
+                    let style = chart.axisStyle(model.categoryAxis)
+                    let at = CGPoint(
+                        x: center.x + cos(angle(index)) * (radius + 6 * zoom),
+                        y: center.y + sin(angle(index)) * (radius + 6 * zoom)
+                    )
+                    let anchor = UnitPoint(x: 0.5 - cos(angle(index)) / 2, y: 0.5 - sin(angle(index)) / 2)
+                    context.draw(
+                        Text(categories[index]).font(chart.font(style, defaultSize: 9))
+                            .foregroundStyle(chart.textColor(style)),
+                        at: at, anchor: anchor
+                    )
+                }
+            }
+            if model.valueAxis.isVisible {
+                let style = chart.axisStyle(model.valueAxis)
+                for tick in scale.ticks {
+                    let at = point(0, tick)
+                    context.draw(
+                        Text(chart.formatValue(tick, axis: model.valueAxis)).font(chart.font(style, defaultSize: 8))
+                            .foregroundStyle(chart.textColor(style)),
+                        at: CGPoint(x: at.x + 3 * zoom, y: at.y), anchor: .leading
+                    )
+                }
+            }
+
+            for (seriesIndex, series) in chart.data.series.enumerated() {
+                let entry = model.series.indices.contains(seriesIndex) ? model.series[seriesIndex] : ChartSeries()
+                // A gap is drawn as the axis' minimum, as Excel draws it.
+                func value(_ index: Int) -> Double {
+                    guard series.values.indices.contains(index), let value = series.values[index] else {
+                        return scale.minimum
+                    }
+                    return value
+                }
+                let corners: [CGPoint] = categories.indices.map { point($0, value($0)) }
+                let shape = Path { path in
+                    for (index, corner) in corners.enumerated() {
+                        if index == 0 { path.move(to: corner) } else { path.addLine(to: corner) }
+                    }
+                    path.closeSubpath()
+                }
+                if model.radarStyle == .filled {
+                    context.fill(shape, with: .color(color(seriesIndex).opacity(0.85)))
+                } else if entry.showsLine {
+                    context.stroke(shape, with: .color(color(seriesIndex)), lineWidth: (entry.lineWidth ?? 2.25) * zoom)
+                }
+                if entry.showsMarkers, model.radarStyle != .filled {
+                    for corner in corners {
+                        let dot = CGRect(x: corner.x - 3 * zoom, y: corner.y - 3 * zoom, width: 6 * zoom, height: 6 * zoom)
+                        context.fill(Path(ellipseIn: dot), with: .color(color(seriesIndex)))
+                    }
+                }
+                if series.dataLabels.showsValue {
+                    for (index, corner) in corners.enumerated() {
+                        guard series.values.indices.contains(index), let value = series.values[index] else { continue }
+                        context.draw(
+                            Text(chart.formatValue(value)).font(chart.font(chart.labelStyle, defaultSize: 9))
+                                .foregroundStyle(chart.textColor(chart.labelStyle)),
+                            at: CGPoint(x: corner.x, y: corner.y - 4 * zoom), anchor: .bottom
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Placeholders
