@@ -11,6 +11,7 @@ enum EditorPanel: String, Identifiable, Hashable {
     case chart
     case comment
     case find
+    case names
 
     var id: String { rawValue }
 
@@ -23,6 +24,7 @@ enum EditorPanel: String, Identifiable, Hashable {
         case .chart: return String(localized: "Panel.Chart.Title")
         case .comment: return String(localized: "Panel.Comment.Title")
         case .find: return String(localized: "Panel.Find.Title")
+        case .names: return String(localized: "Panel.Names.Title")
         }
     }
 }
@@ -97,6 +99,9 @@ final class EditorState {
     /// keep comments and notes.
     var allowsComments = true
     /// False for delimited text and Numbers documents, which have nowhere to
+    /// keep defined names.
+    var allowsDefinedNames = true
+    /// False for delimited text and Numbers documents, which have nowhere to
     /// keep frozen rows and columns.
     var allowsFreezingPanes = true
     /// False for delimited text and Numbers documents, which can't keep
@@ -147,6 +152,7 @@ final class EditorState {
         selectedChartID = sheet?.isChartSheet == true ? sheet?.charts.first?.id : nil
         selectedDrawingID = nil
         if selectedChartID == nil, presentedPanel == .chart { presentedPanel = nil }
+        adoptSavedZoom(in: workbook)
         refreshMetrics(in: workbook)
     }
 

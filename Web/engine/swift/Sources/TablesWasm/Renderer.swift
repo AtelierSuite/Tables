@@ -84,6 +84,16 @@ struct Renderer {
         for entry in own {
             fill(entry.cell, in: metrics.frame(for: entry.address), openEdge: openEdges.contains(entry.address))
         }
+        // A conditional format's bar or icon can stand in a cell with nothing else to show.
+        if !sheet.conditionalStyles.isEmpty {
+            for row in rows where !sheet.hiddenRows.contains(row) {
+                for column in columns where !sheet.hiddenColumns.contains(column) {
+                    let address = CellAddress(row: row, column: column)
+                    guard !covered.contains(address) else { continue }
+                    conditionalMarks(at: address, in: metrics.frame(for: address))
+                }
+            }
+        }
         for entry in painted {
             text(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow)
         }
@@ -95,6 +105,7 @@ struct Renderer {
             var lines: [Double] = []
             appendHairlines(of: frame, openEdge: false, to: &lines)
             operations.append(["k": "grid", "p": lines, "w": metrics.gridLineWidth])
+            conditionalMarks(at: merge.start, in: frame)
             text(of: cell, in: frame, overflow: nil)
         }
 
@@ -176,6 +187,18 @@ struct Renderer {
         var lines: [Double] = []
         appendHairlines(of: frame, openEdge: openEdge, to: &lines)
         operations.append(["k": "grid", "p": lines, "w": metrics.gridLineWidth])
+    }
+
+    /// The data bar and icon a conditional format gives a cell, as filled
+    /// polygons over its fill and under its text.
+    private mutating func conditionalMarks(at address: CellAddress, in frame: CGRect) {
+        guard let style = sheet.conditionalStyles[address], style.hasMarks else { return }
+        for mark in style.marks(in: frame, zoom: metrics.zoom) {
+            operations.append([
+                "k": "poly", "c": mark.colorHex,
+                "p": mark.points.flatMap { [Double($0.x), Double($0.y)] },
+            ])
+        }
     }
 
     /// A cell's fill: its colour, then any pattern over it, or its gradient.

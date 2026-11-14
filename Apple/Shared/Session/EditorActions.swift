@@ -1,6 +1,19 @@
 import SwiftUI
 import TablesEngine
 
+extension Workbook {
+    /// Whether this is `other` with nothing changed but the zoom its sheets
+    /// open at: kept with the document, but no step to undo.
+    func differsOnlyInZoom(from other: Workbook) -> Bool {
+        guard sheets.count == other.sheets.count, sheets.map(\.zoomScale) != other.sheets.map(\.zoomScale) else {
+            return false
+        }
+        var aligned = other
+        for index in aligned.sheets.indices { aligned.sheets[index].zoomScale = sheets[index].zoomScale }
+        return aligned == self
+    }
+}
+
 /// Every mutation the UI performs on the document, in one place so the grid,
 /// the toolbars and the keyboard commands all go through the same code.
 extension EditorState {
@@ -492,6 +505,40 @@ extension EditorState {
     func freezePanesAtSelection(in workbook: inout Workbook) {
         let start = selection.normalized.start
         freezePanes(rows: start.row, columns: start.column, in: &workbook)
+    }
+
+    // MARK: - View options
+
+    /// Turns one of the active sheet's view options — gridlines, headings
+    /// and the like — on or off. Kept where frozen panes are, so a document
+    /// with nowhere to keep those has nowhere to keep these.
+    func setViewOption(_ option: WritableKeyPath<Worksheet, Bool>, to isOn: Bool, in workbook: inout Workbook) {
+        guard allowsFreezingPanes else { return }
+        let index = activeIndex(in: workbook)
+        guard workbook.sheets[index][keyPath: option] != isOn else { return }
+        workbook.sheets[index][keyPath: option] = isOn
+        refreshMetrics(in: workbook)
+    }
+
+    // MARK: - Zoom
+
+    /// Shows the active sheet at the zoom it was saved at, as it comes into
+    /// view as a grid of its own. A table on a canvas is shown at the
+    /// canvas's zoom, which picking another table leaves alone.
+    func adoptSavedZoom(in workbook: Workbook) {
+        guard activeCanvas(in: workbook) == nil else { return }
+        let saved = Double(activeSheet(in: workbook).zoomScale) / 100
+        zoom = min(max(saved, Self.zoomRange.lowerBound), Self.zoomRange.upperBound)
+    }
+
+    /// Keeps the zoom the active sheet is shown at with the sheet, so it
+    /// opens at that zoom again: after a pinch, or a step of the menus'.
+    func keepZoom(in workbook: inout Workbook) {
+        guard allowsFreezingPanes, activeCanvas(in: workbook) == nil else { return }
+        let index = activeIndex(in: workbook)
+        let percent = Int((zoom * 100).rounded())
+        guard workbook.sheets[index].zoomScale != percent else { return }
+        workbook.sheets[index].zoomScale = percent
     }
 
     // MARK: - Fill and move

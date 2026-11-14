@@ -26,7 +26,6 @@ struct SheetGridView: View {
     /// the floating controls.
     private let trailingPadding: Double = 120
     private let bottomPadding: Double = 160
-    private let columnHeaderHeight: Double = 28
     private let selectionHandleDiameter: Double = 18
 
     @State private var scrollPosition = ScrollPosition()
@@ -128,9 +127,13 @@ struct SheetGridView: View {
     }
 
     private var rowHeaderWidth: Double {
+        // None for a sheet with its headings turned off.
+        guard activeSheet.showsHeadings else { return 0 }
         // Widen the gutter as row numbers get longer.
-        44 + Double(max(0, String(activeSheet.rowCount).count - 3)) * 9
+        return 44 + Double(max(0, String(activeSheet.rowCount).count - 3)) * 9
     }
+
+    private var columnHeaderHeight: Double { activeSheet.showsHeadings ? 28 : 0 }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -165,6 +168,7 @@ struct SheetGridView: View {
         .onChange(of: activeSheet.hiddenColumns) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.columnWidths) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.rowHeights) { _, _ in state.refreshMetrics(in: workbook) }
+        .onChange(of: activeSheet.showsGridLines) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: state.scrollTarget) { _, target in
             guard let target else { return }
             scrollIntoView(target)
@@ -255,7 +259,10 @@ struct SheetGridView: View {
                     y: offset.y - state.scrollInsets.height
                 ))
             }
-            .onEnded { _ in zoomAnchor = nil }
+            .onEnded { _ in
+                zoomAnchor = nil
+                state.keepZoom(in: &workbook)
+            }
     }
 
     // MARK: - Visible window
@@ -843,6 +850,9 @@ struct SheetGridView: View {
                 ownsElement: plan.rows.contains(box.start.row)
                     && plan.columns.contains(box.start.column)
             ))
+            if let conditional = sheet.conditionalStyles[box.start], conditional.hasMarks {
+                painted.mergeConditionalMarks += conditional.marks(in: metrics.frame(for: box), zoom: metrics.zoom)
+            }
             let firstRow = max(box.start.row, plan.rows.lowerBound)
             let lastRow = min(box.end.row, plan.rows.upperBound - 1)
             let firstColumn = max(box.start.column, plan.columns.lowerBound)
@@ -859,6 +869,10 @@ struct SheetGridView: View {
             for column in plan.columns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
                 guard !painted.covered.contains(address) else { continue }
+                // A bar or icon can stand in a cell with nothing else to show.
+                if let conditional = sheet.conditionalStyles[address], conditional.hasMarks {
+                    painted.conditionalMarks += conditional.marks(in: metrics.frame(for: address), zoom: metrics.zoom)
+                }
                 let cell = sheet.displayedCell(at: address)
                 guard !cell.isEmptyEntirely else { continue }
                 var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
@@ -1528,15 +1542,17 @@ struct SheetGridView: View {
             frozenPanes(width: visibleGridWidth, height: visibleGridHeight)
                 .offset(x: rowHeaderWidth, y: columnHeaderHeight)
 
-            columnHeaders
-                .frame(width: visibleGridWidth, height: columnHeaderHeight)
-                .offset(x: rowHeaderWidth)
+            if activeSheet.showsHeadings {
+                columnHeaders
+                    .frame(width: visibleGridWidth, height: columnHeaderHeight)
+                    .offset(x: rowHeaderWidth)
 
-            rowHeaders(viewportHeight: proxy.size.height)
-                .frame(width: rowHeaderWidth, height: visibleGridHeight)
-                .offset(y: columnHeaderHeight)
+                rowHeaders(viewportHeight: proxy.size.height)
+                    .frame(width: rowHeaderWidth, height: visibleGridHeight)
+                    .offset(y: columnHeaderHeight)
 
-            cornerButton
+                cornerButton
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }

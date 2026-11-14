@@ -111,6 +111,14 @@ export function paint(ctx, list, palette) {
         strokeSegments(ctx, op.p, cssColor(op.c) ?? palette.border, op.w);
         ctx.setLineDash([]);
         break;
+      case "poly":
+        ctx.fillStyle = cssColor(op.c);
+        ctx.beginPath();
+        ctx.moveTo(op.p[0], op.p[1]);
+        for (let index = 2; index < op.p.length; index += 2) ctx.lineTo(op.p[index], op.p[index + 1]);
+        ctx.closePath();
+        ctx.fill();
+        break;
       case "tri":
         ctx.fillStyle = cssColor(op.c);
         ctx.beginPath();
