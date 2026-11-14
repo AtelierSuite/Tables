@@ -16,6 +16,7 @@ enum WorkbookAutomation {
         case lastSheet
         case outsideSheet(String)
         case noSaveLocation
+        case noWorkbooks
 
         var errorDescription: String? {
             switch self {
@@ -35,6 +36,8 @@ enum WorkbookAutomation {
                 return String(format: String(localized: "Automation.Error.OutsideSheet"), text)
             case .noSaveLocation:
                 return String(localized: "Automation.Error.NoSaveLocation")
+            case .noWorkbooks:
+                return String(localized: "Automation.Error.NoWorkbooks")
             }
         }
     }
@@ -314,6 +317,13 @@ enum WorkbookAutomation {
     static func deleteSheet(_ sheet: Int, in workbook: inout Workbook) throws {
         guard workbook.removeSheet(workbook.sheets[sheet].id) else { throw Failure.lastSheet }
         workbook.recalculate()
+    }
+
+    /// One workbook holding every sheet of the given ones, in order: the
+    /// first workbook with copies of the others' sheets added after its own.
+    static func combine(_ workbooks: [Workbook]) throws -> Workbook {
+        guard !workbooks.isEmpty else { throw Failure.noWorkbooks }
+        return Workbook.combining(workbooks)
     }
 
     /// Widens a sheet so an address fits, within the app's grid limits.

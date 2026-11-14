@@ -30,10 +30,14 @@ extension Worksheet {
     private func overflowSpan(
         of address: CellAddress, reach: Int, isMerged: (CellAddress) -> Bool
     ) -> ClosedRange<Int>? {
-        guard let cell = cells[address], case .text(let text) = cell.value, !text.isEmpty else { return nil }
+        guard let cell = cells[address], !cell.value.isEmpty else { return nil }
         let style = cell.style
-        guard !style.wrapsText, !style.isTextStacked, style.rotationDegrees == 0,
+        guard !style.wrapsText, !style.spreadsText, !style.isTextStacked, style.rotationDegrees == 0,
               !isMerged(address) else { return nil }
+        // Text centred across a selection runs over that selection, numbers
+        // included, and on from it like any centred text.
+        let selection = centerAcrossSpan(of: address, isMerged: isMerged)
+        guard case .text(let text) = cell.value, !text.isEmpty, !style.shrinksToFit else { return selection }
 
         func open(_ column: Int) -> Bool {
             guard column >= 0, column < columnCount else { return false }
@@ -44,7 +48,7 @@ extension Worksheet {
 
         let alignment = CellFormatter.alignment(for: cell)
         var lower = address.column
-        var upper = address.column
+        var upper = selection?.upperBound ?? address.column
         if alignment != .trailing {
             while upper - address.column < reach, open(upper + 1) { upper += 1 }
         }
@@ -52,6 +56,32 @@ extension Worksheet {
             while address.column - lower < reach, open(lower - 1) { lower -= 1 }
         }
         return lower == upper ? nil : lower...upper
+    }
+
+    /// The columns a cell set to centre across selection centres its text
+    /// across: its own and the empty cells after it set the same way, or
+    /// `nil` when it is not set so or has nothing to centre.
+    ///
+    /// Excel centres the value over the cells the alignment was given to,
+    /// as far as the next cell that holds something.
+    public func centerAcrossSpan(of address: CellAddress, reach: Int = 24) -> ClosedRange<Int>? {
+        centerAcrossSpan(of: address, reach: reach, isMerged: isMerged)
+    }
+
+    private func centerAcrossSpan(
+        of address: CellAddress, reach: Int = 24, isMerged: (CellAddress) -> Bool
+    ) -> ClosedRange<Int>? {
+        let cell = self[address]
+        guard cell.style.horizontalSpread == .centerAcrossSelection, !cell.value.isEmpty,
+              !isMerged(address) else { return nil }
+        var upper = address.column
+        while upper - address.column < reach, upper + 1 < columnCount {
+            let next = CellAddress(row: address.row, column: upper + 1)
+            let other = self[next]
+            guard other.isBlank, other.style.horizontalSpread == .centerAcrossSelection, !isMerged(next) else { break }
+            upper += 1
+        }
+        return address.column...upper
     }
 
     /// The columns of `span` that text `textWidth` wide actually crosses,
@@ -66,13 +96,21 @@ extension Worksheet {
     /// `CellFormatter.alignment(for:)` resolves it; `.automatic` is taken
     /// as left.
     /// `columnWidth` gives the drawn width of each column of the span.
+    /// Text centred across a selection is centred on `selection`, the
+    /// columns `centerAcrossSpan` gives, rather than on `column`.
+    /// Centred text takes no indent, as in Excel.
     public static func overflowReach(
         of column: Int, within span: ClosedRange<Int>, textWidth: Double,
         alignment: HorizontalTextAlignment, padding: Double, indent: Double = 0,
-        columnWidth: (Int) -> Double
+        selection: ClosedRange<Int>? = nil, columnWidth: (Int) -> Double
     ) -> ClosedRange<Int>? {
         guard span.contains(column) else { return nil }
+        if let selection, selection.count > 1, span.contains(selection.lowerBound), span.contains(selection.upperBound) {
+            return centeredReach(across: selection, within: span, textWidth: textWidth, padding: padding,
+                                 columnWidth: columnWidth)
+        }
         let width = columnWidth(column)
+        let indent = alignment == .center ? 0 : indent
         let boxMin = padding + (alignment == .trailing ? 0 : indent)
         let boxMax = width - padding - (alignment == .trailing ? indent : 0)
         let textMin: Double
@@ -104,6 +142,32 @@ extension Worksheet {
             edge -= columnWidth(lower)
         }
         return lower == upper ? nil : lower...upper
+    }
+
+    /// `overflowReach` for text centred across `selection`: the columns
+    /// from the first the text reaches into to the last.
+    private static func centeredReach(
+        across selection: ClosedRange<Int>, within span: ClosedRange<Int>, textWidth: Double, padding: Double,
+        columnWidth: (Int) -> Double
+    ) -> ClosedRange<Int>? {
+        // Edges measured from the left of the span's first column.
+        var lefts: [Int: Double] = [:]
+        var edge = 0.0
+        for column in span {
+            lefts[column] = edge
+            edge += columnWidth(column)
+        }
+        let selectionMin = lefts[selection.lowerBound]! + padding
+        let selectionMax = lefts[selection.upperBound]! + columnWidth(selection.upperBound) - padding
+        let middle = (selectionMin + selectionMax) / 2
+        let textMin = middle - textWidth / 2
+        let textMax = middle + textWidth / 2
+        let reached = span.filter { column in
+            let left = lefts[column]!
+            return textMax > left && textMin < left + columnWidth(column)
+        }
+        guard let lower = reached.first, let upper = reached.last, lower != upper else { return nil }
+        return lower...upper
     }
 
     private func isMerged(_ address: CellAddress) -> Bool {

@@ -84,9 +84,20 @@ struct Renderer {
         for entry in own {
             fill(entry.cell, in: metrics.frame(for: entry.address), openEdge: openEdges.contains(entry.address))
         }
-        for entry in painted {
-            text(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow)
+        // A conditional format's bar or icon can stand in a cell with nothing else to show.
+        if !sheet.conditionalStyles.isEmpty {
+            for row in rows where !sheet.hiddenRows.contains(row) {
+                for column in columns where !sheet.hiddenColumns.contains(column) {
+                    let address = CellAddress(row: row, column: column)
+                    guard !covered.contains(address) else { continue }
+                    conditionalMarks(at: address, in: metrics.frame(for: address))
+                }
+            }
         }
+        for entry in painted {
+            text(of: entry.cell, in: textFrame(of: entry.address), overflow: entry.overflow)
+        }
+        sparklines(rows: rows, columns: columns)
         for merge in merges {
             let frame = metrics.frame(for: merge)
             let cell = sheet.displayedCell(at: merge.start)
@@ -95,6 +106,7 @@ struct Renderer {
             var lines: [Double] = []
             appendHairlines(of: frame, openEdge: false, to: &lines)
             operations.append(["k": "grid", "p": lines, "w": metrics.gridLineWidth])
+            conditionalMarks(at: merge.start, in: frame)
             text(of: cell, in: frame, overflow: nil)
         }
 
@@ -131,6 +143,16 @@ struct Renderer {
         for column in span.lowerBound..<span.upperBound {
             edges.insert(CellAddress(row: address.row, column: column))
         }
+        return metrics.frame(for: CellRange(
+            start: CellAddress(row: address.row, column: span.lowerBound),
+            end: CellAddress(row: address.row, column: span.upperBound)
+        ))
+    }
+
+    /// Where a cell's text is set: in its own frame, or across the selection
+    /// it is centred across.
+    private func textFrame(of address: CellAddress) -> CGRect {
+        guard let span = sheet.centerAcrossSpan(of: address) else { return metrics.frame(for: address) }
         return metrics.frame(for: CellRange(
             start: CellAddress(row: address.row, column: span.lowerBound),
             end: CellAddress(row: address.row, column: span.upperBound)
@@ -176,6 +198,18 @@ struct Renderer {
         var lines: [Double] = []
         appendHairlines(of: frame, openEdge: openEdge, to: &lines)
         operations.append(["k": "grid", "p": lines, "w": metrics.gridLineWidth])
+    }
+
+    /// The data bar and icon a conditional format gives a cell, as filled
+    /// polygons over its fill and under its text.
+    private mutating func conditionalMarks(at address: CellAddress, in frame: CGRect) {
+        guard let style = sheet.conditionalStyles[address], style.hasMarks else { return }
+        for mark in style.marks(in: frame, zoom: metrics.zoom) {
+            operations.append([
+                "k": "poly", "c": mark.colorHex,
+                "p": mark.points.flatMap { [Double($0.x), Double($0.y)] },
+            ])
+        }
     }
 
     /// A cell's fill: its colour, then any pattern over it, or its gradient.
@@ -251,10 +285,27 @@ struct Renderer {
         if let textColor { operation["c"] = textColor } else if cell.value.errorValue != nil { operation["err"] = true }
         if isNumber { operation["num"] = true }
         if (style.wrapsText && !isNumber) || style.isTextStacked { operation["wrap"] = true }
+        if style.shrinksToFit, !style.wrapsText, !style.spreadsText { operation["shrink"] = true }
+        // Justified or distributed text, set line by line in the canvas.
+        if style.spreadsText, !isNumber, !style.isTextStacked, style.rotationDegrees == 0 {
+            operation["wrap"] = true
+            switch style.horizontalSpread {
+            case .justify: operation["hs"] = "j"
+            case .distributed: operation["hs"] = "d"
+            case .centerAcrossSelection, nil: break
+            }
+            if let spread = style.verticalSpread { operation["vs"] = spread == .justify ? "j" : "d" }
+        }
         // Read right to left, so the canvas sets it that way.
         if TextFitting.baseDirection(of: string) == .rightToLeft { operation["rtl"] = true }
         if style.rotationDegrees != 0 { operation["rot"] = style.rotationDegrees }
-        if style.indentPoints > 0 { operation["ind"] = style.indentPoints }
+        // Indented as `TextFitting.indented` has it: centred and justified
+        // text not at all, distributed text from both edges.
+        let indented = TextFitting.indented(
+            frame, by: style.indentPoints, alignment: horizontal, spread: style.horizontalSpread
+        )
+        if indented != frame { operation["ind"] = style.indentPoints }
+        if style.horizontalSpread == .distributed, style.indentPoints > 0 { operation["indb"] = true }
         if let overflow { operation["ov"] = frameArray(overflow) }
         if let parts = CellFormatter.filledText(for: cell) { operation["parts"] = [parts.leading, parts.trailing] }
         if let pieces = cell.styledPieces(of: string) { operation["runs"] = pieces.map(run) }
@@ -321,6 +372,34 @@ struct Renderer {
         if !lineStyle.dashPattern.isEmpty { operation["d"] = lineStyle.dashPattern }
         if let color = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true)?.argbHex { operation["c"] = color }
         operations.append(operation)
+    }
+
+    // MARK: - Sparklines
+
+    /// The sparklines of the cells in view, as polylines, bars and dots.
+    private mutating func sparklines(rows: Range<Int>, columns: Range<Int>) {
+        func color(_ hex: String) -> String {
+            AdaptiveColor.resolve(hex: hex, for: scheme, isText: false)?.argbHex ?? hex
+        }
+        for address in sheet.sparklineLocations
+        where rows.contains(address.row) && columns.contains(address.column)
+            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
+            let frame = metrics.frame(for: sheet.mergedRange(containing: address)?.normalized ?? CellRange(address))
+            for shape in sheet.sparklineShapes(at: address, in: frame, zoom: 1) {
+                switch shape {
+                case .polyline(let points, let width, let hex):
+                    operations.append(["k": "polyline", "p": points.flatMap { [Double($0.x), Double($0.y)] },
+                                       "w": width, "c": color(hex)])
+                case .axis(let from, let to, let width, let hex):
+                    operations.append(["k": "line", "p": [Double(from.x), Double(from.y), Double(to.x), Double(to.y)],
+                                       "w": width, "c": color(hex)])
+                case .bar(let rect, let hex):
+                    operations.append(["k": "fill", "r": frameArray(rect), "c": color(hex)])
+                case .marker(let center, let radius, let hex):
+                    operations.append(["k": "dot", "p": [Double(center.x), Double(center.y)], "w": radius, "c": color(hex)])
+                }
+            }
+        }
     }
 
     // MARK: - Comments

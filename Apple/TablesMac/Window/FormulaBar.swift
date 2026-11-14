@@ -71,11 +71,11 @@ final class FormulaBar: NSView, NSTextFieldDelegate {
                 ? box.start.a1 : box.a1
         }
         let isEditingHere = window?.firstResponder === formulaField.currentEditor()
-        let text = state.editingAddress != nil ? state.editingText : sheet[state.selectedAddress].editableText
+        let text = state.editingAddress != nil ? state.editingText : sheet.editableText(at: state.selectedAddress)
         if !isEditingHere || formulaField.stringValue != text {
             if !isEditingHere { formulaField.stringValue = text }
         }
-        formulaField.isEditable = !sheet.isChartSheet
+        formulaField.isEditable = !sheet.isChartSheet && !sheet.isReadOnly(at: state.selectedAddress)
     }
 
     // MARK: - Editing
@@ -99,6 +99,18 @@ final class FormulaBar: NSView, NSTextFieldDelegate {
         }
         state.editingText = formulaField.stringValue
         document.notify()
+        if let textView = formulaField.currentEditor() as? NSTextView {
+            FormulaAutocomplete.textDidChange(in: textView, document: document)
+        }
+    }
+
+    func control(
+        _ control: NSControl, textView: NSTextView, completions words: [String],
+        forPartialWordRange charRange: NSRange, indexOfSelectedItem index: UnsafeMutablePointer<Int>
+    ) -> [String] {
+        guard control === formulaField, let document else { return [] }
+        return FormulaAutocomplete.completions(in: textView, partialWordRange: charRange, document: document,
+                                               indexOfSelectedItem: index)
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {

@@ -115,6 +115,9 @@ public protocol FormulaContext: AnyObject {
     func cell(at address: CellAddress, sheetName: String?) -> Cell?
     /// Whether a row is hidden, for `SUBTOTAL` and `AGGREGATE`.
     func isRowHidden(_ row: Int, sheetName: String?) -> Bool
+    /// Whether a filter hides a row, which `SUBTOTAL` passes over whichever
+    /// of its calculations is asked for.
+    func isRowFiltered(_ row: Int, sheetName: String?) -> Bool
     /// The one-based position of a sheet in the workbook, for `SHEET`.
     func sheetNumber(named name: String?) -> Int?
     var sheetCount: Int { get }
@@ -140,6 +143,7 @@ extension FormulaContext {
     public func sheetNames(from _: String, to _: String) -> [String]? { nil }
     public func cell(at _: CellAddress, sheetName _: String?) -> Cell? { nil }
     public func isRowHidden(_: Int, sheetName _: String?) -> Bool { false }
+    public func isRowFiltered(_: Int, sheetName _: String?) -> Bool { false }
     public func sheetNumber(named name: String?) -> Int? { name == nil ? 1 : nil }
     public var sheetCount: Int { 1 }
     public func spillRange(anchoredAt _: CellAddress, sheetName _: String?) -> CellRange? { nil }
