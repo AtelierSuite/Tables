@@ -13,6 +13,7 @@ enum EditorPanel: String, Identifiable, Hashable {
     case find
     case sort
     case filter
+    case names
 
     var id: String { rawValue }
 
@@ -27,6 +28,7 @@ enum EditorPanel: String, Identifiable, Hashable {
         case .find: return String(localized: "Panel.Find.Title")
         case .sort: return String(localized: "Panel.Sort.Title")
         case .filter: return String(localized: "Panel.Filter.Title")
+        case .names: return String(localized: "Panel.Names.Title")
         }
     }
 }
@@ -93,6 +95,8 @@ final class EditorState {
     var filterColumn: Int?
     /// The kind of comment the comment panel starts when a cell has none.
     var newCommentKind: CellComment.Kind = .thread
+    /// The cell whose link is being added or edited, while the editor is up.
+    var hyperlinkEditorAddress: CellAddress?
     /// What formatting the active sheet keeps: none for delimited text, which
     /// has nowhere to keep styling, and in a Numbers document only what can be
     /// saved back into it.
@@ -101,8 +105,14 @@ final class EditorState {
     /// keep comments and notes.
     var allowsComments = true
     /// False for delimited text and Numbers documents, which have nowhere to
+    /// keep defined names.
+    var allowsDefinedNames = true
+    /// False for delimited text and Numbers documents, which have nowhere to
     /// keep frozen rows and columns.
     var allowsFreezingPanes = true
+    /// Delimited text and Numbers documents have nowhere to keep grouped
+    /// rows and columns either.
+    var allowsOutlines: Bool { allowsFreezingPanes }
     /// False for delimited text and Numbers documents, which can't keep
     /// sheets laid out together on a canvas, or moved about on one.
     var allowsArrangingCanvases = true
@@ -151,6 +161,7 @@ final class EditorState {
         selectedChartID = sheet?.isChartSheet == true ? sheet?.charts.first?.id : nil
         selectedDrawingID = nil
         if selectedChartID == nil, presentedPanel == .chart { presentedPanel = nil }
+        adoptSavedZoom(in: workbook)
         refreshMetrics(in: workbook)
     }
 

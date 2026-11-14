@@ -141,10 +141,16 @@ enum MainMenu {
             functions.addItem(entry)
         }
         menu.addItem(submenu(functions))
+        menu.addItem(item(String(localized: "Mac.Menu.Names"), #selector(WorkbookViewController.showNames(_:)),
+                          "n", [.command, .control]))
         menu.addItem(.separator())
         menu.addItem(item(String(localized: "CellMenu.NewComment"), #selector(WorkbookViewController.newComment(_:)),
                           "m", [.command, .option]))
         menu.addItem(item(String(localized: "CellMenu.NewNote"), #selector(WorkbookViewController.newNote(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Hyperlink.Menu.Edit"), #selector(WorkbookViewController.editHyperlink(_:)), "k"))
+        menu.addItem(item(String(localized: "Hyperlink.Menu.Open"), #selector(WorkbookViewController.openHyperlink(_:))))
+        menu.addItem(item(String(localized: "Hyperlink.Remove"), #selector(WorkbookViewController.removeHyperlink(_:))))
         return menu
     }
 
@@ -239,6 +245,11 @@ enum MainMenu {
                           "l", [.command, .shift]))
         menu.addItem(item(String(localized: "Filter.Show"), #selector(WorkbookViewController.showFilterPanel(_:))))
         menu.addItem(item(String(localized: "Filter.ClearAll"), #selector(WorkbookViewController.clearFilters(_:))))
+        menu.addItem(item(String(localized: "Outline.GroupRows"), #selector(WorkbookViewController.groupRows(_:))))
+        menu.addItem(item(String(localized: "Outline.UngroupRows"), #selector(WorkbookViewController.ungroupRows(_:))))
+        menu.addItem(item(String(localized: "Outline.GroupColumns"), #selector(WorkbookViewController.groupColumns(_:))))
+        menu.addItem(item(String(localized: "Outline.UngroupColumns"),
+                          #selector(WorkbookViewController.ungroupColumns(_:))))
         menu.addItem(.separator())
         menu.addItem(item(String(localized: "HeaderMenu.Column.FitToContents"),
                           #selector(WorkbookViewController.fitColumnWidth(_:))))
@@ -276,6 +287,12 @@ enum MainMenu {
         freeze.addItem(.separator())
         freeze.addItem(item(String(localized: "Mac.Menu.Unfreeze"), #selector(WorkbookViewController.unfreezePanes(_:))))
         menu.addItem(submenu(freeze))
+        menu.addItem(.separator())
+        menu.addItem(item(String(localized: "View.GridLines"), #selector(WorkbookViewController.toggleGridLines(_:))))
+        menu.addItem(item(String(localized: "View.Headings"), #selector(WorkbookViewController.toggleHeadings(_:))))
+        menu.addItem(item(String(localized: "View.ShowZeros"), #selector(WorkbookViewController.toggleZeros(_:))))
+        menu.addItem(item(String(localized: "View.ShowFormulas"), #selector(WorkbookViewController.toggleFormulas(_:)),
+                          "`", [.control]))
         menu.addItem(.separator())
         menu.addItem(item(String(localized: "Mac.Menu.ShowInspector"), #selector(NSSplitViewController.toggleInspector(_:)),
                           "i", [.command, .option]))

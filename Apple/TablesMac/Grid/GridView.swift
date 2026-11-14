@@ -186,10 +186,12 @@ final class GridView: NSView, NSTextFieldDelegate {
     func drawSheet(_ dirtyRect: NSRect, in context: CGContext) {
         guard let document else { return }
         let sheet = document.activeSheet
-        let renderer = CellRenderer(
+        var renderer = CellRenderer(
             sheet: sheet, metrics: document.state.metrics, appearance: effectiveAppearance,
             lookup: lookups.lookup(for: sheet)
         )
+        let workbook = document.workbook
+        renderer.sheets = { workbook.sheet(named: $0) }
         renderer.paper.setFill()
         dirtyRect.fill()
         renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: effectiveAppearance))
@@ -851,6 +853,18 @@ final class GridView: NSView, NSTextFieldDelegate {
         guard let document, let editor else { return }
         document.state.editingText = editor.stringValue
         document.notify()
+        if let textView = editor.currentEditor() as? NSTextView {
+            FormulaAutocomplete.textDidChange(in: textView, document: document)
+        }
+    }
+
+    func control(
+        _ control: NSControl, textView: NSTextView, completions words: [String],
+        forPartialWordRange charRange: NSRange, indexOfSelectedItem index: UnsafeMutablePointer<Int>
+    ) -> [String] {
+        guard let document else { return [] }
+        return FormulaAutocomplete.completions(in: textView, partialWordRange: charRange, document: document,
+                                               indexOfSelectedItem: index)
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {

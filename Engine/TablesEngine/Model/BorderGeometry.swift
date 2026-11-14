@@ -44,8 +44,10 @@ extension SheetMetrics {
     /// The trailing and bottom gridlines of a cell or merge, as pairs of
     /// ends, held a half-width inside it so a line on the edge of a part
     /// drawn is drawn whole by the part that owns it. Text running on into
-    /// the next cell leaves out the trailing one.
+    /// the next cell leaves out the trailing one. None at all on a sheet
+    /// whose gridlines are turned off.
     public func gridLines(of frame: CGRect, openEdge: Bool = false) -> [(CGPoint, CGPoint)] {
+        guard showsGridLines else { return [] }
         let width = gridLineWidth
         let inset = width / 2
         let minX = snapped(frame.minX), maxX = snapped(frame.maxX)

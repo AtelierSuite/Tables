@@ -84,9 +84,20 @@ struct Renderer {
         for entry in own {
             fill(entry.cell, in: metrics.frame(for: entry.address), openEdge: openEdges.contains(entry.address))
         }
+        // A conditional format's bar or icon can stand in a cell with nothing else to show.
+        if !sheet.conditionalStyles.isEmpty {
+            for row in rows where !sheet.hiddenRows.contains(row) {
+                for column in columns where !sheet.hiddenColumns.contains(column) {
+                    let address = CellAddress(row: row, column: column)
+                    guard !covered.contains(address) else { continue }
+                    conditionalMarks(at: address, in: metrics.frame(for: address))
+                }
+            }
+        }
         for entry in painted {
             text(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow)
         }
+        sparklines(rows: rows, columns: columns)
         for merge in merges {
             let frame = metrics.frame(for: merge)
             let cell = sheet.displayedCell(at: merge.start)
@@ -95,6 +106,7 @@ struct Renderer {
             var lines: [Double] = []
             appendHairlines(of: frame, openEdge: false, to: &lines)
             operations.append(["k": "grid", "p": lines, "w": metrics.gridLineWidth])
+            conditionalMarks(at: merge.start, in: frame)
             text(of: cell, in: frame, overflow: nil)
         }
 
@@ -176,6 +188,18 @@ struct Renderer {
         var lines: [Double] = []
         appendHairlines(of: frame, openEdge: openEdge, to: &lines)
         operations.append(["k": "grid", "p": lines, "w": metrics.gridLineWidth])
+    }
+
+    /// The data bar and icon a conditional format gives a cell, as filled
+    /// polygons over its fill and under its text.
+    private mutating func conditionalMarks(at address: CellAddress, in frame: CGRect) {
+        guard let style = sheet.conditionalStyles[address], style.hasMarks else { return }
+        for mark in style.marks(in: frame, zoom: metrics.zoom) {
+            operations.append([
+                "k": "poly", "c": mark.colorHex,
+                "p": mark.points.flatMap { [Double($0.x), Double($0.y)] },
+            ])
+        }
     }
 
     /// A cell's fill: its colour, then any pattern over it, or its gradient.
@@ -321,6 +345,34 @@ struct Renderer {
         if !lineStyle.dashPattern.isEmpty { operation["d"] = lineStyle.dashPattern }
         if let color = AdaptiveColor.resolve(hex: colorHex, for: scheme, isText: true)?.argbHex { operation["c"] = color }
         operations.append(operation)
+    }
+
+    // MARK: - Sparklines
+
+    /// The sparklines of the cells in view, as polylines, bars and dots.
+    private mutating func sparklines(rows: Range<Int>, columns: Range<Int>) {
+        func color(_ hex: String) -> String {
+            AdaptiveColor.resolve(hex: hex, for: scheme, isText: false)?.argbHex ?? hex
+        }
+        for address in sheet.sparklineLocations
+        where rows.contains(address.row) && columns.contains(address.column)
+            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
+            let frame = metrics.frame(for: sheet.mergedRange(containing: address)?.normalized ?? CellRange(address))
+            for shape in sheet.sparklineShapes(at: address, in: frame, zoom: 1) {
+                switch shape {
+                case .polyline(let points, let width, let hex):
+                    operations.append(["k": "polyline", "p": points.flatMap { [Double($0.x), Double($0.y)] },
+                                       "w": width, "c": color(hex)])
+                case .axis(let from, let to, let width, let hex):
+                    operations.append(["k": "line", "p": [Double(from.x), Double(from.y), Double(to.x), Double(to.y)],
+                                       "w": width, "c": color(hex)])
+                case .bar(let rect, let hex):
+                    operations.append(["k": "fill", "r": frameArray(rect), "c": color(hex)])
+                case .marker(let center, let radius, let hex):
+                    operations.append(["k": "dot", "p": [Double(center.x), Double(center.y)], "w": radius, "c": color(hex)])
+                }
+            }
+        }
     }
 
     // MARK: - Comments
