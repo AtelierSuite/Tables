@@ -42,15 +42,23 @@ export async function pickFile() {
       throw error;
     }
   }
+  // Safari can drop the change event of an input that isn't in the document,
+  // leaving the first pick unanswered, so the input stays in it until it answers.
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = Object.values(openTypes()[0].accept).flat().join(",");
+    input.hidden = true;
     input.addEventListener("change", async () => {
+      input.remove();
       const file = input.files?.[0];
       resolve(file ? { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) } : null);
     });
-    input.addEventListener("cancel", () => resolve(null));
+    input.addEventListener("cancel", () => {
+      input.remove();
+      resolve(null);
+    });
+    document.body.append(input);
     input.click();
   });
 }
