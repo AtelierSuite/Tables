@@ -492,6 +492,7 @@ public enum XLSXWriter {
             for (name, position) in names {
                 xml += "<definedName name=\"\(XMLLite.escape(name.name))\""
                 if let position { xml += " localSheetId=\"\(position)\"" }
+                if name.isHidden { xml += " hidden=\"1\"" }
                 xml += ">\(XMLLite.escape(FormulaDialect.toFile(name.formula)))</definedName>"
             }
             xml += "</definedNames>"

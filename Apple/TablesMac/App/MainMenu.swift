@@ -141,6 +141,8 @@ enum MainMenu {
             functions.addItem(entry)
         }
         menu.addItem(submenu(functions))
+        menu.addItem(item(String(localized: "Mac.Menu.Names"), #selector(WorkbookViewController.showNames(_:)),
+                          "n", [.command, .control]))
         menu.addItem(.separator())
         menu.addItem(item(String(localized: "CellMenu.NewComment"), #selector(WorkbookViewController.newComment(_:)),
                           "m", [.command, .option]))

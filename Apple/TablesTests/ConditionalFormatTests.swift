@@ -209,12 +209,13 @@ struct ConditionalFormatTests {
 
     @Test("Kinds not read here draw nothing but are kept")
     func unreadKinds() throws {
-        let scale = "<cfRule type=\"colorScale\" priority=\"1\"><colorScale><cfvo type=\"min\"/><cfvo type=\"max\"/>"
-            + "<color rgb=\"FFFF0000\"/><color rgb=\"FF00FF00\"/></colorScale></cfRule>"
-        let book = try workbook(cells: ["A1": .number(1)], formats: [format("A1:A5", scale)])
+        // One of Excel 2010's icon sets, which has no drawing here.
+        let stars = "<cfRule type=\"iconSet\" priority=\"1\"><iconSet iconSet=\"3Stars\"><cfvo type=\"percent\" val=\"0\"/>"
+            + "<cfvo type=\"percent\" val=\"33\"/><cfvo type=\"percent\" val=\"67\"/></iconSet></cfRule>"
+        let book = try workbook(cells: ["A1": .number(1)], formats: [format("A1:A5", stars)])
         #expect(book.sheets[0].conditionalRules.isEmpty)
         #expect(book.sheets[0].conditionalStyles.isEmpty)
-        #expect(try sheetXML(of: book).contains("colorScale"))
+        #expect(try sheetXML(of: book).contains("3Stars"))
     }
 
     @Test("A rule naming a differential format that is not there is not read")

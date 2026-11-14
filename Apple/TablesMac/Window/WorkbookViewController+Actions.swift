@@ -629,6 +629,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             return state.allowsArrangingCanvases && onCanvas
         case #selector(toggleTableName(_:)), #selector(renameTable(_:)):
             return state.allowsLayingOutTables && onCanvas
+        case #selector(showNames(_:)):
+            return state.allowsDefinedNames
         case #selector(showUnsupportedFeatures(_:)):
             return !document.unsupportedFeatures.isEmpty
         case #selector(showMacros(_:)):
