@@ -239,6 +239,31 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
     @objc func hideRows(_ sender: Any?) { edit { $0.setSelectedRows(hidden: true, in: &$1) } }
     @objc func hideColumns(_ sender: Any?) { edit { $0.setSelectedColumns(hidden: true, in: &$1) } }
     @objc func unhideAll(_ sender: Any?) { edit { $0.unhideEverything(in: &$1) } }
+    @objc func groupRows(_ sender: Any?) { edit { $0.groupSelection(.row, in: &$1) } }
+    @objc func ungroupRows(_ sender: Any?) { edit { $0.ungroupSelection(.row, in: &$1) } }
+    @objc func groupColumns(_ sender: Any?) { edit { $0.groupSelection(.column, in: &$1) } }
+    @objc func ungroupColumns(_ sender: Any?) { edit { $0.ungroupSelection(.column, in: &$1) } }
+
+    // MARK: - Sorting and filtering
+
+    @objc func sortAscending(_ sender: Any?) { edit { $0.sortSelection(ascending: true, in: &$1) } }
+    @objc func sortDescending(_ sender: Any?) { edit { $0.sortSelection(ascending: false, in: &$1) } }
+    @objc func toggleFilter(_ sender: Any?) { edit { $0.toggleAutoFilter(in: &$1) } }
+    @objc func clearFilters(_ sender: Any?) { edit { $0.clearFilters(in: &$1) } }
+
+    @objc func showSortPanel(_ sender: Any?) {
+        guard let document else { return }
+        if document.state.editingAddress != nil { grid.commitEditing(then: nil) }
+        document.state.presentedPanel = .sort
+        document.notify()
+    }
+
+    @objc func showFilterPanel(_ sender: Any?) {
+        guard let document else { return }
+        if document.state.editingAddress != nil { grid.commitEditing(then: nil) }
+        document.state.showFilter(in: document.workbook)
+        document.notify()
+    }
 
     @objc func fitColumnWidth(_ sender: Any?) {
         edit { state, workbook in
@@ -432,6 +457,17 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
     @objc func freezePanesAtSelection(_ sender: Any?) { edit { $0.freezePanesAtSelection(in: &$1) } }
     @objc func unfreezePanes(_ sender: Any?) { edit { $0.freezePanes(rows: 0, columns: 0, in: &$1) } }
 
+    @objc func toggleGridLines(_ sender: Any?) { toggleViewOption(\.showsGridLines) }
+    @objc func toggleHeadings(_ sender: Any?) { toggleViewOption(\.showsHeadings) }
+    @objc func toggleZeros(_ sender: Any?) { toggleViewOption(\.showsZeros) }
+    @objc func toggleFormulas(_ sender: Any?) { toggleViewOption(\.showsFormulas) }
+
+    private func toggleViewOption(_ option: WritableKeyPath<Worksheet, Bool>) {
+        guard let document else { return }
+        let isOn = !document.activeSheet[keyPath: option]
+        edit { $0.setViewOption(option, to: isOn, in: &$1) }
+    }
+
     @objc func zoomIn(_ sender: Any?) { setZoom((state?.zoom ?? 1) * 1.25) }
     @objc func zoomOut(_ sender: Any?) { setZoom((state?.zoom ?? 1) / 1.25) }
     @objc func actualSize(_ sender: Any?) { setZoom(1) }
@@ -466,6 +502,18 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
                 menu.addItem(MainMenu.item(String(localized: "CellMenu.NewNote"), #selector(newNote(_:))))
             }
         }
+        if let document, document.state.allowsHyperlinks || document.state.hyperlink(at: address, in: document.workbook) != nil {
+            menu.addItem(.separator())
+            if document.state.hyperlink(at: address, in: document.workbook) != nil {
+                menu.addItem(MainMenu.item(String(localized: "Hyperlink.Menu.Open"), #selector(openHyperlink(_:))))
+            }
+            if document.state.allowsHyperlinks {
+                menu.addItem(MainMenu.item(String(localized: "Hyperlink.Menu.Edit"), #selector(editHyperlink(_:))))
+                if document.activeSheet.hyperlinks[address] != nil {
+                    menu.addItem(MainMenu.item(String(localized: "Hyperlink.Remove"), #selector(removeHyperlink(_:))))
+                }
+            }
+        }
         menu.addItem(.separator())
         menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.InsertAbove"), #selector(insertRowsAbove(_:))))
         menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Column.InsertBefore"), #selector(insertColumnsBefore(_:))))
@@ -473,6 +521,10 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         menu.addItem(MainMenu.item(String(localized: "Format.Merge.Merge"), #selector(mergeCells(_:))))
         menu.addItem(MainMenu.item(String(localized: "Format.Merge.Unmerge"), #selector(unmergeCells(_:))))
         menu.addItem(MainMenu.item(String(localized: "CellMenu.ResetFormatting"), #selector(clearFormatting(_:))))
+        if let document, document.state.allowsDataValidation {
+            menu.addItem(.separator())
+            menu.addItem(MainMenu.item(String(localized: "DataValidation.Menu"), #selector(editDataValidation(_:))))
+        }
         return menu
     }
 
@@ -488,6 +540,9 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             menu.addItem(MainMenu.item(String(localized: "Mac.Menu.UnhideAll"), #selector(unhideAll(_:))))
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Column.FitToContents"), #selector(fitColumnWidth(_:))))
             menu.addItem(.separator())
+            menu.addItem(MainMenu.item(String(localized: "Outline.GroupColumns"), #selector(groupColumns(_:))))
+            menu.addItem(MainMenu.item(String(localized: "Outline.UngroupColumns"), #selector(ungroupColumns(_:))))
+            menu.addItem(.separator())
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Column.Delete"), #selector(deleteColumns(_:))))
         } else {
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.InsertAbove"), #selector(insertRowsAbove(_:))))
@@ -496,6 +551,9 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             menu.addItem(.separator())
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.Hide"), #selector(hideRows(_:))))
             menu.addItem(MainMenu.item(String(localized: "Mac.Menu.UnhideAll"), #selector(unhideAll(_:))))
+            menu.addItem(.separator())
+            menu.addItem(MainMenu.item(String(localized: "Outline.GroupRows"), #selector(groupRows(_:))))
+            menu.addItem(MainMenu.item(String(localized: "Outline.UngroupRows"), #selector(ungroupRows(_:))))
             menu.addItem(.separator())
             menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.Delete"), #selector(deleteRows(_:))))
         }
@@ -525,6 +583,11 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(freezeTopRow(_:)): menuItem.state = sheet.frozenRows == 1 && sheet.frozenColumns == 0 ? .on : .off
         case #selector(freezeFirstColumn(_:)):
             menuItem.state = sheet.frozenRows == 0 && sheet.frozenColumns == 1 ? .on : .off
+        case #selector(toggleFilter(_:)): menuItem.state = sheet.autoFilter != nil ? .on : .off
+        case #selector(toggleGridLines(_:)): menuItem.state = sheet.showsGridLines ? .on : .off
+        case #selector(toggleHeadings(_:)): menuItem.state = sheet.showsHeadings ? .on : .off
+        case #selector(toggleZeros(_:)): menuItem.state = sheet.showsZeros ? .on : .off
+        case #selector(toggleFormulas(_:)): menuItem.state = sheet.showsFormulas ? .on : .off
         case #selector(toggleBold(_:)): menuItem.state = style.isBold ? .on : .off
         case #selector(toggleItalic(_:)): menuItem.state = style.isItalic ? .on : .off
         case #selector(toggleUnderline(_:)): menuItem.state = style.isUnderlined ? .on : .off
@@ -583,6 +646,18 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(insertRowsAbove(_:)), #selector(insertRowsBelow(_:)), #selector(insertColumnsBefore(_:)),
              #selector(insertColumnsAfter(_:)), #selector(deleteRows(_:)), #selector(deleteColumns(_:)):
             return isCells && state.allowsInsertingAndDeleting
+        case #selector(sortAscending(_:)), #selector(sortDescending(_:)), #selector(showSortPanel(_:)):
+            return isCells
+        case #selector(toggleFilter(_:)), #selector(showFilterPanel(_:)):
+            return isCells && state.allowsFiltering
+        case #selector(clearFilters(_:)):
+            return isCells && sheet.autoFilter?.isFiltering == true
+        case #selector(groupRows(_:)), #selector(groupColumns(_:)):
+            return isCells && !onCanvas && !document.isNumbers && !document.isPlainText
+        case #selector(ungroupRows(_:)):
+            return isCells && state.canUngroupSelection(.row, in: document.workbook)
+        case #selector(ungroupColumns(_:)):
+            return isCells && state.canUngroupSelection(.column, in: document.workbook)
         case #selector(insertChart(_:)):
             return isCells && !document.isPlainText && !document.isNumbers
         case #selector(editChart(_:)):
@@ -605,6 +680,12 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(deleteComment(_:)):
             return isCells && state.allowsComments
                 && state.selectedRanges.contains { range in sheet.comments.keys.contains { range.normalized.contains($0) } }
+        case #selector(editHyperlink(_:)):
+            return isCells && state.allowsHyperlinks
+        case #selector(removeHyperlink(_:)):
+            return isCells && state.allowsHyperlinks && state.selectionHasHyperlinks(in: document.workbook)
+        case #selector(openHyperlink(_:)):
+            return isCells && state.hyperlink(at: state.selectedAddress, in: document.workbook) != nil
         case #selector(freezeTopRow(_:)), #selector(freezeFirstColumn(_:)):
             return isCells && state.allowsFreezingPanes && !onCanvas
         case #selector(freezePanesAtSelection(_:)):
@@ -612,6 +693,11 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
                 && state.selection.normalized.start != CellAddress(row: 0, column: 0)
         case #selector(unfreezePanes(_:)):
             return isCells && state.allowsFreezingPanes && !onCanvas && (sheet.frozenRows > 0 || sheet.frozenColumns > 0)
+        case #selector(editDataValidation(_:)):
+            return isCells && state.allowsDataValidation
+        case #selector(toggleGridLines(_:)), #selector(toggleHeadings(_:)), #selector(toggleZeros(_:)),
+             #selector(toggleFormulas(_:)):
+            return isCells && state.allowsFreezingPanes && !onCanvas
         case #selector(newTable(_:)):
             return isCells && state.allowsArrangingCanvases
         case #selector(moveTableToSheet(_:)):
@@ -620,6 +706,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             return state.allowsArrangingCanvases && onCanvas
         case #selector(toggleTableName(_:)), #selector(renameTable(_:)):
             return state.allowsLayingOutTables && onCanvas
+        case #selector(showNames(_:)):
+            return state.allowsDefinedNames
         case #selector(showUnsupportedFeatures(_:)):
             return !document.unsupportedFeatures.isEmpty
         case #selector(showMacros(_:)):

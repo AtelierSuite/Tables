@@ -25,6 +25,30 @@ public enum HorizontalTextAlignment: String, Hashable, Sendable, CaseIterable {
     }
 }
 
+/// Excel's horizontal alignments beyond left, centre and right. A style
+/// with one keeps the nearest of those in `horizontalAlignment`, which
+/// whatever does not know the spread falls back to, and which the
+/// alignment pickers show.
+public enum HorizontalTextSpread: String, Hashable, Sendable {
+    /// Wrapped, and each line but a paragraph's last stretched to both edges.
+    case justify
+    /// Wrapped, and every line stretched to both edges: between its words,
+    /// or between its characters when it has a single word, as Japanese is.
+    /// One that cannot be stretched is centred. Indents both edges.
+    case distributed
+    /// Centred across the cell and the empty cells after it that are set
+    /// the same way, OOXML's `centerContinuous`.
+    case centerAcrossSelection
+}
+
+/// Excel's vertical alignments beyond top, middle and bottom: wrapped text
+/// whose lines are spread from the top of the cell to its bottom. A single
+/// line sits at the top for `justify` and in the middle for `distributed`,
+/// which `verticalAlignment` holds.
+public enum VerticalTextSpread: String, Hashable, Sendable {
+    case justify, distributed
+}
+
 public enum VerticalTextAlignment: String, Hashable, Sendable, CaseIterable {
     case top, middle, bottom
 
@@ -236,9 +260,23 @@ public struct CellStyle: Hashable, Sendable {
     public var fillPattern: FillPattern?
     /// A gradient drawn instead of `fillColorHex`.
     public var fillGradient: FillGradient?
-    public var horizontalAlignment: HorizontalTextAlignment = .automatic
-    public var verticalAlignment: VerticalTextAlignment = .middle
+    public var horizontalAlignment: HorizontalTextAlignment = .automatic {
+        // Picking left, centre or right replaces a justify or distributed.
+        didSet { horizontalSpread = nil }
+    }
+    public var verticalAlignment: VerticalTextAlignment = .middle {
+        didSet { verticalSpread = nil }
+    }
+    /// Justify, distributed or centre across selection, set after
+    /// `horizontalAlignment`, which setting clears it.
+    public var horizontalSpread: HorizontalTextSpread?
+    /// Justify or distributed, set after `verticalAlignment`, which setting
+    /// clears it.
+    public var verticalSpread: VerticalTextSpread?
     public var wrapsText = false
+    /// Whether text too wide for its cell is set smaller to fit it rather
+    /// than run on, OOXML's `shrinkToFit`. Wrapped text does not shrink.
+    public var shrinksToFit = false
     public var numberFormat: String = NumberFormatPreset.general.code
     /// Per-edge line style and colour. An absent key means that edge has no rule.
     public var borderSides: [BorderEdge: BorderSide] = [:]
@@ -424,6 +462,12 @@ public struct CellStyle: Hashable, Sendable {
     /// pixels in Excel's 11pt Calibri.
     public var indentPoints: Double { Double(indent) * Self.indentStepPoints }
     public static let indentStepPoints: Double = 7.5
+
+    /// Whether the text is set line by line and spread across the cell:
+    /// justify or distributed either way. Those always wrap.
+    public var spreadsText: Bool {
+        verticalSpread != nil || horizontalSpread == .justify || horizontalSpread == .distributed
+    }
 
     /// True when the cell's glyphs should be stacked one above the next.
     public var isTextStacked: Bool { textRotation == CellStyle.stackedTextRotation }
