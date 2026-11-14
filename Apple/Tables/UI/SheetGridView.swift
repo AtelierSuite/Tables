@@ -1450,6 +1450,11 @@ struct SheetGridView: View {
                         .accessibilityElement()
                         .accessibilityLabel("Picture.Label")
                         .accessibilityIdentifier("picture")
+                } else if let shape = anchor.shape {
+                    DrawingShapeView(shape: shape, zoom: metrics.zoom)
+                        .accessibilityElement()
+                        .accessibilityLabel(shape.text.isEmpty ? Text("Shape.Label") : Text(shape.text))
+                        .accessibilityIdentifier("shape")
                 } else {
                     PreservedDrawingPlaceholder(isChart: anchor.isChart, zoom: metrics.zoom)
                         .accessibilityElement(children: .combine)
