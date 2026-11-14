@@ -55,8 +55,23 @@ struct TileContents: Equatable, Sendable {
     var covered: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
+    /// The buttons on a filter's header cells.
+    var filterButtons: [FilterButtonMark] = []
     /// Borders of the cells and merges in the tile and just outside it.
     var borders: [PaintedBorders] = []
+    /// The marks of the sparklines in the tile, drawn from the sheet's values.
+    var sparklines: [SparklineShape] = []
+    /// The data bars and icons of conditional formats, as filled polygons.
+    var conditionalMarks: [ConditionalMark] = []
+    /// Those of merged cells, drawn after the merges cover what is beneath them.
+    var mergeConditionalMarks: [ConditionalMark] = []
+}
+
+/// A filter's button on one of its header cells.
+struct FilterButtonMark: Equatable, Sendable {
+    var frame: CGRect
+    /// Whether the column is filtering, which fills the button in.
+    var isActive: Bool
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -224,13 +239,16 @@ enum CellPainter {
                 cell.cell, in: cell.frame, openEdge: edges.contains(cell.address), metrics: metrics, into: &context, scheme: scheme
             )
         }
+        paintConditionalMarks(contents.conditionalMarks, into: &context)
         for cell in contents.cells {
             paintText(cell.cell, in: cell.frame, overflow: cell.overflow, zoom: metrics.zoom, scheme: scheme, into: &context)
         }
+        paintSparklines(contents.sparklines, scheme: scheme, into: &context)
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in contents.merges {
             paint(merge.cell, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
         }
+        paintConditionalMarks(contents.mergeConditionalMarks, into: &context)
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell.
         for borders in contents.borders {
@@ -238,6 +256,51 @@ enum CellPainter {
         }
         for mark in contents.comments {
             paintCommentMark(mark, zoom: metrics.zoom, into: &context)
+        }
+        for mark in contents.filterButtons {
+            paintFilterButton(mark, zoom: metrics.zoom, scheme: scheme, into: &context)
+        }
+    }
+
+    private static func paintFilterButton(
+        _ mark: FilterButtonMark, zoom: Double, scheme: ColorScheme, into context: inout GraphicsContext
+    ) {
+        let frame = FilterButton.frame(in: mark.frame, zoom: zoom)
+        guard !frame.isNull else { return }
+        let shape = Path(roundedRect: frame, cornerRadius: 3 * zoom)
+        let face: Color = mark.isActive ? .accentColor : (scheme == .dark ? Color(white: 0.28) : Color(white: 0.96))
+        context.fill(shape, with: .color(face))
+        context.stroke(shape, with: .color(.gray.opacity(0.6)), lineWidth: max(0.5, 0.5 * zoom))
+        var arrow = Path()
+        arrow.addLines(FilterButton.arrow(in: frame))
+        context.stroke(
+            arrow, with: .color(mark.isActive ? .white : (scheme == .dark ? .white : Color(white: 0.3))),
+            style: StrokeStyle(lineWidth: max(1, 1.4 * zoom), lineCap: .round, lineJoin: .round))
+    }
+
+    private static func paintSparklines(
+        _ shapes: [SparklineShape], scheme: ColorScheme, into context: inout GraphicsContext
+    ) {
+        func color(_ hex: String) -> Color {
+            AdaptiveColor.resolve(hex: hex, for: scheme, isText: false) ?? .accentColor
+        }
+        for shape in shapes {
+            switch shape {
+            case .polyline(let points, let width, let hex):
+                var path = Path()
+                path.addLines(points)
+                context.stroke(path, with: .color(color(hex)),
+                               style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            case .axis(let from, let to, let width, let hex):
+                var path = Path()
+                path.addLines([from, to])
+                context.stroke(path, with: .color(color(hex)), lineWidth: width)
+            case .bar(let rect, let hex):
+                context.fill(Path(rect), with: .color(color(hex)))
+            case .marker(let center, let radius, let hex):
+                context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
+                                                    width: radius * 2, height: radius * 2)), with: .color(color(hex)))
+            }
         }
     }
 
@@ -316,6 +379,18 @@ enum CellPainter {
         var hairlines = Path()
         addHairlines(of: frame, openEdge: openEdge, metrics: metrics, to: &hairlines)
         context.stroke(hairlines, with: .color(.gridLine), lineWidth: metrics.gridLineWidth)
+    }
+
+    /// The data bars and icons of conditional formats, over the fills.
+    private static func paintConditionalMarks(_ marks: [ConditionalMark], into context: inout GraphicsContext) {
+        for mark in marks {
+            guard let first = mark.points.first, let color = Color(argbHex: mark.colorHex) else { continue }
+            var path = Path()
+            path.move(to: first)
+            for point in mark.points.dropFirst() { path.addLine(to: point) }
+            path.closeSubpath()
+            context.fill(path, with: .color(color))
+        }
     }
 
     /// A cell's fill: its colour, then any pattern over it, or its gradient.

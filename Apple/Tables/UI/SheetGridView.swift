@@ -26,7 +26,10 @@ struct SheetGridView: View {
     /// the floating controls.
     private let trailingPadding: Double = 120
     private let bottomPadding: Double = 160
-    private let columnHeaderHeight: Double = 28
+    /// The column letters' strip, and the outline gutter above it.
+    private var columnHeaderHeight: Double { columnLabelHeight + columnOutlineGutter }
+    /// None for a sheet with its headings turned off.
+    private var columnLabelHeight: Double { activeSheet.showsHeadings ? 28 : 0 }
     private let selectionHandleDiameter: Double = 18
 
     @State private var scrollPosition = ScrollPosition()
@@ -129,9 +132,23 @@ struct SheetGridView: View {
         return CGSize(width: extent.width + trailingPadding, height: extent.height + bottomPadding)
     }
 
-    private var rowHeaderWidth: Double {
+    private var rowHeaderWidth: Double { rowLabelWidth + rowOutlineGutter }
+
+    private var rowLabelWidth: Double {
+        // None for a sheet with its headings turned off.
+        guard activeSheet.showsHeadings else { return 0 }
         // Widen the gutter as row numbers get longer.
-        44 + Double(max(0, String(activeSheet.rowCount).count - 3)) * 9
+        return 44 + Double(max(0, String(activeSheet.rowCount).count - 3)) * 9
+    }
+
+    /// The outline gutters beside the row numbers and above the column
+    /// letters, there only while the sheet groups lines on that axis.
+    private var rowOutlineGutter: Double {
+        canvas == nil ? OutlineGutterView.thickness(for: activeSheet.rowOutline) : 0
+    }
+
+    private var columnOutlineGutter: Double {
+        canvas == nil ? OutlineGutterView.thickness(for: activeSheet.columnOutline) : 0
     }
 
     var body: some View {
@@ -167,6 +184,7 @@ struct SheetGridView: View {
         .onChange(of: activeSheet.hiddenColumns) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.columnWidths) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: activeSheet.rowHeights) { _, _ in state.refreshMetrics(in: workbook) }
+        .onChange(of: activeSheet.showsGridLines) { _, _ in state.refreshMetrics(in: workbook) }
         .onChange(of: state.scrollTarget) { _, target in
             guard let target else { return }
             scrollIntoView(target)
@@ -257,7 +275,10 @@ struct SheetGridView: View {
                     y: offset.y - state.scrollInsets.height
                 ))
             }
-            .onEnded { _ in zoomAnchor = nil }
+            .onEnded { _ in
+                zoomAnchor = nil
+                state.keepZoom(in: &workbook)
+            }
     }
 
     // MARK: - Visible window
@@ -846,6 +867,9 @@ struct SheetGridView: View {
                 ownsElement: plan.rows.contains(box.start.row)
                     && plan.columns.contains(box.start.column)
             ))
+            if let conditional = sheet.conditionalStyles[box.start], conditional.hasMarks {
+                painted.mergeConditionalMarks += conditional.marks(in: metrics.frame(for: box), zoom: metrics.zoom)
+            }
             let firstRow = max(box.start.row, plan.rows.lowerBound)
             let lastRow = min(box.end.row, plan.rows.upperBound - 1)
             let firstColumn = max(box.start.column, plan.columns.lowerBound)
@@ -862,6 +886,10 @@ struct SheetGridView: View {
             for column in plan.columns where !sheet.hiddenColumns.contains(column) {
                 let address = CellAddress(row: row, column: column)
                 guard !painted.covered.contains(address) else { continue }
+                // A bar or icon can stand in a cell with nothing else to show.
+                if let conditional = sheet.conditionalStyles[address], conditional.hasMarks {
+                    painted.conditionalMarks += conditional.marks(in: metrics.frame(for: address), zoom: metrics.zoom)
+                }
                 let cell = sheet.displayedCell(at: address)
                 guard !cell.isEmptyEntirely else { continue }
                 var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
@@ -876,6 +904,16 @@ struct SheetGridView: View {
         for (address, comment, range) in sheet.commentMarks(rows: plan.rows, columns: plan.columns, lookup: lookup) {
             painted.comments.append(CommentMark(
                 address: address, frame: metrics.frame(for: range), kind: comment.kind, isResolved: comment.isResolved))
+        }
+        for button in FilterButton.buttons(in: sheet, rows: plan.rows, columns: plan.columns) {
+            let cell = sheet.mergedRange(containing: button.address) ?? CellRange(button.address)
+            painted.filterButtons.append(FilterButtonMark(frame: metrics.frame(for: cell), isActive: button.isActive))
+        }
+        for address in sheet.sparklineLocations
+        where plan.rows.contains(address.row) && plan.columns.contains(address.column)
+            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
+            let frame = metrics.frame(for: sheet.mergedRange(containing: address)?.normalized ?? CellRange(address))
+            painted.sparklines += sheet.sparklineShapes(at: address, in: frame, zoom: metrics.zoom)
         }
         return painted
     }
@@ -992,6 +1030,10 @@ struct SheetGridView: View {
         if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
         // A tap on a checkbox ticks it or clears it, and selects its cell.
         if activeSheet[address].style.showsCheckbox { state.toggleCheckbox(at: address, in: &workbook) }
+        // A tap on a filter's header cell that is already selected opens its filter.
+        if activeSheet.hasFilterButton(at: address), state.selectedAddress == address, !state.hasMultipleSelections {
+            state.showFilter(forColumn: address.column, in: workbook)
+        }
         #if os(macOS)
         state.select(address, extending: NSEvent.modifierFlags.contains(.shift), in: activeSheet)
         #else
@@ -1584,17 +1626,40 @@ struct SheetGridView: View {
             frozenPanes(width: visibleGridWidth, height: visibleGridHeight)
                 .offset(x: rowHeaderWidth, y: columnHeaderHeight)
 
-            columnHeaders
-                .frame(width: visibleGridWidth, height: columnHeaderHeight)
-                .offset(x: rowHeaderWidth)
+            if activeSheet.showsHeadings {
+                columnHeaders
+                    .frame(width: visibleGridWidth, height: columnLabelHeight)
+                    .offset(x: rowHeaderWidth, y: columnOutlineGutter)
 
-            rowHeaders(viewportHeight: proxy.size.height)
-                .frame(width: rowHeaderWidth, height: visibleGridHeight)
-                .offset(y: columnHeaderHeight)
+                rowHeaders(viewportHeight: proxy.size.height)
+                    .frame(width: rowLabelWidth, height: visibleGridHeight)
+                    .offset(x: rowOutlineGutter, y: columnHeaderHeight)
+            }
 
-            cornerButton
+            if columnOutlineGutter > 0 {
+                outlineGutter(.column)
+                    .frame(width: visibleGridWidth, height: columnOutlineGutter)
+                    .offset(x: rowHeaderWidth)
+            }
+            if rowOutlineGutter > 0 {
+                outlineGutter(.row)
+                    .frame(width: rowOutlineGutter, height: visibleGridHeight)
+                    .offset(y: columnHeaderHeight)
+            }
+
+            if activeSheet.showsHeadings {
+                cornerButton
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func outlineGutter(_ axis: OutlineAxis) -> some View {
+        OutlineGutterView(
+            axis: axis, sheet: activeSheet, metrics: metrics,
+            scrollOffset: axis == .row ? state.scrollOffset.y : state.scrollOffset.x,
+            onToggle: { group in state.toggleOutlineGroup(group, axis: axis, in: &workbook) }
+        )
     }
 
     private var columnHeaders: some View {
@@ -1605,7 +1670,7 @@ struct SheetGridView: View {
                     ColumnHeaderCell(
                         title: CellAddress.columnName(column),
                         width: metrics.width(ofColumn: column),
-                        height: columnHeaderHeight,
+                        height: columnLabelHeight,
                         isSelected: !state.isTableUnfocused && state.selectedRanges.contains { $0.columnRange.contains(column) },
                         isHiddenNeighbor: activeSheet.hiddenColumns.contains(column + 1),
                         onSelect: { state.selectEntireColumns(column...column, in: activeSheet) },
@@ -1632,7 +1697,7 @@ struct SheetGridView: View {
                     .background(alignment: .topLeading) {
                         if column < activeSheet.frozenColumns {
                             Color.headerBackground.background(.regularMaterial)
-                                .frame(width: metrics.width(ofColumn: column), height: columnHeaderHeight)
+                                .frame(width: metrics.width(ofColumn: column), height: columnLabelHeight)
                                 .offset(x: metrics.x(ofColumn: column))
                         }
                     }
@@ -1654,7 +1719,7 @@ struct SheetGridView: View {
                 if !activeSheet.hiddenRows.contains(row) {
                     RowHeaderCell(
                         title: String(row + 1),
-                        width: rowHeaderWidth,
+                        width: rowLabelWidth,
                         height: metrics.height(ofRow: row),
                         isSelected: !state.isTableUnfocused && state.selectedRanges.contains { $0.rowRange.contains(row) },
                         isHiddenNeighbor: activeSheet.hiddenRows.contains(row + 1),
@@ -1680,7 +1745,7 @@ struct SheetGridView: View {
                     .background(alignment: .topLeading) {
                         if row < activeSheet.frozenRows {
                             Color.headerBackground.background(.regularMaterial)
-                                .frame(width: rowHeaderWidth, height: metrics.height(ofRow: row))
+                                .frame(width: rowLabelWidth, height: metrics.height(ofRow: row))
                                 .offset(y: metrics.y(ofRow: row))
                         }
                     }

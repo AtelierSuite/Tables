@@ -270,6 +270,31 @@ public final class CalculationEngine: FormulaContext {
         var stopped = Set<CellAddress>()
         for rule in sheet.conditionalRules {
             guard let base = rule.base else { continue }
+            if rule.kind != .test {
+                // Measured against the whole of the rule's ranges at once.
+                var cells: [(address: CellAddress, value: CellValue)] = []
+                var seen = Set<CellAddress>()
+                for range in rule.ranges {
+                    let box = range.normalized
+                    guard box.start.row < sheet.rowCount, box.start.column < sheet.columnCount else { continue }
+                    CellRange(start: box.start, end: CellAddress(
+                        row: min(box.end.row, sheet.rowCount - 1), column: min(box.end.column, sheet.columnCount - 1)
+                    )).forEachAddress { address in
+                        if seen.insert(address).inserted { cells.append((address, sheet[address].value)) }
+                    }
+                }
+                let passed = rule.rangedStyles(cells: cells) { formula in
+                    let body = formula.hasPrefix("=") ? String(formula.dropFirst()) : formula
+                    guard case .number(let number) = evaluate(body: body, sheetIndex: sheetIndex, at: base).single
+                    else { return nil }
+                    return number
+                }
+                for (address, style) in passed where !stopped.contains(address) {
+                    styles[address, default: ConditionalStyle()].adopt(style)
+                    if rule.stopsIfTrue { stopped.insert(address) }
+                }
+                continue
+            }
             let fill = conditionalFill(of: rule, from: base)
             for range in rule.ranges {
                 let box = range.normalized
@@ -501,6 +526,12 @@ public final class CalculationEngine: FormulaContext {
     public func isRowHidden(_ row: Int, sheetName: String?) -> Bool {
         guard let index = resolveSheetIndex(sheetName) else { return false }
         return workbook.sheets[index].hiddenRows.contains(row)
+    }
+
+    public func isRowFiltered(_ row: Int, sheetName: String?) -> Bool {
+        guard let index = resolveSheetIndex(sheetName) else { return false }
+        let sheet = workbook.sheets[index]
+        return sheet.hiddenRows.contains(row) && sheet.autoFilter?.filteredRows.contains(row) == true
     }
 
     public func sheetNumber(named name: String?) -> Int? {
