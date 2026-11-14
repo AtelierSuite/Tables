@@ -245,7 +245,6 @@ public enum XLSXReader {
             let feature: UnsupportedFeature?
             switch child.name {
             case "conditionalFormatting": feature = .conditionalFormatting
-            case "dataValidations": feature = .dataValidation
             case "autoFilter": feature = .autoFilter
             case "sheetProtection": feature = .sheetProtection
             case "hyperlinks": feature = .hyperlinks
@@ -272,7 +271,6 @@ public enum XLSXReader {
                     .flatMap { $0.children.map(\.name) })
                 if contents.contains("sparklineGroups") { findings.append((.sparklines, child.name)) }
                 if contents.contains("conditionalFormattings") { findings.append((.conditionalFormatting, child.name)) }
-                if contents.contains("dataValidations") { findings.append((.dataValidation, child.name)) }
                 feature = nil
             default:
                 feature = nil
@@ -666,6 +664,9 @@ public enum XLSXReader {
         // a file with contradictory regions loses the later ones rather than
         // becoming a sheet we cannot draw.
         for range in merges { sheet.merge(range) }
+        // Read before the kept children are gathered, which takes the
+        // validations' `x14` extension out of the tree.
+        sheet.dataValidations = DataValidationParts.read(from: root)
         sheet.preservedElements = preservedChildren(
             of: root, hasDifferentialFormats: hasDifferentialFormats
         )
@@ -780,7 +781,7 @@ public enum XLSXReader {
     /// drawing we regenerate for notes.
     private static let preservedWorksheetChildNames: Set<String> = [
         "sheetViews", "sheetProtection", "protectedRanges", "autoFilter", "sortState",
-        "phoneticPr", "conditionalFormatting", "dataValidations", "hyperlinks",
+        "phoneticPr", "conditionalFormatting", "hyperlinks",
         "printOptions", "pageMargins", "pageSetup", "headerFooter", "rowBreaks", "colBreaks",
         "ignoredErrors", "drawing", "legacyDrawing", "legacyDrawingHF", "controls", "tableParts", "extLst",
     ]
@@ -845,6 +846,10 @@ public enum XLSXReader {
                 // we regenerate; extensions that stand alone — sparklines,
                 // Excel 2010's conditional formats and validations — stay.
                 for ext in child.children(named: "ext") where namesRelationship(ext) { child.removeChild(ext) }
+                // The validations Excel 2010 keeps here are read into the model.
+                for ext in child.children(named: "ext") where DataValidationParts.isValidationExtension(ext) {
+                    child.removeChild(ext)
+                }
                 guard !child.children.isEmpty else { return nil }
             }
             guard let xml = XMLLite.serialize(child) else { return nil }
