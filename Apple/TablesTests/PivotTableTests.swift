@@ -281,6 +281,17 @@ struct PivotTableTests {
         #expect(workbook.unsupportedFeatures.lost.isEmpty)
     }
 
+    @Test("Laid out from its cache, a PivotTable comes out as Excel drew it")
+    func layoutMatchesExcel() throws {
+        let workbook = try read()
+        let pivot = try #require(workbook.pivotTables.first)
+        let layout = pivot.layout(from: try #require(workbook.pivotCache(pivot.cacheID)))
+        #expect(layout.cells.map { $0.map(\.cellValue) } == values(PivotFixture.pivotCells))
+        #expect(layout.firstHeaderRow == 1 && layout.firstDataRow == 2 && layout.firstDataColumn == 1)
+        #expect(layout.rowItems.map(\.indexes) == [[0], [1], [2], [0]])
+        #expect(layout.columnItems.map(\.kind) == [nil, nil, "grand"])
+    }
+
     // MARK: - Keeping
 
     @Test("An untouched PivotTable, its cache and its slicer come through a save byte for byte")
@@ -334,5 +345,156 @@ struct PivotTableTests {
         #expect(!(try text(out, "[Content_Types].xml")).contains("pivot"))
         #expect(out["xl/worksheets/_rels/sheet2.xml.rels"].map { String(decoding: $0, as: UTF8.self) }?
             .contains("pivotTable") != true)
+    }
+
+    // MARK: - Refreshing
+
+    @Test("Refreshing works the cells out again from the changed source and writes them back")
+    func refreshUpdatesCellsAndParts() throws {
+        var workbook = try read(withSlicer: false)
+        try setAmount(&workbook, row: 1, 100)  // East, Apples: 10 → 100
+        let id = try #require(workbook.pivotTables.first?.id)
+        try workbook.refreshPivotTable(id)
+
+        let pivot = try #require(workbook.pivotTable(id))
+        #expect(pivot.location.a1 == "A3:D8")
+        #expect(try grid(workbook, pivot.location) == values([
+            ["Sum of Amount", "Column Labels", nil, nil],
+            ["Row Labels", "Apples", "Pears", "Grand Total"],
+            ["East", 104.0, 5.0, 109.0],
+            ["North", 3.0, nil, 3.0],
+            ["West", 20.0, 7.0, 27.0],
+            ["Grand Total", 127.0, 12.0, 139.0],
+        ]))
+
+        // Saved and opened again, the file has the new records and cells.
+        let entries = try saved(workbook)
+        let records = try text(entries, "xl/pivotCache/pivotCacheRecords1.xml")
+        #expect(records.contains("<r><x v=\"0\"/><x v=\"0\"/><n v=\"100\"/></r>"))
+        let definition = try text(entries, "xl/pivotCache/pivotCacheDefinition1.xml")
+        #expect(definition.contains("maxValue=\"100\""))
+        #expect(definition.contains("x14:pivotCacheDefinition"))
+        let table = try text(entries, "xl/pivotTables/pivotTable1.xml")
+        #expect(table.contains("<location firstDataCol=\"1\" firstDataRow=\"2\" firstHeaderRow=\"1\" ref=\"A3:D8\"/>"))
+        #expect(table.contains("pivotTableStyleInfo"))
+        let again = try XLSXReader.workbook(from: try ZipArchive.archive(entries: entries.map { ($0.key, $0.value) }))
+        let reopened = try #require(again.pivotTables.first)
+        #expect(try grid(again, reopened.location)[2] == [.text("East"), .number(104), .number(5), .number(109)])
+        #expect(again.pivotCaches.first?.records[0][2] == .number(100))
+    }
+
+    @Test("A new item in the source grows the PivotTable and joins the cache's items")
+    func refreshAddsItems() throws {
+        var workbook = try read(withSlicer: false)
+        let data = try #require(workbook.sheet(named: "Data")?.id)
+        workbook[data]?[CellAddress(row: 7, column: 0)] = Cell(value: .text("South"))
+        workbook[data]?[CellAddress(row: 7, column: 1)] = Cell(value: .text("Pears"))
+        workbook[data]?[CellAddress(row: 7, column: 2)] = Cell(value: .number(8))
+        // The source is a fixed range, as Excel's is; widen it as a user would.
+        workbook.pivotCaches[0].source = .worksheet(sheet: "Data", reference: "A1:C8", name: nil)
+        let id = try #require(workbook.pivotTables.first?.id)
+        try workbook.refreshPivotTable(id)
+
+        let pivot = try #require(workbook.pivotTable(id))
+        #expect(pivot.location.a1 == "A3:D9")
+        let cells = try grid(workbook, pivot.location)
+        #expect(cells[5] == [.text("South"), .empty, .number(8), .number(8)])
+        #expect(cells[6] == [.text("Grand Total"), .number(37), .number(20), .number(57)])
+        #expect(workbook.pivotCaches[0].fields[0].sharedItems.last == .text("South"))
+        let entries = try saved(workbook)
+        #expect(try text(entries, "xl/pivotCache/pivotCacheDefinition1.xml").contains("<s v=\"South\"/></sharedItems>"))
+        #expect(try text(entries, "xl/pivotTables/pivotTable1.xml").contains("<item x=\"3\"/>"))
+    }
+
+    @Test("Count, average, min and max summarize the same records", arguments: [
+        (PivotAggregation.count, [3.0, 1.0, 2.0, 6.0]), (.average, [19.0 / 3, 3.0, 13.5, 49.0 / 6]),
+        (.min, [4.0, 3.0, 7.0, 3.0]), (.max, [10.0, 3.0, 20.0, 20.0]),
+    ])
+    func aggregations(aggregation: PivotAggregation, totals: [Double]) throws {
+        var workbook = try read(withSlicer: false)
+        let id = try #require(workbook.pivotTables.first?.id)
+        try workbook.updatePivotTable(id) { $0.setAggregation(aggregation, forValueAt: 0) }
+        let pivot = try #require(workbook.pivotTable(id))
+        #expect(pivot.dataFields[0].name == "\(aggregation.label) of Amount")
+        let cells = try grid(workbook, pivot.location)
+        #expect(cells[0][0] == .text("\(aggregation.label) of Amount"))
+        // The grand total column, row by row.
+        #expect(cells[2...].map { $0[3] } == totals.map(CellValue.number))
+        #expect(try text(try saved(workbook), "xl/pivotTables/pivotTable1.xml")
+            .contains("subtotal=\"\(aggregation.rawValue)\""))
+    }
+
+    @Test("A PivotTable that would grow over other cells is left as it was")
+    func refreshWontOverwrite() throws {
+        var workbook = try read(withSlicer: false)
+        let sheet = try #require(workbook.sheet(named: "Pivot")?.id)
+        workbook[sheet]?[CellAddress(row: 8, column: 0)] = Cell(value: .text("Notes"))
+        let data = try #require(workbook.sheet(named: "Data")?.id)
+        workbook[data]?[CellAddress(row: 7, column: 0)] = Cell(value: .text("South"))
+        workbook[data]?[CellAddress(row: 7, column: 2)] = Cell(value: .number(1))
+        workbook.pivotCaches[0].source = .worksheet(sheet: "Data", reference: "A1:C8", name: nil)
+        let before = workbook
+        let id = try #require(workbook.pivotTables.first?.id)
+        #expect(throws: PivotRefreshError.self) { try workbook.refreshPivotTable(id) }
+        #expect(workbook == before)
+    }
+
+    // MARK: - Layout
+
+    @Test("Moving a field to the rows nests it, and to the filters filters by it")
+    func movingFields() throws {
+        var workbook = try read(withSlicer: false)
+        let id = try #require(workbook.pivotTables.first?.id)
+        try workbook.updatePivotTable(id) { $0.place(field: 1, in: .rows) }
+        var pivot = try #require(workbook.pivotTable(id))
+        #expect(pivot.rowFields == [0, 1] && pivot.columnFields.isEmpty)
+        #expect(try grid(workbook, pivot.location) == values([
+            ["Row Labels", "Sum of Amount"],
+            ["East", 19.0], ["Apples", 14.0], ["Pears", 5.0],
+            ["North", 3.0], ["Apples", 3.0],
+            ["West", 27.0], ["Apples", 20.0], ["Pears", 7.0],
+            ["Grand Total", 49.0],
+        ]))
+        // The cells the old layout had to its right are cleared.
+        let sheet = try #require(workbook.sheet(named: "Pivot"))
+        #expect(sheet[CellAddress(row: 4, column: 3)].value == .empty)
+
+        try workbook.updatePivotTable(id) { pivot in
+            pivot.place(field: 0, in: .filters)
+            // West, by its place in the field's items: East, North, West.
+            pivot.filters[0].selectedItem = 2
+        }
+        pivot = try #require(workbook.pivotTable(id))
+        #expect(pivot.location.start.row == 2)
+        let filtered = try #require(workbook.sheet(named: "Pivot"))
+        #expect(filtered[CellAddress(row: 0, column: 0)].value == .text("Region"))
+        #expect(filtered[CellAddress(row: 0, column: 1)].value == .text("West"))
+        #expect(try grid(workbook, pivot.location) == values([
+            ["Row Labels", "Sum of Amount"], ["Apples", 20.0], ["Pears", 7.0], ["Grand Total", 27.0],
+        ]))
+        let table = try text(try saved(workbook), "xl/pivotTables/pivotTable1.xml")
+        #expect(table.contains("<pageFields count=\"1\"><pageField fld=\"0\" hier=\"-1\" item=\"2\"/></pageFields>"))
+    }
+
+    // MARK: - Slicers
+
+    @Test("Turning a slicer's buttons off filters its PivotTable and is saved in its cache")
+    func slicerFilters() throws {
+        var workbook = try read()
+        let slicer = try #require(workbook.slicerCaches.first)
+        // East (0) and North (2) on; West (1) off.
+        try workbook.setSlicerSelection(slicer.id, selected: [0, 2])
+        let pivot = try #require(workbook.pivotTables.first)
+        #expect(try grid(workbook, pivot.location) == values([
+            ["Sum of Amount", "Column Labels", nil, nil],
+            ["Row Labels", "Apples", "Pears", "Grand Total"],
+            ["East", 14.0, 5.0, 19.0],
+            ["North", 3.0, nil, 3.0],
+            ["Grand Total", 17.0, 5.0, 22.0],
+        ]))
+        let entries = try saved(workbook)
+        let cache = try text(entries, "xl/slicerCaches/slicerCache1.xml")
+        #expect(cache.contains("<i s=\"1\" x=\"0\"/><i s=\"1\" x=\"2\"/><i x=\"1\"/>"))
+        #expect(try text(entries, "xl/pivotTables/pivotTable1.xml").contains("<item h=\"1\" x=\"1\"/>"))
     }
 }
