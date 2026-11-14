@@ -8,7 +8,7 @@ struct InsertChartMenuItems: View {
     let state: EditorState
 
     var body: some View {
-        ForEach(ChartKind.allCases, id: \.self) { kind in
+        ForEach(ChartKind.creatable, id: \.self) { kind in
             Button(kind.label, systemImage: kind.symbolName) {
                 state.insertChart(kind, in: &workbook)
             }
@@ -57,7 +57,7 @@ private struct ChartForm: View {
             if !chart.kind.isRadial {
                 axisSection(
                     chart.kind == .bar ? "Chart.Axis.Vertical" : "Chart.Axis.Horizontal",
-                    axis: \.categoryAxis, isValueAxis: chart.kind == .scatter
+                    axis: \.categoryAxis, isValueAxis: chart.kind.plotsXY
                 )
                 axisSection(
                     chart.kind == .bar ? "Chart.Axis.Horizontal" : "Chart.Axis.Vertical",
@@ -89,7 +89,9 @@ private struct ChartForm: View {
         Section("Chart.Section.Type") {
             ScrollView(.horizontal) {
                 HStack(spacing: 10) {
-                    ForEach(ChartKind.allCases, id: \.self) { kind in
+                    // A kind that cannot be made from a selection is shown
+                    // only on a chart that already is one.
+                    ForEach(ChartKind.allCases.filter { ChartKind.creatable.contains($0) || $0 == chart.kind }, id: \.self) { kind in
                         kindButton(kind)
                     }
                 }
@@ -140,7 +142,29 @@ private struct ChartForm: View {
     private func changeKind(to kind: ChartKind) {
         state.updateSelectedChart(in: &workbook) { chart in
             let wasRadial = chart.kind.isRadial
+            // A bubble chart keeps its sizes beside each series; any other
+            // kind draws those columns as series of their own.
+            if kind == .bubble, chart.kind != .bubble {
+                chart.series = ChartBuilder.bubbles(from: chart.series)
+            } else if chart.kind == .bubble, kind != .bubble {
+                chart.series = chart.series.flatMap { series -> [ChartSeries] in
+                    guard !series.bubbleSizes.isEmpty else { return [series] }
+                    var bare = series
+                    bare.bubbleSizes = ChartSource()
+                    return [bare, ChartSeries(categories: series.categories, values: series.bubbleSizes)]
+                }
+            }
             chart.kind = kind
+            // Every series is drawn as the chart's new kind, on one value axis.
+            chart.secondaryValueAxis = nil
+            for index in chart.series.indices {
+                chart.series[index].plotKind = nil
+                chart.series[index].usesSecondaryAxis = false
+                if !kind.takesTrendlines {
+                    chart.series[index].trendlines = []
+                    chart.series[index].errorBars = []
+                }
+            }
             if kind.isRadial {
                 chart.variesColors = true
                 if chart.legend == nil { chart.legend = .right }
@@ -185,7 +209,7 @@ private struct ChartForm: View {
                     .onSubmit { applyRange(seriesInColumns: nil) }
                     .accessibilityIdentifier("chartDataRange")
             }
-            if chart.kind != .scatter {
+            if !chart.kind.plotsXY {
                 Picker("Chart.Data.SeriesIn", selection: Binding(
                     get: { seriesInColumns },
                     set: { applyRange(seriesInColumns: $0) }
@@ -236,7 +260,7 @@ private struct ChartForm: View {
                         .frame(width: 12, height: 12)
                 }
             }
-            if chart.kind == .line || chart.kind == .scatter {
+            if series.kind(in: chart) == .line || series.kind(in: chart) == .scatter {
                 Menu {
                     Toggle("Chart.Series.ShowLine", isOn: seriesFlag(index, \.showsLine))
                     Toggle("Chart.Series.ShowMarkers", isOn: seriesFlag(index, \.showsMarkers))
@@ -371,13 +395,13 @@ private struct ChartForm: View {
                     Text(position.label).tag(Optional(position))
                 }
             }
-            Toggle("Chart.Labels.Values", isOn: binding(\.dataLabels.showsValue))
+            Toggle("Chart.Labels.Values", isOn: labelsBinding(\.showsValue))
             if chart.kind.isRadial {
-                Toggle("Chart.Labels.Percentages", isOn: binding(\.dataLabels.showsPercentage))
+                Toggle("Chart.Labels.Percentages", isOn: labelsBinding(\.showsPercentage))
             }
-            Toggle("Chart.Labels.Categories", isOn: binding(\.dataLabels.showsCategoryName))
+            Toggle("Chart.Labels.Categories", isOn: labelsBinding(\.showsCategoryName))
             if !chart.kind.isRadial {
-                Toggle("Chart.Labels.SeriesNames", isOn: binding(\.dataLabels.showsSeriesName))
+                Toggle("Chart.Labels.SeriesNames", isOn: labelsBinding(\.showsSeriesName))
             }
             if chart.kind == .doughnut {
                 LabeledContent("Chart.HoleSize") {
@@ -386,10 +410,26 @@ private struct ChartForm: View {
                     }
                 }
             }
-            if !chart.kind.isRadial, chart.series.count == 1, chart.kind != .scatter {
+            if !chart.kind.isRadial, chart.series.count == 1, !chart.kind.plotsXY, chart.kind != .radar,
+               chart.kind != .stock {
                 Toggle("Chart.VaryColors", isOn: binding(\.variesColors))
             }
         }
+    }
+
+    /// The chart's labels. The panel has one set of switches for the whole
+    /// chart, so turning one makes every series follow it, including those
+    /// the file gave labels of their own.
+    private func labelsBinding(_ keyPath: WritableKeyPath<ChartDataLabels, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { (state.selectedChart(in: workbook) ?? chart).dataLabels[keyPath: keyPath] },
+            set: { value in
+                state.updateSelectedChart(in: &workbook) { chart in
+                    chart.dataLabels[keyPath: keyPath] = value
+                    for index in chart.series.indices { chart.series[index].dataLabels = nil }
+                }
+            }
+        )
     }
 
     // MARK: - Text and appearance

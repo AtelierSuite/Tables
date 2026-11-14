@@ -108,7 +108,7 @@ final class WorkbookToolbar: NSObject, NSToolbarDelegate {
                           action: #selector(WorkbookViewController.mergeCells(_:)))
         case Item.chart:
             let menu = NSMenu()
-            for kind in ChartKind.allCases {
+            for kind in ChartKind.creatable {
                 let item = MainMenu.item(kind.label, #selector(WorkbookViewController.insertChart(_:)))
                 item.representedObject = kind.rawValue
                 item.image = NSImage(systemSymbolName: kind.symbolName, accessibilityDescription: nil)
