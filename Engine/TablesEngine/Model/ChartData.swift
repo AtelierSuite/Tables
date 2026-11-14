@@ -615,6 +615,7 @@ extension Workbook {
                 let scope = FormulaReferenceShifter.Scope(sheet: name, host: sheets[sheetIndex].name)
                 FormulaReferenceShifter.apply(operation, axis: axis, to: &sheets[sheetIndex].cells, scope: scope)
                 sheets[sheetIndex].shiftConditionalFormats(operation, axis: axis, scope: scope, movesRanges: false)
+                sheets[sheetIndex].shiftDataValidations(operation, axis: axis, scope: scope, movesRanges: false)
             }
         }
         for sheetIndex in sheets.indices {
