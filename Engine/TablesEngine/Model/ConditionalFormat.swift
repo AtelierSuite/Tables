@@ -9,6 +9,11 @@ public struct ConditionalStyle: Hashable, Sendable {
     public var isItalic: Bool?
     public var isUnderlined: Bool?
     public var isStruckThrough: Bool?
+    /// A data bar behind the cell's value, and an icon beside it.
+    public var dataBar: ConditionalBar?
+    public var icon: ConditionalIcon?
+    /// Set by a bar or icon that stands in for the value instead of joining it.
+    public var hidesValue: Bool?
 
     public init(
         fillColorHex: String? = nil, textColorHex: String? = nil, isBold: Bool? = nil,
@@ -31,6 +36,9 @@ public struct ConditionalStyle: Hashable, Sendable {
         isItalic = isItalic ?? other.isItalic
         isUnderlined = isUnderlined ?? other.isUnderlined
         isStruckThrough = isStruckThrough ?? other.isStruckThrough
+        dataBar = dataBar ?? other.dataBar
+        icon = icon ?? other.icon
+        hidesValue = hidesValue ?? other.hidesValue
     }
 
     public func applied(to style: CellStyle) -> CellStyle {
@@ -50,8 +58,7 @@ public struct ConditionalStyle: Hashable, Sendable {
 ///
 /// Rules are a reading of what the file holds, which remains what a save
 /// writes: the `<conditionalFormatting>` kept in
-/// `Worksheet.preservedElements`, or a Numbers document's rule sets. Colour
-/// scales, data bars, icon sets and the ranking rules have no reading here.
+/// `Worksheet.preservedElements`, or a Numbers document's rule sets.
 public struct ConditionalRule: Hashable, Sendable {
     /// How a cell's own value is compared with a rule's formulas.
     public enum Comparison: String, Hashable, Sendable {
@@ -62,6 +69,8 @@ public struct ConditionalRule: Hashable, Sendable {
     }
 
     public var ranges: [CellRange]
+    /// Whether the cell is tested on its own or measured against its range.
+    public var kind: Kind
     /// Compares the cell's value with `formulas`; nil when the first of them
     /// is the whole test.
     public var comparison: Comparison?
@@ -75,10 +84,11 @@ public struct ConditionalRule: Hashable, Sendable {
     public var style: ConditionalStyle
 
     public init(
-        ranges: [CellRange], comparison: Comparison? = nil, formulas: [String], priority: Int,
-        stopsIfTrue: Bool = false, style: ConditionalStyle
+        ranges: [CellRange], kind: Kind = .test, comparison: Comparison? = nil, formulas: [String] = [],
+        priority: Int, stopsIfTrue: Bool = false, style: ConditionalStyle = ConditionalStyle()
     ) {
         self.ranges = ranges
+        self.kind = kind
         self.comparison = comparison
         self.formulas = formulas
         self.priority = priority
@@ -195,7 +205,11 @@ extension Worksheet {
     /// answers for every address.
     public func displayedCell(at address: CellAddress) -> Cell {
         var cell = self[address]
-        if let conditional = conditionalStyles[address] { cell.style = conditional.applied(to: cell.style) }
+        if let conditional = conditionalStyles[address] {
+            cell.style = conditional.applied(to: cell.style)
+            // A bar or icon shown in place of the value: nothing is left to draw as text.
+            if conditional.hidesValue == true { (cell.value, cell.formula) = (.empty, nil) }
+        }
         return cell
     }
 

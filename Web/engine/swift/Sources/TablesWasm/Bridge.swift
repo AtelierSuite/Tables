@@ -354,7 +354,7 @@ final class Bridge {
             for address in sheet.storedAddresses(in: range) {
                 cellsSeen += 1
                 guard cellsSeen <= 200_000 else { break }
-                let value = sheet.displayedCell(at: address).value
+                let value = sheet[address].value
                 guard !value.isEmpty else { continue }
                 count += 1
                 if case .number(let number) = value {
