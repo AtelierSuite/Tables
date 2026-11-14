@@ -466,6 +466,12 @@ public final class CalculationEngine: FormulaContext {
         return workbook.sheets[index].hiddenRows.contains(row)
     }
 
+    public func isRowFiltered(_ row: Int, sheetName: String?) -> Bool {
+        guard let index = resolveSheetIndex(sheetName) else { return false }
+        let sheet = workbook.sheets[index]
+        return sheet.hiddenRows.contains(row) && sheet.autoFilter?.filteredRows.contains(row) == true
+    }
+
     public func sheetNumber(named name: String?) -> Int? {
         resolveSheetIndex(name).map { $0 + 1 }
     }

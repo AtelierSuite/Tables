@@ -192,6 +192,30 @@ struct SortFilterTests {
         #expect(book.sheets[0].autoFilter == nil)
     }
 
+    @Test("SUBTOTAL passes over filtered rows but counts rows hidden by hand")
+    func subtotalSkipsFilteredRows() {
+        var entries = Self.entries
+        entries["E1"] = "=SUBTOTAL(9,C2:C6)"
+        entries["E2"] = "=SUBTOTAL(109,C2:C6)"
+        entries["E3"] = "=SUM(C2:C6)"
+        entries["E4"] = "=AGGREGATE(9,5,C2:C6)"
+        var book = workbook(entries)
+        book.sheets[0].setRows(2...2, hidden: true)
+        book.recalculate()
+        func value(_ reference: String) -> CellValue { book.sheets[0][CellAddress(a1: reference)!].value }
+        #expect(value("E1") == .number(100))
+        #expect(value("E2") == .number(90))
+
+        book.sheets[0].setAutoFilter(on: range("A1:C6"))
+        book.sheets[0].setFilter(.values(["Osaka"], includesBlanks: false), forColumn: 1)
+        book.recalculate()
+        // Osaka is rows 2 and 4 (30 and 20); row 3 is hidden by hand and by the filter.
+        #expect(value("E1") == .number(50))
+        #expect(value("E2") == .number(50))
+        #expect(value("E3") == .number(100))
+        #expect(value("E4") == .number(50))
+    }
+
     @Test("The filter follows rows and columns inserted and removed")
     func filterFollowsStructureEdits() {
         var book = workbook()
