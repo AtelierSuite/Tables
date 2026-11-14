@@ -57,6 +57,10 @@ struct TileContents: Equatable, Sendable {
     var comments: [CommentMark] = []
     /// Borders of the cells and merges in the tile and just outside it.
     var borders: [PaintedBorders] = []
+    /// The data bars and icons of conditional formats, as filled polygons.
+    var conditionalMarks: [ConditionalMark] = []
+    /// Those of merged cells, drawn after the merges cover what is beneath them.
+    var mergeConditionalMarks: [ConditionalMark] = []
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -224,6 +228,7 @@ enum CellPainter {
                 cell.cell, in: cell.frame, openEdge: edges.contains(cell.address), metrics: metrics, into: &context, scheme: scheme
             )
         }
+        paintConditionalMarks(contents.conditionalMarks, into: &context)
         for cell in contents.cells {
             paintText(cell.cell, in: cell.frame, overflow: cell.overflow, zoom: metrics.zoom, scheme: scheme, into: &context)
         }
@@ -231,6 +236,7 @@ enum CellPainter {
         for merge in contents.merges {
             paint(merge.cell, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
         }
+        paintConditionalMarks(contents.mergeConditionalMarks, into: &context)
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell.
         for borders in contents.borders {
@@ -316,6 +322,18 @@ enum CellPainter {
         var hairlines = Path()
         addHairlines(of: frame, openEdge: openEdge, metrics: metrics, to: &hairlines)
         context.stroke(hairlines, with: .color(.gridLine), lineWidth: metrics.gridLineWidth)
+    }
+
+    /// The data bars and icons of conditional formats, over the fills.
+    private static func paintConditionalMarks(_ marks: [ConditionalMark], into context: inout GraphicsContext) {
+        for mark in marks {
+            guard let first = mark.points.first, let color = Color(argbHex: mark.colorHex) else { continue }
+            var path = Path()
+            path.move(to: first)
+            for point in mark.points.dropFirst() { path.addLine(to: point) }
+            path.closeSubpath()
+            context.fill(path, with: .color(color))
+        }
     }
 
     /// A cell's fill: its colour, then any pattern over it, or its gradient.
