@@ -135,6 +135,7 @@ public struct SheetDrawingKey: Equatable, Sendable {
     private let hiddenColumns: Set<Int>
     private let columnStyles: [Int: CellStyle]
     private let rowStyles: [Int: CellStyle]
+    private let tableFormats: [TableFormat]
     private let rowCount: Int
     private let columnCount: Int
     private let backgroundColorHex: String?
@@ -153,6 +154,7 @@ public struct SheetDrawingKey: Equatable, Sendable {
         hiddenColumns = sheet.hiddenColumns
         columnStyles = sheet.columnStyles
         rowStyles = sheet.rowStyles
+        tableFormats = sheet.tableFormats
         rowCount = sheet.rowCount
         columnCount = sheet.columnCount
         backgroundColorHex = sheet.backgroundColorHex

@@ -251,6 +251,15 @@ public enum XLSXReader {
         workbook.unsupportedFeatures = report
         workbook.documentProperties = DocumentPropertiesParts.read(from: preserved)
         workbook.tables = readTables(workbook: workbook, preserved: preserved, sheetPaths: sheetPaths)
+        for table in workbook.tables {
+            // A style the workbook defines itself has no reading, and draws nothing.
+            guard let info = table.style, let name = info.name,
+                  let definition = TableStyleDefinition.builtIn(named: name, theme: theme),
+                  let index = workbook.sheets.firstIndex(where: { $0.id == table.sheetID }) else { continue }
+            workbook.sheets[index].tableFormats.append(TableFormat(
+                range: table.range, headerRowCount: table.headerRowCount, totalsRowCount: table.totalsRowCount,
+                info: info, definition: definition, defaultTextColorHex: styles.first?.textColorHex))
+        }
         workbook.recalculate()
         return workbook
     }
@@ -1423,13 +1432,27 @@ public enum XLSXReader {
                       let data = preserved.parts[path], let root = try? XMLLite.parse(data),
                       let name = root.attribute("displayName") ?? root.attribute("name"),
                       let ref = root.attribute("ref"), let range = CellRange(a1Range: ref)?.normalized else { continue }
-                let columns = root.firstChild(named: "tableColumns")?.children(named: "tableColumn")
-                    .map { $0.attribute("name") ?? "" } ?? []
+                let columnElements = root.firstChild(named: "tableColumns")?.children(named: "tableColumn") ?? []
+                let columns = columnElements.map { $0.attribute("name") ?? "" }
+                let style = root.firstChild(named: "tableStyleInfo").map { info in
+                    TableStyleInfo(
+                        name: info.attribute("name"),
+                        showsFirstColumn: isTrue(info.attribute("showFirstColumn")),
+                        showsLastColumn: isTrue(info.attribute("showLastColumn")),
+                        showsRowStripes: isTrue(info.attribute("showRowStripes")),
+                        showsColumnStripes: isTrue(info.attribute("showColumnStripes")))
+                }
+                let details = columnElements.map { column in
+                    TableColumnDetail(
+                        totalsFunction: column.attribute("totalsRowFunction").flatMap { $0 == "none" ? nil : $0 },
+                        totalsLabel: column.attribute("totalsRowLabel"),
+                        calculatedFormula: column.firstChild(named: "calculatedColumnFormula")?.text)
+                }
                 tables.append(TableDefinition(
                     name: name, sheetID: sheet.id, range: range,
                     headerRowCount: root.attribute("headerRowCount").flatMap(Int.init) ?? 1,
                     totalsRowCount: root.attribute("totalsRowCount").flatMap(Int.init) ?? 0,
-                    columns: columns))
+                    columns: columns, style: style, columnDetails: details))
             }
         }
         return tables
