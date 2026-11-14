@@ -237,6 +237,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// address of the formula. Recalculation starts from this so that cells
     /// reading a spilled range see it on the first pass.
     public var spills: [CellAddress: CellRange] = [:]
+    /// The sheet's filter, if it has one: the header row with its buttons
+    /// and what each column shows.
+    public var autoFilter: AutoFilter?
     /// The conditional formats the file set, highest priority first.
     public var conditionalRules: [ConditionalRule] = []
     /// What those rules settled on at the last recalculation, by cell.
