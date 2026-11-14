@@ -24,7 +24,9 @@ public enum XLSXWriter {
                              macroEnabled: macroEnabled, hasCanvases: canvases != nil).utf8Data
             ),
             ("_rels/.rels", rootRelationships(preserved: preserved).utf8Data),
-            ("xl/workbook.xml", workbookPart(workbook).utf8Data),
+            ("xl/workbook.xml", workbookPart(
+                workbook, carriedRelationshipIDs: carriedWorkbookRelationshipIDs(workbook: workbook, preserved: preserved)
+            ).utf8Data),
             (
                 "xl/_rels/workbook.xml.rels",
                 workbookRelationships(workbook: workbook, drawings: drawings, preserved: preserved,
@@ -404,9 +406,7 @@ public enum XLSXWriter {
         }
         xml += "<Relationship Id=\"rId\(sheetCount + 1)\" Type=\"\(relationshipNamespace)/styles\" Target=\"styles.xml\"/>"
         xml += "<Relationship Id=\"rId\(sheetCount + 2)\" Type=\"\(relationshipNamespace)/sharedStrings\" Target=\"sharedStrings.xml\"/>"
-        let carried = preserved.workbookRelationships.filter {
-            $0.type != FormulaPlan.metadataRelationshipType && $0.type != CommentParts.personType
-        }
+        let carried = carriedWorkbookRelationships(preserved)
         xml += relationshipEntries(carried, startingAt: sheetCount + 3)
         var nextID = sheetCount + 3 + carried.count
         if hasMetadata {
@@ -422,6 +422,27 @@ public enum XLSXWriter {
         }
         xml += "</Relationships>"
         return xml
+    }
+
+    private static func carriedWorkbookRelationships(_ preserved: PreservedPackage) -> [PreservedRelationship] {
+        preserved.workbookRelationships.filter {
+            $0.type != FormulaPlan.metadataRelationshipType && $0.type != CommentParts.personType
+        }
+    }
+
+    /// The id each carried-over workbook relationship is written under, by
+    /// the part it reaches: what `<pivotCaches>` and the slicer caches'
+    /// declarations name their parts by.
+    private static func carriedWorkbookRelationshipIDs(
+        workbook: Workbook, preserved: PreservedPackage
+    ) -> [String: String] {
+        var ids: [String: String] = [:]
+        for (offset, relationship) in carriedWorkbookRelationships(preserved).enumerated()
+        where relationship.targetMode != "External" {
+            let path = XLSXReader.PackagePreservation.absolutePath(relationship.target, relativeTo: "xl")
+            ids[path] = "rId\(workbook.sheets.count + 3 + offset)"
+        }
+        return ids
     }
 
     /// Re-emits carried-over relationships under fresh ids.
@@ -460,7 +481,7 @@ public enum XLSXWriter {
         return ids.map { $0 ?? 0 }
     }
 
-    private static func workbookPart(_ workbook: Workbook) -> String {
+    private static func workbookPart(_ workbook: Workbook, carriedRelationshipIDs: [String: String] = [:]) -> String {
         var xml = declaration
         xml += "<workbook xmlns=\"\(mainNamespace)\" xmlns:r=\"\(relationshipNamespace)\">"
         let settings = workbook.settings
@@ -513,6 +534,7 @@ public enum XLSXWriter {
         calculation["calcId"] = "0"
         calculation["fullCalcOnLoad"] = "1"
         xml += "<calcPr\(attributes(calculation, in: WorkbookSettings.calculationAttributes))/>"
+        xml += PivotParts.workbookDeclarations(for: workbook, relationshipIDs: carriedRelationshipIDs)
         xml += "</workbook>"
         return xml
     }
@@ -721,7 +743,7 @@ public enum XLSXWriter {
         for element in preservedElements(of: sheet) {
             // A duplicated sheet carries its predecessor's fragments but not
             // its `_rels`, so the ids in them would resolve to nothing.
-            guard hasRelationshipsPart || !element.needsSheetRelationships else { continue }
+            guard let element = hasRelationshipsPart ? element : element.withoutSheetRelationships else { continue }
             add(element.name, element.xml)
         }
 

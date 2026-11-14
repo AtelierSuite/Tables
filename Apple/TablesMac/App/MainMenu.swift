@@ -254,6 +254,9 @@ enum MainMenu {
         menu.addItem(item(String(localized: "HeaderMenu.Column.FitToContents"),
                           #selector(WorkbookViewController.fitColumnWidth(_:))))
         menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Mac.Menu.RefreshPivotTables"),
+                          #selector(WorkbookViewController.refreshPivotTables(_:))))
+        menu.addItem(.separator())
         menu.addItem(item(String(localized: "SheetTabBar.Menu.Rename"), #selector(WorkbookViewController.renameSheet(_:))))
         menu.addItem(item(String(localized: "SheetTabBar.Menu.Duplicate"),
                           #selector(WorkbookViewController.duplicateSheet(_:))))

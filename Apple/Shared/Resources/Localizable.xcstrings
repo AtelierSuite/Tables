@@ -18770,6 +18770,41 @@
         }
       }
     },
+    "Mac.Menu.RefreshPivotTables" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh All PivotTables"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのピボットテーブルを更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 피벗 테이블 새로 고침"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部刷新数据透视表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部重新整理樞紐分析表"
+          }
+        }
+      }
+    },
     "Mac.Menu.Rename" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -25101,6 +25136,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "調整圖片大小"
+          }
+        }
+      }
+    },
+    "Pivot.RefreshFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Refresh the PivotTables"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピボットテーブルを更新できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피벗 테이블을 새로 고칠 수 없음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法刷新数据透视表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法重新整理樞紐分析表"
           }
         }
       }

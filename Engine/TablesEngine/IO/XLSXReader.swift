@@ -238,7 +238,8 @@ public enum XLSXReader {
             // A sheet child naming a relationship id is only re-emittable while
             // the part that resolves those ids comes with it.
             if preserved.sheetRelationshipParts[workbook.sheets[index].id] == nil {
-                workbook.sheets[index].preservedElements.removeAll(where: \.needsSheetRelationships)
+                workbook.sheets[index].preservedElements = workbook.sheets[index].preservedElements
+                    .compactMap(\.withoutSheetRelationships)
             }
             let kept = Set(workbook.sheets[index].preservedElements.map(\.name))
             // A filter read into the model is shown and applied, not merely kept.
@@ -260,6 +261,8 @@ public enum XLSXReader {
                 range: table.range, headerRowCount: table.headerRowCount, totalsRowCount: table.totalsRowCount,
                 info: info, definition: definition, defaultTextColorHex: styles.first?.textColorHex))
         }
+        PivotParts.read(into: &workbook, workbookXML: workbookXML,
+                        workbookRelationships: entries["xl/_rels/workbook.xml.rels"], sheetPaths: sheetPaths)
         workbook.recalculate()
         return workbook
     }
@@ -1013,10 +1016,14 @@ public enum XLSXReader {
                 child.setAttribute("fontId", "0")
             }
             if child.name == "extLst" {
-                // Slicers and timelines name parts through the workbook, which
-                // we regenerate; extensions that stand alone — sparklines,
-                // Excel 2010's conditional formats and validations — stay.
-                for ext in child.children(named: "ext") where namesRelationship(ext) { child.removeChild(ext) }
+                // A timeline names a part that is not kept. A slicer list
+                // stays for as long as the sheet's relationships do, and the
+                // extensions that stand alone — sparklines, Excel 2010's
+                // conditional formats and validations — always.
+                for ext in child.children(named: "ext")
+                where namesRelationship(ext) && ext.firstChild(named: "slicerList") == nil {
+                    child.removeChild(ext)
+                }
                 // The validations Excel 2010 keeps here are read into the model.
                 for ext in child.children(named: "ext") where DataValidationParts.isValidationExtension(ext) {
                     child.removeChild(ext)
@@ -1081,28 +1088,25 @@ public enum XLSXReader {
             "xl/theme/", "xl/comments", "xl/drawings/", "xl/tables/",
             "xl/charts/", "xl/media/", "xl/printerSettings/", "docProps/",
             "xl/vbaProject", "xl/ctrlProps/", "xl/activeX/",
+            "xl/pivotCache/", "xl/pivotTables/", "xl/slicers/", "xl/slicerCaches/",
         ]
 
-        /// PivotTables are excluded even though their parts are self-contained,
-        /// because what binds a pivot cache to the workbook is the `<pivotCaches>`
-        /// element of `xl/workbook.xml` — a part we regenerate from our own
-        /// model and cannot reproduce. Keeping the parts without it leaves the
-        /// tables pointing at a cache the workbook no longer declares.
+        /// PivotTables and their caches. A cache is bound to the workbook by
+        /// the `<pivotCaches>` element of `xl/workbook.xml`, which is written
+        /// again from `Workbook.pivotCaches`.
         public static let pivotPathPrefixes = ["xl/pivotCache", "xl/pivotTables"]
 
-        /// Slicers and timelines, excluded for the same reason as PivotTables:
-        /// their caches are declared in `xl/workbook.xml`'s extensions.
+        /// Slicers, whose caches the workbook's extensions declare and which
+        /// are written again from `Workbook.slicerCaches`, and timelines,
+        /// which are not kept: nothing writes their declarations back.
         public static let slicerPathPrefixes = ["xl/slicers/", "xl/slicerCaches/", "xl/timelines/", "xl/timelineCaches/"]
 
         /// Sheet relationships to parts that are never kept, and that nothing
-        /// we write back into the sheet names: a PivotTable hangs off its
-        /// sheet's `_rels` alone, and the `extLst` entry naming a slicer or a
+        /// we write back into the sheet names: the `extLst` entry naming a
         /// timeline is dropped with it. Leaving these out is what lets the
         /// rest of the sheet's relationships — its tables, hyperlinks,
         /// comments — be kept rather than lost with them.
         public static let droppedSheetRelationshipTypes: Set<String> = [
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable",
-            "http://schemas.microsoft.com/office/2007/relationships/slicer",
             "http://schemas.microsoft.com/office/2011/relationships/timeline",
         ]
 

@@ -2661,6 +2661,286 @@
         }
       }
     },
+    "Pivot.Error.ExternalSource" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PivotTable's data is outside this workbook."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピボットテーブルのデータはこのブックの外にあります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피벗 테이블의 데이터가 이 통합 문서 밖에 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据透视表的数据不在此工作簿中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "樞紐分析表的資料不在此活頁簿中。"
+          }
+        }
+      }
+    },
+    "Pivot.Error.HeadingMissing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every column of the source data needs a heading."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のデータのすべての列に見出しが必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원본 데이터의 모든 열에 머리글이 있어야 합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "源数据的每一列都需要标题。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來源資料的每一欄都需要標題。"
+          }
+        }
+      }
+    },
+    "Pivot.Error.Missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PivotTable is no longer in the workbook."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピボットテーブルがブックにありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피벗 테이블이 더 이상 통합 문서에 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据透视表已不在工作簿中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "樞紐分析表已不在活頁簿中。"
+          }
+        }
+      }
+    },
+    "Pivot.Error.NoRoom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is no room on the sheet for the PivotTable."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シートにピボットテーブルを置く余地がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시트에 피벗 테이블을 놓을 공간이 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作表上没有空间放置数据透视表。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作表上沒有空間放置樞紐分析表。"
+          }
+        }
+      }
+    },
+    "Pivot.Error.SourceNotFound" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PivotTable's source data can't be found."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピボットテーブルの元のデータが見つかりません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피벗 테이블의 원본 데이터를 찾을 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到数据透视表的源数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到樞紐分析表的來源資料。"
+          }
+        }
+      }
+    },
+    "Pivot.Error.UnreadablePart" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PivotTable couldn't be updated."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピボットテーブルを更新できませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피벗 테이블을 업데이트할 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更新数据透视表。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新樞紐分析表。"
+          }
+        }
+      }
+    },
+    "Pivot.Error.Unsupported" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This PivotTable uses calculated or grouped fields, values on rows, custom subtotals or “Show Values As”, which can't be refreshed yet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このピボットテーブルは集計フィールド、グループ化、行の値、ユーザー設定の小計または「計算の種類」を使っているため、まだ更新できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 피벗 테이블은 계산 필드, 그룹, 행의 값, 사용자 지정 부분합 또는 ‘값 표시 형식’을 사용하므로 아직 새로 고칠 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据透视表使用了计算字段、分组字段、行上的值、自定义分类汇总或“值显示方式”，暂时无法刷新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此樞紐分析表使用了計算欄位、群組欄位、列上的值、自訂小計或「值的顯示方式」，暫時無法重新整理。"
+          }
+        }
+      }
+    },
+    "Pivot.Error.WouldOverwrite" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PivotTable would replace the contents of cells near %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピボットテーブルが %@ 付近のセルの内容を置き換えてしまいます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피벗 테이블이 %@ 근처 셀의 내용을 바꾸게 됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据透视表将替换 %@ 附近单元格的内容。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "樞紐分析表將取代 %@ 附近儲存格的內容。"
+          }
+        }
+      }
+    },
     "Protection.Restriction.LockedCell" : {
       "extractionState" : "manual",
       "localizations" : {
