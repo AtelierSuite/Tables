@@ -74,12 +74,14 @@ public enum XLSXReader {
                 sheet.preservedElements = preservedChildren(of: sheetXML, hasDifferentialFormats: false)
                     .filter { ChartWriter.chartSheetChildOrder.contains($0.name) }
             } else {
+                // Before the sheet is parsed: keeping its `extLst` takes the sparklines out of it.
+                let sparklines = SparklineParts.groups(in: sheetXML, theme: theme, palette: indexedPalette)
                 sheet = parseSheet(
                     sheetXML, name: name, sharedStrings: sharedStrings, styles: styles,
                     usesMacEpoch: usesMacEpoch, hasDifferentialFormats: hasDifferentialFormats,
                     differentialStyles: differentialStyles
                 )
-                sheet.sparklineGroups = SparklineParts.groups(in: sheetXML, theme: theme, palette: indexedPalette)
+                sheet.sparklineGroups = sparklines
             }
             // The drawing is regenerated from the model on every save, so the
             // element naming it is too.
