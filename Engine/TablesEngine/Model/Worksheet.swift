@@ -197,6 +197,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// the sheet could ever have.
     public var columnStyles: [Int: CellStyle] = [:]
     public var rowStyles: [Int: CellStyle] = [:]
+    /// How rows and columns are grouped, and which groups are collapsed.
+    public var rowOutline = LineOutline()
+    public var columnOutline = LineOutline()
     /// Rows at the top and columns at the left that stay in view while the
     /// rest of the sheet scrolls — Excel's frozen panes. Zero for none.
     public var frozenRows = 0
@@ -516,6 +519,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         fittedRows = Self.shift(fittedRows, from: index, by: count)
         hiddenRows = Self.shift(hiddenRows, from: index, by: count)
         rowStyles = Self.shift(rowStyles, from: index, by: count)
+        rowOutline.insert(count, at: index)
         remapMerges(along: \.row) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .row)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .row, scope: ownScope)
@@ -534,6 +538,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         columnWidths = Self.shift(columnWidths, from: index, by: count)
         hiddenColumns = Self.shift(hiddenColumns, from: index, by: count)
         columnStyles = Self.shift(columnStyles, from: index, by: count)
+        columnOutline.insert(count, at: index)
         remapMerges(along: \.column) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .column)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .column, scope: ownScope)
@@ -555,6 +560,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         fittedRows = Self.shift(fittedRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         hiddenRows = Self.shift(hiddenRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         rowStyles = Self.shift(rowStyles.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
+        rowOutline.remove(range)
         remapMerges(along: \.row) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .row)
         shiftConditionalFormats(.remove(range: range), axis: .row, scope: ownScope)
@@ -576,6 +582,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         hiddenColumns = Self.shift(hiddenColumns.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
         columnStyles = Self.shift(
             columnStyles.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
+        columnOutline.remove(range)
         remapMerges(along: \.column) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .column)
         shiftConditionalFormats(.remove(range: range), axis: .column, scope: ownScope)
