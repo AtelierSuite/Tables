@@ -87,8 +87,8 @@ struct ChartTests {
     private static let unsupportedChart = """
     <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">\
-    <c:chart><c:plotArea><c:bar3DChart><c:barDir val="col"/><c:grouping val="standard"/>\
-    <c:axId val="1"/><c:axId val="2"/><c:axId val="3"/></c:bar3DChart></c:plotArea></c:chart>\
+    <c:chart><c:plotArea><c:surface3DChart><c:wireframe val="0"/>\
+    <c:axId val="1"/><c:axId val="2"/><c:axId val="3"/></c:surface3DChart></c:plotArea></c:chart>\
     </c:chartSpace>
     """
 
@@ -377,7 +377,7 @@ struct ChartTests {
         return workbook
     }
 
-    @Test("A chart made here survives a save and a reopen intact", arguments: ChartKind.allCases)
+    @Test("A chart made here survives a save and a reopen intact", arguments: ChartKind.creatable)
     func roundTripsEveryKind(_ kind: ChartKind) throws {
         var workbook = try workbookWithChart(kind)
         workbook.sheets[0].charts[0].title = ChartTitle(
