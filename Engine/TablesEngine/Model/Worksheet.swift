@@ -262,6 +262,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public var conditionalStyles: [CellAddress: ConditionalStyle] = [:]
     /// Notes and threaded comments, by the cell they belong to.
     public var comments: [CellAddress: CellComment] = [:]
+    /// Links, by the cell they are on. A link the file set on a range is on
+    /// each of its cells.
+    public var hyperlinks: [CellAddress: CellHyperlink] = [:]
     /// Shapes from the file's VML drawing that are neither notes nor form
     /// controls, carried verbatim into the drawing written with the notes.
     public var preservedVMLShapes: String?
@@ -546,6 +549,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         FormulaReferenceShifter.apply(.remove(range: range), axis: .row, to: &cells, scope: ownScope)
         cells = cells.filter { !range.contains($0.key.row) }
         comments = comments.filter { !range.contains($0.key.row) }
+        hyperlinks = hyperlinks.filter { !range.contains($0.key.row) }
         remapCells { $0.row > range.upperBound ? CellAddress(row: $0.row - count, column: $0.column) : $0 }
         rowHeights = Self.shift(rowHeights.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         fittedRows = Self.shift(fittedRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
@@ -566,6 +570,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         FormulaReferenceShifter.apply(.remove(range: range), axis: .column, to: &cells, scope: ownScope)
         cells = cells.filter { !range.contains($0.key.column) }
         comments = comments.filter { !range.contains($0.key.column) }
+        hyperlinks = hyperlinks.filter { !range.contains($0.key.column) }
         remapCells { $0.column > range.upperBound ? CellAddress(row: $0.row, column: $0.column - count) : $0 }
         columnWidths = Self.shift(columnWidths.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         hiddenColumns = Self.shift(hiddenColumns.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
@@ -608,7 +613,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         hiddenColumns.removeAll()
     }
 
-    /// Moves cells, and the comments on them, to new addresses.
+    /// Moves cells, and the comments and links on them, to new addresses.
     private mutating func remapCells(_ transform: (CellAddress) -> CellAddress) {
         var moved: [CellAddress: Cell] = [:]
         moved.reserveCapacity(cells.count)
@@ -617,6 +622,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         var movedComments: [CellAddress: CellComment] = [:]
         for (address, comment) in comments { movedComments[transform(address)] = comment }
         comments = movedComments
+        var movedLinks: [CellAddress: CellHyperlink] = [:]
+        for (address, link) in hyperlinks { movedLinks[transform(address)] = link }
+        hyperlinks = movedLinks
         // Where arrays spilled is worked out again on the next recalculation.
         spills = [:]
     }

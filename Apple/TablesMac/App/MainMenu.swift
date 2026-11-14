@@ -147,6 +147,10 @@ enum MainMenu {
         menu.addItem(item(String(localized: "CellMenu.NewComment"), #selector(WorkbookViewController.newComment(_:)),
                           "m", [.command, .option]))
         menu.addItem(item(String(localized: "CellMenu.NewNote"), #selector(WorkbookViewController.newNote(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Hyperlink.Menu.Edit"), #selector(WorkbookViewController.editHyperlink(_:)), "k"))
+        menu.addItem(item(String(localized: "Hyperlink.Menu.Open"), #selector(WorkbookViewController.openHyperlink(_:))))
+        menu.addItem(item(String(localized: "Hyperlink.Remove"), #selector(WorkbookViewController.removeHyperlink(_:))))
         return menu
     }
 

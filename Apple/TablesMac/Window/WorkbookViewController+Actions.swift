@@ -477,6 +477,18 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
                 menu.addItem(MainMenu.item(String(localized: "CellMenu.NewNote"), #selector(newNote(_:))))
             }
         }
+        if let document, document.state.allowsHyperlinks || document.state.hyperlink(at: address, in: document.workbook) != nil {
+            menu.addItem(.separator())
+            if document.state.hyperlink(at: address, in: document.workbook) != nil {
+                menu.addItem(MainMenu.item(String(localized: "Hyperlink.Menu.Open"), #selector(openHyperlink(_:))))
+            }
+            if document.state.allowsHyperlinks {
+                menu.addItem(MainMenu.item(String(localized: "Hyperlink.Menu.Edit"), #selector(editHyperlink(_:))))
+                if document.activeSheet.hyperlinks[address] != nil {
+                    menu.addItem(MainMenu.item(String(localized: "Hyperlink.Remove"), #selector(removeHyperlink(_:))))
+                }
+            }
+        }
         menu.addItem(.separator())
         menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Row.InsertAbove"), #selector(insertRowsAbove(_:))))
         menu.addItem(MainMenu.item(String(localized: "HeaderMenu.Column.InsertBefore"), #selector(insertColumnsBefore(_:))))
@@ -611,6 +623,12 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(deleteComment(_:)):
             return isCells && state.allowsComments
                 && state.selectedRanges.contains { range in sheet.comments.keys.contains { range.normalized.contains($0) } }
+        case #selector(editHyperlink(_:)):
+            return isCells && state.allowsHyperlinks
+        case #selector(removeHyperlink(_:)):
+            return isCells && state.allowsHyperlinks && state.selectionHasHyperlinks(in: document.workbook)
+        case #selector(openHyperlink(_:)):
+            return isCells && state.hyperlink(at: state.selectedAddress, in: document.workbook) != nil
         case #selector(freezeTopRow(_:)), #selector(freezeFirstColumn(_:)):
             return isCells && state.allowsFreezingPanes && !onCanvas
         case #selector(freezePanesAtSelection(_:)):

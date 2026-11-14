@@ -93,6 +93,16 @@ public enum XLSXWriter {
                 }
             }
 
+            // Links: an outside address is a relationship of its own.
+            let hyperlinks = drawings.isChartSheet(sheet) ? nil : HyperlinkParts.element(
+                for: sheet.hyperlinks, rowCount: sheet.rowCount, columnCount: sheet.columnCount
+            ) { target in
+                let id = Self.freshRelationshipID(avoiding: Set(relationships.compactMap(\.id)))
+                relationships.append(.init(id: id, type: HyperlinkParts.relationshipType, target: target,
+                                           targetMode: "External"))
+                return id
+            }
+
             let body: String
             if drawings.isChartSheet(sheet) {
                 body = ChartWriter.chartSheet(
@@ -109,7 +119,7 @@ public enum XLSXWriter {
                 body = sheetPart(
                     sheet, strings: strings, styles: styles, formulas: formulas.forms[sheet.id] ?? [:],
                     hasRelationshipsPart: preservedRelationships != nil, drawingRelationshipID: drawingID,
-                    legacyDrawingRelationshipID: legacyDrawingID
+                    legacyDrawingRelationshipID: legacyDrawingID, hyperlinks: hyperlinks
                 )
             }
             parts.append((path, body.utf8Data))
@@ -551,7 +561,8 @@ public enum XLSXWriter {
 
     private static func sheetPart(
         _ sheet: Worksheet, strings: SharedStringTable, styles: StyleTable, formulas: [CellAddress: FormulaPlan.Form] = [:],
-        hasRelationshipsPart: Bool, drawingRelationshipID: String? = nil, legacyDrawingRelationshipID: String? = nil
+        hasRelationshipsPart: Bool, drawingRelationshipID: String? = nil, legacyDrawingRelationshipID: String? = nil,
+        hyperlinks: String? = nil
     ) -> String {
         /// Fragments paired with their schema position, plus the order they
         /// were added in so repeatable children — several `<conditionalFormatting>`
@@ -681,6 +692,7 @@ public enum XLSXWriter {
             add(element.name, element.xml)
         }
 
+        if let hyperlinks { add("hyperlinks", hyperlinks) }
         if let drawingRelationshipID { add("drawing", "<drawing r:id=\"\(drawingRelationshipID)\"/>") }
         if let legacyDrawingRelationshipID {
             add("legacyDrawing", "<legacyDrawing r:id=\"\(legacyDrawingRelationshipID)\"/>")

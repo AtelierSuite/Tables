@@ -89,6 +89,8 @@ final class EditorState {
     var presentedPanel: EditorPanel?
     /// The kind of comment the comment panel starts when a cell has none.
     var newCommentKind: CellComment.Kind = .thread
+    /// The cell whose link is being added or edited, while the editor is up.
+    var hyperlinkEditorAddress: CellAddress?
     /// What formatting the active sheet keeps: none for delimited text, which
     /// has nowhere to keep styling, and in a Numbers document only what can be
     /// saved back into it.

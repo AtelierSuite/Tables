@@ -38,6 +38,8 @@ public enum XLSXReader {
         var drawingIDs: [String?] = []
         /// And its `<legacyDrawing>`, the VML drawing its notes are drawn in.
         var legacyDrawingIDs: [String?] = []
+        /// The relationships each sheet's links used, which are written afresh.
+        var hyperlinkRelationshipIDs: [Set<String>] = []
         let sheetElements = workbookXML.firstChild(named: "sheets")?.children(named: "sheet") ?? []
 
         for (position, element) in sheetElements.enumerated() {
@@ -61,6 +63,7 @@ public enum XLSXReader {
                 sheetFindings.append([])
                 drawingIDs.append(nil)
                 legacyDrawingIDs.append(nil)
+                hyperlinkRelationshipIDs.append([])
                 continue
             }
             let sheetXML = try XMLLite.parse(payload)
@@ -82,6 +85,11 @@ public enum XLSXReader {
             drawingIDs.append(sheetXML.firstChild(named: "drawing")?.attribute("id"))
             legacyDrawingIDs.append(sheetXML.firstChild(named: "legacyDrawing")?.attribute("id"))
             sheet.preservedElements.removeAll { $0.name == "drawing" }
+            // Links are read into the model and written afresh.
+            let links = HyperlinkParts.read(sheetXML, sheetPath: entries[path] != nil ? path : fallbackPath, entries: entries)
+            sheet.hyperlinks = links.links
+            hyperlinkRelationshipIDs.append(links.relationshipIDs)
+            sheet.preservedElements.removeAll { $0.name == "hyperlinks" }
             sheet.name = name
             sheet.isHidden = isHidden
             sheet.isVeryHidden = isVeryHidden
@@ -180,6 +188,7 @@ public enum XLSXReader {
             }
             commentParts.formUnion(found.parts)
             commentRelationshipIDs[workbook.sheets[index].id] = found.relationshipIDs
+                .union(hyperlinkRelationshipIDs[index])
             shapeTargets += found.shapeTargets
             if let legacy = legacyDrawingIDs[index], found.relationshipIDs.contains(legacy) {
                 workbook.sheets[index].preservedElements.removeAll { $0.name == "legacyDrawing" }
@@ -248,7 +257,6 @@ public enum XLSXReader {
             case "dataValidations": feature = .dataValidation
             case "autoFilter": feature = .autoFilter
             case "sheetProtection": feature = .sheetProtection
-            case "hyperlinks": feature = .hyperlinks
             case "tableParts": feature = .tables
             case "printOptions", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "legacyDrawingHF":
                 feature = .printSetup

@@ -36,6 +36,7 @@ struct WorkbookView: View {
     var body: some View {
         VStack(spacing: 0) {
             sheetContent
+                .modifier(HyperlinkEditor(workbook: workbook, state: state))
                 // Keyboard navigation belongs to the grid, and only while no
                 // text field is up — otherwise it holds focus away from them.
                 .focusable(state.editingAddress == nil && !state.isFormulaBarActive)
