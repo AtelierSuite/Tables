@@ -195,6 +195,7 @@ extension Worksheet {
     /// answers for every address.
     public func displayedCell(at address: CellAddress) -> Cell {
         var cell = self[address]
+        if let table = tableFormat(at: address) { cell.style = table.applied(to: cell.style, at: address) }
         if let conditional = conditionalStyles[address] { cell.style = conditional.applied(to: cell.style) }
         return cell
     }

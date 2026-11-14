@@ -905,7 +905,8 @@ struct SheetGridView: View {
                 let address = CellAddress(row: row, column: column)
                 guard sheet.cells[address] != nil || sheet.inheritsStyle(at: address) else { continue }
                 let style = sheet[address].style
-                guard !style.borderSides.isEmpty || style.diagonalBorder != nil,
+                // A table's style can border a cell that has none of its own.
+                guard !style.borderSides.isEmpty || style.diagonalBorder != nil || sheet.tableFormat(at: address) != nil,
                       !nearby.contains(where: { $0.contains(address) }) else { continue }
                 add(CellRange(address))
             }
