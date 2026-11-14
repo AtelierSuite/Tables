@@ -505,18 +505,35 @@ public enum XLSXReader {
                 style.numberFormat = numberFormats[formatID] ?? "General"
             }
             if let alignment = element.firstChild(named: "alignment") {
+                // A spread is set after the alignment it falls back to, which clears it.
                 switch alignment.attribute("horizontal") {
                 case "left": style.horizontalAlignment = .leading
-                case "center", "centerContinuous": style.horizontalAlignment = .center
+                case "center": style.horizontalAlignment = .center
                 case "right": style.horizontalAlignment = .trailing
+                case "justify":
+                    style.horizontalAlignment = .leading
+                    style.horizontalSpread = .justify
+                case "distributed":
+                    style.horizontalAlignment = .center
+                    style.horizontalSpread = .distributed
+                case "centerContinuous":
+                    style.horizontalAlignment = .center
+                    style.horizontalSpread = .centerAcrossSelection
                 default: style.horizontalAlignment = .automatic
                 }
                 switch alignment.attribute("vertical") {
                 case "top": style.verticalAlignment = .top
-                case "center", "justify", "distributed": style.verticalAlignment = .middle
+                case "center": style.verticalAlignment = .middle
+                case "justify":
+                    style.verticalAlignment = .top
+                    style.verticalSpread = .justify
+                case "distributed":
+                    style.verticalAlignment = .middle
+                    style.verticalSpread = .distributed
                 // OOXML's default for a missing or unrecognised `vertical` is bottom.
                 default: style.verticalAlignment = .bottom
                 }
+                style.shrinksToFit = isTrue(alignment.attribute("shrinkToFit"))
                 style.wrapsText = isTrue(alignment.attribute("wrapText"))
                 style.indent = alignment.attribute("indent").flatMap(Int.init).map { max(0, $0) } ?? 0
                 if let rotation = alignment.attribute("textRotation").flatMap(Int.init),

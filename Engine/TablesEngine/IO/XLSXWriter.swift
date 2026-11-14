@@ -1013,18 +1013,24 @@ public enum XLSXWriter {
                 if style.hasQuotePrefix { xml += " quotePrefix=\"1\"" }
                 xml += ">"
                 xml += "<alignment"
-                switch style.horizontalAlignment {
-                case .automatic: break
-                case .leading: xml += " horizontal=\"left\""
-                case .center: xml += " horizontal=\"center\""
-                case .trailing: xml += " horizontal=\"right\""
+                switch (style.horizontalSpread, style.horizontalAlignment) {
+                case (.justify, _): xml += " horizontal=\"justify\""
+                case (.distributed, _): xml += " horizontal=\"distributed\""
+                case (.centerAcrossSelection, _): xml += " horizontal=\"centerContinuous\""
+                case (nil, .automatic): break
+                case (nil, .leading): xml += " horizontal=\"left\""
+                case (nil, .center): xml += " horizontal=\"center\""
+                case (nil, .trailing): xml += " horizontal=\"right\""
                 }
-                switch style.verticalAlignment {
-                case .top: xml += " vertical=\"top\""
-                case .middle: xml += " vertical=\"center\""
-                case .bottom: xml += " vertical=\"bottom\""
+                switch (style.verticalSpread, style.verticalAlignment) {
+                case (.justify, _): xml += " vertical=\"justify\""
+                case (.distributed, _): xml += " vertical=\"distributed\""
+                case (nil, .top): xml += " vertical=\"top\""
+                case (nil, .middle): xml += " vertical=\"center\""
+                case (nil, .bottom): xml += " vertical=\"bottom\""
                 }
                 if style.wrapsText { xml += " wrapText=\"1\"" }
+                if style.shrinksToFit { xml += " shrinkToFit=\"1\"" }
                 if style.indent > 0 { xml += " indent=\"\(style.indent)\"" }
                 if style.textRotation != 0 { xml += " textRotation=\"\(style.textRotation)\"" }
                 if style.readingOrder != .context { xml += " readingOrder=\"\(style.readingOrder.rawValue)\"" }
