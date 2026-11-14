@@ -93,6 +93,7 @@ final class TileCache {
         let standardRowHeight: Double
         let rowCount: Int
         let columnCount: Int
+        let showsGridLines: Bool
         let zoom: Double
         let pixelScale: Double?
 
@@ -104,6 +105,7 @@ final class TileCache {
             standardRowHeight = sheet.standardRowHeight
             rowCount = sheet.rowCount
             columnCount = sheet.columnCount
+            showsGridLines = sheet.showsGridLines
             self.zoom = zoom
             self.pixelScale = pixelScale
         }

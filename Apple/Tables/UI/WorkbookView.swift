@@ -36,6 +36,7 @@ struct WorkbookView: View {
     var body: some View {
         VStack(spacing: 0) {
             sheetContent
+                .modifier(HyperlinkEditor(workbook: workbook, state: state))
                 // Keyboard navigation belongs to the grid, and only while no
                 // text field is up — otherwise it holds focus away from them.
                 .focusable(state.editingAddress == nil && !state.isFormulaBarActive)
@@ -57,6 +58,7 @@ struct WorkbookView: View {
             Divider()
             // A chart sheet has no cells to show a formula for.
             if !activeSheet.isChartSheet {
+                FormulaSuggestionsBar(workbook: document.workbook, state: state)
                 FormulaBarView(workbook: workbook, state: state)
                 Divider()
             }
@@ -104,12 +106,14 @@ struct WorkbookView: View {
         }
         .onAppear {
             state.allowsComments = !document.isPlainText && !document.isNumbers
+            state.allowsDefinedNames = !document.isPlainText && !document.isNumbers
             state.allowsFreezingPanes = !document.isPlainText && !document.isNumbers
             state.allowsArrangingCanvases = !document.isPlainText && !document.isNumbers
             state.allowsLayingOutTables = !document.isPlainText
             state.isNumbersDocument = document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.openingSheetID
+                state.adoptSavedZoom(in: document.workbook)
                 state.refreshMetrics(in: document.workbook)
             }
             state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)
@@ -204,6 +208,7 @@ struct WorkbookView: View {
         case .chart: ChartPanel(workbook: workbook, state: state)
         case .comment: CommentPanel(workbook: workbook, state: state)
         case .find: FindPanel(workbook: workbook, state: state)
+        case .names: NamesPanel(workbook: workbook, state: state)
         }
     }
 
@@ -212,7 +217,7 @@ struct WorkbookView: View {
     private func panelDetents(_ panel: EditorPanel) -> Set<PresentationDetent> {
         switch panel {
         case .format, .numberFormat, .rowsAndColumns: return [.medium]
-        case .functions, .chart, .comment, .find: return [.medium, .large]
+        case .functions, .chart, .comment, .find, .names: return [.medium, .large]
         }
     }
     #endif
@@ -418,6 +423,17 @@ struct WorkbookView: View {
                 Section { findButton }
                 Section { shareButton }
             }
+            if state.allowsFreezingPanes, !activeSheet.isChartSheet, state.activeCanvas(in: document.workbook) == nil {
+                Section { viewMenu }
+            }
+            if state.allowsDefinedNames {
+                Section {
+                    Button("Toolbar.Names", systemImage: "character.textbox") {
+                        state.presentedPanel = .names
+                    }
+                    .accessibilityIdentifier("names")
+                }
+            }
             Section {
                 if !document.unsupportedFeatures.isEmpty {
                     Button("Toolbar.UnsupportedFeatures.Label", systemImage: "exclamationmark.triangle") {
@@ -431,6 +447,24 @@ struct WorkbookView: View {
             }
         }
         .accessibilityIdentifier("more")
+    }
+
+    /// The active sheet's view options, each a toggle.
+    private var viewMenu: some View {
+        Menu("Toolbar.View", systemImage: "eye") {
+            Toggle("View.GridLines", systemImage: "grid", isOn: viewOption(\.showsGridLines))
+            Toggle("View.Headings", systemImage: "textformat.abc", isOn: viewOption(\.showsHeadings))
+            Toggle("View.ShowZeros", systemImage: "0.square", isOn: viewOption(\.showsZeros))
+            Toggle("View.ShowFormulas", systemImage: "function", isOn: viewOption(\.showsFormulas))
+        }
+        .accessibilityIdentifier("viewOptions")
+    }
+
+    private func viewOption(_ option: WritableKeyPath<Worksheet, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { activeSheet[keyPath: option] },
+            set: { state.setViewOption(option, to: $0, in: &document.workbook) }
+        )
     }
     #endif
 
