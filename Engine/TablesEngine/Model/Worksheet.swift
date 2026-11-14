@@ -246,6 +246,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// what ties the sheet to its document module, so it has to survive a save
     /// for the macros to keep working.
     public var codeName: String?
+    /// The sheet's protection, when the file has any: see `SheetProtection`.
+    public var protection: SheetProtection?
     /// Worksheet children we do not understand, in the order the file had them.
     public var preservedElements: [PreservedElement] = []
     /// Where rows and columns were in the file, kept for a file saved by

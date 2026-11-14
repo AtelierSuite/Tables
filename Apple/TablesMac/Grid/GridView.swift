@@ -613,6 +613,7 @@ final class GridView: NSView, NSTextFieldDelegate {
             // Typing over a cell starts an edit, and the keystroke goes to the
             // editor so an input method sees it from the first key.
             beginEditing(at: document.state.selectedAddress, seed: "")
+            guard document.state.editingAddress != nil else { return }
             isEnteringByTyping = true
             editor?.currentEditor()?.keyDown(with: event)
             return
@@ -734,6 +735,8 @@ final class GridView: NSView, NSTextFieldDelegate {
         state.beginEditing(address, in: document.workbook, replacingWith: seed)
         state.isFormulaBarActive = false
         document.notify()
+        // A locked cell on a protected sheet doesn't open.
+        guard state.editingAddress != nil else { return }
         if let editor {
             window?.makeFirstResponder(editor)
             editor.currentEditor()?.selectedRange = NSRange(location: editor.stringValue.utf16.count, length: 0)

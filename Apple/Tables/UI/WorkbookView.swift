@@ -210,6 +210,7 @@ struct WorkbookView: View {
             .presentationBackground(.regularMaterial)
         }
         #endif
+        .modifier(ProtectionPrompt(workbook: workbook, state: state))
         .alert(
             "Alert.Error.Title",
             isPresented: Binding(
@@ -350,9 +351,16 @@ struct WorkbookView: View {
             pendingReconciliation = nil
             if reconciled == new { return }
         }
-        guard let source = document.numbersSource else { return history.record(from: old, to: new) }
-        let (allowed, violation) = NumbersEditPolicy.reconcile(new, from: old, source: source)
-        if let violation { state.errorMessage = violation.localizedDescription }
+        // An undo or redo puts back a workbook that was let through once already.
+        guard !history.isRestoring(new) else { return history.record(from: old, to: new) }
+        // Whatever a protected sheet or workbook doesn't allow is taken back out.
+        var (allowed, refusal) = ProtectionPolicy.reconcile(new, from: old)
+        if let refusal { state.errorMessage = refusal.localizedDescription }
+        if let source = document.numbersSource {
+            let (saveable, violation) = NumbersEditPolicy.reconcile(allowed, from: old, source: source)
+            if let violation { state.errorMessage = violation.localizedDescription }
+            allowed = saveable
+        }
         if allowed != new {
             // Putting it back is itself a change, reported in a moment; the
             // step it completes is the one recorded here.
@@ -909,5 +917,36 @@ private struct UnsupportedFeatureNotice: View {
         .frame(idealWidth: 300, maxWidth: 340, alignment: .leading)
         // iPhone turns a popover into a sheet unless it is told not to.
         .presentationCompactAdaptation(.popover)
+    }
+}
+
+/// Asks for the password, optional when protecting, while
+/// `state.protectionRequest` waits on an answer. A modifier of its own
+/// keeps the workbook view's body within what the type checker manages.
+private struct ProtectionPrompt: ViewModifier {
+    @Binding var workbook: Workbook
+    let state: EditorState
+    @State private var password = ""
+
+    func body(content: Content) -> some View {
+        content.alert(
+            state.protectionRequest?.heading ?? "",
+            isPresented: Binding(
+                get: { state.protectionRequest != nil },
+                set: { if !$0 { state.protectionRequest = nil } }
+            ),
+            presenting: state.protectionRequest
+        ) { request in
+            SecureField(
+                String(localized: request.isProtecting ? "Protection.Password.Optional" : "Protection.Password"),
+                text: $password)
+            Button(String(localized: request.isProtecting ? "Protection.Protect" : "Protection.Unprotect")) {
+                state.complete(request, password: password, in: &workbook)
+                password = ""
+            }
+            Button("Common.Cancel", role: .cancel) { password = "" }
+        } message: { request in
+            Text(request.message)
+        }
     }
 }

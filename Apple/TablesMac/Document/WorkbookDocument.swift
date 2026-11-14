@@ -176,6 +176,10 @@ final class WorkbookDocument: NSDocument {
         let old = file.workbook
         var new = old
         change(&new)
+        // Whatever a protected sheet or workbook doesn't allow is taken back out.
+        let (permitted, refusal) = ProtectionPolicy.reconcile(new, from: old)
+        if let refusal { state.errorMessage = refusal.localizedDescription }
+        new = permitted
         guard new != old else { return notify() }
         if let source = file.numbersSource {
             let (allowed, violation) = NumbersEditPolicy.reconcile(new, from: old, source: source)

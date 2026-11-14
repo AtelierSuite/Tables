@@ -143,6 +143,9 @@ final class EditorState {
     var clipboardOrigin: CellAddress?
     /// Whether the toolbar's popover about parts of the file we cannot edit is up.
     var isShowingUnsupportedFeatureNotice = false
+    /// The protection question waiting on a password, where the editor asks
+    /// it from the session.
+    var protectionRequest: ProtectionRequest?
 
     // MARK: - Sheet resolution
 

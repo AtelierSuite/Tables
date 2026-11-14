@@ -260,6 +260,11 @@ enum MainMenu {
         menu.addItem(item(String(localized: "SheetTabBar.Menu.Hide"), #selector(WorkbookViewController.hideSheet(_:))))
         menu.addItem(item(String(localized: "SheetTabBar.Menu.Delete"), #selector(WorkbookViewController.deleteSheet(_:))))
         menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Protection.ProtectSheet"),
+                          #selector(WorkbookViewController.toggleSheetProtection(_:))))
+        menu.addItem(item(String(localized: "Protection.ProtectWorkbook"),
+                          #selector(WorkbookViewController.toggleWorkbookProtection(_:))))
+        menu.addItem(.separator())
         menu.addItem(item(String(localized: "Canvas.ShowTableName"), #selector(WorkbookViewController.toggleTableName(_:))))
         menu.addItem(item(String(localized: "Canvas.MoveToOwnSheet"),
                           #selector(WorkbookViewController.moveTableToOwnSheet(_:))))

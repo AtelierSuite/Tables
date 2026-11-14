@@ -26,8 +26,13 @@ extension EditorState {
         // A merged region has one editable cell: the one whose content it shows.
         let target = sheet.mergedRange(containing: address)?.normalized.start ?? address
         select(target, in: sheet)
+        // A locked cell on a protected sheet says so now, not after typing.
+        guard !sheet.isReadOnly(at: target) else {
+            errorMessage = ProtectionPolicy.Violation.lockedCell.localizedDescription
+            return
+        }
         editingAddress = target
-        editingText = seed ?? sheet[target].editableText
+        editingText = seed ?? sheet.editableText(at: target)
         scrollTarget = target
     }
 
@@ -631,16 +636,19 @@ extension EditorState {
     // MARK: - Sheets
 
     func addSheet(in workbook: inout Workbook) {
+        guard allowsChangingSheets(in: workbook) else { return }
         let id = workbook.addSheet()
         selectSheet(id, in: workbook)
     }
 
     func duplicateActiveSheet(in workbook: inout Workbook) {
+        guard allowsChangingSheets(in: workbook) else { return }
         guard let id = workbook.duplicateSheet(activeSheet(in: workbook).id) else { return }
         selectSheet(id, in: workbook)
     }
 
     func deleteSheet(_ id: Worksheet.ID, in workbook: inout Workbook) {
+        guard allowsChangingSheets(in: workbook) else { return }
         guard workbook.sheets.count > 1 else {
             errorMessage = String(localized: "Error.Workbook.NeedsOneSheet")
             return
@@ -654,6 +662,7 @@ extension EditorState {
 
     /// Hides or reveals a sheet, leaving at least one on the tab strip.
     func setSheet(_ id: Worksheet.ID, hidden: Bool, in workbook: inout Workbook) {
+        guard allowsChangingSheets(in: workbook) else { return }
         guard workbook.setSheet(id, hidden: hidden) else {
             errorMessage = String(localized: "Error.Workbook.NeedsOneVisibleSheet")
             return

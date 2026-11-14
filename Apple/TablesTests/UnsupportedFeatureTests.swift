@@ -564,7 +564,7 @@ struct UnsupportedFeatureTests {
             contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"
         )
         let data = try package(
-            sheets: ["<sheetProtection sheet=\"1\"/>"],
+            sheets: ["<protectedRanges><protectedRange sqref=\"A1\" name=\"Inputs\"/></protectedRanges>"],
             extraParts: [table, pivot],
             sheetRelationships: [
                 0: "<Relationship Id=\"rId1\" "
