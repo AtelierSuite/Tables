@@ -458,6 +458,26 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         alert.beginSheetModal(for: window)
     }
 
+    // MARK: - PivotTables
+
+    /// Works every PivotTable out again from its source, as one undo step,
+    /// or says why it can't and changes nothing.
+    @objc func refreshPivotTables(_ sender: Any?) {
+        guard let document, let window = view.window else { return }
+        var refreshed = document.workbook
+        do {
+            try refreshed.refreshAllPivotTables()
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Pivot.RefreshFailed")
+            alert.informativeText = (error as? PivotRefreshError)?.message ?? error.localizedDescription
+            alert.addButton(withTitle: String(localized: "Common.OK"))
+            alert.beginSheetModal(for: window)
+            return
+        }
+        edit { _, workbook in workbook = refreshed }
+    }
+
     // MARK: - Context menus
 
     /// The menu for a right-click on a cell.
@@ -651,6 +671,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
             return state.allowsDefinedNames
         case #selector(showUnsupportedFeatures(_:)):
             return !document.unsupportedFeatures.isEmpty
+        case #selector(refreshPivotTables(_:)):
+            return !document.workbook.pivotTables.isEmpty
         case #selector(showMacros(_:)):
             // Delimited text and Numbers documents have nowhere to keep macros.
             return !document.isPlainText && !document.isNumbers
