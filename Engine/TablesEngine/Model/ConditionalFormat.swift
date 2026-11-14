@@ -209,6 +209,7 @@ extension Worksheet {
     /// hidden, a zero is drawn as nothing at all.
     public func displayedCell(at address: CellAddress) -> Cell {
         var cell = self[address]
+        if let table = tableFormat(at: address) { cell.style = table.applied(to: cell.style, at: address) }
         if let conditional = conditionalStyles[address] {
             cell.style = conditional.applied(to: cell.style)
             // A bar or icon shown in place of the value: nothing is left to draw as text.

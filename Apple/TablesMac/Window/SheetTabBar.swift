@@ -195,6 +195,7 @@ final class SheetTabBar: NSVisualEffectView, NSTextFieldDelegate {
     func beginRenaming(_ id: Worksheet.ID) {
         guard let document, let tab = tabStack.arrangedSubviews.compactMap({ $0 as? SheetTab })
             .first(where: { $0.sheetID == id }), let sheet = document.workbook[id] else { return }
+        guard document.state.allowsChangingSheets(in: document.workbook) else { return document.notify() }
         // A canvas's tab is the canvas's name, which only a file that keeps
         // canvases can change.
         let isCanvas = !tables(sharingTabWith: sheet, in: document).isEmpty

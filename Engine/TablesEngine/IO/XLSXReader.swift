@@ -22,6 +22,9 @@ public enum XLSXReader {
         let styleSheetElements = preservedStyleSheetElements(entries["xl/styles.xml"])
         let hasDifferentialFormats = styleSheetElements.contains { $0.name == "dxfs" }
         let differentialStyles = parseDifferentialStyles(entries["xl/styles.xml"], theme: theme)
+        let indexedPalette = ThemeColorPalette.indexedColors(
+            styleSheet: entries["xl/styles.xml"].flatMap { try? XMLLite.parse($0) }
+        )
 
         // Workbooks written on the classic Mac epoch count days from 1904.
         // Serials are normalized to the 1900 system on the way in so nothing
@@ -74,11 +77,14 @@ public enum XLSXReader {
                 sheet.preservedElements = preservedChildren(of: sheetXML, hasDifferentialFormats: false)
                     .filter { ChartWriter.chartSheetChildOrder.contains($0.name) }
             } else {
+                // Before the sheet is parsed: keeping its `extLst` takes the sparklines out of it.
+                let sparklines = SparklineParts.groups(in: sheetXML, theme: theme, palette: indexedPalette)
                 sheet = parseSheet(
                     sheetXML, name: name, sharedStrings: sharedStrings, styles: styles,
                     usesMacEpoch: usesMacEpoch, hasDifferentialFormats: hasDifferentialFormats,
                     differentialStyles: differentialStyles, theme: theme
                 )
+                sheet.sparklineGroups = sparklines
             }
             // The drawing is regenerated from the model on every save, so the
             // element naming it is too.
@@ -96,6 +102,11 @@ public enum XLSXReader {
             sheet.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
             if sheet.kind == .worksheet {
                 sheet.codeName = sheetXML.firstChild(named: "sheetPr")?.attribute("codeName")
+                let fits = sheetXML.firstChild(named: "sheetPr")?.firstChild(named: "pageSetUpPr")?.attribute("fitToPage")
+                sheet.printsFittedToPages = fits == "1" || fits == "true"
+                // Protection is modelled, and written from the model.
+                sheet.protection = sheetXML.firstChild(named: "sheetProtection").map(SheetProtection.init)
+                sheet.preservedElements.removeAll { $0.name == "sheetProtection" }
             }
             sheets.append(sheet)
             sheetPaths.append(entries[path] != nil ? path : fallbackPath)
@@ -231,7 +242,9 @@ public enum XLSXReader {
                     .compactMap(\.withoutSheetRelationships)
             }
             let kept = Set(workbook.sheets[index].preservedElements.map(\.name))
-            for finding in sheetFindings[index] {
+            // A filter read into the model is shown and applied, not merely kept.
+            for finding in sheetFindings[index]
+            where finding.feature != .autoFilter || workbook.sheets[index].autoFilter == nil {
                 report.record(finding.feature, isPreserved: kept.contains(finding.elementName))
             }
         }
@@ -239,6 +252,15 @@ public enum XLSXReader {
         workbook.unsupportedFeatures = report
         workbook.documentProperties = DocumentPropertiesParts.read(from: preserved)
         workbook.tables = readTables(workbook: workbook, preserved: preserved, sheetPaths: sheetPaths)
+        for table in workbook.tables {
+            // A style the workbook defines itself has no reading, and draws nothing.
+            guard let info = table.style, let name = info.name,
+                  let definition = TableStyleDefinition.builtIn(named: name, theme: theme),
+                  let index = workbook.sheets.firstIndex(where: { $0.id == table.sheetID }) else { continue }
+            workbook.sheets[index].tableFormats.append(TableFormat(
+                range: table.range, headerRowCount: table.headerRowCount, totalsRowCount: table.totalsRowCount,
+                info: info, definition: definition, defaultTextColorHex: styles.first?.textColorHex))
+        }
         PivotParts.read(into: &workbook, workbookXML: workbookXML,
                         workbookRelationships: entries["xl/_rels/workbook.xml.rels"], sheetPaths: sheetPaths)
         workbook.recalculate()
@@ -257,11 +279,12 @@ public enum XLSXReader {
             let feature: UnsupportedFeature?
             switch child.name {
             case "conditionalFormatting": feature = .conditionalFormatting
-            case "dataValidations": feature = .dataValidation
             case "autoFilter": feature = .autoFilter
-            case "sheetProtection": feature = .sheetProtection
             case "tableParts": feature = .tables
-            case "printOptions", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "legacyDrawingHF":
+            case "rowBreaks", "colBreaks", "legacyDrawingHF":
+                // The page setup itself, its print options and the header
+                // and footer text are editable; breaks and pictures in a
+                // header are only kept.
                 feature = .printSetup
             case "protectedRanges": feature = .sheetProtection
             case "customSheetViews": feature = .customViews
@@ -281,9 +304,7 @@ public enum XLSXReader {
                 // silently, as the other unremarkable sheet settings do.
                 let contents = Set(child.children(named: "ext").filter { !namesRelationship($0) }
                     .flatMap { $0.children.map(\.name) })
-                if contents.contains("sparklineGroups") { findings.append((.sparklines, child.name)) }
                 if contents.contains("conditionalFormattings") { findings.append((.conditionalFormatting, child.name)) }
-                if contents.contains("dataValidations") { findings.append((.dataValidation, child.name)) }
                 feature = nil
             default:
                 feature = nil
@@ -517,18 +538,35 @@ public enum XLSXReader {
                 style.numberFormat = numberFormats[formatID] ?? "General"
             }
             if let alignment = element.firstChild(named: "alignment") {
+                // A spread is set after the alignment it falls back to, which clears it.
                 switch alignment.attribute("horizontal") {
                 case "left": style.horizontalAlignment = .leading
-                case "center", "centerContinuous": style.horizontalAlignment = .center
+                case "center": style.horizontalAlignment = .center
                 case "right": style.horizontalAlignment = .trailing
+                case "justify":
+                    style.horizontalAlignment = .leading
+                    style.horizontalSpread = .justify
+                case "distributed":
+                    style.horizontalAlignment = .center
+                    style.horizontalSpread = .distributed
+                case "centerContinuous":
+                    style.horizontalAlignment = .center
+                    style.horizontalSpread = .centerAcrossSelection
                 default: style.horizontalAlignment = .automatic
                 }
                 switch alignment.attribute("vertical") {
                 case "top": style.verticalAlignment = .top
-                case "center", "justify", "distributed": style.verticalAlignment = .middle
+                case "center": style.verticalAlignment = .middle
+                case "justify":
+                    style.verticalAlignment = .top
+                    style.verticalSpread = .justify
+                case "distributed":
+                    style.verticalAlignment = .middle
+                    style.verticalSpread = .distributed
                 // OOXML's default for a missing or unrecognised `vertical` is bottom.
                 default: style.verticalAlignment = .bottom
                 }
+                style.shrinksToFit = isTrue(alignment.attribute("shrinkToFit"))
                 style.wrapsText = isTrue(alignment.attribute("wrapText"))
                 style.indent = alignment.attribute("indent").flatMap(Int.init).map { max(0, $0) } ?? 0
                 if let rotation = alignment.attribute("textRotation").flatMap(Int.init),
@@ -583,9 +621,13 @@ public enum XLSXReader {
             let style = column.attribute("style").flatMap(Int.init)
                 .flatMap { styles.indices.contains($0) ? styles[$0] : nil }
                 .flatMap { $0.isDefault ? nil : $0 }
+            let outlineLevel = column.attribute("outlineLevel").flatMap(Int.init) ?? 0
+            let collapsed = isTrue(column.attribute("collapsed"))
             for index in first...upper {
                 let zeroBased = index - 1
                 if hidden { sheet.hiddenColumns.insert(zeroBased) }
+                if outlineLevel > 0 { sheet.columnOutline.setLevel(outlineLevel, of: zeroBased) }
+                if collapsed { sheet.columnOutline.collapsed.insert(zeroBased) }
                 if let style { sheet.columnStyles[zeroBased] = style }
                 if let width, width > 0, isTrue(column.attribute("customWidth")) {
                     sheet.columnWidths[zeroBased] = width
@@ -599,6 +641,10 @@ public enum XLSXReader {
             maximumRow = max(maximumRow, rowNumber)
 
             if isTrue(rowElement.attribute("hidden")) { sheet.hiddenRows.insert(rowIndex) }
+            if let level = rowElement.attribute("outlineLevel").flatMap(Int.init), level > 0 {
+                sheet.rowOutline.setLevel(level, of: rowIndex)
+            }
+            if isTrue(rowElement.attribute("collapsed")) { sheet.rowOutline.collapsed.insert(rowIndex) }
             // `s` counts only with `customFormat`. A row's format wins over its
             // columns', so even the default one is kept when a column has its own.
             if isTrue(rowElement.attribute("customFormat")),
@@ -675,15 +721,29 @@ public enum XLSXReader {
         sheet.hiddenRows = sheet.hiddenRows.filter { $0 < sheet.rowCount }
         sheet.rowStyles = sheet.rowStyles.filter { $0.key < sheet.rowCount }
         sheet.hiddenColumns = sheet.hiddenColumns.filter { $0 < sheet.columnCount }
+        // Where each group's button goes, before or after it.
+        if let outline = root.firstChild(named: "sheetPr")?.firstChild(named: "outlinePr") {
+            sheet.rowOutline.summaryAfter = outline.attribute("summaryBelow").map(isTrue) ?? true
+            sheet.columnOutline.summaryAfter = outline.attribute("summaryRight").map(isTrue) ?? true
+        }
+        sheet.rowOutline.levels = sheet.rowOutline.levels.filter { $0.key < sheet.rowCount }
+        sheet.columnOutline.levels = sheet.columnOutline.levels.filter { $0.key < sheet.columnCount }
+        // A collapsed mark may sit on the line just past the sheet's last.
+        sheet.rowOutline.collapsed = sheet.rowOutline.collapsed.filter { $0 <= sheet.rowCount }
+        sheet.columnOutline.collapsed = sheet.columnOutline.collapsed.filter { $0 <= sheet.columnCount }
         // `merge` rejects anything that would overlap what is already there, so
         // a file with contradictory regions loses the later ones rather than
         // becoming a sheet we cannot draw.
         for range in merges { sheet.merge(range) }
+        // Read before the kept children are gathered, which takes the
+        // validations' `x14` extension out of the tree.
+        sheet.dataValidations = DataValidationParts.read(from: root)
         sheet.preservedElements = preservedChildren(
             of: root, hasDifferentialFormats: hasDifferentialFormats
         )
         sheet.conditionalRules = conditionalRules(in: root, styles: differentialStyles, theme: theme)
         readFrozenPanes(into: &sheet)
+        sheet.readAutoFilter()
         readViewOptions(into: &sheet)
         return sheet
     }
@@ -895,7 +955,7 @@ public enum XLSXReader {
     /// drawing we regenerate for notes.
     private static let preservedWorksheetChildNames: Set<String> = [
         "sheetViews", "sheetProtection", "protectedRanges", "autoFilter", "sortState",
-        "phoneticPr", "conditionalFormatting", "dataValidations", "hyperlinks",
+        "phoneticPr", "conditionalFormatting", "hyperlinks",
         "printOptions", "pageMargins", "pageSetup", "headerFooter", "rowBreaks", "colBreaks",
         "ignoredErrors", "drawing", "legacyDrawing", "legacyDrawingHF", "controls", "tableParts", "extLst",
     ]
@@ -962,6 +1022,14 @@ public enum XLSXReader {
                 // conditional formats and validations — always.
                 for ext in child.children(named: "ext")
                 where namesRelationship(ext) && ext.firstChild(named: "slicerList") == nil {
+                    child.removeChild(ext)
+                }
+                // The validations Excel 2010 keeps here are read into the model.
+                for ext in child.children(named: "ext") where DataValidationParts.isValidationExtension(ext) {
+                    child.removeChild(ext)
+                }
+                // Sparklines are read into the sheet and written from it.
+                for ext in child.children(named: "ext") where SparklineParts.isSparklineExtension(ext) {
                     child.removeChild(ext)
                 }
                 guard !child.children.isEmpty else { return nil }
@@ -1368,13 +1436,27 @@ public enum XLSXReader {
                       let data = preserved.parts[path], let root = try? XMLLite.parse(data),
                       let name = root.attribute("displayName") ?? root.attribute("name"),
                       let ref = root.attribute("ref"), let range = CellRange(a1Range: ref)?.normalized else { continue }
-                let columns = root.firstChild(named: "tableColumns")?.children(named: "tableColumn")
-                    .map { $0.attribute("name") ?? "" } ?? []
+                let columnElements = root.firstChild(named: "tableColumns")?.children(named: "tableColumn") ?? []
+                let columns = columnElements.map { $0.attribute("name") ?? "" }
+                let style = root.firstChild(named: "tableStyleInfo").map { info in
+                    TableStyleInfo(
+                        name: info.attribute("name"),
+                        showsFirstColumn: isTrue(info.attribute("showFirstColumn")),
+                        showsLastColumn: isTrue(info.attribute("showLastColumn")),
+                        showsRowStripes: isTrue(info.attribute("showRowStripes")),
+                        showsColumnStripes: isTrue(info.attribute("showColumnStripes")))
+                }
+                let details = columnElements.map { column in
+                    TableColumnDetail(
+                        totalsFunction: column.attribute("totalsRowFunction").flatMap { $0 == "none" ? nil : $0 },
+                        totalsLabel: column.attribute("totalsRowLabel"),
+                        calculatedFormula: column.firstChild(named: "calculatedColumnFormula")?.text)
+                }
                 tables.append(TableDefinition(
                     name: name, sheetID: sheet.id, range: range,
                     headerRowCount: root.attribute("headerRowCount").flatMap(Int.init) ?? 1,
                     totalsRowCount: root.attribute("totalsRowCount").flatMap(Int.init) ?? 0,
-                    columns: columns))
+                    columns: columns, style: style, columnDetails: details))
             }
         }
         return tables

@@ -8,7 +8,8 @@ extension FormulaFunctions {
             guard let operation = FormulaSubtotal.Operation(code: ignoresHidden ? code - 100 : code),
                   operation.rawValue <= 11 else { throw .valueError }
             let cells = try FormulaSubtotal.cells(
-                call, from: 1, skippingHidden: ignoresHidden, skippingNested: true, skippingErrors: false)
+                call, from: 1, skippingHidden: ignoresHidden, skippingFiltered: true, skippingNested: true,
+                skippingErrors: false)
             return try FormulaSubtotal.apply(operation, to: cells)
         },
         "AGGREGATE": FunctionSpec(3...255, lifts: .only([0, 1])) { call throws(CellError) in
@@ -51,7 +52,7 @@ public enum FormulaSubtotal {
     /// The values of the arguments from `start`, leaving out what the options say to.
     public static func cells(
         _ call: FunctionCall, from start: Int, through end: Int? = nil,
-        skippingHidden: Bool, skippingNested: Bool, skippingErrors: Bool
+        skippingHidden: Bool, skippingFiltered: Bool = false, skippingNested: Bool, skippingErrors: Bool
     ) throws(CellError) -> [CellValue] {
         var result: [CellValue] = []
         for index in start...(end ?? (call.count - 1)) where !call.isMissing(index) {
@@ -68,6 +69,7 @@ public enum FormulaSubtotal {
                 for (rowOffset, row) in values.enumerated() {
                     let rowIndex = start.row + rowOffset
                     if skippingHidden, call.context.isRowHidden(rowIndex, sheetName: reference.sheet) { continue }
+                    if skippingFiltered, call.context.isRowFiltered(rowIndex, sheetName: reference.sheet) { continue }
                     for (columnOffset, value) in row.enumerated() {
                         if skippingErrors, value.isError { continue }
                         if skippingNested {

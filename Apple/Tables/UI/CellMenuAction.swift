@@ -80,6 +80,7 @@ struct CellMenuBuilder {
                 ]
             }
         }
+        actions += sortAndFilterActions()
         actions += hyperlinkActions()
         if state.formatting.contains(.merging) {
             actions += mergeActions()
@@ -95,7 +96,62 @@ struct CellMenuBuilder {
                 },
             ]
         }
+        if state.allowsDataValidation {
+            actions.append(.separator)
+            // The cell's list, for when its arrow is out of reach.
+            if state.selection.normalized == CellRange(address), state.dropDownRule(in: workbook.wrappedValue) != nil {
+                actions.append(HeaderMenuAction(
+                    title: String(localized: "DataValidation.ChooseFromList"), symbol: "list.bullet",
+                    children: Self.listActions(workbook: workbook, state: state)))
+            }
+            actions.append(HeaderMenuAction(
+                title: String(localized: "DataValidation.Menu"), symbol: "checkmark.shield"
+            ) {
+                target()
+                state.isEditingDataValidation = true
+            })
+        }
         return actions
+    }
+
+    /// The entries of the selected cell's validation list, each entering itself.
+    static func listActions(workbook: Binding<Workbook>, state: EditorState) -> [HeaderMenuAction] {
+        (state.dropDownItems(in: workbook.wrappedValue) ?? []).map { entry in
+            HeaderMenuAction(title: entry) { state.enter(entry, in: &workbook.wrappedValue) }
+        }
+    }
+
+    /// Sorting the data around the cell, and its filter.
+    private func sortAndFilterActions() -> [HeaderMenuAction] {
+        var children = [
+            HeaderMenuAction(title: String(localized: "Sort.Ascending"), symbol: "arrow.up") {
+                target()
+                state.sortSelection(ascending: true, in: &workbook.wrappedValue)
+            },
+            HeaderMenuAction(title: String(localized: "Sort.Descending"), symbol: "arrow.down") {
+                target()
+                state.sortSelection(ascending: false, in: &workbook.wrappedValue)
+            },
+            HeaderMenuAction(title: String(localized: "Sort.Custom"), symbol: "arrow.up.arrow.down") {
+                target()
+                state.presentedPanel = .sort
+            },
+        ]
+        if state.allowsFiltering {
+            children.append(.separator)
+            children.append(
+                HeaderMenuAction(
+                    title: String(localized: "Filter.Show"), symbol: "line.3.horizontal.decrease.circle"
+                ) {
+                    target()
+                    state.showFilter(forColumn: address.column, in: workbook.wrappedValue)
+                })
+        }
+        return [
+            .separator,
+            HeaderMenuAction(
+                title: String(localized: "CellMenu.SortAndFilter"), symbol: "arrow.up.arrow.down", children: children),
+        ]
     }
 
     /// Following the cell's link, and adding, editing or removing it.

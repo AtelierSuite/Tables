@@ -152,18 +152,42 @@ final class WorkbookDocument: NSDocument {
 
     override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
         // Delimited text and Numbers documents have nowhere to keep them.
-        if item.action == #selector(showDocumentProperties(_:)) { return !file.isPlainText && !file.isNumbers }
+        if item.action == #selector(showDocumentProperties(_:)) || item.action == #selector(runPageLayout(_:)) {
+            return !file.isPlainText && !file.isNumbers
+        }
         return super.validateUserInterfaceItem(item)
+    }
+
+    // MARK: - Page setup
+
+    /// Shows the active sheet's page setup in a sheet on the window, in
+    /// place of the system's panel: the paper and orientation are the
+    /// sheet's, kept in the file, not the printer's.
+    override func runPageLayout(_ sender: Any?) {
+        guard let presenter = windowControllers.first?.window?.contentViewController else { return }
+        let sheetID = activeSheet.id
+        weak var sheet: NSViewController?
+        let host = NSHostingController(rootView: PageSetupPanel(
+            setup: workbook.printSetup(of: sheetID), selection: state.selection
+        ) { [weak self] edited in
+            if let edited { self?.edit { $0.setPrintSetup(edited, of: sheetID) } }
+            if let sheet { presenter.dismiss(sheet) }
+        })
+        host.sizingOptions = .preferredContentSize
+        sheet = host
+        presenter.presentAsSheet(host)
     }
 
     // MARK: - Printing
 
     override func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey: Any]) throws -> NSPrintOperation {
-        let view = SheetPrintView(sheet: activeSheet, in: workbook)
-        // Pages start at the top left of the paper, as Excel prints them.
-        printInfo.isHorizontallyCentered = false
-        printInfo.isVerticallyCentered = false
-        let operation = NSPrintOperation(view: view, printInfo: printInfo)
+        let sheet = activeSheet
+        let view = SheetPrintView(sheet: sheet, in: workbook, fileName: displayName)
+        // The sheet's own paper, orientation and gridlines, over whatever
+        // was last printed with.
+        let info = printInfo.copy() as? NSPrintInfo ?? printInfo
+        SheetPrintView.apply(sheet.pageSetup, to: info)
+        let operation = NSPrintOperation(view: view, printInfo: info)
         operation.jobTitle = displayName
         operation.printPanel.addAccessoryController(SheetPrintAccessory())
         return operation
@@ -176,6 +200,10 @@ final class WorkbookDocument: NSDocument {
         let old = file.workbook
         var new = old
         change(&new)
+        // Whatever a protected sheet or workbook doesn't allow is taken back out.
+        let (permitted, refusal) = ProtectionPolicy.reconcile(new, from: old)
+        if let refusal { state.errorMessage = refusal.localizedDescription }
+        new = permitted
         guard new != old else { return notify() }
         if let source = file.numbersSource {
             let (allowed, violation) = NumbersEditPolicy.reconcile(new, from: old, source: source)
@@ -238,6 +266,7 @@ final class WorkbookDocument: NSDocument {
         state.allowsComments = !file.isPlainText && !file.isNumbers
         state.allowsDefinedNames = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
+        state.allowsDataValidation = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
         state.allowsLayingOutTables = !file.isPlainText
         state.isNumbersDocument = file.isNumbers
@@ -250,6 +279,7 @@ final class WorkbookDocument: NSDocument {
         state.allowsComments = !file.isPlainText && !file.isNumbers
         state.allowsDefinedNames = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
+        state.allowsDataValidation = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
         state.allowsLayingOutTables = !file.isPlainText
         state.isNumbersDocument = file.isNumbers

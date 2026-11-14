@@ -189,6 +189,27 @@ final class ChartContentView: NSView {
     }
 }
 
+/// A rectangle, oval, line or text box from the sheet's drawing, drawn by
+/// the same view the iPhone and iPad use.
+@MainActor
+final class ShapeContentView: NSView {
+    private var hosting: NSHostingView<DrawingShapeView>?
+
+    func show(_ shape: DrawingShape, zoom: Double) {
+        let view = DrawingShapeView(shape: shape, zoom: zoom)
+        if let hosting {
+            guard hosting.rootView != view else { return }
+            hosting.rootView = view
+        } else {
+            let hosting = NSHostingView(rootView: view)
+            hosting.frame = bounds
+            hosting.autoresizingMask = [.width, .height]
+            addSubview(hosting)
+            self.hosting = hosting
+        }
+    }
+}
+
 /// A picture kept from the file, or a placeholder for an object Tables
 /// keeps but cannot draw.
 @MainActor

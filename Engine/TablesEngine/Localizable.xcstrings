@@ -946,6 +946,41 @@
         }
       }
     },
+    "Chart.Kind.Bubble" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bubble"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バブル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "거품형"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "气泡图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "泡泡圖"
+          }
+        }
+      }
+    },
     "Chart.Kind.Column" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1086,6 +1121,41 @@
         }
       }
     },
+    "Chart.Kind.Radar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Radar"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "レーダー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "방사형"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雷达图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雷達圖"
+          }
+        }
+      }
+    },
     "Chart.Kind.Scatter" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1117,6 +1187,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "散佈圖"
+          }
+        }
+      }
+    },
+    "Chart.Kind.Stock" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stock"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "株価"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "주식형"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "股价图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "股票圖"
           }
         }
       }
@@ -2832,6 +2937,111 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "樞紐分析表將取代 %@ 附近儲存格的內容。"
+          }
+        }
+      }
+    },
+    "Protection.Restriction.LockedCell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cell is locked. Unprotect the sheet to change it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセルはロックされています。変更するにはシートの保護を解除してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 셀은 잠겨 있습니다. 변경하려면 시트 보호를 해제하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此单元格已锁定。若要更改，请取消工作表保护。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此儲存格已鎖定。若要更改，請取消工作表保護。"
+          }
+        }
+      }
+    },
+    "Protection.Restriction.SheetAction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This sheet is protected and doesn’t allow that change. Unprotect the sheet to make it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このシートは保護されており、この変更は許可されていません。変更するにはシートの保護を解除してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 시트는 보호되어 있어 해당 변경이 허용되지 않습니다. 변경하려면 시트 보호를 해제하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此工作表受保护，不允许进行该更改。若要更改，请取消工作表保护。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此工作表受保護，不允許進行該更改。若要更改，請取消工作表保護。"
+          }
+        }
+      }
+    },
+    "Protection.Restriction.WorkbookStructure" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This workbook is protected. Unprotect it to add, delete, rename, hide or move sheets."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このブックは保護されています。シートを追加、削除、名称変更、非表示、または移動するには、ブックの保護を解除してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 통합 문서는 보호되어 있습니다. 시트를 추가, 삭제, 이름 변경, 숨기기 또는 이동하려면 보호를 해제하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此工作簿受保护。若要添加、删除、重命名、隐藏或移动工作表，请取消工作簿保护。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此活頁簿受保護。若要加入、刪除、重新命名、隱藏或移動工作表，請取消活頁簿保護。"
           }
         }
       }

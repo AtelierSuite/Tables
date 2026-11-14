@@ -25,6 +25,8 @@ struct CellRenderer {
     /// a printout or preview of the cells in use does. Borders on its edges
     /// are kept inside it.
     var shownArea: CGRect?
+    /// Finds another sheet by name, for sparklines that plot its cells.
+    var sheets: ((String) -> Worksheet?)?
 
     /// `lookup` is one built from this version of `sheet`, kept from an
     /// earlier draw by a `SheetLookupCache`. Without one, it is built here,
@@ -128,8 +130,9 @@ struct CellRenderer {
             }
         }
         for entry in painted {
-            drawText(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow, context: context)
+            drawText(of: entry.cell, in: textFrame(of: entry.address), overflow: entry.overflow, context: context)
         }
+        drawSparklines(rows: rows, columns: columns, context: context)
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in merges {
             let frame = metrics.frame(for: merge)
@@ -171,6 +174,49 @@ struct CellRenderer {
         if drawsCommentMarks { drawCommentMarks(rows: rows, columns: columns, context: context) }
     }
 
+    // MARK: - Sparklines
+
+    /// The sparklines of the cells in view, from the values the sheet has now.
+    private func drawSparklines(rows: Range<Int>, columns: Range<Int>, context: CGContext) {
+        for address in sheet.sparklineLocations
+        where rows.contains(address.row) && columns.contains(address.column)
+            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
+            let frame = metrics.frame(for: sheet.mergedRange(containing: address)?.normalized ?? CellRange(address))
+            let shapes = sheet.sparklineShapes(at: address, in: frame, zoom: metrics.zoom, sheets: sheets)
+            guard !shapes.isEmpty else { continue }
+            context.saveGState()
+            context.clip(to: frame)
+            for shape in shapes {
+                switch shape {
+                case .polyline(let points, let width, let hex):
+                    context.setStrokeColor(sparklineColor(hex))
+                    context.setLineWidth(width)
+                    context.setLineJoin(.round)
+                    context.setLineCap(.round)
+                    context.addLines(between: points)
+                    context.strokePath()
+                case .axis(let from, let to, let width, let hex):
+                    context.setStrokeColor(sparklineColor(hex))
+                    context.setLineWidth(width)
+                    context.addLines(between: [from, to])
+                    context.strokePath()
+                case .bar(let rect, let hex):
+                    context.setFillColor(sparklineColor(hex))
+                    context.fill(rect)
+                case .marker(let center, let radius, let hex):
+                    context.setFillColor(sparklineColor(hex))
+                    context.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius,
+                                                   width: radius * 2, height: radius * 2))
+                }
+            }
+            context.restoreGState()
+        }
+    }
+
+    private func sparklineColor(_ hex: String) -> CGColor {
+        AdaptiveColor.resolve(hex: hex, for: scheme, isText: false).map { NSColor($0).cgColor } ?? Self.cgColor(hex)
+    }
+
     // MARK: - Overflow
 
     /// How far a cell's text may spill, noting the cell edges it actually
@@ -187,12 +233,23 @@ struct CellRenderer {
         if let reach = Worksheet.overflowReach(
             of: address.column, within: span, textWidth: width,
             alignment: CellFormatter.alignment(for: cell), padding: 6 * zoom, indent: style.indentPoints * zoom,
+            selection: sheet.centerAcrossSpan(of: address),
             columnWidth: { metrics.frame(for: CellAddress(row: address.row, column: $0)).width }
         ) {
             for column in reach.lowerBound..<reach.upperBound {
                 edges.insert(CellAddress(row: address.row, column: column))
             }
         }
+        return metrics.frame(for: CellRange(
+            start: CellAddress(row: address.row, column: span.lowerBound),
+            end: CellAddress(row: address.row, column: span.upperBound)
+        ))
+    }
+
+    /// Where a cell's text is set: in its own frame, or across the selection
+    /// it is centred across.
+    private func textFrame(of address: CellAddress) -> CGRect {
+        guard let span = sheet.centerAcrossSpan(of: address) else { return metrics.frame(for: address) }
         return metrics.frame(for: CellRange(
             start: CellAddress(row: address.row, column: span.lowerBound),
             end: CellAddress(row: address.row, column: span.upperBound)
@@ -418,19 +475,17 @@ struct CellRenderer {
 
         // The same padding the in-cell editor has, so opening it does not
         // shift the text.
-        var box = frame.insetBy(dx: 6 * zoom, dy: 2 * zoom)
-        let indent = style.indentPoints * zoom
-        if indent > 0 {
-            if horizontal != .trailing { box.origin.x += indent }
-            box.size.width -= indent
-        }
+        var box = TextFitting.indented(
+            frame.insetBy(dx: 6 * zoom, dy: 2 * zoom), by: style.indentPoints * zoom,
+            alignment: horizontal, spread: style.horizontalSpread
+        )
         guard box.width > 0, box.height > 0 else { return }
 
         // Excel never wraps a number or cuts one short: one too wide for its
         // cell shows as a row of #s.
         let isNumber: Bool
         if case .number = cell.value { isNumber = true } else { isNumber = false }
-        let wraps = (style.wrapsText && !isNumber) || style.isTextStacked
+        let wraps = ((style.wrapsText || style.spreadsText) && !isNumber) || style.isTextStacked
         var room = box.width
         if let overflow, !wraps {
             let reach = overflow.insetBy(dx: 6 * zoom, dy: 0)
@@ -444,6 +499,11 @@ struct CellRenderer {
 
         // The cell's text in its runs, where it has them.
         var text = Self.attributed(string, attributes: attributes, runsOf: cell, zoom: zoom, scheme: scheme)
+        // Justified and distributed text is set a line, word or character
+        // at a time.
+        if style.spreadsText, !isNumber, !style.isTextStacked, style.rotationDegrees == 0 {
+            return drawSpread(text, of: cell, in: box, clip: frame, context: context)
+        }
         var measured = text.boundingRect(
             with: CGSize(width: wraps ? box.width : Self.unbounded, height: Self.unbounded),
             options: [.usesLineFragmentOrigin]
@@ -452,6 +512,14 @@ struct CellRenderer {
         let turned = style.rotationDegrees != 0
         if turned, !wraps {
             room = TextFitting.runLength(of: style, in: box.size, lineHeight: measured.height)
+        }
+        // Shrink to fit sets text too wide for its cell smaller until it fits.
+        let shrink = turned ? 1 : TextFitting.shrinkScale(of: style, width: measured.width, room: box.width)
+        if shrink < 1 {
+            attributes[.font] = Self.font(for: style, zoom: zoom * shrink)
+            text = Self.attributed(string, attributes: attributes, runsOf: cell, zoom: zoom * shrink, scheme: scheme)
+            measured = text.size()
+            room = max(box.width, measured.width)
         }
         // A number a hair too wide may take some of the cell's padding before
         // it gives way to #s.
@@ -530,6 +598,31 @@ struct CellRenderer {
         } else {
             // Text longer than its room runs on and is clipped at the edge.
             text.draw(at: TextFitting.clippedLine(target, length: measured.width, alignment: horizontal).origin)
+        }
+        context.restoreGState()
+    }
+
+    /// Justified or distributed text: wrapped to `box` and drawn in the
+    /// pieces `TextFitting.spreadPieces` places, each in the runs it has.
+    private func drawSpread(_ text: NSAttributedString, of cell: Cell, in box: CGRect, clip: CGRect, context: CGContext) {
+        let substring = { (range: Range<Int>) in
+            text.attributedSubstring(from: NSRange(location: range.lowerBound, length: range.count))
+        }
+        // Every line as tall as the text set on one line.
+        let oneLine = NSMutableAttributedString(attributedString: text)
+        oneLine.mutableString.replaceOccurrences(
+            of: "\n", with: " ", options: [], range: NSRange(location: 0, length: oneLine.length)
+        )
+        let pieces = TextFitting.spreadPieces(
+            of: text.string, in: box.size, lineHeight: oneLine.size().height, style: cell.style,
+            alignment: CellFormatter.alignment(for: cell),
+            rightToLeft: TextFitting.baseDirection(of: text.string) == .rightToLeft,
+            measure: { substring($0).size().width }
+        )
+        context.saveGState()
+        context.clip(to: clip)
+        for piece in pieces {
+            substring(piece.range).draw(at: CGPoint(x: box.minX + piece.origin.x, y: box.minY + piece.origin.y))
         }
         context.restoreGState()
     }

@@ -126,7 +126,7 @@ enum MainMenu {
         menu.addItem(item(String(localized: "Canvas.NewTable"), #selector(WorkbookViewController.newTable(_:)),
                           "t", [.command, .option]))
         let charts = NSMenu(title: String(localized: "Toolbar.InsertChart"))
-        for kind in ChartKind.allCases {
+        for kind in ChartKind.creatable {
             let entry = item(kind.label, #selector(WorkbookViewController.insertChart(_:)))
             entry.representedObject = kind.rawValue
             entry.image = NSImage(systemSymbolName: kind.symbolName, accessibilityDescription: nil)
@@ -237,6 +237,20 @@ enum MainMenu {
         menu.addItem(item(String(localized: "HeaderMenu.Column.Hide"), #selector(WorkbookViewController.hideColumns(_:))))
         menu.addItem(item(String(localized: "Mac.Menu.UnhideAll"), #selector(WorkbookViewController.unhideAll(_:))))
         menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Sort.Ascending"), #selector(WorkbookViewController.sortAscending(_:))))
+        menu.addItem(item(String(localized: "Sort.Descending"), #selector(WorkbookViewController.sortDescending(_:))))
+        menu.addItem(item(String(localized: "Sort.Custom"), #selector(WorkbookViewController.showSortPanel(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Mac.Menu.Filter"), #selector(WorkbookViewController.toggleFilter(_:)),
+                          "l", [.command, .shift]))
+        menu.addItem(item(String(localized: "Filter.Show"), #selector(WorkbookViewController.showFilterPanel(_:))))
+        menu.addItem(item(String(localized: "Filter.ClearAll"), #selector(WorkbookViewController.clearFilters(_:))))
+        menu.addItem(item(String(localized: "Outline.GroupRows"), #selector(WorkbookViewController.groupRows(_:))))
+        menu.addItem(item(String(localized: "Outline.UngroupRows"), #selector(WorkbookViewController.ungroupRows(_:))))
+        menu.addItem(item(String(localized: "Outline.GroupColumns"), #selector(WorkbookViewController.groupColumns(_:))))
+        menu.addItem(item(String(localized: "Outline.UngroupColumns"),
+                          #selector(WorkbookViewController.ungroupColumns(_:))))
+        menu.addItem(.separator())
         menu.addItem(item(String(localized: "HeaderMenu.Column.FitToContents"),
                           #selector(WorkbookViewController.fitColumnWidth(_:))))
         menu.addItem(.separator())
@@ -248,6 +262,11 @@ enum MainMenu {
                           #selector(WorkbookViewController.duplicateSheet(_:))))
         menu.addItem(item(String(localized: "SheetTabBar.Menu.Hide"), #selector(WorkbookViewController.hideSheet(_:))))
         menu.addItem(item(String(localized: "SheetTabBar.Menu.Delete"), #selector(WorkbookViewController.deleteSheet(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item(String(localized: "Protection.ProtectSheet"),
+                          #selector(WorkbookViewController.toggleSheetProtection(_:))))
+        menu.addItem(item(String(localized: "Protection.ProtectWorkbook"),
+                          #selector(WorkbookViewController.toggleWorkbookProtection(_:))))
         menu.addItem(.separator())
         menu.addItem(item(String(localized: "Canvas.ShowTableName"), #selector(WorkbookViewController.toggleTableName(_:))))
         menu.addItem(item(String(localized: "Canvas.MoveToOwnSheet"),
@@ -299,6 +318,8 @@ enum MainMenu {
         let menu = NSMenu(title: String(localized: "Mac.Menu.Tools"))
         menu.addItem(item(String(localized: "Toolbar.Macros"), #selector(WorkbookViewController.showMacros(_:)),
                           "m", [.command, .shift]))
+        menu.addItem(item(String(localized: "DataValidation.Menu"),
+                          #selector(WorkbookViewController.editDataValidation(_:))))
         menu.addItem(item(String(localized: "Toolbar.UnsupportedFeatures.Label"),
                           #selector(WorkbookViewController.showUnsupportedFeatures(_:))))
         return menu

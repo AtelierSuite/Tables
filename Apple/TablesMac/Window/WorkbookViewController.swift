@@ -34,6 +34,10 @@ final class WorkbookViewController: NSViewController {
     var colorTarget = ColorTarget.fill
     /// The popover the comment on the selected cell is shown in.
     var commentPopover: NSPopover?
+    /// The popover the sort or filter panel is shown in, and what it shows.
+    var sortFilterPopover: NSPopover?
+    var sortFilterModel: HostedWorkbook?
+    var sortFilterPanel: EditorPanel?
     /// The sheet listing the workbook's names, while it is up.
     var namesSheet: NSViewController?
     var namesObserver: NSObjectProtocol?
@@ -190,7 +194,9 @@ final class WorkbookViewController: NSViewController {
         view.window?.invalidateCursorRects(for: rowHeader ?? view)
         updateTitleSubtitle(for: sheet)
         syncCommentPopover(in: document)
+        syncSortFilterPopover(in: document)
         showErrorIfNeeded(in: document)
+        showValidationAlertIfNeeded(in: document)
     }
 
     private func updateTitleSubtitle(for sheet: Worksheet) {
@@ -409,6 +415,7 @@ final class WorkbookViewController: NSViewController {
 
 extension WorkbookViewController: NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
+        if (notification.object as? NSPopover) === sortFilterPopover { return sortFilterPopoverDidClose() }
         guard (notification.object as? NSPopover) === commentPopover, let document else { return }
         commentPopover = nil
         if document.state.presentedPanel == .comment {

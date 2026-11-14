@@ -26,8 +26,13 @@ extension EditorState {
         // A merged region has one editable cell: the one whose content it shows.
         let target = sheet.mergedRange(containing: address)?.normalized.start ?? address
         select(target, in: sheet)
+        // A locked cell on a protected sheet says so now, not after typing.
+        guard !sheet.isReadOnly(at: target) else {
+            errorMessage = ProtectionPolicy.Violation.lockedCell.localizedDescription
+            return
+        }
         editingAddress = target
-        editingText = seed ?? sheet[target].editableText
+        editingText = seed ?? sheet.editableText(at: target)
         scrollTarget = target
     }
 
@@ -79,8 +84,15 @@ extension EditorState {
         let wasEditingInFormulaBar = isFormulaBarActive
         let index = activeIndex(in: workbook)
         let existing = workbook.sheets[index][address]
-        workbook.sheets[index][address] = CellInputParser.cell(from: editingText, replacing: existing)
-        workbook.recalculate()
+        let entered = CellInputParser.cell(from: editingText, replacing: existing)
+        // An entry the cell's validation rule fails is not written, and the
+        // selection stays on the cell for another try.
+        let isRefused = entered != existing
+            && refuses(entered, typedAs: editingText, at: address, in: workbook)
+        if !isRefused {
+            workbook.sheets[index][address] = entered
+            workbook.recalculate()
+        }
 
         editingAddress = nil
         editingText = ""
@@ -88,7 +100,7 @@ extension EditorState {
         pendingReferenceRange = nil
         select(address)
 
-        guard let advance else { return }
+        guard let advance, !isRefused else { return }
         move(advance, in: workbook.sheets[index])
         if keepingEditor {
             beginEditing(selectedAddress, in: workbook)
@@ -326,6 +338,49 @@ extension EditorState {
     func unhideEverything(in workbook: inout Workbook) {
         let index = activeIndex(in: workbook)
         workbook.sheets[index].unhideAll()
+        finishStructuralEdit(in: workbook)
+    }
+
+    // MARK: - Outlines
+
+    /// Groups the selected rows or columns one level deeper.
+    func groupSelection(_ axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let sheet = workbook.sheets[index]
+        workbook.sheets[index].group(axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet), axis: axis)
+        finishStructuralEdit(in: workbook)
+    }
+
+    func ungroupSelection(_ axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let sheet = workbook.sheets[index]
+        workbook.sheets[index].ungroup(axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet), axis: axis)
+        finishStructuralEdit(in: workbook)
+    }
+
+    /// Whether any selected line is grouped, so there is something to ungroup.
+    func canUngroupSelection(_ axis: OutlineAxis, in workbook: Workbook) -> Bool {
+        let sheet = activeSheet(in: workbook)
+        let lines = axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet)
+        return lines.contains { sheet.outline(axis).level(of: $0) > 0 }
+    }
+
+    /// Collapses an outline group when it is open and expands it when not:
+    /// what its button does.
+    func toggleOutlineGroup(_ group: LineOutline.Group, axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        if workbook.sheets[index].isCollapsed(group, axis: axis) {
+            workbook.sheets[index].expand(group, axis: axis)
+        } else {
+            workbook.sheets[index].collapse(group, axis: axis)
+        }
+        finishStructuralEdit(in: workbook)
+    }
+
+    /// Shows only the first `level` levels of an outline.
+    func showOutlineLevels(_ level: Int, axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        workbook.sheets[index].showOutlineLevels(level, axis: axis)
         finishStructuralEdit(in: workbook)
     }
 
@@ -581,16 +636,19 @@ extension EditorState {
     // MARK: - Sheets
 
     func addSheet(in workbook: inout Workbook) {
+        guard allowsChangingSheets(in: workbook) else { return }
         let id = workbook.addSheet()
         selectSheet(id, in: workbook)
     }
 
     func duplicateActiveSheet(in workbook: inout Workbook) {
+        guard allowsChangingSheets(in: workbook) else { return }
         guard let id = workbook.duplicateSheet(activeSheet(in: workbook).id) else { return }
         selectSheet(id, in: workbook)
     }
 
     func deleteSheet(_ id: Worksheet.ID, in workbook: inout Workbook) {
+        guard allowsChangingSheets(in: workbook) else { return }
         guard workbook.sheets.count > 1 else {
             errorMessage = String(localized: "Error.Workbook.NeedsOneSheet")
             return
@@ -604,6 +662,7 @@ extension EditorState {
 
     /// Hides or reveals a sheet, leaving at least one on the tab strip.
     func setSheet(_ id: Worksheet.ID, hidden: Bool, in workbook: inout Workbook) {
+        guard allowsChangingSheets(in: workbook) else { return }
         guard workbook.setSheet(id, hidden: hidden) else {
             errorMessage = String(localized: "Error.Workbook.NeedsOneVisibleSheet")
             return
