@@ -88,6 +88,8 @@ public enum XLSXReader {
             sheet.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
             if sheet.kind == .worksheet {
                 sheet.codeName = sheetXML.firstChild(named: "sheetPr")?.attribute("codeName")
+                let fits = sheetXML.firstChild(named: "sheetPr")?.firstChild(named: "pageSetUpPr")?.attribute("fitToPage")
+                sheet.printsFittedToPages = fits == "1" || fits == "true"
             }
             sheets.append(sheet)
             sheetPaths.append(entries[path] != nil ? path : fallbackPath)
@@ -250,7 +252,10 @@ public enum XLSXReader {
             case "sheetProtection": feature = .sheetProtection
             case "hyperlinks": feature = .hyperlinks
             case "tableParts": feature = .tables
-            case "printOptions", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "legacyDrawingHF":
+            case "rowBreaks", "colBreaks", "legacyDrawingHF":
+                // The page setup itself, its print options and the header
+                // and footer text are editable; breaks and pictures in a
+                // header are only kept.
                 feature = .printSetup
             case "protectedRanges": feature = .sheetProtection
             case "customSheetViews": feature = .customViews

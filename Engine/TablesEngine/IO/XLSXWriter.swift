@@ -561,8 +561,10 @@ public enum XLSXWriter {
             fragments.append((order, fragments.count, body))
         }
 
-        if let codeName = sheet.codeName {
-            add("sheetPr", "<sheetPr codeName=\"\(XMLLite.escape(codeName))\"/>")
+        if sheet.codeName != nil || sheet.printsFittedToPages {
+            let codeName = sheet.codeName.map { " codeName=\"\(XMLLite.escape($0))\"" } ?? ""
+            let fit = sheet.printsFittedToPages ? "<pageSetUpPr fitToPage=\"1\"/>" : ""
+            add("sheetPr", fit.isEmpty ? "<sheetPr\(codeName)/>" : "<sheetPr\(codeName)>\(fit)</sheetPr>")
         }
         add("dimension", "<dimension ref=\"A1:\(CellAddress(row: sheet.rowCount - 1, column: sheet.columnCount - 1).a1)\"/>")
 

@@ -224,6 +224,10 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// what ties the sheet to its document module, so it has to survive a save
     /// for the macros to keep working.
     public var codeName: String?
+    /// Whether the sheet prints shrunk to a number of pages rather than at a
+    /// scale: `fitToPage` in the file's `<pageSetUpPr>`. The numbers of pages
+    /// are in the kept `<pageSetup>`; see `pageSetup`.
+    public var printsFittedToPages = false
     /// Worksheet children we do not understand, in the order the file had them.
     public var preservedElements: [PreservedElement] = []
     /// Where rows and columns were in the file, kept for a file saved by
