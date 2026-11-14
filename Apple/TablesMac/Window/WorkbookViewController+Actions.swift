@@ -537,6 +537,11 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(setNumberFormat(_:)):
             let preset = NumberFormatPreset.preset(forCode: style.numberFormat)
             menuItem.state = preset?.rawValue == representedString(menuItem) ? .on : .off
+        case #selector(toggleSheetProtection(_:)):
+            menuItem.title = String(localized: sheet.isProtected ? "Protection.UnprotectSheet" : "Protection.ProtectSheet")
+        case #selector(toggleWorkbookProtection(_:)):
+            menuItem.title = String(
+                localized: document.workbook.isStructureLocked ? "Protection.UnprotectWorkbook" : "Protection.ProtectWorkbook")
         default: break
         }
         return isEnabled(action)
@@ -585,9 +590,13 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(moveChartToNewSheet(_:)):
             return isCells && state.selectedChartID != nil
         case #selector(deleteSheet(_:)), #selector(hideSheet(_:)):
-            return document.workbook.visibleSheets.count > 1
-        case #selector(newSheet(_:)), #selector(duplicateSheet(_:)):
-            return true
+            return document.workbook.visibleSheets.count > 1 && !document.workbook.isStructureLocked
+        case #selector(newSheet(_:)), #selector(duplicateSheet(_:)), #selector(renameSheet(_:)):
+            return !document.workbook.isStructureLocked
+        case #selector(toggleSheetProtection(_:)):
+            return isCells && !document.isPlainText && !document.isNumbers
+        case #selector(toggleWorkbookProtection(_:)):
+            return !document.isPlainText && !document.isNumbers
         case #selector(paste(_:)):
             return isCells && (state.clipboard?.isEmpty == false
                 || NSPasteboard.general.canReadObject(forClasses: [NSString.self]))

@@ -450,4 +450,53 @@ struct ProtectionTests {
         _ = open.addSheet()
         #expect(ProtectionPolicy.reconcile(open, from: old).violation == nil)
     }
+
+    // MARK: - The editor
+
+    @Test("The editor won't open a locked cell, and starts a hidden formula from nothing")
+    @MainActor
+    func editor() throws {
+        var workbook = try protected()
+        workbook.sheets[0][c1].style.isLocked = false
+        let state = EditorState()
+        state.selectSheet(workbook.sheets[0].id, in: workbook)
+
+        state.beginEditing(a1, in: workbook)
+        #expect(state.editingAddress == nil)
+        #expect(state.errorMessage == ProtectionPolicy.Violation.lockedCell.localizedDescription)
+        state.errorMessage = nil
+
+        state.beginEditing(b1, in: workbook)
+        #expect(state.editingAddress == b1)
+        #expect(state.editingText == "1")
+        state.cancelEditing()
+
+        state.beginEditing(c1, in: workbook)
+        #expect(state.editingAddress == c1)
+        #expect(state.editingText.isEmpty)
+        state.cancelEditing()
+
+        // Protecting asks; unprotecting with no password just does it.
+        #expect(state.sheetProtectionRequest(in: &workbook) == nil)
+        #expect(!workbook.sheets[0].isProtected)
+        #expect(state.sheetProtectionRequest(in: &workbook) == .protectSheet)
+        state.complete(.protectSheet, password: "tables", in: &workbook)
+        #expect(workbook.sheets[0].isProtected)
+        #expect(state.sheetProtectionRequest(in: &workbook) == .unprotectSheet)
+        state.complete(.unprotectSheet, password: "wrong", in: &workbook)
+        #expect(workbook.sheets[0].isProtected)
+        #expect(state.errorMessage == String(localized: "Protection.WrongPassword"))
+        state.errorMessage = nil
+        state.complete(.unprotectSheet, password: "tables", in: &workbook)
+        #expect(!workbook.sheets[0].isProtected)
+
+        state.complete(.protectWorkbook, password: "", in: &workbook)
+        let count = workbook.sheets.count
+        state.addSheet(in: &workbook)
+        #expect(workbook.sheets.count == count)
+        #expect(state.errorMessage == ProtectionPolicy.Violation.workbookStructure.localizedDescription)
+        #expect(state.workbookProtectionRequest(in: &workbook) == nil)
+        state.addSheet(in: &workbook)
+        #expect(workbook.sheets.count == count + 1)
+    }
 }
