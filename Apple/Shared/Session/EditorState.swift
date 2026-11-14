@@ -11,6 +11,8 @@ enum EditorPanel: String, Identifiable, Hashable {
     case chart
     case comment
     case find
+    case sort
+    case filter
 
     var id: String { rawValue }
 
@@ -23,6 +25,8 @@ enum EditorPanel: String, Identifiable, Hashable {
         case .chart: return String(localized: "Panel.Chart.Title")
         case .comment: return String(localized: "Panel.Comment.Title")
         case .find: return String(localized: "Panel.Find.Title")
+        case .sort: return String(localized: "Panel.Sort.Title")
+        case .filter: return String(localized: "Panel.Filter.Title")
         }
     }
 }
@@ -85,6 +89,8 @@ final class EditorState {
     var pendingReferenceRange: CellRange?
 
     var presentedPanel: EditorPanel?
+    /// The sheet column whose filter the filter panel shows.
+    var filterColumn: Int?
     /// The kind of comment the comment panel starts when a cell has none.
     var newCommentKind: CellComment.Kind = .thread
     /// What formatting the active sheet keeps: none for delimited text, which
