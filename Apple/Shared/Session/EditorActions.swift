@@ -1,6 +1,19 @@
 import SwiftUI
 import TablesEngine
 
+extension Workbook {
+    /// Whether this is `other` with nothing changed but the zoom its sheets
+    /// open at: kept with the document, but no step to undo.
+    func differsOnlyInZoom(from other: Workbook) -> Bool {
+        guard sheets.count == other.sheets.count, sheets.map(\.zoomScale) != other.sheets.map(\.zoomScale) else {
+            return false
+        }
+        var aligned = other
+        for index in aligned.sheets.indices { aligned.sheets[index].zoomScale = sheets[index].zoomScale }
+        return aligned == self
+    }
+}
+
 /// Every mutation the UI performs on the document, in one place so the grid,
 /// the toolbars and the keyboard commands all go through the same code.
 extension EditorState {
@@ -66,8 +79,15 @@ extension EditorState {
         let wasEditingInFormulaBar = isFormulaBarActive
         let index = activeIndex(in: workbook)
         let existing = workbook.sheets[index][address]
-        workbook.sheets[index][address] = CellInputParser.cell(from: editingText, replacing: existing)
-        workbook.recalculate()
+        let entered = CellInputParser.cell(from: editingText, replacing: existing)
+        // An entry the cell's validation rule fails is not written, and the
+        // selection stays on the cell for another try.
+        let isRefused = entered != existing
+            && refuses(entered, typedAs: editingText, at: address, in: workbook)
+        if !isRefused {
+            workbook.sheets[index][address] = entered
+            workbook.recalculate()
+        }
 
         editingAddress = nil
         editingText = ""
@@ -75,7 +95,7 @@ extension EditorState {
         pendingReferenceRange = nil
         select(address)
 
-        guard let advance else { return }
+        guard let advance, !isRefused else { return }
         move(advance, in: workbook.sheets[index])
         if keepingEditor {
             beginEditing(selectedAddress, in: workbook)
@@ -316,6 +336,49 @@ extension EditorState {
         finishStructuralEdit(in: workbook)
     }
 
+    // MARK: - Outlines
+
+    /// Groups the selected rows or columns one level deeper.
+    func groupSelection(_ axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let sheet = workbook.sheets[index]
+        workbook.sheets[index].group(axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet), axis: axis)
+        finishStructuralEdit(in: workbook)
+    }
+
+    func ungroupSelection(_ axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        let sheet = workbook.sheets[index]
+        workbook.sheets[index].ungroup(axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet), axis: axis)
+        finishStructuralEdit(in: workbook)
+    }
+
+    /// Whether any selected line is grouped, so there is something to ungroup.
+    func canUngroupSelection(_ axis: OutlineAxis, in workbook: Workbook) -> Bool {
+        let sheet = activeSheet(in: workbook)
+        let lines = axis == .row ? selectedRowRange(in: sheet) : selectedColumnRange(in: sheet)
+        return lines.contains { sheet.outline(axis).level(of: $0) > 0 }
+    }
+
+    /// Collapses an outline group when it is open and expands it when not:
+    /// what its button does.
+    func toggleOutlineGroup(_ group: LineOutline.Group, axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        if workbook.sheets[index].isCollapsed(group, axis: axis) {
+            workbook.sheets[index].expand(group, axis: axis)
+        } else {
+            workbook.sheets[index].collapse(group, axis: axis)
+        }
+        finishStructuralEdit(in: workbook)
+    }
+
+    /// Shows only the first `level` levels of an outline.
+    func showOutlineLevels(_ level: Int, axis: OutlineAxis, in workbook: inout Workbook) {
+        let index = activeIndex(in: workbook)
+        workbook.sheets[index].showOutlineLevels(level, axis: axis)
+        finishStructuralEdit(in: workbook)
+    }
+
     func resizeColumn(_ column: Int, to width: Double, in workbook: inout Workbook) {
         let index = activeIndex(in: workbook)
         workbook.sheets[index].columnWidths[column] = max(Worksheet.minimumColumnWidth, width)
@@ -492,6 +555,40 @@ extension EditorState {
     func freezePanesAtSelection(in workbook: inout Workbook) {
         let start = selection.normalized.start
         freezePanes(rows: start.row, columns: start.column, in: &workbook)
+    }
+
+    // MARK: - View options
+
+    /// Turns one of the active sheet's view options — gridlines, headings
+    /// and the like — on or off. Kept where frozen panes are, so a document
+    /// with nowhere to keep those has nowhere to keep these.
+    func setViewOption(_ option: WritableKeyPath<Worksheet, Bool>, to isOn: Bool, in workbook: inout Workbook) {
+        guard allowsFreezingPanes else { return }
+        let index = activeIndex(in: workbook)
+        guard workbook.sheets[index][keyPath: option] != isOn else { return }
+        workbook.sheets[index][keyPath: option] = isOn
+        refreshMetrics(in: workbook)
+    }
+
+    // MARK: - Zoom
+
+    /// Shows the active sheet at the zoom it was saved at, as it comes into
+    /// view as a grid of its own. A table on a canvas is shown at the
+    /// canvas's zoom, which picking another table leaves alone.
+    func adoptSavedZoom(in workbook: Workbook) {
+        guard activeCanvas(in: workbook) == nil else { return }
+        let saved = Double(activeSheet(in: workbook).zoomScale) / 100
+        zoom = min(max(saved, Self.zoomRange.lowerBound), Self.zoomRange.upperBound)
+    }
+
+    /// Keeps the zoom the active sheet is shown at with the sheet, so it
+    /// opens at that zoom again: after a pinch, or a step of the menus'.
+    func keepZoom(in workbook: inout Workbook) {
+        guard allowsFreezingPanes, activeCanvas(in: workbook) == nil else { return }
+        let index = activeIndex(in: workbook)
+        let percent = Int((zoom * 100).rounded())
+        guard workbook.sheets[index].zoomScale != percent else { return }
+        workbook.sheets[index].zoomScale = percent
     }
 
     // MARK: - Fill and move

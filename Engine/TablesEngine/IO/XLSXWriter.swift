@@ -93,6 +93,16 @@ public enum XLSXWriter {
                 }
             }
 
+            // Links: an outside address is a relationship of its own.
+            let hyperlinks = drawings.isChartSheet(sheet) ? nil : HyperlinkParts.element(
+                for: sheet.hyperlinks, rowCount: sheet.rowCount, columnCount: sheet.columnCount
+            ) { target in
+                let id = Self.freshRelationshipID(avoiding: Set(relationships.compactMap(\.id)))
+                relationships.append(.init(id: id, type: HyperlinkParts.relationshipType, target: target,
+                                           targetMode: "External"))
+                return id
+            }
+
             let body: String
             if drawings.isChartSheet(sheet) {
                 body = ChartWriter.chartSheet(
@@ -109,7 +119,7 @@ public enum XLSXWriter {
                 body = sheetPart(
                     sheet, strings: strings, styles: styles, formulas: formulas.forms[sheet.id] ?? [:],
                     hasRelationshipsPart: preservedRelationships != nil, drawingRelationshipID: drawingID,
-                    legacyDrawingRelationshipID: legacyDrawingID
+                    legacyDrawingRelationshipID: legacyDrawingID, hyperlinks: hyperlinks
                 )
             }
             parts.append((path, body.utf8Data))
@@ -492,6 +502,7 @@ public enum XLSXWriter {
             for (name, position) in names {
                 xml += "<definedName name=\"\(XMLLite.escape(name.name))\""
                 if let position { xml += " localSheetId=\"\(position)\"" }
+                if name.isHidden { xml += " hidden=\"1\"" }
                 xml += ">\(XMLLite.escape(FormulaDialect.toFile(name.formula)))</definedName>"
             }
             xml += "</definedNames>"
@@ -550,7 +561,8 @@ public enum XLSXWriter {
 
     private static func sheetPart(
         _ sheet: Worksheet, strings: SharedStringTable, styles: StyleTable, formulas: [CellAddress: FormulaPlan.Form] = [:],
-        hasRelationshipsPart: Bool, drawingRelationshipID: String? = nil, legacyDrawingRelationshipID: String? = nil
+        hasRelationshipsPart: Bool, drawingRelationshipID: String? = nil, legacyDrawingRelationshipID: String? = nil,
+        hyperlinks: String? = nil
     ) -> String {
         /// Fragments paired with their schema position, plus the order they
         /// were added in so repeatable children — several `<conditionalFormatting>`
@@ -561,15 +573,26 @@ public enum XLSXWriter {
             fragments.append((order, fragments.count, body))
         }
 
-        if let codeName = sheet.codeName {
-            add("sheetPr", "<sheetPr codeName=\"\(XMLLite.escape(codeName))\"/>")
+        // Where outline buttons go, written only when not after the group.
+        var outlineProperties = ""
+        if !sheet.rowOutline.summaryAfter { outlineProperties += " summaryBelow=\"0\"" }
+        if !sheet.columnOutline.summaryAfter { outlineProperties += " summaryRight=\"0\"" }
+        if sheet.codeName != nil || !outlineProperties.isEmpty {
+            var xml = "<sheetPr"
+            if let codeName = sheet.codeName { xml += " codeName=\"\(XMLLite.escape(codeName))\"" }
+            xml += outlineProperties.isEmpty ? "/>" : "><outlinePr\(outlineProperties)/></sheetPr>"
+            add("sheetPr", xml)
         }
         add("dimension", "<dimension ref=\"A1:\(CellAddress(row: sheet.rowCount - 1, column: sheet.columnCount - 1).a1)\"/>")
 
         // Our defaults differ from Excel's, so state them: otherwise every row
         // and column we did not size explicitly would render at Excel's size.
         var xml = "<sheetFormatPr defaultRowHeight=\"\(format(sheet.standardRowHeight))\""
-        xml += " defaultColWidth=\"\(format(Worksheet.columnWidthCharacters(points: Worksheet.defaultColumnWidth)))\"/>"
+        xml += " defaultColWidth=\"\(format(Worksheet.columnWidthCharacters(points: Worksheet.defaultColumnWidth)))\""
+        // How deep the outlines go, which sizes Excel's outline gutters.
+        if sheet.rowOutline.maximumLevel > 0 { xml += " outlineLevelRow=\"\(sheet.rowOutline.maximumLevel)\"" }
+        if sheet.columnOutline.maximumLevel > 0 { xml += " outlineLevelCol=\"\(sheet.columnOutline.maximumLevel)\"" }
+        xml += "/>"
         add("sheetFormatPr", xml)
 
         // Column metadata: widths, hidden state and formats, in runs of alike
@@ -578,6 +601,8 @@ public enum XLSXWriter {
             var custom: Double?
             var hidden: Bool
             var style: Int?
+            var outlineLevel = 0
+            var collapsed = false
         }
         var columnEntries: [String] = []
         var run: (first: Int, last: Int, entry: ColumnEntry)?
@@ -589,19 +614,25 @@ public enum XLSXWriter {
             if let style = entry.style { xml += " style=\"\(style)\"" }
             if entry.custom != nil { xml += " customWidth=\"1\"" }
             if entry.hidden { xml += " hidden=\"1\"" }
+            if entry.outlineLevel > 0 { xml += " outlineLevel=\"\(entry.outlineLevel)\"" }
+            if entry.collapsed { xml += " collapsed=\"1\"" }
             xml += "/>"
             columnEntries.append(xml)
             run = nil
         }
         let lastStyledColumn = sheet.columnStyles.keys.filter { $0 < Worksheet.maximumColumnCount }.max() ?? -1
-        for column in 0..<max(sheet.columnCount, lastStyledColumn + 1) {
+        // A collapsed group's mark may sit on the column just past the last.
+        let lastCollapsedColumn = sheet.columnOutline.collapsed.filter { $0 <= sheet.columnCount }.max() ?? -1
+        for column in 0..<max(sheet.columnCount, lastStyledColumn + 1, lastCollapsedColumn + 1) {
             let inGrid = column < sheet.columnCount
             let entry = ColumnEntry(
                 custom: inGrid ? sheet.columnWidths[column] : nil,
                 hidden: inGrid && sheet.hiddenColumns.contains(column),
-                style: sheet.columnStyles[column].map { styles.index(for: $0) }.flatMap { $0 == 0 ? nil : $0 }
+                style: sheet.columnStyles[column].map { styles.index(for: $0) }.flatMap { $0 == 0 ? nil : $0 },
+                outlineLevel: inGrid ? sheet.columnOutline.level(of: column) : 0,
+                collapsed: sheet.columnOutline.collapsed.contains(column)
             )
-            guard entry.hidden || entry.custom != nil || entry.style != nil else {
+            guard entry.hidden || entry.custom != nil || entry.style != nil || entry.outlineLevel > 0 || entry.collapsed else {
                 closeRun()
                 continue
             }
@@ -629,7 +660,10 @@ public enum XLSXWriter {
             .union(sheet.hiddenRows)
             .union(sheet.rowHeights.keys)
             .union(sheet.rowStyles.keys)
+            .union(sheet.rowOutline.levels.keys)
             .filter { $0 < sheet.rowCount }
+            // A collapsed group's mark may sit on the row just past the last.
+            .union(sheet.rowOutline.collapsed.filter { $0 <= sheet.rowCount })
             .sorted()
 
         for row in interestingRows {
@@ -639,6 +673,8 @@ public enum XLSXWriter {
                 if !sheet.fittedRows.contains(row) { attributes += " customHeight=\"1\"" }
             }
             if sheet.hiddenRows.contains(row) { attributes += " hidden=\"1\"" }
+            if sheet.rowOutline.level(of: row) > 0 { attributes += " outlineLevel=\"\(sheet.rowOutline.level(of: row))\"" }
+            if sheet.rowOutline.collapsed.contains(row) { attributes += " collapsed=\"1\"" }
             if let style = sheet.rowStyles[row] {
                 attributes += " s=\"\(styles.index(for: style))\" customFormat=\"1\""
             }
@@ -673,6 +709,11 @@ public enum XLSXWriter {
             add("mergeCells", xml)
         }
 
+        if let validations = DataValidationParts.element(for: sheet.dataValidations) {
+            add("dataValidations", validations)
+        }
+        if let filter = sheet.autoFilter { add("autoFilter", filter.xml) }
+
         for element in preservedElements(of: sheet) {
             // A duplicated sheet carries its predecessor's fragments but not
             // its `_rels`, so the ids in them would resolve to nothing.
@@ -680,6 +721,7 @@ public enum XLSXWriter {
             add(element.name, element.xml)
         }
 
+        if let hyperlinks { add("hyperlinks", hyperlinks) }
         if let drawingRelationshipID { add("drawing", "<drawing r:id=\"\(drawingRelationshipID)\"/>") }
         if let legacyDrawingRelationshipID {
             add("legacyDrawing", "<legacyDrawing r:id=\"\(legacyDrawingRelationshipID)\"/>")
@@ -695,27 +737,54 @@ public enum XLSXWriter {
             + "</worksheet>"
     }
 
-    /// The sheet's kept fragments, with its frozen pane written into the
-    /// first sheet view — the one the file had, or one of our own.
+    /// The sheet's kept fragments, with its view options and frozen pane
+    /// written into the first sheet view — the one the file had, or one of
+    /// our own.
     private static func preservedElements(of sheet: Worksheet) -> [PreservedElement] {
-        var elements = sheet.preservedElements
-        guard sheet.frozenRows > 0 || sheet.frozenColumns > 0 else { return elements }
-        let pane = frozenPane(for: sheet)
-        if let index = elements.firstIndex(where: { $0.name == "sheetViews" }),
+        var elements = SparklineParts.addingSparklines(sheet.sparklineGroups, to: sheet.preservedElements)
+        let isFrozen = sheet.frozenRows > 0 || sheet.frozenColumns > 0
+        let options = viewOptions(of: sheet)
+        let index = elements.firstIndex(where: { $0.name == "sheetViews" })
+        guard index != nil || isFrozen || options.contains(where: { $0.value != nil }) else { return elements }
+        let pane = isFrozen ? frozenPane(for: sheet) : ""
+        if let index,
            let views = try? XMLLite.parse(Data(elements[index].xml.utf8)),
-           let view = views.firstChild(named: "sheetView"),
-           let paneElement = XMLLite.fragment(pane, namespaces: [:]) {
+           let view = views.firstChild(named: "sheetView") {
+            for option in options { view.setAttribute(option.name, option.value) }
+            // Excel keeps the normal view's zoom beside the current one, and
+            // reads it once the sheet is shown in that view again.
+            if view.attribute("zoomScaleNormal") != nil, (view.attribute("view") ?? "normal") == "normal" {
+                view.setAttribute("zoomScaleNormal", sheet.zoomScale == 100 ? nil : String(sheet.zoomScale))
+            }
             // The pane leads the view: it comes before any selection in the schema.
-            view.insertChild(paneElement, at: 0)
+            if isFrozen, let paneElement = XMLLite.fragment(pane, namespaces: [:]) {
+                view.insertChild(paneElement, at: 0)
+            }
             if let xml = XMLLite.serialize(views) {
                 elements[index] = PreservedElement(name: "sheetViews", xml: xml)
                 return elements
             }
         }
+        guard isFrozen || options.contains(where: { $0.value != nil }) else { return elements }
+        let attributes = options.compactMap { option in option.value.map { " \(option.name)=\"\($0)\"" } }.joined()
         elements.removeAll { $0.name == "sheetViews" }
         elements.append(PreservedElement(
-            name: "sheetViews", xml: "<sheetViews><sheetView workbookViewId=\"0\">\(pane)</sheetView></sheetViews>"))
+            name: "sheetViews",
+            xml: "<sheetViews><sheetView\(attributes) workbookViewId=\"0\">\(pane)</sheetView></sheetViews>"))
         return elements
+    }
+
+    /// The `<sheetView>` attributes the model keeps, each with the value to
+    /// write or nil where Excel's default needs none.
+    private static func viewOptions(of sheet: Worksheet) -> [(name: String, value: String?)] {
+        [
+            ("showGridLines", sheet.showsGridLines ? nil : "0"),
+            ("showRowColHeaders", sheet.showsHeadings ? nil : "0"),
+            ("zoomScale", sheet.zoomScale == 100 ? nil : String(sheet.zoomScale)),
+            ("showZeros", sheet.showsZeros ? nil : "0"),
+            ("showFormulas", sheet.showsFormulas ? "1" : nil),
+            ("rightToLeft", sheet.isRightToLeft ? "1" : nil),
+        ]
     }
 
     /// Excel's `<pane>` for frozen rows and columns: where the split falls,

@@ -186,17 +186,53 @@ final class GridView: NSView, NSTextFieldDelegate {
     func drawSheet(_ dirtyRect: NSRect, in context: CGContext) {
         guard let document else { return }
         let sheet = document.activeSheet
-        let renderer = CellRenderer(
+        var renderer = CellRenderer(
             sheet: sheet, metrics: document.state.metrics, appearance: effectiveAppearance,
             lookup: lookups.lookup(for: sheet)
         )
+        let workbook = document.workbook
+        renderer.sheets = { workbook.sheet(named: $0) }
         renderer.paper.setFill()
         dirtyRect.fill()
         renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: effectiveAppearance))
+        drawFilterButtons(in: document, dirtyRect: dirtyRect)
         drawReferences(in: document, context: context)
         // With no table worked on, as after a click on the canvas's page, none shows a selection.
         if !document.state.isTableUnfocused { drawSelection(in: document, context: context) }
+        drawValidation(in: document, context: context)
         drawDragPreview(in: document, context: context)
+    }
+
+    private func filterCellFrame(_ address: CellAddress, in document: WorkbookDocument) -> CGRect {
+        document.state.metrics.frame(for: document.activeSheet.mergedRange(containing: address) ?? CellRange(address))
+    }
+
+    /// The buttons on the header cells of the sheet's filter, filled in on
+    /// the columns that are filtering.
+    private func drawFilterButtons(in document: WorkbookDocument, dirtyRect: NSRect) {
+        let metrics = document.state.metrics
+        let buttons = FilterButton.buttons(
+            in: document.activeSheet, rows: metrics.rows(in: dirtyRect.minY...dirtyRect.maxY),
+            columns: metrics.columns(in: dirtyRect.minX...dirtyRect.maxX))
+        for button in buttons {
+            let frame = FilterButton.frame(in: filterCellFrame(button.address, in: document), zoom: metrics.zoom)
+            guard !frame.isNull else { continue }
+            let face = NSBezierPath(roundedRect: frame, xRadius: 3 * metrics.zoom, yRadius: 3 * metrics.zoom)
+            (button.isActive ? NSColor.controlAccentColor : NSColor.controlBackgroundColor).setFill()
+            face.fill()
+            NSColor.tertiaryLabelColor.setStroke()
+            face.lineWidth = 0.5
+            face.stroke()
+            let arrow = NSBezierPath()
+            let points = FilterButton.arrow(in: frame)
+            arrow.move(to: points[0])
+            for point in points.dropFirst() { arrow.line(to: point) }
+            arrow.lineWidth = max(1, 1.4 * metrics.zoom)
+            arrow.lineCapStyle = .round
+            arrow.lineJoinStyle = .round
+            (button.isActive ? NSColor.white : NSColor.secondaryLabelColor).setStroke()
+            arrow.stroke()
+        }
     }
 
     /// The ring the selection is outlined with, in the grid's coordinates.
@@ -350,6 +386,23 @@ final class GridView: NSView, NSTextFieldDelegate {
             state.selectDrawing(nil)
         }
         window?.makeFirstResponder(self)
+
+        // A click on a list rule's arrow opens the list.
+        if event.clickCount == 1, dropDownRect(in: document)?.insetBy(dx: -2, dy: -2).contains(point) == true {
+            showDropDown()
+            return
+        }
+
+        // A click on a filter's button selects its cell and opens the column's filter.
+        if event.clickCount == 1, event.modifierFlags.isDisjoint(with: [.shift, .command]), state.allowsFiltering,
+           sheet.hasFilterButton(at: address),
+           FilterButton.frame(in: filterCellFrame(address, in: document), zoom: state.metrics.zoom)
+               .insetBy(dx: -2, dy: -2).contains(point) {
+            state.select(address, in: sheet)
+            state.showFilter(forColumn: address.column, in: document.workbook)
+            document.notify()
+            return
+        }
 
         // A click on a checkbox ticks it or clears it, and selects its cell.
         let clicked = sheet[address]
@@ -547,6 +600,8 @@ final class GridView: NSView, NSTextFieldDelegate {
             return
         }
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // Option-Down opens the cell's list, as it does in Excel.
+        if event.keyCode == 125, modifiers.contains(.option), showDropDown() { return }
         // F2 edits the cell in place, as it does in Excel.
         if event.keyCode == 120 {
             beginEditing(at: document.state.selectedAddress, seed: nil)
@@ -807,6 +862,18 @@ final class GridView: NSView, NSTextFieldDelegate {
         guard let document, let editor else { return }
         document.state.editingText = editor.stringValue
         document.notify()
+        if let textView = editor.currentEditor() as? NSTextView {
+            FormulaAutocomplete.textDidChange(in: textView, document: document)
+        }
+    }
+
+    func control(
+        _ control: NSControl, textView: NSTextView, completions words: [String],
+        forPartialWordRange charRange: NSRange, indexOfSelectedItem index: UnsafeMutablePointer<Int>
+    ) -> [String] {
+        guard let document else { return [] }
+        return FormulaAutocomplete.completions(in: textView, partialWordRange: charRange, document: document,
+                                               indexOfSelectedItem: index)
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {

@@ -14,7 +14,7 @@ final class HeaderRulerView: NSRulerView {
     /// Builds the menu for a right-click on a line.
     var lineMenu: ((_ isColumn: Bool, _ line: Int) -> NSMenu?)?
 
-    private var isColumns: Bool { orientation == .horizontalRuler }
+    var isColumns: Bool { orientation == .horizontalRuler }
 
     private enum Drag {
         case selecting(anchor: Int)
@@ -41,23 +41,26 @@ final class HeaderRulerView: NSRulerView {
     override var isFlipped: Bool { true }
     override var requiredThickness: CGFloat { ruleThickness }
 
-    /// Widens the row numbers to fit the sheet's longest one.
+    /// Widens the row numbers to fit the sheet's longest one, and makes
+    /// room for the outline gutter when the sheet groups lines on this axis.
     func refresh() {
         guard let document else { return }
-        if !isColumns {
-            let digits = String(document.activeSheet.rowCount).count
-            let wanted = max(36, CGFloat(digits) * 8 + 16)
-            if ruleThickness != wanted { ruleThickness = wanted }
-        }
+        outlineThickness = Self.outlineThickness(for: document.activeSheet.outline(outlineAxis))
+        var wanted = isColumns ? 22 : max(36, CGFloat(String(document.activeSheet.rowCount).count) * 8 + 16)
+        wanted += outlineThickness
+        if ruleThickness != wanted { ruleThickness = wanted }
         needsDisplay = true
     }
+
+    /// How deep the outline gutter along the ruler's outer edge is, zero for none.
+    var outlineThickness: CGFloat = 0
 
     // MARK: - Geometry
 
     private var metrics: SheetMetrics { document?.state.metrics ?? SheetMetrics() }
 
     /// The lines frozen in view along this ruler's axis, and how far they reach.
-    private var frozenCount: Int {
+    var frozenCount: Int {
         guard let sheet = document?.activeSheet else { return 0 }
         return isColumns ? sheet.frozenColumns : sheet.frozenRows
     }
@@ -75,7 +78,7 @@ final class HeaderRulerView: NSRulerView {
 
     /// Converts from the ruler to the grid's coordinates along the ruler's
     /// axis: past the frozen lines the sheet scrolls, over them it stays put.
-    private func gridPosition(of point: NSPoint) -> CGFloat {
+    func gridPosition(of point: NSPoint) -> CGFloat {
         guard let client = clientView else { return 0 }
         let converted = client.convert(point, from: self)
         let position = isColumns ? converted.x : converted.y
@@ -85,7 +88,7 @@ final class HeaderRulerView: NSRulerView {
 
     /// A span of the sheet along the ruler, in the ruler's coordinates: where
     /// it scrolls to, or for a frozen line, where it stays.
-    private func rulerRect(start: Double, length: Double, frozen: Bool = false) -> CGRect {
+    func rulerRect(start: Double, length: Double, frozen: Bool = false) -> CGRect {
         guard let client = clientView else { return .zero }
         let start = frozen ? start + scrolledOrigin : start
         let rect = isColumns
@@ -93,17 +96,17 @@ final class HeaderRulerView: NSRulerView {
             : CGRect(x: 0, y: start, width: 1, height: length)
         let converted = convert(rect, from: client)
         return isColumns
-            ? CGRect(x: converted.minX, y: 0, width: converted.width, height: bounds.height)
-            : CGRect(x: 0, y: converted.minY, width: bounds.width, height: converted.height)
+            ? CGRect(x: converted.minX, y: outlineThickness, width: converted.width, height: bounds.height - outlineThickness)
+            : CGRect(x: outlineThickness, y: converted.minY, width: bounds.width - outlineThickness, height: converted.height)
     }
 
-    private func start(of line: Int) -> Double { isColumns ? metrics.x(ofColumn: line) : metrics.y(ofRow: line) }
-    private func length(of line: Int) -> Double { isColumns ? metrics.width(ofColumn: line) : metrics.height(ofRow: line) }
-    private func line(at position: CGFloat) -> Int {
+    func start(of line: Int) -> Double { isColumns ? metrics.x(ofColumn: line) : metrics.y(ofRow: line) }
+    func length(of line: Int) -> Double { isColumns ? metrics.width(ofColumn: line) : metrics.height(ofRow: line) }
+    func line(at position: CGFloat) -> Int {
         isColumns ? metrics.column(atX: Double(max(0, position))) : metrics.row(atY: Double(max(0, position)))
     }
 
-    private var lineCount: Int { isColumns ? metrics.columnCount : metrics.rowCount }
+    var lineCount: Int { isColumns ? metrics.columnCount : metrics.rowCount }
 
     /// The line whose trailing boundary is under the pointer, if any.
     private func boundary(near position: CGFloat) -> Int? {
@@ -159,9 +162,9 @@ final class HeaderRulerView: NSRulerView {
             text.draw(at: CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
             separator.setFill()
             if isColumns {
-                CGRect(x: rect.maxX - 1, y: 0, width: 1, height: bounds.height).fill()
+                CGRect(x: rect.maxX - 1, y: rect.minY, width: 1, height: rect.height).fill()
             } else {
-                CGRect(x: 0, y: rect.maxY - 1, width: bounds.width, height: 1).fill()
+                CGRect(x: rect.minX, y: rect.maxY - 1, width: rect.width, height: 1).fill()
             }
         }
 
@@ -193,6 +196,7 @@ final class HeaderRulerView: NSRulerView {
         } else {
             CGRect(x: bounds.maxX - 1, y: 0, width: 1, height: bounds.height).fill()
         }
+        if outlineThickness > 0 { drawOutline(of: sheet) }
     }
 
     // MARK: - Mouse
@@ -226,6 +230,7 @@ final class HeaderRulerView: NSRulerView {
         }
         state.selectChart(nil)
         state.selectDrawing(nil)
+        if outlineThickness > 0, handleOutlineClick(at: convert(event.locationInWindow, from: nil)) { return }
         if let boundary = boundary(near: position) {
             if event.clickCount == 2, isColumns {
                 document.edit { state.fitColumn(boundary, in: &$0) }

@@ -110,6 +110,33 @@ struct HeaderMenuBuilder {
         return actions
     }
 
+    /// Grouping the selected lines one level deeper into the outline, and
+    /// taking them one level out.
+    private func outlineActions() -> [HeaderMenuAction] {
+        guard state.allowsOutlines, state.activeCanvas(in: workbook.wrappedValue) == nil else { return [] }
+        let outlineAxis: OutlineAxis = axis == .row ? .row : .column
+        var actions: [HeaderMenuAction] = [
+            .separator,
+            HeaderMenuAction(
+                title: String(localized: axis == .row ? "Outline.GroupRows" : "Outline.GroupColumns"),
+                symbol: "increase.indent"
+            ) {
+                target()
+                state.groupSelection(outlineAxis, in: &workbook.wrappedValue)
+            },
+        ]
+        if state.canUngroupSelection(outlineAxis, in: workbook.wrappedValue) || activeSheet.outline(outlineAxis).level(of: index) > 0 {
+            actions.append(HeaderMenuAction(
+                title: String(localized: axis == .row ? "Outline.UngroupRows" : "Outline.UngroupColumns"),
+                symbol: "decrease.indent"
+            ) {
+                target()
+                state.ungroupSelection(outlineAxis, in: &workbook.wrappedValue)
+            })
+        }
+        return actions
+    }
+
     private func rowActions() -> [HeaderMenuAction] {
         var actions: [HeaderMenuAction] = [
             HeaderMenuAction(
@@ -141,6 +168,7 @@ struct HeaderMenuBuilder {
                 state.setSelectedRows(hidden: false, in: &workbook.wrappedValue)
             })
         }
+        actions += outlineActions()
         actions.append(.separator)
         actions.append(HeaderMenuAction(
             title: String(localized: "HeaderMenu.Row.Delete"), symbol: "trash", kind: .destructive,
@@ -190,6 +218,9 @@ struct HeaderMenuBuilder {
             ) {
                 state.fitColumn(index, in: &workbook.wrappedValue)
             },
+        ])
+        actions += outlineActions()
+        actions.append(contentsOf: [
             .separator,
             HeaderMenuAction(
                 title: String(localized: "HeaderMenu.Column.Delete"), symbol: "trash",

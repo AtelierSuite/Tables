@@ -17,6 +17,17 @@ public struct DefinedName: Hashable, Sendable {
     /// deleted or dragged, and a scope that drifts would quietly answer the
     /// wrong sheet's formulas — so the binding is to the sheet itself.
     public var scope: Worksheet.ID?
+    /// A name the file asks to keep out of sight, as add-ins and Excel's own
+    /// features leave behind. It still works in formulas, and is written back
+    /// hidden, but is not offered for editing.
+    public var isHidden: Bool
+
+    public init(name: String, formula: String, scope: Worksheet.ID?, isHidden: Bool = false) {
+        self.name = name
+        self.formula = formula
+        self.scope = scope
+        self.isHidden = isHidden
+    }
 
     /// Excel keeps its own entries — print areas, filter ranges — in the same
     /// list under a reserved prefix. They are never usable inside a formula.

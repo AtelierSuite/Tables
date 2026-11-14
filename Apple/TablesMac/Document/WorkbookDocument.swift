@@ -194,6 +194,8 @@ final class WorkbookDocument: NSDocument {
 
     private func record(from old: Workbook, to new: Workbook) {
         guard old != new, let undoManager else { return }
+        // Zooming is saved with the document, but it is no step to undo.
+        guard !new.differsOnlyInZoom(from: old) else { return updateChangeCount(.changeDone) }
         let scope = new.editScope(from: old)
         let now = Date()
         defer {
@@ -234,7 +236,9 @@ final class WorkbookDocument: NSDocument {
     private func prepareSession() {
         if let id = file.workbook.openingSheetID { state.selectSheet(id, in: file.workbook) }
         state.allowsComments = !file.isPlainText && !file.isNumbers
+        state.allowsDefinedNames = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
+        state.allowsDataValidation = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
         state.allowsLayingOutTables = !file.isPlainText
         state.isNumbersDocument = file.isNumbers
@@ -245,7 +249,9 @@ final class WorkbookDocument: NSDocument {
     /// Numbers document.
     func refreshCapabilities() {
         state.allowsComments = !file.isPlainText && !file.isNumbers
+        state.allowsDefinedNames = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
+        state.allowsDataValidation = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
         state.allowsLayingOutTables = !file.isPlainText
         state.isNumbersDocument = file.isNumbers

@@ -25,6 +25,8 @@ struct CellRenderer {
     /// a printout or preview of the cells in use does. Borders on its edges
     /// are kept inside it.
     var shownArea: CGRect?
+    /// Finds another sheet by name, for sparklines that plot its cells.
+    var sheets: ((String) -> Worksheet?)?
 
     /// `lookup` is one built from this version of `sheet`, kept from an
     /// earlier draw by a `SheetLookupCache`. Without one, it is built here,
@@ -117,9 +119,20 @@ struct CellRenderer {
             fill(entry.cell, in: metrics.frame(for: entry.address), context: context, gridLineColor: gridLineColor,
                  openEdge: openEdges.contains(entry.address))
         }
+        // A conditional format's bar or icon can stand in a cell with nothing else to show.
+        if !sheet.conditionalStyles.isEmpty {
+            for row in rows where !sheet.hiddenRows.contains(row) {
+                for column in columns where !sheet.hiddenColumns.contains(column) {
+                    let address = CellAddress(row: row, column: column)
+                    guard !covered.contains(address) else { continue }
+                    drawConditionalMarks(at: address, in: metrics.frame(for: address), context: context)
+                }
+            }
+        }
         for entry in painted {
             drawText(of: entry.cell, in: textFrame(of: entry.address), overflow: entry.overflow, context: context)
         }
+        drawSparklines(rows: rows, columns: columns, context: context)
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in merges {
             let frame = metrics.frame(for: merge)
@@ -136,6 +149,7 @@ struct CellRenderer {
                 strokeHairlines(of: frame, openEdge: false, in: context)
             }
             context.restoreGState()
+            drawConditionalMarks(at: merge.start, in: frame, context: context)
             drawText(of: cell, in: frame, overflow: nil, context: context)
         }
         // Last, so no fill covers the half of a border that falls in the
@@ -158,6 +172,49 @@ struct CellRenderer {
         }
         context.restoreGState()
         if drawsCommentMarks { drawCommentMarks(rows: rows, columns: columns, context: context) }
+    }
+
+    // MARK: - Sparklines
+
+    /// The sparklines of the cells in view, from the values the sheet has now.
+    private func drawSparklines(rows: Range<Int>, columns: Range<Int>, context: CGContext) {
+        for address in sheet.sparklineLocations
+        where rows.contains(address.row) && columns.contains(address.column)
+            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
+            let frame = metrics.frame(for: sheet.mergedRange(containing: address)?.normalized ?? CellRange(address))
+            let shapes = sheet.sparklineShapes(at: address, in: frame, zoom: metrics.zoom, sheets: sheets)
+            guard !shapes.isEmpty else { continue }
+            context.saveGState()
+            context.clip(to: frame)
+            for shape in shapes {
+                switch shape {
+                case .polyline(let points, let width, let hex):
+                    context.setStrokeColor(sparklineColor(hex))
+                    context.setLineWidth(width)
+                    context.setLineJoin(.round)
+                    context.setLineCap(.round)
+                    context.addLines(between: points)
+                    context.strokePath()
+                case .axis(let from, let to, let width, let hex):
+                    context.setStrokeColor(sparklineColor(hex))
+                    context.setLineWidth(width)
+                    context.addLines(between: [from, to])
+                    context.strokePath()
+                case .bar(let rect, let hex):
+                    context.setFillColor(sparklineColor(hex))
+                    context.fill(rect)
+                case .marker(let center, let radius, let hex):
+                    context.setFillColor(sparklineColor(hex))
+                    context.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius,
+                                                   width: radius * 2, height: radius * 2))
+                }
+            }
+            context.restoreGState()
+        }
+    }
+
+    private func sparklineColor(_ hex: String) -> CGColor {
+        AdaptiveColor.resolve(hex: hex, for: scheme, isText: false).map { NSColor($0).cgColor } ?? Self.cgColor(hex)
     }
 
     // MARK: - Overflow
@@ -244,6 +301,21 @@ struct CellRenderer {
             context.setStrokeColor(gridLineColor.cgColor)
             context.setLineWidth(metrics.gridLineWidth)
             strokeHairlines(of: frame, openEdge: openEdge, in: context)
+        }
+    }
+
+    /// The data bar and icon a conditional format gives a cell, over its
+    /// fill and under its text.
+    private func drawConditionalMarks(at address: CellAddress, in frame: CGRect, context: CGContext) {
+        guard let style = sheet.conditionalStyles[address], style.hasMarks else { return }
+        for mark in style.marks(in: frame, zoom: metrics.zoom) {
+            guard let first = mark.points.first, let color = Color(argbHex: mark.colorHex) else { continue }
+            context.setFillColor(NSColor(color).cgColor)
+            context.beginPath()
+            context.move(to: first)
+            for point in mark.points.dropFirst() { context.addLine(to: point) }
+            context.closePath()
+            context.fillPath()
         }
     }
 

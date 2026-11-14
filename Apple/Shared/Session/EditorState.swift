@@ -11,6 +11,9 @@ enum EditorPanel: String, Identifiable, Hashable {
     case chart
     case comment
     case find
+    case sort
+    case filter
+    case names
 
     var id: String { rawValue }
 
@@ -23,6 +26,9 @@ enum EditorPanel: String, Identifiable, Hashable {
         case .chart: return String(localized: "Panel.Chart.Title")
         case .comment: return String(localized: "Panel.Comment.Title")
         case .find: return String(localized: "Panel.Find.Title")
+        case .sort: return String(localized: "Panel.Sort.Title")
+        case .filter: return String(localized: "Panel.Filter.Title")
+        case .names: return String(localized: "Panel.Names.Title")
         }
     }
 }
@@ -85,8 +91,12 @@ final class EditorState {
     var pendingReferenceRange: CellRange?
 
     var presentedPanel: EditorPanel?
+    /// The sheet column whose filter the filter panel shows.
+    var filterColumn: Int?
     /// The kind of comment the comment panel starts when a cell has none.
     var newCommentKind: CellComment.Kind = .thread
+    /// The cell whose link is being added or edited, while the editor is up.
+    var hyperlinkEditorAddress: CellAddress?
     /// What formatting the active sheet keeps: none for delimited text, which
     /// has nowhere to keep styling, and in a Numbers document only what can be
     /// saved back into it.
@@ -95,8 +105,21 @@ final class EditorState {
     /// keep comments and notes.
     var allowsComments = true
     /// False for delimited text and Numbers documents, which have nowhere to
+    /// keep defined names.
+    var allowsDefinedNames = true
+    /// False for delimited text and Numbers documents, which have nowhere to
     /// keep frozen rows and columns.
     var allowsFreezingPanes = true
+    /// False for delimited text and Numbers documents, which have nowhere to
+    /// keep data validation rules.
+    var allowsDataValidation = true
+    /// An entry its cell's rule turned away, waiting on the person's answer.
+    var validationAlert: ValidationAlert?
+    /// Whether the data validation editor is up, where it is shown as a sheet.
+    var isEditingDataValidation = false
+    /// Delimited text and Numbers documents have nowhere to keep grouped
+    /// rows and columns either.
+    var allowsOutlines: Bool { allowsFreezingPanes }
     /// False for delimited text and Numbers documents, which can't keep
     /// sheets laid out together on a canvas, or moved about on one.
     var allowsArrangingCanvases = true
@@ -145,6 +168,7 @@ final class EditorState {
         selectedChartID = sheet?.isChartSheet == true ? sheet?.charts.first?.id : nil
         selectedDrawingID = nil
         if selectedChartID == nil, presentedPanel == .chart { presentedPanel = nil }
+        adoptSavedZoom(in: workbook)
         refreshMetrics(in: workbook)
     }
 
