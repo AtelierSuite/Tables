@@ -863,6 +863,7 @@ struct SheetGridView: View {
                 guard !cell.isEmptyEntirely else { continue }
                 var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
                 (entry.overflow, entry.overflowSpan) = overflow(of: address, in: sheet, lookup: lookup, metrics: metrics)
+                entry.selection = sheet.centerAcrossSpan(of: address)
                 painted.cells.append(entry)
             }
             spillsFromOutside(row: row, of: plan, in: sheet, lookup: lookup, metrics: metrics, into: &painted)
@@ -945,6 +946,7 @@ struct SheetGridView: View {
                    span.overlaps(plan.columns.lowerBound...(plan.columns.upperBound - 1)) {
                     var entry = PaintedCell(address: address, frame: metrics.frame(for: address), cell: cell)
                     (entry.overflow, entry.overflowSpan) = overflow(of: address, in: sheet, lookup: lookup, metrics: metrics)
+                    entry.selection = sheet.centerAcrossSpan(of: address)
                     entry.textOnly = true
                     painted.cells.append(entry)
                 }
