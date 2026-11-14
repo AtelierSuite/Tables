@@ -259,6 +259,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// address of the formula. Recalculation starts from this so that cells
     /// reading a spilled range see it on the first pass.
     public var spills: [CellAddress: CellRange] = [:]
+    /// The sheet's filter, if it has one: the header row with its buttons
+    /// and what each column shows.
+    public var autoFilter: AutoFilter?
     /// The sparklines drawn in the sheet's cells, by group.
     public var sparklineGroups: [SparklineGroup] = []
     /// The conditional formats the file set, highest priority first.

@@ -12,6 +12,7 @@ extension Worksheet {
     mutating func shiftKeptReferences(
         _ operation: FormulaReferenceShifter.Operation, axis: FormulaReferenceShifter.Axis
     ) {
+        shiftAutoFilter(operation, axis: axis)
         if case .translate = operation { return }
         preservedElements = preservedElements.compactMap { element in
             let shift: (XMLElement) -> Bool?
@@ -80,7 +81,7 @@ extension Worksheet {
     /// The sorted range and each condition's column or row follow the edit.
     /// A sort whose range went loses the whole state; a condition whose own
     /// range went is dropped, and the state with it if none is left.
-    private static func shiftSortState(
+    static func shiftSortState(
         _ root: XMLElement, _ operation: FormulaReferenceShifter.Operation,
         axis: FormulaReferenceShifter.Axis
     ) -> Bool? {

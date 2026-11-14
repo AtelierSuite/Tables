@@ -902,6 +902,10 @@ struct SheetGridView: View {
             painted.comments.append(CommentMark(
                 address: address, frame: metrics.frame(for: range), kind: comment.kind, isResolved: comment.isResolved))
         }
+        for button in FilterButton.buttons(in: sheet, rows: plan.rows, columns: plan.columns) {
+            let cell = sheet.mergedRange(containing: button.address) ?? CellRange(button.address)
+            painted.filterButtons.append(FilterButtonMark(frame: metrics.frame(for: cell), isActive: button.isActive))
+        }
         for address in sheet.sparklineLocations
         where plan.rows.contains(address.row) && plan.columns.contains(address.column)
             && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
@@ -1023,6 +1027,10 @@ struct SheetGridView: View {
         if state.editingAddress != nil { state.commitEditing(in: &workbook, then: nil) }
         // A tap on a checkbox ticks it or clears it, and selects its cell.
         if activeSheet[address].style.showsCheckbox { state.toggleCheckbox(at: address, in: &workbook) }
+        // A tap on a filter's header cell that is already selected opens its filter.
+        if activeSheet.hasFilterButton(at: address), state.selectedAddress == address, !state.hasMultipleSelections {
+            state.showFilter(forColumn: address.column, in: workbook)
+        }
         #if os(macOS)
         state.select(address, extending: NSEvent.modifierFlags.contains(.shift), in: activeSheet)
         #else

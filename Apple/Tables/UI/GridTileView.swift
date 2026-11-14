@@ -55,6 +55,8 @@ struct TileContents: Equatable, Sendable {
     var covered: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
+    /// The buttons on a filter's header cells.
+    var filterButtons: [FilterButtonMark] = []
     /// Borders of the cells and merges in the tile and just outside it.
     var borders: [PaintedBorders] = []
     /// The marks of the sparklines in the tile, drawn from the sheet's values.
@@ -63,6 +65,13 @@ struct TileContents: Equatable, Sendable {
     var conditionalMarks: [ConditionalMark] = []
     /// Those of merged cells, drawn after the merges cover what is beneath them.
     var mergeConditionalMarks: [ConditionalMark] = []
+}
+
+/// A filter's button on one of its header cells.
+struct FilterButtonMark: Equatable, Sendable {
+    var frame: CGRect
+    /// Whether the column is filtering, which fills the button in.
+    var isActive: Bool
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -248,6 +257,25 @@ enum CellPainter {
         for mark in contents.comments {
             paintCommentMark(mark, zoom: metrics.zoom, into: &context)
         }
+        for mark in contents.filterButtons {
+            paintFilterButton(mark, zoom: metrics.zoom, scheme: scheme, into: &context)
+        }
+    }
+
+    private static func paintFilterButton(
+        _ mark: FilterButtonMark, zoom: Double, scheme: ColorScheme, into context: inout GraphicsContext
+    ) {
+        let frame = FilterButton.frame(in: mark.frame, zoom: zoom)
+        guard !frame.isNull else { return }
+        let shape = Path(roundedRect: frame, cornerRadius: 3 * zoom)
+        let face: Color = mark.isActive ? .accentColor : (scheme == .dark ? Color(white: 0.28) : Color(white: 0.96))
+        context.fill(shape, with: .color(face))
+        context.stroke(shape, with: .color(.gray.opacity(0.6)), lineWidth: max(0.5, 0.5 * zoom))
+        var arrow = Path()
+        arrow.addLines(FilterButton.arrow(in: frame))
+        context.stroke(
+            arrow, with: .color(mark.isActive ? .white : (scheme == .dark ? .white : Color(white: 0.3))),
+            style: StrokeStyle(lineWidth: max(1, 1.4 * zoom), lineCap: .round, lineJoin: .round))
     }
 
     private static func paintSparklines(

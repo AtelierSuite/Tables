@@ -236,7 +236,9 @@ public enum XLSXReader {
                 workbook.sheets[index].preservedElements.removeAll(where: \.needsSheetRelationships)
             }
             let kept = Set(workbook.sheets[index].preservedElements.map(\.name))
-            for finding in sheetFindings[index] {
+            // A filter read into the model is shown and applied, not merely kept.
+            for finding in sheetFindings[index]
+            where finding.feature != .autoFilter || workbook.sheets[index].autoFilter == nil {
                 report.record(finding.feature, isPreserved: kept.contains(finding.elementName))
             }
         }
@@ -704,6 +706,7 @@ public enum XLSXReader {
         )
         sheet.conditionalRules = conditionalRules(in: root, styles: differentialStyles, theme: theme)
         readFrozenPanes(into: &sheet)
+        sheet.readAutoFilter()
         readViewOptions(into: &sheet)
         return sheet
     }

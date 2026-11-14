@@ -138,10 +138,12 @@ public struct SheetDrawingKey: Equatable, Sendable {
     private let rowCount: Int
     private let columnCount: Int
     private let backgroundColorHex: String?
+    private let autoFilter: AutoFilter?
     private let showsZeros: Bool
     private let showsFormulas: Bool
 
     public init(_ sheet: Worksheet) {
+        autoFilter = sheet.autoFilter
         id = sheet.id
         cells = sheet.cells
         conditionalStyles = sheet.conditionalStyles

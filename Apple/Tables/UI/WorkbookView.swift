@@ -208,6 +208,8 @@ struct WorkbookView: View {
         case .chart: ChartPanel(workbook: workbook, state: state)
         case .comment: CommentPanel(workbook: workbook, state: state)
         case .find: FindPanel(workbook: workbook, state: state)
+        case .sort: SortPanel(workbook: workbook, state: state)
+        case .filter: FilterPanel(workbook: workbook, state: state)
         case .names: NamesPanel(workbook: workbook, state: state)
         }
     }
@@ -217,7 +219,7 @@ struct WorkbookView: View {
     private func panelDetents(_ panel: EditorPanel) -> Set<PresentationDetent> {
         switch panel {
         case .format, .numberFormat, .rowsAndColumns: return [.medium]
-        case .functions, .chart, .comment, .find, .names: return [.medium, .large]
+        case .functions, .chart, .comment, .find, .sort, .filter, .names: return [.medium, .large]
         }
     }
     #endif

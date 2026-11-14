@@ -80,6 +80,7 @@ struct CellMenuBuilder {
                 ]
             }
         }
+        actions += sortAndFilterActions()
         actions += hyperlinkActions()
         if state.formatting.contains(.merging) {
             actions += mergeActions()
@@ -96,6 +97,39 @@ struct CellMenuBuilder {
             ]
         }
         return actions
+    }
+
+    /// Sorting the data around the cell, and its filter.
+    private func sortAndFilterActions() -> [HeaderMenuAction] {
+        var children = [
+            HeaderMenuAction(title: String(localized: "Sort.Ascending"), symbol: "arrow.up") {
+                target()
+                state.sortSelection(ascending: true, in: &workbook.wrappedValue)
+            },
+            HeaderMenuAction(title: String(localized: "Sort.Descending"), symbol: "arrow.down") {
+                target()
+                state.sortSelection(ascending: false, in: &workbook.wrappedValue)
+            },
+            HeaderMenuAction(title: String(localized: "Sort.Custom"), symbol: "arrow.up.arrow.down") {
+                target()
+                state.presentedPanel = .sort
+            },
+        ]
+        if state.allowsFiltering {
+            children.append(.separator)
+            children.append(
+                HeaderMenuAction(
+                    title: String(localized: "Filter.Show"), symbol: "line.3.horizontal.decrease.circle"
+                ) {
+                    target()
+                    state.showFilter(forColumn: address.column, in: workbook.wrappedValue)
+                })
+        }
+        return [
+            .separator,
+            HeaderMenuAction(
+                title: String(localized: "CellMenu.SortAndFilter"), symbol: "arrow.up.arrow.down", children: children),
+        ]
     }
 
     /// Following the cell's link, and adding, editing or removing it.

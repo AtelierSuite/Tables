@@ -244,6 +244,27 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
     @objc func groupColumns(_ sender: Any?) { edit { $0.groupSelection(.column, in: &$1) } }
     @objc func ungroupColumns(_ sender: Any?) { edit { $0.ungroupSelection(.column, in: &$1) } }
 
+    // MARK: - Sorting and filtering
+
+    @objc func sortAscending(_ sender: Any?) { edit { $0.sortSelection(ascending: true, in: &$1) } }
+    @objc func sortDescending(_ sender: Any?) { edit { $0.sortSelection(ascending: false, in: &$1) } }
+    @objc func toggleFilter(_ sender: Any?) { edit { $0.toggleAutoFilter(in: &$1) } }
+    @objc func clearFilters(_ sender: Any?) { edit { $0.clearFilters(in: &$1) } }
+
+    @objc func showSortPanel(_ sender: Any?) {
+        guard let document else { return }
+        if document.state.editingAddress != nil { grid.commitEditing(then: nil) }
+        document.state.presentedPanel = .sort
+        document.notify()
+    }
+
+    @objc func showFilterPanel(_ sender: Any?) {
+        guard let document else { return }
+        if document.state.editingAddress != nil { grid.commitEditing(then: nil) }
+        document.state.showFilter(in: document.workbook)
+        document.notify()
+    }
+
     @objc func fitColumnWidth(_ sender: Any?) {
         edit { state, workbook in
             for column in state.selection.normalized.columnRange { state.fitColumn(column, in: &workbook) }
@@ -558,6 +579,7 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(freezeTopRow(_:)): menuItem.state = sheet.frozenRows == 1 && sheet.frozenColumns == 0 ? .on : .off
         case #selector(freezeFirstColumn(_:)):
             menuItem.state = sheet.frozenRows == 0 && sheet.frozenColumns == 1 ? .on : .off
+        case #selector(toggleFilter(_:)): menuItem.state = sheet.autoFilter != nil ? .on : .off
         case #selector(toggleGridLines(_:)): menuItem.state = sheet.showsGridLines ? .on : .off
         case #selector(toggleHeadings(_:)): menuItem.state = sheet.showsHeadings ? .on : .off
         case #selector(toggleZeros(_:)): menuItem.state = sheet.showsZeros ? .on : .off
@@ -615,6 +637,12 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         case #selector(insertRowsAbove(_:)), #selector(insertRowsBelow(_:)), #selector(insertColumnsBefore(_:)),
              #selector(insertColumnsAfter(_:)), #selector(deleteRows(_:)), #selector(deleteColumns(_:)):
             return isCells && state.allowsInsertingAndDeleting
+        case #selector(sortAscending(_:)), #selector(sortDescending(_:)), #selector(showSortPanel(_:)):
+            return isCells
+        case #selector(toggleFilter(_:)), #selector(showFilterPanel(_:)):
+            return isCells && state.allowsFiltering
+        case #selector(clearFilters(_:)):
+            return isCells && sheet.autoFilter?.isFiltering == true
         case #selector(groupRows(_:)), #selector(groupColumns(_:)):
             return isCells && !onCanvas && !document.isNumbers && !document.isPlainText
         case #selector(ungroupRows(_:)):
