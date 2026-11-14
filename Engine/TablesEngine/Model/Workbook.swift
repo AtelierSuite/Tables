@@ -181,6 +181,36 @@ public struct PreservedElement: Hashable, Sendable {
     ]
 
     public var needsSheetRelationships: Bool { Self.relationshipDependentNames.contains(name) }
+
+    /// An `<extLst>` without the slicers named by `ids`, and without its
+    /// slicer list once that is empty.
+    public func removingSlicers(withIDs ids: Set<String>) -> PreservedElement? {
+        guard name == "extLst", xml.contains("slicerList"),
+              let root = try? XMLLite.parse(Data(xml.utf8)) else { return self }
+        for ext in root.children(named: "ext") {
+            guard let list = ext.firstChild(named: "slicerList") else { continue }
+            for slicer in list.children(named: "slicer") where ids.contains(slicer.attribute("id") ?? "") {
+                list.removeChild(slicer)
+            }
+            if list.children.isEmpty { root.removeChild(ext) }
+        }
+        guard !root.children.isEmpty, let xml = XMLLite.serialize(root) else { return nil }
+        return PreservedElement(name: name, xml: xml)
+    }
+
+    /// The fragment as it can stand on a sheet whose `_rels` part is gone:
+    /// nil when all of it names relationships, and an `<extLst>` without the
+    /// slicer list, which names its slicers by relationship.
+    public var withoutSheetRelationships: PreservedElement? {
+        if needsSheetRelationships { return nil }
+        guard name == "extLst", xml.contains("slicerList"),
+              let root = try? XMLLite.parse(Data(xml.utf8)) else { return self }
+        for ext in root.children(named: "ext") where ext.firstChild(named: "slicerList") != nil {
+            root.removeChild(ext)
+        }
+        guard !root.children.isEmpty, let xml = XMLLite.serialize(root) else { return nil }
+        return PreservedElement(name: name, xml: xml)
+    }
 }
 
 /// One entry of a `_rels` part, kept as the file wrote it.
@@ -266,6 +296,12 @@ public struct Workbook: Hashable, Sendable {
     public var themeAccentColors = ThemeColorScheme.office.accentColors
     /// The file's tables, so structured references in formulas resolve.
     public var tables: [TableDefinition] = []
+    /// The file's PivotTables, read from the parts kept for a save.
+    public var pivotTables: [PivotTable] = []
+    /// The caches those PivotTables summarize: their fields and records.
+    public var pivotCaches: [PivotCache] = []
+    /// The caches of the file's slicers.
+    public var slicerCaches: [SlicerCache] = []
     /// Sheets laid out together as tables on one page; see `SheetCanvas`.
     /// A sheet on none of them is a grid of its own.
     public var canvases: [SheetCanvas] = []
