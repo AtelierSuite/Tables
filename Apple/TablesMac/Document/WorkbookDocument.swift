@@ -194,6 +194,8 @@ final class WorkbookDocument: NSDocument {
 
     private func record(from old: Workbook, to new: Workbook) {
         guard old != new, let undoManager else { return }
+        // Zooming is saved with the document, but it is no step to undo.
+        guard !new.differsOnlyInZoom(from: old) else { return updateChangeCount(.changeDone) }
         let scope = new.editScope(from: old)
         let now = Date()
         defer {

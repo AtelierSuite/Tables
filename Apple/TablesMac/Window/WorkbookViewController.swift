@@ -234,6 +234,18 @@ final class WorkbookViewController: NSViewController {
             scrollView.documentView = grid
             scrollView.rulersVisible = true
         }
+        // A sheet with its headings turned off has no rulers.
+        if !grid.isOnCanvas, let sheet = document?.activeSheet, scrollView.rulersVisible != sheet.showsHeadings {
+            scrollView.rulersVisible = sheet.showsHeadings
+            // The rulers lie over the clip view, which makes room for them
+            // above and beside the sheet: back to its top-left corner, past
+            // them or not.
+            let clip = scrollView.contentView
+            let corner = NSRect(origin: NSPoint(x: -1e7, y: -1e7),
+                                size: clip.bounds.size)
+            clip.scroll(to: clip.constrainBoundsRect(corner).origin)
+            scrollView.reflectScrolledClipView(clip)
+        }
         if wasFocused, window?.firstResponder !== grid { window?.makeFirstResponder(grid) }
     }
 
@@ -245,7 +257,8 @@ final class WorkbookViewController: NSViewController {
 
     private func layoutFrozenPanes() {
         let frozen = grid.frozenExtent
-        let headers = CGSize(width: rowHeader?.requiredThickness ?? 0, height: columnHeader?.requiredThickness ?? 0)
+        let headers = scrollView.rulersVisible
+            ? CGSize(width: rowHeader?.requiredThickness ?? 0, height: columnHeader?.requiredThickness ?? 0) : .zero
         // Scrollers that take room of their own, rather than floating over the sheet.
         let legacy = scrollView.scrollerStyle == .legacy
         let trailing = CGSize(
@@ -339,7 +352,7 @@ final class WorkbookViewController: NSViewController {
 
         state.zoom = clamped
         state.refreshMetrics(in: document.workbook)
-        document.notify()
+        document.edit { state.keepZoom(in: &$0) }
         let new = state.metrics
         let moved = CGPoint(
             x: new.x(ofColumn: column) + columnFraction * new.width(ofColumn: column),

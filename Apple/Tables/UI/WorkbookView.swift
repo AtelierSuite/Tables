@@ -112,6 +112,7 @@ struct WorkbookView: View {
             state.isNumbersDocument = document.isNumbers
             if state.activeSheetID == nil {
                 state.activeSheetID = document.workbook.openingSheetID
+                state.adoptSavedZoom(in: document.workbook)
                 state.refreshMetrics(in: document.workbook)
             }
             state.allowsInsertingAndDeleting = document.allowsMovingCells(in: state.activeSheetID)
@@ -421,6 +422,9 @@ struct WorkbookView: View {
                 Section { findButton }
                 Section { shareButton }
             }
+            if state.allowsFreezingPanes, !activeSheet.isChartSheet, state.activeCanvas(in: document.workbook) == nil {
+                Section { viewMenu }
+            }
             if state.allowsDefinedNames {
                 Section {
                     Button("Toolbar.Names", systemImage: "character.textbox") {
@@ -442,6 +446,24 @@ struct WorkbookView: View {
             }
         }
         .accessibilityIdentifier("more")
+    }
+
+    /// The active sheet's view options, each a toggle.
+    private var viewMenu: some View {
+        Menu("Toolbar.View", systemImage: "eye") {
+            Toggle("View.GridLines", systemImage: "grid", isOn: viewOption(\.showsGridLines))
+            Toggle("View.Headings", systemImage: "textformat.abc", isOn: viewOption(\.showsHeadings))
+            Toggle("View.ShowZeros", systemImage: "0.square", isOn: viewOption(\.showsZeros))
+            Toggle("View.ShowFormulas", systemImage: "function", isOn: viewOption(\.showsFormulas))
+        }
+        .accessibilityIdentifier("viewOptions")
+    }
+
+    private func viewOption(_ option: WritableKeyPath<Worksheet, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { activeSheet[keyPath: option] },
+            set: { state.setViewOption(option, to: $0, in: &document.workbook) }
+        )
     }
     #endif
 

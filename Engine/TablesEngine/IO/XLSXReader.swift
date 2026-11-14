@@ -673,7 +673,29 @@ public enum XLSXReader {
         )
         sheet.conditionalRules = conditionalRules(in: root, styles: differentialStyles, theme: theme)
         readFrozenPanes(into: &sheet)
+        readViewOptions(into: &sheet)
         return sheet
+    }
+
+    /// Reads the view options off the sheet's first view. They stay in the
+    /// view kept for writing, which has the model's written over them.
+    private static func readViewOptions(into sheet: inout Worksheet) {
+        guard let element = sheet.preservedElements.first(where: { $0.name == "sheetViews" }),
+              let views = try? XMLLite.parse(Data(element.xml.utf8)),
+              let view = views.firstChild(named: "sheetView") else { return }
+        func flag(_ name: String, default value: Bool) -> Bool {
+            guard let text = view.attribute(name) else { return value }
+            return isTrue(text)
+        }
+        sheet.showsGridLines = flag("showGridLines", default: true)
+        sheet.showsHeadings = flag("showRowColHeaders", default: true)
+        sheet.showsZeros = flag("showZeros", default: true)
+        sheet.showsFormulas = flag("showFormulas", default: false)
+        sheet.isRightToLeft = flag("rightToLeft", default: false)
+        // Zero, which some writers put down, stands for the default.
+        if let scale = view.attribute("zoomScale").flatMap(Double.init), scale >= 1 {
+            sheet.zoomScale = min(max(Int(scale.rounded()), 10), 400)
+        }
     }
 
     /// The `<dxfs>` table, in the order rules index into it.

@@ -696,27 +696,54 @@ public enum XLSXWriter {
             + "</worksheet>"
     }
 
-    /// The sheet's kept fragments, with its frozen pane written into the
-    /// first sheet view — the one the file had, or one of our own.
+    /// The sheet's kept fragments, with its view options and frozen pane
+    /// written into the first sheet view — the one the file had, or one of
+    /// our own.
     private static func preservedElements(of sheet: Worksheet) -> [PreservedElement] {
         var elements = sheet.preservedElements
-        guard sheet.frozenRows > 0 || sheet.frozenColumns > 0 else { return elements }
-        let pane = frozenPane(for: sheet)
-        if let index = elements.firstIndex(where: { $0.name == "sheetViews" }),
+        let isFrozen = sheet.frozenRows > 0 || sheet.frozenColumns > 0
+        let options = viewOptions(of: sheet)
+        let index = elements.firstIndex(where: { $0.name == "sheetViews" })
+        guard index != nil || isFrozen || options.contains(where: { $0.value != nil }) else { return elements }
+        let pane = isFrozen ? frozenPane(for: sheet) : ""
+        if let index,
            let views = try? XMLLite.parse(Data(elements[index].xml.utf8)),
-           let view = views.firstChild(named: "sheetView"),
-           let paneElement = XMLLite.fragment(pane, namespaces: [:]) {
+           let view = views.firstChild(named: "sheetView") {
+            for option in options { view.setAttribute(option.name, option.value) }
+            // Excel keeps the normal view's zoom beside the current one, and
+            // reads it once the sheet is shown in that view again.
+            if view.attribute("zoomScaleNormal") != nil, (view.attribute("view") ?? "normal") == "normal" {
+                view.setAttribute("zoomScaleNormal", sheet.zoomScale == 100 ? nil : String(sheet.zoomScale))
+            }
             // The pane leads the view: it comes before any selection in the schema.
-            view.insertChild(paneElement, at: 0)
+            if isFrozen, let paneElement = XMLLite.fragment(pane, namespaces: [:]) {
+                view.insertChild(paneElement, at: 0)
+            }
             if let xml = XMLLite.serialize(views) {
                 elements[index] = PreservedElement(name: "sheetViews", xml: xml)
                 return elements
             }
         }
+        guard isFrozen || options.contains(where: { $0.value != nil }) else { return elements }
+        let attributes = options.compactMap { option in option.value.map { " \(option.name)=\"\($0)\"" } }.joined()
         elements.removeAll { $0.name == "sheetViews" }
         elements.append(PreservedElement(
-            name: "sheetViews", xml: "<sheetViews><sheetView workbookViewId=\"0\">\(pane)</sheetView></sheetViews>"))
+            name: "sheetViews",
+            xml: "<sheetViews><sheetView\(attributes) workbookViewId=\"0\">\(pane)</sheetView></sheetViews>"))
         return elements
+    }
+
+    /// The `<sheetView>` attributes the model keeps, each with the value to
+    /// write or nil where Excel's default needs none.
+    private static func viewOptions(of sheet: Worksheet) -> [(name: String, value: String?)] {
+        [
+            ("showGridLines", sheet.showsGridLines ? nil : "0"),
+            ("showRowColHeaders", sheet.showsHeadings ? nil : "0"),
+            ("zoomScale", sheet.zoomScale == 100 ? nil : String(sheet.zoomScale)),
+            ("showZeros", sheet.showsZeros ? nil : "0"),
+            ("showFormulas", sheet.showsFormulas ? "1" : nil),
+            ("rightToLeft", sheet.isRightToLeft ? "1" : nil),
+        ]
     }
 
     /// Excel's `<pane>` for frozen rows and columns: where the split falls,

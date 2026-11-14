@@ -201,6 +201,25 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// rest of the sheet scrolls — Excel's frozen panes. Zero for none.
     public var frozenRows = 0
     public var frozenColumns = 0
+    /// Whether the hairlines between cells are drawn — Excel's Gridlines
+    /// view option. Borders are drawn either way.
+    public var showsGridLines = true
+    /// Whether the column letters and row numbers round the grid are shown —
+    /// Excel's Headings view option.
+    public var showsHeadings = true
+    /// How far the sheet is zoomed when it opens, in percent — Excel's
+    /// `zoomScale`, from 10 to 400.
+    public var zoomScale = 100
+    /// Whether a cell whose value is zero shows it, or is left blank —
+    /// Excel's "Show a zero in cells that have zero value".
+    public var showsZeros = true
+    /// Whether cells with a formula show it in place of its result — Excel's
+    /// Show Formulas.
+    public var showsFormulas = false
+    /// Whether the sheet runs from right to left, column A at the right —
+    /// Excel's `rightToLeft`. Kept through a save; the grids do not lay a
+    /// sheet out that way yet.
+    public var isRightToLeft = false
     /// Rectangular regions drawn, selected and edited as a single cell. They
     /// never overlap, and only the top-left cell of each keeps its content.
     public var mergedRanges: [CellRange] = []

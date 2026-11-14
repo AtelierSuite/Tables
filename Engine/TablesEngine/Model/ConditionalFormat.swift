@@ -203,6 +203,10 @@ extension Worksheet {
     /// The cell as it is drawn: its own, under whatever its conditional
     /// formats settled on. A blank cell can be styled by a rule, so this
     /// answers for every address.
+    ///
+    /// The sheet's view options have their say too: with formulas shown, a
+    /// formula is drawn as its text in place of its result, and with zeros
+    /// hidden, a zero is drawn as nothing at all.
     public func displayedCell(at address: CellAddress) -> Cell {
         var cell = self[address]
         if let conditional = conditionalStyles[address] {
@@ -210,6 +214,11 @@ extension Worksheet {
             // A bar or icon shown in place of the value: nothing is left to draw as text.
             if conditional.hidesValue == true { (cell.value, cell.formula) = (.empty, nil) }
         }
+        if showsFormulas, let formula = self[address].formula {
+            cell.value = .text("=" + formula)
+            cell.style.numberFormat = NumberFormatPreset.general.code
+        }
+        if !showsZeros, case .number(let number) = cell.value, number == 0 { cell.value = .empty }
         return cell
     }
 
