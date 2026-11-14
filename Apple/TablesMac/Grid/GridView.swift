@@ -1016,9 +1016,15 @@ final class GridView: NSView, NSTextFieldDelegate {
                     PictureCache.shared.image(for: picture, data: $0)
                 }
             }
-            objects.append(FloatingObject(key: AnyHashable(anchor.id), frame: frame, makeContent: { PictureContentView() }) {
+            let shape = image == nil ? anchor.shape : nil
+            let makeContent: () -> NSView = shape != nil ? { ShapeContentView() } : { PictureContentView() }
+            objects.append(FloatingObject(key: AnyHashable(anchor.id), frame: frame, makeContent: makeContent) {
                 view in
-                (view.content as? PictureContentView)?.show(image, isChart: anchor.isChart)
+                if let shape {
+                    (view.content as? ShapeContentView)?.show(shape, zoom: metrics.zoom)
+                } else {
+                    (view.content as? PictureContentView)?.show(image, isChart: anchor.isChart)
+                }
                 view.configure(frame: frame, isSelected: state.selectedDrawingID == anchor.id,
                                isMovable: !anchor.locks.noMove, isResizable: !anchor.locks.noResize,
                                keepsAspectRatio: anchor.locks.noChangeAspect)

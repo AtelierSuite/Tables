@@ -602,6 +602,8 @@ public struct PreservedDrawingAnchor: Identifiable, Hashable, Sendable {
     /// The VML shape this stands in for, from its `a14:compatExt`. A form
     /// control's twin carries one, and the control draws in its place.
     public var vmlShapeID: String?
+    /// The shape the fragment holds, when it is one we can draw and change.
+    public var shape: DrawingShape?
 }
 
 /// The `noMove`, `noResize` and `noChangeAspect` locks DrawingML puts on an

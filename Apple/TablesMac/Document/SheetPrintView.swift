@@ -28,6 +28,7 @@ final class SheetPrintView: NSView {
         enum Content {
             case chart(TablesEngine.Chart, ResolvedChart)
             case picture(CGImage)
+            case shape(DrawingShape)
         }
 
         let frame: CGRect
@@ -256,23 +257,29 @@ final class SheetPrintView: NSView {
             NSImage(cgImage: image, size: frame.size).draw(
                 in: frame, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         case .chart(let chart, let data):
-            let renderer = ImageRenderer(content: ChartView(chart: chart, data: data)
-                .frame(width: frame.width, height: frame.height)
-                .environment(\.colorScheme, .light))
-            renderer.proposedSize = ProposedViewSize(frame.size)
-            renderer.render { _, render in
-                // Drawn the right way up for an unflipped context, as paper is.
-                context.saveGState()
-                context.translateBy(x: frame.minX, y: frame.maxY)
-                context.scaleBy(x: 1, y: -1)
-                render(context)
-                context.restoreGState()
-            }
+            render(ChartView(chart: chart, data: data), in: frame, context: context)
+        case .shape(let shape):
+            render(DrawingShapeView(shape: shape), in: frame, context: context)
         }
     }
 
-    /// The charts and pictures on the sheet, in the order the grid stacks
-    /// them. Objects Tables keeps but cannot draw print nothing, rather than
+    private func render(_ view: some View, in frame: CGRect, context: CGContext) {
+        let renderer = ImageRenderer(content: view
+            .frame(width: frame.width, height: frame.height)
+            .environment(\.colorScheme, .light))
+        renderer.proposedSize = ProposedViewSize(frame.size)
+        renderer.render { _, render in
+            // Drawn the right way up for an unflipped context, as paper is.
+            context.saveGState()
+            context.translateBy(x: frame.minX, y: frame.maxY)
+            context.scaleBy(x: 1, y: -1)
+            render(context)
+            context.restoreGState()
+        }
+    }
+
+    /// The charts, pictures and shapes on the sheet, in the order the grid
+    /// stacks them. Objects Tables keeps but cannot draw print nothing, rather than
     /// the placeholder the grid shows for them.
     private static func objects(on sheet: Worksheet, in workbook: Workbook, metrics: SheetMetrics) -> [PrintedObject] {
         var objects: [PrintedObject] = []
@@ -285,13 +292,15 @@ final class SheetPrintView: NSView {
         }
         let controlIDs = Set(sheet.formControls.map(\.id))
         for anchor in sheet.preservedDrawingAnchors {
-            guard let placement = anchor.placement, !(anchor.vmlShapeID.map(controlIDs.contains) ?? false),
-                  let picture = anchor.picture,
-                  let data = workbook.preservedPackage.parts[picture.target],
-                  let image = PictureCache.shared.image(for: picture, data: data) else { continue }
+            guard let placement = anchor.placement, !(anchor.vmlShapeID.map(controlIDs.contains) ?? false) else { continue }
             let frame = placement.frame(in: metrics)
             guard frame.width > 0, frame.height > 0 else { continue }
-            objects.append(PrintedObject(frame: frame, content: .picture(image)))
+            if let picture = anchor.picture, let data = workbook.preservedPackage.parts[picture.target],
+               let image = PictureCache.shared.image(for: picture, data: data) {
+                objects.append(PrintedObject(frame: frame, content: .picture(image)))
+            } else if let shape = anchor.shape {
+                objects.append(PrintedObject(frame: frame, content: .shape(shape)))
+            }
         }
         return objects
     }
