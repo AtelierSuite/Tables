@@ -342,6 +342,24 @@ struct HyperlinkTests {
         #expect(workbook.sheets[0][a1("A1")].value == .text("Totals"))
     }
 
+    @Test("Removing a link read from a file takes away the file's link look too")
+    @MainActor
+    func removingAFileLinkResetsItsLook() {
+        var workbook = Workbook(sheets: [Worksheet(name: "Sheet1")])
+        var style = CellStyle.default
+        style.textColorHex = "FF0563C1"
+        style.isUnderlined = true
+        workbook.sheets[0][a1("B2")] = Cell(value: .text("Site"), style: style)
+        workbook.sheets[0].hyperlinks[a1("B2")] = CellHyperlink(address: "https://example.com")
+        let state = EditorState()
+        state.activeSheetID = workbook.sheets[0].id
+        state.select(a1("B2"))
+        state.removeHyperlinks(in: &workbook)
+        #expect(workbook.sheets[0].hyperlinks.isEmpty)
+        #expect(workbook.sheets[0][a1("B2")].style.textColorHex == nil)
+        #expect(!workbook.sheets[0][a1("B2")].style.isUnderlined)
+    }
+
     @Test("A formula's cell keeps its formula when a link is set on it")
     @MainActor
     func linkOnAFormulaKeepsTheFormula() {

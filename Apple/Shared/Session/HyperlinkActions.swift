@@ -78,7 +78,10 @@ extension EditorState {
         for address in removed {
             workbook.sheets[index].hyperlinks[address] = nil
             var cell = workbook.sheets[index][address]
-            guard cell.style.textColorHex?.uppercased() == CellHyperlink.textColorHex, cell.style.isUnderlined else {
+            // Colors read from a file carry an alpha byte in front: `FF0563C1`.
+            guard let color = cell.style.textColorHex?.uppercased(),
+                  color == CellHyperlink.textColorHex || color == "FF" + CellHyperlink.textColorHex,
+                  cell.style.isUnderlined else {
                 continue
             }
             cell.style.textColorHex = nil
