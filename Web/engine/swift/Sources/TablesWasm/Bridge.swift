@@ -354,7 +354,7 @@ final class Bridge {
             for address in sheet.storedAddresses(in: range) {
                 cellsSeen += 1
                 guard cellsSeen <= 200_000 else { break }
-                let value = sheet.displayedCell(at: address).value
+                let value = sheet[address].value
                 guard !value.isEmpty else { continue }
                 count += 1
                 if case .number(let number) = value {
@@ -472,6 +472,8 @@ final class Bridge {
             "heights": rows.filter { $0 < sheet.rowCount }.flatMap { [Double($0), sheet.height(ofRow: $0)] },
             "frozenRows": sheet.frozenRows,
             "frozenColumns": sheet.frozenColumns,
+            "showsHeadings": sheet.showsHeadings,
+            "zoomScale": sheet.zoomScale,
             "chart": sheet.isChartSheet,
             "merges": sheet.mergedRanges.map(range),
         ]

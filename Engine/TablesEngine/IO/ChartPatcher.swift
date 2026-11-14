@@ -18,17 +18,31 @@ public enum ChartPatcher {
         let base = original.baseline
         let sameFamily = chart.kind == base.kind || Set([chart.kind, base.kind]) == [.column, .bar]
         guard sameFamily, chart.categoryAxis.isDateAxis == base.categoryAxis.isDateAxis,
+              (chart.secondaryValueAxis == nil) == (base.secondaryValueAxis == nil),
               let root = try? XMLLite.parse(original.xml), root.name == "chartSpace",
               let chartElement = root.firstChild(named: "chart"),
-              let plotArea = chartElement.firstChild(named: "plotArea"),
-              let group = plotArea.children.first(where: { $0.name.hasSuffix("Chart") }),
-              group.children(named: "ser").count == base.series.count
+              let plotArea = chartElement.firstChild(named: "plotArea")
         else { return nil }
+        let groups = plotArea.children.filter { $0.name.hasSuffix("Chart") }
+        guard !groups.isEmpty,
+              groups.reduce(0, { $0 + $1.children(named: "ser").count }) == base.series.count
+        else { return nil }
+
+        // Which plot a series belongs to is the shape of the chart: a series
+        // that changed plots, or anything added to or taken from a
+        // combination, means building the chart again.
+        let before = Dictionary(base.series.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for series in chart.series {
+            let old = before[series.id]
+            guard series.plotKind == old?.plotKind, series.usesSecondaryAxis == (old?.usesSecondaryAxis ?? false)
+            else { return nil }
+        }
+        if groups.count > 1, chart.series.map(\.id) != base.series.map(\.id) { return nil }
 
         let patch = Patch(chart: chart, base: base, workbook: workbook)
         patch.chartSpace(root)
         patch.chart(chartElement)
-        guard patch.plot(group, in: plotArea), let body = XMLLite.serialize(root) else { return nil }
+        guard patch.plot(groups, in: plotArea), let body = XMLLite.serialize(root) else { return nil }
         return ChartWriter.declaration + body
     }
 
@@ -44,13 +58,15 @@ public enum ChartPatcher {
             "legend", "plotVisOnly", "dispBlanksAs", "showDLblsOverMax", "extLst",
         ]
         public static let group = [
-            "barDir", "scatterStyle", "grouping", "varyColors", "ser", "dLbls", "dropLines", "hiLowLines",
-            "upDownBars", "gapWidth", "overlap", "serLines", "marker", "smooth", "firstSliceAng", "holeSize",
-            "axId", "extLst",
+            "barDir", "scatterStyle", "radarStyle", "grouping", "varyColors", "ser", "dLbls", "bubble3D",
+            "bubbleScale", "showNegBubbles", "sizeRepresents", "dropLines", "hiLowLines", "upDownBars", "gapWidth",
+            "gapDepth", "overlap", "shape", "serLines", "marker", "smooth", "firstSliceAng", "holeSize", "axId",
+            "extLst",
         ]
         public static let series = [
             "idx", "order", "tx", "spPr", "invertIfNegative", "pictureOptions", "marker", "explosion", "dPt",
-            "dLbls", "trendline", "errBars", "cat", "xVal", "val", "yVal", "shape", "smooth", "extLst",
+            "dLbls", "trendline", "errBars", "cat", "xVal", "val", "yVal", "bubbleSize", "shape", "smooth",
+            "bubble3D", "extLst",
         ]
         public static let point = ["idx", "invertIfNegative", "marker", "bubble3D", "explosion", "spPr", "pictureOptions", "extLst"]
         public static let marker = ["symbol", "size", "spPr", "extLst"]
@@ -215,7 +231,8 @@ private final class Patch {
         self.workbook = workbook
     }
 
-    var usesLine: Bool { chart.kind == .line || chart.kind == .scatter }
+    /// The series as the file has them, beside what each is now and was.
+    private var matched: [(element: XMLElement, series: ChartSeries, old: ChartSeries)] = []
 
     // MARK: Chart space
 
@@ -349,9 +366,15 @@ private final class Patch {
 
     // MARK: Plot
 
-    /// The plot and its axes. `false` when the series in the file no longer
-    /// line up with the model's.
-    func plot(_ group: XMLElement, in plotArea: XMLElement) -> Bool {
+    /// The plots and their axes. `false` when the series in the file no
+    /// longer line up with the model's.
+    func plot(_ groups: [XMLElement], in plotArea: XMLElement) -> Bool {
+        guard series(in: groups) else { return false }
+        // The chart's own plot: the one its first series of its own kind on
+        // the main axes sits in.
+        let group = matched.first { $0.old.plotKind == nil && !$0.old.usesSecondaryAxis }?.element.parent
+            ?? groups[0]
+
         if chart.kind != base.kind {
             P.setValue("barDir", chart.kind == .bar ? "bar" : "col", in: group, order: Order.group)
         }
@@ -360,43 +383,57 @@ private final class Patch {
         }
         if chart.kind.supportsGrouping, chart.grouping != base.grouping {
             let isBar = chart.kind == .column || chart.kind == .bar
+            // A 3-D bar chart says `standard` for bars ranked into the page,
+            // which drawn flat is a clustered chart.
             let value = isBar && chart.grouping == .standard ? "clustered" : chart.grouping.rawValue
             P.setValue("grouping", value, in: group, order: Order.group)
         }
-        if chart.kind == .column || chart.kind == .bar {
+        if let bars = groups.first(where: { $0.name == "barChart" || $0.name == "bar3DChart" }) {
             if chart.gapWidth != base.gapWidth {
-                P.setOptionalValue("gapWidth", chart.gapWidth.map(String.init), in: group, order: Order.group)
+                P.setOptionalValue("gapWidth", chart.gapWidth.map(String.init), in: bars, order: Order.group)
             }
             // Stacked bars must overlap completely, as the writer has them.
+            // 3-D bars have no overlap to set.
             func overlap(_ chart: Chart) -> Int? { chart.grouping == .standard ? chart.overlap : 100 }
-            if overlap(chart) != overlap(base) {
-                P.setOptionalValue("overlap", overlap(chart).map(String.init), in: group, order: Order.group)
+            if bars === group, bars.name == "barChart", overlap(chart) != overlap(base) {
+                P.setOptionalValue("overlap", overlap(chart).map(String.init), in: bars, order: Order.group)
             }
         }
         if chart.kind == .doughnut, chart.holeSize != base.holeSize {
             P.setValue("holeSize", String(min(max(chart.holeSize, 10), 90)), in: group, order: Order.group)
         }
-        if chart.kind.isRadial, chart.firstSliceAngle != base.firstSliceAngle {
+        if chart.kind.isRadial, group.name != "pie3DChart", chart.firstSliceAngle != base.firstSliceAngle {
             P.setValue("firstSliceAng", String(chart.firstSliceAngle), in: group, order: Order.group)
         }
 
-        guard series(in: group) else { return false }
-        if chart.dataLabels != base.dataLabels { labels(group) }
-        if !chart.kind.isRadial { axes(of: group, in: plotArea) }
+        labels(group)
+        if !chart.kind.isRadial { axes(of: group, among: groups, in: plotArea) }
         return true
     }
 
     // MARK: Series
 
-    private func series(in group: XMLElement) -> Bool {
+    private func series(in groups: [XMLElement]) -> Bool {
         // Matched to the model as the reader matched them: by `order`.
-        let elements = group.children(named: "ser")
+        let elements = groups.flatMap { $0.children(named: "ser") }
             .map { (order: Int($0.firstChild(named: "order")?.attribute("val") ?? "") ?? 0, element: $0) }
             .enumerated().sorted { ($0.element.order, $0.offset) < ($1.element.order, $1.offset) }
             .map(\.element.element)
         guard elements.count == base.series.count else { return false }
         var byID: [UUID: (element: XMLElement, old: ChartSeries)] = [:]
         for (element, old) in zip(elements, base.series) { byID[old.id] = (element, old) }
+
+        // A combination keeps its series where they are: `patch` has already
+        // seen that none came or went.
+        if groups.count > 1 {
+            for entry in chart.series {
+                guard let match = byID[entry.id] else { return false }
+                patch(match.element, to: entry, from: match.old)
+                matched.append((match.element, entry, match.old))
+            }
+            return true
+        }
+        let group = groups[0]
 
         var nextIndex = (elements.compactMap { $0.firstChild(named: "idx")?.attribute("val").flatMap(Int.init) }
             .max() ?? -1) + 1
@@ -406,6 +443,7 @@ private final class Patch {
             if let match = byID[entry.id] {
                 element = match.element
                 patch(element, to: entry, from: match.old)
+                matched.append((element, entry, match.old))
             } else {
                 // A series added since: written whole, numbered past the rest.
                 let xml = ChartWriter.seriesElement(entry, index: nextIndex, chart: chart, workbook: workbook)
@@ -428,31 +466,42 @@ private final class Patch {
     }
 
     private func patch(_ element: XMLElement, to series: ChartSeries, from old: ChartSeries) {
+        let kind = series.kind(in: chart)
         // The data follows the sheet, so it is rewritten every time.
         if let name = ChartWriter.seriesName(series, chart: chart, workbook: workbook) {
             P.replace("tx", in: element, with: name, order: Order.series)
         } else {
             P.remove("tx", from: element)
         }
-        let categoryName = chart.kind == .scatter ? "xVal" : "cat"
+        let categoryName = kind.plotsXY ? "xVal" : "cat"
         if let categories = ChartWriter.seriesCategories(series, chart: chart, workbook: workbook) {
             P.replace(categoryName, in: element, with: categories, order: Order.series)
         } else {
             P.remove(categoryName, from: element)
         }
         let values = ChartWriter.seriesValues(series, chart: chart, workbook: workbook)
-        P.replace(chart.kind == .scatter ? "yVal" : "val", in: element, with: values, order: Order.series)
+        P.replace(kind.plotsXY ? "yVal" : "val", in: element, with: values, order: Order.series)
+        if kind == .bubble {
+            let sizes = ChartWriter.seriesBubbleSizes(series, chart: chart, workbook: workbook)
+            P.replace("bubbleSize", in: element, with: sizes, order: Order.series)
+        }
 
-        if usesLine {
-            lineStyle(element, to: series, from: old)
+        if kind.drawsLines {
+            lineStyle(element, to: series, from: old, kind: kind)
+            // A filled radar series wears its colour on its shape as well.
+            if kind == .radar, series.colorHex != old.colorHex, let color = series.colorHex,
+               let shape = element.firstChild(named: "spPr"),
+               shape.firstChild(named: "solidFill") != nil {
+                P.replaceFill(in: shape, with: ChartWriter.solidFill(color), order: Order.shape)
+            }
         } else if series.colorHex != old.colorHex {
             let shape = P.child("spPr", of: element, order: Order.series)
             P.replaceFill(in: shape, with: series.colorHex.map(ChartWriter.solidFill), order: Order.shape)
         }
-        pointColors(element, to: series, from: old)
+        pointColors(element, to: series, from: old, kind: kind)
     }
 
-    private func lineStyle(_ element: XMLElement, to series: ChartSeries, from old: ChartSeries) {
+    private func lineStyle(_ element: XMLElement, to series: ChartSeries, from old: ChartSeries, kind: ChartKind) {
         if series.showsLine != old.showsLine || series.colorHex != old.colorHex || series.lineWidth != old.lineWidth {
             let line = P.child("ln", of: P.child("spPr", of: element, order: Order.series), order: Order.shape)
             if series.showsLine != old.showsLine || series.colorHex != old.colorHex {
@@ -482,7 +531,7 @@ private final class Patch {
             } else if symbol == nil || symbol == "none" {
                 P.setValue("symbol", "circle", in: marker, order: Order.marker)
             }
-            if chart.kind == .line, series.showsMarkers,
+            if kind == .line, series.showsMarkers,
                let group = element.parent, let shown = group.firstChild(named: "marker"), ChartReader.flag(shown) == false {
                 shown.setAttribute("val", "1")
             }
@@ -499,7 +548,8 @@ private final class Patch {
         }
     }
 
-    private func pointColors(_ element: XMLElement, to series: ChartSeries, from old: ChartSeries) {
+    private func pointColors(_ element: XMLElement, to series: ChartSeries, from old: ChartSeries, kind: ChartKind) {
+        let usesLine = kind.drawsLines
         let changed = Set(series.pointColors.keys).union(old.pointColors.keys)
             .filter { series.pointColors[$0] != old.pointColors[$0] }.sorted()
         for index in changed {
@@ -527,7 +577,7 @@ private final class Patch {
                 point = existing
             } else {
                 var xml = "<c:dPt><c:idx val=\"\(index)\"/>"
-                if chart.kind.isRadial { xml += "<c:bubble3D val=\"0\"/>" }
+                if kind.isRadial { xml += "<c:bubble3D val=\"0\"/>" }
                 guard let fresh = P.make(xml + "</c:dPt>") else { continue }
                 // Kept in point order, which is how Excel lists them.
                 if let next = points.first(where: { (pointIndex($0) ?? 0) > index }),
@@ -549,34 +599,51 @@ private final class Patch {
 
     // MARK: Data labels
 
-    /// The model has one set of labels for the chart, so a change to it is
-    /// written to the plot's labels and to every series that has its own.
+    /// The chart's labels are written to its own plot, and each series'
+    /// labels — its own, or the chart's — to the series when they changed.
     /// Formatting and labels on single points are left alone.
     private func labels(_ group: XMLElement) {
-        let labels = chart.dataLabels
-        func apply(to element: XMLElement) {
+        func apply(_ labels: ChartDataLabels, kind: ChartKind, to element: XMLElement) {
             P.remove("delete", from: element)
             P.setValue("showVal", P.flag(labels.showsValue), in: element, order: Order.labels)
             P.setValue("showCatName", P.flag(labels.showsCategoryName), in: element, order: Order.labels)
             P.setValue("showSerName", P.flag(labels.showsSeriesName), in: element, order: Order.labels)
             P.setValue(
-                "showPercent", P.flag(labels.showsPercentage && chart.kind.isRadial), in: element, order: Order.labels
+                "showPercent", P.flag(labels.showsPercentage && kind.isRadial), in: element, order: Order.labels
             )
+            if kind == .bubble {
+                P.setValue("showBubbleSize", P.flag(labels.showsBubbleSize), in: element, order: Order.labels)
+            }
         }
-        if let element = group.firstChild(named: "dLbls") {
-            apply(to: element)
-        } else if let fresh = P.make(ChartWriter.dataLabels(labels, kind: chart.kind)) {
-            P.insert(fresh, into: group, order: Order.group)
+        if chart.dataLabels != base.dataLabels {
+            if let element = group.firstChild(named: "dLbls") {
+                apply(chart.dataLabels, kind: chart.kind, to: element)
+            } else if let fresh = P.make(ChartWriter.dataLabels(chart.dataLabels, kind: chart.kind)) {
+                P.insert(fresh, into: group, order: Order.group)
+            }
         }
-        for series in group.children(named: "ser") {
-            if let element = series.firstChild(named: "dLbls") { apply(to: element) }
+        for entry in matched {
+            let labels = entry.series.dataLabels ?? chart.dataLabels
+            guard labels != entry.old.dataLabels ?? base.dataLabels else { continue }
+            let kind = entry.series.kind(in: chart)
+            if let element = entry.element.firstChild(named: "dLbls") {
+                apply(labels, kind: kind, to: element)
+            } else if entry.series.dataLabels != nil || entry.element.parent !== group,
+                      let fresh = P.make(ChartWriter.dataLabels(labels, kind: kind)) {
+                // Labels of its own, or a plot whose labels are not the
+                // chart's to speak for.
+                P.insert(fresh, into: entry.element, order: Order.series)
+            }
         }
     }
 
     // MARK: Axes
 
-    private func axes(of group: XMLElement, in plotArea: XMLElement) {
-        let ids = group.children(named: "axId").compactMap { $0.attribute("val") }
+    private func axes(of group: XMLElement, among groups: [XMLElement], in plotArea: XMLElement) {
+        func pair(_ group: XMLElement) -> [String] {
+            Array(group.children(named: "axId").compactMap { $0.attribute("val") }.prefix(2))
+        }
+        let ids = pair(group)
         guard ids.count == 2 else { return }
         func axis(_ id: String) -> XMLElement? {
             plotArea.children.first { element in
@@ -592,6 +659,11 @@ private final class Patch {
         if let value = axis(ids[1]) {
             patch(value, to: chart.valueAxis, from: base.valueAxis, isVertical: !isBar)
             if chart.kind != base.kind { P.setValue("axPos", isBar ? "b" : "l", in: value, order: Order.axis) }
+        }
+        if let secondary = chart.secondaryValueAxis, let old = base.secondaryValueAxis, secondary != old,
+           let other = groups.map(pair).first(where: { $0.count == 2 && $0 != ids }),
+           let value = axis(other[1]) {
+            patch(value, to: secondary, from: old, isVertical: true)
         }
     }
 

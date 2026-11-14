@@ -13,10 +13,16 @@ public enum ChartReader {
         public var theme: ThemeColorScheme
     }
 
-    /// The plot types we model, by element name.
-    private static let supportedGroups: Set<String> = [
-        "barChart", "lineChart", "areaChart", "pieChart", "doughnutChart", "scatterChart",
-    ]
+    private static let axisNames: Set<String> = ["catAx", "valAx", "dateAx", "serAx"]
+
+    /// One plot in the plot area, and what the reader made of it.
+    private struct Plot {
+        var element: XMLElement
+        var kind: ChartKind
+        /// The ids of the axes it lays its categories and its values along.
+        var axisIDs: [String]
+        var isSecondary = false
+    }
 
     public static func chart(from root: XMLElement, context: Context) -> Chart? {
         guard root.name == "chartSpace",
@@ -28,57 +34,153 @@ public enum ChartReader {
               chartElement.firstChild(named: "pivotFmts") == nil,
               root.firstChild(named: "pivotSource") == nil else { return nil }
 
-        // Exactly one plot, and no plot type we cannot draw: a second group is
-        // a combination chart, and that is not something to flatten.
+        // Every plot has to be one we can draw. Several together are a
+        // combination chart, which only some kinds can be part of.
         let groups = plotArea.children.filter { $0.name.hasSuffix("Chart") }
-        guard groups.count == 1, let group = groups.first, supportedGroups.contains(group.name) else {
-            return nil
-        }
-        // Lines and bars hung off the series are features we would drop.
-        for unsupported in ["upDownBars", "hiLowLines", "dropLines", "serLines"]
-        where group.firstChild(named: unsupported) != nil {
-            return nil
-        }
-
-        guard let kind = kind(of: group) else { return nil }
-        var chart = Chart(name: "", kind: kind)
-        chart.grouping = grouping(of: group, kind: kind)
-        chart.variesColors = flag(group.firstChild(named: "varyColors")) ?? true
-        chart.gapWidth = integer(group.firstChild(named: "gapWidth"))
-        chart.overlap = integer(group.firstChild(named: "overlap"))
-        chart.holeSize = integer(group.firstChild(named: "holeSize")) ?? 50
-        chart.firstSliceAngle = integer(group.firstChild(named: "firstSliceAng")) ?? 0
-
-        let scatterStyle = group.firstChild(named: "scatterStyle")?.attribute("val") ?? "lineMarker"
-        for element in group.children(named: "ser") {
-            guard let series = series(from: element, kind: kind, scatterStyle: scatterStyle, context: context) else {
+        var plots: [Plot] = []
+        for group in groups {
+            guard let kind = kind(of: group), !group.children(named: "ser").isEmpty || groups.count == 1 else {
                 return nil
             }
-            chart.series.append(series)
-        }
-        // Series are drawn in `order`, not in document order.
-        let orders = group.children(named: "ser").map { integer($0.firstChild(named: "order")) ?? 0 }
-        chart.series = zip(orders, chart.series).sorted { $0.0 < $1.0 }.map(\.1)
-
-        chart.dataLabels = dataLabels(group.firstChild(named: "dLbls"))
-            ?? group.children(named: "ser").lazy.compactMap { dataLabels($0.firstChild(named: "dLbls")) }.first
-            ?? ChartDataLabels()
-
-        // Axes are matched to roles by the ids the plot lists, first the one
-        // it lays categories along — or, for a scatter chart, X.
-        let axisIDs = group.children(named: "axId").compactMap { $0.attribute("val") }
-        let axes = plotArea.children.filter { ["catAx", "valAx", "dateAx", "serAx"].contains($0.name) }
-        if kind.isRadial {
-            guard axes.isEmpty else { return nil }
-        } else {
-            guard axes.count == 2, axisIDs.count == 2,
-                  !axes.contains(where: { $0.name == "serAx" }) else { return nil }
-            func axis(_ id: String) -> XMLElement? {
-                axes.first { $0.firstChild(named: "axId")?.attribute("val") == id }
+            // Lines hung off the series are features we would not draw.
+            for unsupported in ["dropLines", "serLines"] where group.firstChild(named: unsupported) != nil {
+                return nil
             }
-            guard let categoryElement = axis(axisIDs[0]), let valueElement = axis(axisIDs[1]) else { return nil }
+            if kind != .stock, group.firstChild(named: "upDownBars") != nil || group.firstChild(named: "hiLowLines") != nil {
+                return nil
+            }
+            if kind == .stock, !(3...4).contains(group.children(named: "ser").count) { return nil }
+            plots.append(Plot(
+                element: group, kind: kind, axisIDs: group.children(named: "axId").compactMap { $0.attribute("val") }
+            ))
+        }
+        guard !plots.isEmpty else { return nil }
+        let is3D = groups.contains { $0.name.hasSuffix("3DChart") }
+        if plots.count > 1 {
+            guard !is3D, plots.allSatisfy({ $0.kind.combines }) else { return nil }
+        }
+
+        // Axes are matched to roles by the ids each plot lists, first the one
+        // it lays categories along — or, for a scatter chart, X. A second
+        // pair of axes is the secondary one of a combination chart.
+        let axes = plotArea.children.filter { axisNames.contains($0.name) }
+        func axis(_ id: String) -> XMLElement? {
+            axes.first { $0.firstChild(named: "axId")?.attribute("val") == id }
+        }
+        var primaryIDs: [String] = []
+        var secondaryIDs: [String]?
+        if plots[0].kind.isRadial {
+            guard axes.isEmpty, plots.count == 1 else { return nil }
+        } else {
+            var used: Set<String> = []
+            var pairs: [[String]] = []
+            for plot in plots {
+                // 3-D plots may name a third axis, running into the page.
+                guard plot.axisIDs.count == 2 || plot.axisIDs.count == 3,
+                      let first = axis(plot.axisIDs[0]), let second = axis(plot.axisIDs[1]),
+                      first.name != "serAx", second.name != "serAx" else { return nil }
+                // A 3-D plot without depth names a third id that no axis
+                // has: Excel writes 0.
+                if plot.axisIDs.count == 3, let third = axis(plot.axisIDs[2]) {
+                    guard third.name == "serAx" else { return nil }
+                }
+                used.formUnion(plot.axisIDs.filter { axis($0) != nil })
+                let pair = Array(plot.axisIDs.prefix(2))
+                if !pairs.contains(pair) { pairs.append(pair) }
+            }
+            // An axis no plot uses is one we would not know how to draw.
+            guard pairs.count <= 2, used.count == axes.count else { return nil }
+            primaryIDs = pairs[0]
+            if pairs.count == 2 {
+                // The secondary value axis is the one sent to the far side.
+                func crossesAtMaximum(_ pair: [String]) -> Bool {
+                    axis(pair[1])?.firstChild(named: "crosses")?.attribute("val") == "max"
+                }
+                if crossesAtMaximum(pairs[0]), !crossesAtMaximum(pairs[1]) { primaryIDs = pairs[1] }
+                secondaryIDs = pairs.first { $0 != primaryIDs }
+            }
+            for index in plots.indices {
+                plots[index].isSecondary = Array(plots[index].axisIDs.prefix(2)) != primaryIDs
+            }
+        }
+
+        // The chart takes its kind from the first plot on its main axes.
+        guard let primary = plots.first(where: { !$0.isSecondary }) else { return nil }
+        let group = primary.element
+        let kind = primary.kind
+        var chart = Chart(name: "", kind: kind)
+        chart.is3D = is3D
+        chart.grouping = grouping(of: group, kind: kind)
+        for plot in plots where plot.element !== group {
+            // Only the chart's own plot stacks, and no two plots may be told
+            // apart by nothing but their place in the file.
+            guard grouping(of: plot.element, kind: plot.kind) == .standard,
+                  plots.filter({ $0.kind == plot.kind && $0.isSecondary == plot.isSecondary }).count == 1 else {
+                return nil
+            }
+        }
+        chart.variesColors = flag(group.firstChild(named: "varyColors")) ?? true
+        let bars = plots.first { $0.kind == .column || $0.kind == .bar }?.element
+        chart.gapWidth = integer(bars?.firstChild(named: "gapWidth"))
+        chart.overlap = integer(bars?.firstChild(named: "overlap"))
+        chart.holeSize = integer(group.firstChild(named: "holeSize")) ?? 50
+        chart.firstSliceAngle = integer(group.firstChild(named: "firstSliceAng")) ?? 0
+        if let style = group.firstChild(named: "radarStyle")?.attribute("val") {
+            chart.radarStyle = ChartRadarStyle(rawValue: style) ?? .standard
+        }
+        chart.bubbleScale = integer(group.firstChild(named: "bubbleScale")) ?? 100
+        chart.bubbleSizeIsWidth = group.firstChild(named: "sizeRepresents")?.attribute("val") == "w"
+        if let stock = plots.first(where: { $0.kind == .stock })?.element {
+            chart.hasHighLowLines = stock.firstChild(named: "hiLowLines") != nil
+            if let element = stock.firstChild(named: "upDownBars") {
+                chart.upDownBars = ChartUpDownBars(
+                    gapWidth: integer(element.firstChild(named: "gapWidth")) ?? 150,
+                    upColorHex: fillColor(in: element.firstChild(named: "upBars")?.firstChild(named: "spPr"), context: context),
+                    downColorHex: fillColor(in: element.firstChild(named: "downBars")?.firstChild(named: "spPr"), context: context)
+                )
+            }
+        }
+
+        // Series are drawn in `order`, not in document order.
+        var read: [(order: Int, series: ChartSeries, labels: ChartDataLabels?)] = []
+        for plot in plots {
+            let scatterStyle = plot.element.firstChild(named: "scatterStyle")?.attribute("val") ?? "lineMarker"
+            for element in plot.element.children(named: "ser") {
+                guard var series = series(
+                    from: element, kind: plot.kind, scatterStyle: scatterStyle, radarStyle: chart.radarStyle,
+                    context: context
+                ) else { return nil }
+                if plot.kind != kind { series.plotKind = plot.kind }
+                series.usesSecondaryAxis = plot.isSecondary
+                // A series follows its own plot's labels before the chart's.
+                let labels = dataLabels(element.firstChild(named: "dLbls"))
+                    ?? (plot.element === group ? nil : dataLabels(plot.element.firstChild(named: "dLbls")))
+                read.append((integer(element.firstChild(named: "order")) ?? 0, series, labels))
+            }
+        }
+        let ordered = read.enumerated().sorted { ($0.element.order, $0.offset) < ($1.element.order, $1.offset) }
+            .map(\.element)
+
+        // Labels are the chart's, with each series free to differ. Excel
+        // itself writes them on every series, which then all say the same.
+        let own = ordered.map(\.labels)
+        chart.dataLabels = dataLabels(group.firstChild(named: "dLbls")) ?? ChartDataLabels()
+        if let first = own.first, let shared = first, own.allSatisfy({ $0 == shared }) {
+            chart.dataLabels = shared
+        }
+        chart.series = ordered.map { entry in
+            var series = entry.series
+            if let labels = entry.labels, labels != chart.dataLabels { series.dataLabels = labels }
+            return series
+        }
+
+        if !kind.isRadial {
+            guard let categoryElement = axis(primaryIDs[0]), let valueElement = axis(primaryIDs[1]) else { return nil }
             chart.categoryAxis = self.axis(from: categoryElement, context: context)
             chart.valueAxis = self.axis(from: valueElement, context: context)
+            if let secondaryIDs, let element = axis(secondaryIDs[1]) {
+                chart.secondaryValueAxis = self.axis(from: element, context: context)
+            }
         }
 
         // Titles.
@@ -119,13 +221,17 @@ public enum ChartReader {
 
     private static func kind(of group: XMLElement) -> ChartKind? {
         switch group.name {
-        case "barChart":
+        // A 3-D plot is read as the flat plot of the same type.
+        case "barChart", "bar3DChart":
             return group.firstChild(named: "barDir")?.attribute("val") == "bar" ? .bar : .column
-        case "lineChart": return .line
-        case "areaChart": return .area
-        case "pieChart": return .pie
+        case "lineChart", "line3DChart": return .line
+        case "areaChart", "area3DChart": return .area
+        case "pieChart", "pie3DChart": return .pie
         case "doughnutChart": return .doughnut
         case "scatterChart": return .scatter
+        case "bubbleChart": return .bubble
+        case "radarChart": return .radar
+        case "stockChart": return .stock
         default: return nil
         }
     }
@@ -140,13 +246,9 @@ public enum ChartReader {
     }
 
     private static func series(
-        from element: XMLElement, kind: ChartKind, scatterStyle: String, context: Context
+        from element: XMLElement, kind: ChartKind, scatterStyle: String, radarStyle: ChartRadarStyle,
+        context: Context
     ) -> ChartSeries? {
-        // Trendlines and error bars belong to the series; dropping them on
-        // save would be exactly the silent edit this reader refuses to make.
-        guard element.firstChild(named: "trendline") == nil,
-              element.firstChild(named: "errBars") == nil else { return nil }
-
         var series = ChartSeries()
         if let tx = element.firstChild(named: "tx") {
             if let literal = tx.firstChild(named: "v") {
@@ -158,31 +260,41 @@ public enum ChartReader {
             }
         }
 
-        let categoryName = kind == .scatter ? "xVal" : "cat"
-        let valueName = kind == .scatter ? "yVal" : "val"
+        let categoryName = kind.plotsXY ? "xVal" : "cat"
+        let valueName = kind.plotsXY ? "yVal" : "val"
         guard let categories = source(element.firstChild(named: categoryName), context: context),
               let values = source(element.firstChild(named: valueName), context: context) else { return nil }
         series.categories = categories
         series.values = values
+        if kind == .bubble {
+            guard let sizes = source(element.firstChild(named: "bubbleSize"), context: context) else { return nil }
+            series.bubbleSizes = sizes
+        }
 
         let shape = element.firstChild(named: "spPr")
         let line = shape?.firstChild(named: "ln")
         switch kind {
-        case .line, .scatter:
+        case .line, .scatter, .radar, .stock:
             // A series drawn as markers alone carries its colour on the marker.
             let marker = element.firstChild(named: "marker")?.firstChild(named: "spPr")
             series.colorHex = fillColor(in: line, context: context)
                 ?? fillColor(in: shape, context: context)
                 ?? fillColor(in: marker, context: context)
-            let defaultLine = kind == .line || !["marker", "none"].contains(scatterStyle)
+            let defaultLine = kind != .scatter || !["marker", "none"].contains(scatterStyle)
             series.showsLine = line?.firstChild(named: "noFill") == nil && defaultLine
                 || line?.firstChild(named: "solidFill") != nil
             if let width = line?.attribute("w").flatMap(Double.init) { series.lineWidth = width / 12_700 }
             let symbol = element.firstChild(named: "marker")?.firstChild(named: "symbol")?.attribute("val")
-            let defaultMarkers = kind == .line || !["line", "smooth", "none"].contains(scatterStyle)
+            let defaultMarkers: Bool
+            switch kind {
+            case .scatter: defaultMarkers = !["line", "smooth", "none"].contains(scatterStyle)
+            case .radar: defaultMarkers = radarStyle == .marker
+            case .stock: defaultMarkers = false
+            default: defaultMarkers = true
+            }
             series.showsMarkers = symbol.map { $0 != "none" } ?? defaultMarkers
             series.isSmooth = flag(element.firstChild(named: "smooth")) ?? false
-        case .column, .bar, .area, .pie, .doughnut:
+        case .column, .bar, .area, .pie, .doughnut, .bubble:
             series.colorHex = fillColor(in: shape, context: context)
         }
 
@@ -194,7 +306,50 @@ public enum ChartReader {
                 series.pointColors[index] = color
             }
         }
+
+        series.trendlines = element.children(named: "trendline").map { trendline(from: $0, context: context) }
+        for bars in element.children(named: "errBars") {
+            guard let read = errorBars(from: bars, kind: kind, context: context) else { return nil }
+            series.errorBars.append(read)
+        }
         return series
+    }
+
+    private static func trendline(from element: XMLElement, context: Context) -> ChartTrendline {
+        var trendline = ChartTrendline()
+        if let type = element.firstChild(named: "trendlineType")?.attribute("val") {
+            trendline.kind = ChartTrendline.Kind(rawValue: type) ?? .linear
+        }
+        if let name = element.firstChild(named: "name")?.text.trimmed, !name.isEmpty { trendline.name = name }
+        trendline.order = integer(element.firstChild(named: "order")) ?? 2
+        trendline.period = integer(element.firstChild(named: "period")) ?? 2
+        trendline.forward = number(element.firstChild(named: "forward")) ?? 0
+        trendline.backward = number(element.firstChild(named: "backward")) ?? 0
+        trendline.intercept = number(element.firstChild(named: "intercept"))
+        trendline.showsEquation = flag(element.firstChild(named: "dispEq")) ?? false
+        trendline.showsRSquared = flag(element.firstChild(named: "dispRSqr")) ?? false
+        let line = element.firstChild(named: "spPr")?.firstChild(named: "ln")
+        trendline.colorHex = fillColor(in: line, context: context)
+        trendline.lineWidth = line?.attribute("w").flatMap(Double.init).map { $0 / 12_700 }
+        return trendline
+    }
+
+    /// `nil` for bars whose amounts come in a shape we cannot follow.
+    private static func errorBars(from element: XMLElement, kind: ChartKind, context: Context) -> ChartErrorBars? {
+        var bars = ChartErrorBars()
+        // Only a plot of numbers against numbers has bars that run sideways.
+        if kind.plotsXY, element.firstChild(named: "errDir")?.attribute("val") == "x" { bars.direction = .x }
+        bars.side = element.firstChild(named: "errBarType")?.attribute("val").flatMap(ChartErrorBars.Side.init) ?? .both
+        bars.amount = element.firstChild(named: "errValType")?.attribute("val")
+            .flatMap(ChartErrorBars.Amount.init) ?? .fixed
+        bars.hasEndCaps = !(flag(element.firstChild(named: "noEndCap")) ?? false)
+        bars.value = number(element.firstChild(named: "val")) ?? 0
+        guard let plus = source(element.firstChild(named: "plus"), context: context),
+              let minus = source(element.firstChild(named: "minus"), context: context) else { return nil }
+        bars.plus = plus
+        bars.minus = minus
+        bars.colorHex = fillColor(in: element.firstChild(named: "spPr")?.firstChild(named: "ln"), context: context)
+        return bars
     }
 
     /// A `cat`, `val`, `xVal`, `yVal` or `tx` element. `nil` means a shape we
@@ -253,6 +408,7 @@ public enum ChartReader {
         labels.showsPercentage = flag(element.firstChild(named: "showPercent")) ?? false
         labels.showsCategoryName = flag(element.firstChild(named: "showCatName")) ?? false
         labels.showsSeriesName = flag(element.firstChild(named: "showSerName")) ?? false
+        labels.showsBubbleSize = flag(element.firstChild(named: "showBubbleSize")) ?? false
         return labels
     }
 

@@ -14,12 +14,13 @@ struct FormulaBarView: View {
 
     /// Formulas get a monospaced face; ordinary values do not.
     private var isShowingFormula: Bool {
-        state.editingAddress == nil ? selectedCell.formula != nil : state.editingText.hasPrefix("=")
+        if state.editingAddress == nil, activeSheet.hidesFormula(at: state.selectedAddress) { return false }
+        return state.editingAddress == nil ? selectedCell.formula != nil : state.editingText.hasPrefix("=")
     }
 
     private var displayedText: Binding<String> {
         Binding(
-            get: { state.editingAddress == nil ? selectedCell.editableText : state.editingText },
+            get: { state.editingAddress == nil ? activeSheet.editableText(at: state.selectedAddress) : state.editingText },
             set: { newValue in
                 if state.editingAddress == nil {
                     state.editingAddress = state.selectedAddress
@@ -86,7 +87,7 @@ struct FormulaBarView: View {
             state.isFormulaBarActive = focused
             if focused, state.editingAddress == nil {
                 state.editingAddress = state.selectedAddress
-                state.editingText = selectedCell.editableText
+                state.editingText = activeSheet.editableText(at: state.selectedAddress)
             }
         }
         // Pointing at cells appends references; keep the caret at the end so the

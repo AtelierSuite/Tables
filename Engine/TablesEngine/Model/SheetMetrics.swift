@@ -37,6 +37,9 @@ public struct SheetMetrics: Equatable, Sendable {
     /// when working out where something sits in a file.
     public private(set) var pixelScale: Double?
 
+    /// Whether the hairlines between cells are drawn, as the sheet says.
+    public private(set) var showsGridLines = true
+
     public init() {}
 
     public init(sheet: Worksheet, zoom: Double = 1, pixelScale: Double? = nil) {
@@ -44,6 +47,7 @@ public struct SheetMetrics: Equatable, Sendable {
         self.pixelScale = pixelScale.flatMap { $0 > 0 && $0.isFinite ? $0 : nil }
         columnCount = sheet.columnCount
         rowCount = sheet.rowCount
+        showsGridLines = sheet.showsGridLines
 
         if sheet.hasUniformColumnWidths {
             uniformColumnWidth = Worksheet.defaultColumnWidth * zoom

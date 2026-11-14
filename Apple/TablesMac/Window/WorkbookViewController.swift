@@ -34,6 +34,13 @@ final class WorkbookViewController: NSViewController {
     var colorTarget = ColorTarget.fill
     /// The popover the comment on the selected cell is shown in.
     var commentPopover: NSPopover?
+    /// The popover the sort or filter panel is shown in, and what it shows.
+    var sortFilterPopover: NSPopover?
+    var sortFilterModel: HostedWorkbook?
+    var sortFilterPanel: EditorPanel?
+    /// The sheet listing the workbook's names, while it is up.
+    var namesSheet: NSViewController?
+    var namesObserver: NSObjectProtocol?
     /// The workbook's macros window, once opened.
     var macrosWindow: MacrosWindowController?
     /// Whether the user agreed to run this workbook's macros.
@@ -187,7 +194,9 @@ final class WorkbookViewController: NSViewController {
         view.window?.invalidateCursorRects(for: rowHeader ?? view)
         updateTitleSubtitle(for: sheet)
         syncCommentPopover(in: document)
+        syncSortFilterPopover(in: document)
         showErrorIfNeeded(in: document)
+        showValidationAlertIfNeeded(in: document)
     }
 
     private func updateTitleSubtitle(for sheet: Worksheet) {
@@ -231,6 +240,18 @@ final class WorkbookViewController: NSViewController {
             scrollView.documentView = grid
             scrollView.rulersVisible = true
         }
+        // A sheet with its headings turned off has no rulers.
+        if !grid.isOnCanvas, let sheet = document?.activeSheet, scrollView.rulersVisible != sheet.showsHeadings {
+            scrollView.rulersVisible = sheet.showsHeadings
+            // The rulers lie over the clip view, which makes room for them
+            // above and beside the sheet: back to its top-left corner, past
+            // them or not.
+            let clip = scrollView.contentView
+            let corner = NSRect(origin: NSPoint(x: -1e7, y: -1e7),
+                                size: clip.bounds.size)
+            clip.scroll(to: clip.constrainBoundsRect(corner).origin)
+            scrollView.reflectScrolledClipView(clip)
+        }
         if wasFocused, window?.firstResponder !== grid { window?.makeFirstResponder(grid) }
     }
 
@@ -242,7 +263,8 @@ final class WorkbookViewController: NSViewController {
 
     private func layoutFrozenPanes() {
         let frozen = grid.frozenExtent
-        let headers = CGSize(width: rowHeader?.requiredThickness ?? 0, height: columnHeader?.requiredThickness ?? 0)
+        let headers = scrollView.rulersVisible
+            ? CGSize(width: rowHeader?.requiredThickness ?? 0, height: columnHeader?.requiredThickness ?? 0) : .zero
         // Scrollers that take room of their own, rather than floating over the sheet.
         let legacy = scrollView.scrollerStyle == .legacy
         let trailing = CGSize(
@@ -336,7 +358,7 @@ final class WorkbookViewController: NSViewController {
 
         state.zoom = clamped
         state.refreshMetrics(in: document.workbook)
-        document.notify()
+        document.edit { state.keepZoom(in: &$0) }
         let new = state.metrics
         let moved = CGPoint(
             x: new.x(ofColumn: column) + columnFraction * new.width(ofColumn: column),
@@ -393,6 +415,7 @@ final class WorkbookViewController: NSViewController {
 
 extension WorkbookViewController: NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
+        if (notification.object as? NSPopover) === sortFilterPopover { return sortFilterPopoverDidClose() }
         guard (notification.object as? NSPopover) === commentPopover, let document else { return }
         commentPopover = nil
         if document.state.presentedPanel == .comment {

@@ -11,6 +11,9 @@ struct PaintedCell: Equatable, Sendable {
     var overflow: CGRect?
     /// The columns `overflow` covers, the cell's own included.
     var overflowSpan: ClosedRange<Int>?
+    /// The columns the cell's text is centred across, its own first, when it
+    /// is set to centre across selection.
+    var selection: ClosedRange<Int>?
     /// A cell outside the tile whose text runs into it: only its text is
     /// drawn here, its own tile draws the rest.
     var textOnly = false
@@ -55,8 +58,23 @@ struct TileContents: Equatable, Sendable {
     var covered: Set<CellAddress> = []
     /// The corner markers of commented cells.
     var comments: [CommentMark] = []
+    /// The buttons on a filter's header cells.
+    var filterButtons: [FilterButtonMark] = []
     /// Borders of the cells and merges in the tile and just outside it.
     var borders: [PaintedBorders] = []
+    /// The marks of the sparklines in the tile, drawn from the sheet's values.
+    var sparklines: [SparklineShape] = []
+    /// The data bars and icons of conditional formats, as filled polygons.
+    var conditionalMarks: [ConditionalMark] = []
+    /// Those of merged cells, drawn after the merges cover what is beneath them.
+    var mergeConditionalMarks: [ConditionalMark] = []
+}
+
+/// A filter's button on one of its header cells.
+struct FilterButtonMark: Equatable, Sendable {
+    var frame: CGRect
+    /// Whether the column is filtering, which fills the button in.
+    var isActive: Bool
 }
 
 /// The small triangle in the top-right corner of a commented cell.
@@ -224,13 +242,23 @@ enum CellPainter {
                 cell.cell, in: cell.frame, openEdge: edges.contains(cell.address), metrics: metrics, into: &context, scheme: scheme
             )
         }
+        paintConditionalMarks(contents.conditionalMarks, into: &context)
         for cell in contents.cells {
-            paintText(cell.cell, in: cell.frame, overflow: cell.overflow, zoom: metrics.zoom, scheme: scheme, into: &context)
+            // Text centred across a selection is set in the selection's frame.
+            let frame = cell.selection.map { span in
+                metrics.frame(for: CellRange(
+                    start: CellAddress(row: cell.address.row, column: span.lowerBound),
+                    end: CellAddress(row: cell.address.row, column: span.upperBound)
+                ))
+            } ?? cell.frame
+            paintText(cell.cell, in: frame, overflow: cell.overflow, zoom: metrics.zoom, scheme: scheme, into: &context)
         }
+        paintSparklines(contents.sparklines, scheme: scheme, into: &context)
         // After the cells, so a merge covers the hairlines of those beneath it.
         for merge in contents.merges {
             paint(merge.cell, in: merge.frame, metrics: metrics, scheme: scheme, into: &context)
         }
+        paintConditionalMarks(contents.mergeConditionalMarks, into: &context)
         // Last, so no fill covers the half of a border that falls in the
         // neighbouring cell.
         for borders in contents.borders {
@@ -238,6 +266,51 @@ enum CellPainter {
         }
         for mark in contents.comments {
             paintCommentMark(mark, zoom: metrics.zoom, into: &context)
+        }
+        for mark in contents.filterButtons {
+            paintFilterButton(mark, zoom: metrics.zoom, scheme: scheme, into: &context)
+        }
+    }
+
+    private static func paintFilterButton(
+        _ mark: FilterButtonMark, zoom: Double, scheme: ColorScheme, into context: inout GraphicsContext
+    ) {
+        let frame = FilterButton.frame(in: mark.frame, zoom: zoom)
+        guard !frame.isNull else { return }
+        let shape = Path(roundedRect: frame, cornerRadius: 3 * zoom)
+        let face: Color = mark.isActive ? .accentColor : (scheme == .dark ? Color(white: 0.28) : Color(white: 0.96))
+        context.fill(shape, with: .color(face))
+        context.stroke(shape, with: .color(.gray.opacity(0.6)), lineWidth: max(0.5, 0.5 * zoom))
+        var arrow = Path()
+        arrow.addLines(FilterButton.arrow(in: frame))
+        context.stroke(
+            arrow, with: .color(mark.isActive ? .white : (scheme == .dark ? .white : Color(white: 0.3))),
+            style: StrokeStyle(lineWidth: max(1, 1.4 * zoom), lineCap: .round, lineJoin: .round))
+    }
+
+    private static func paintSparklines(
+        _ shapes: [SparklineShape], scheme: ColorScheme, into context: inout GraphicsContext
+    ) {
+        func color(_ hex: String) -> Color {
+            AdaptiveColor.resolve(hex: hex, for: scheme, isText: false) ?? .accentColor
+        }
+        for shape in shapes {
+            switch shape {
+            case .polyline(let points, let width, let hex):
+                var path = Path()
+                path.addLines(points)
+                context.stroke(path, with: .color(color(hex)),
+                               style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            case .axis(let from, let to, let width, let hex):
+                var path = Path()
+                path.addLines([from, to])
+                context.stroke(path, with: .color(color(hex)), lineWidth: width)
+            case .bar(let rect, let hex):
+                context.fill(Path(rect), with: .color(color(hex)))
+            case .marker(let center, let radius, let hex):
+                context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
+                                                    width: radius * 2, height: radius * 2)), with: .color(color(hex)))
+            }
         }
     }
 
@@ -318,6 +391,18 @@ enum CellPainter {
         context.stroke(hairlines, with: .color(.gridLine), lineWidth: metrics.gridLineWidth)
     }
 
+    /// The data bars and icons of conditional formats, over the fills.
+    private static func paintConditionalMarks(_ marks: [ConditionalMark], into context: inout GraphicsContext) {
+        for mark in marks {
+            guard let first = mark.points.first, let color = Color(argbHex: mark.colorHex) else { continue }
+            var path = Path()
+            path.move(to: first)
+            for point in mark.points.dropFirst() { path.addLine(to: point) }
+            path.closeSubpath()
+            context.fill(path, with: .color(color))
+        }
+    }
+
     /// A cell's fill: its colour, then any pattern over it, or its gradient.
     private static func paintFill(
         of style: CellStyle, in frame: CGRect, scheme: ColorScheme, into context: inout GraphicsContext
@@ -396,7 +481,7 @@ enum CellPainter {
             guard let reach = Worksheet.overflowReach(
                 of: painted.address.column, within: span, textWidth: width,
                 alignment: CellFormatter.alignment(for: painted.cell), padding: 6 * zoom, indent: style.indentPoints * zoom,
-                columnWidth: { metrics.frame(for: CellAddress(row: row, column: $0)).width }
+                selection: painted.selection, columnWidth: { metrics.frame(for: CellAddress(row: row, column: $0)).width }
             ) else { continue }
             for column in reach.lowerBound..<reach.upperBound {
                 edges.insert(CellAddress(row: row, column: column))
@@ -455,8 +540,10 @@ enum CellPainter {
         let color: Color = cell.textColor(for: scheme)
             ?? (cell.value.errorValue != nil ? .red : .primary)
 
+        // The zoom the text is set at, less than the grid's once shrunk to fit.
+        var textZoom = zoom
         let make: (String) -> Text = { text in
-            if let rich = runs(of: cell, in: text, color: color, zoom: zoom, scheme: scheme) { return rich }
+            if let rich = runs(of: cell, in: text, color: color, zoom: textZoom, scheme: scheme) { return rich }
             var run: Text
             if text.contains(CellFormatter.reserveMark) {
                 var attributed = AttributedString()
@@ -469,7 +556,7 @@ enum CellPainter {
             } else {
                 run = Text(verbatim: text).foregroundStyle(color)
             }
-            run = run.font(style.font(zoom: zoom))
+            run = run.font(style.font(zoom: textZoom))
             if style.isUnderlined { run = run.underline() }
             if style.isStruckThrough { run = run.strikethrough() }
             return run
@@ -477,19 +564,31 @@ enum CellPainter {
 
         // The box the glyphs get. The in-cell editor pads to match, so opening
         // it does not shift the text the cell was already showing.
-        var box = frame.insetBy(dx: 6 * zoom, dy: 2 * zoom)
         // Indent pads the edge the text is aligned to, matching Excel.
-        let indent = style.indentPoints * zoom
-        if indent > 0 {
-            if horizontal != .trailing { box.origin.x += indent }
-            box.size.width -= indent
-        }
+        let box = TextFitting.indented(
+            frame.insetBy(dx: 6 * zoom, dy: 2 * zoom), by: style.indentPoints * zoom,
+            alignment: horizontal, spread: style.horizontalSpread
+        )
         guard box.width > 0, box.height > 0 else { return }
 
         // Excel never wraps a number or cuts one short: one too wide for its
         // cell shows as a row of #s, so a figure is never misread.
         let isNumber: Bool
         if case .number = cell.value { isNumber = true } else { isNumber = false }
+        // Justified and distributed text is set a line, word or character
+        // at a time.
+        if style.spreadsText, !isNumber, !style.isTextStacked, style.rotationDegrees == 0 {
+            var full = runsAttributed(of: cell, in: string, color: color, zoom: zoom, scheme: scheme)
+            if full == nil {
+                var plain = AttributedString(string)
+                plain.font = style.font(zoom: zoom)
+                plain.foregroundColor = color
+                if style.isUnderlined { plain.underlineStyle = .single }
+                if style.isStruckThrough { plain.strikethroughStyle = .single }
+                full = plain
+            }
+            return paintSpread(full ?? AttributedString(string), string: string, of: cell, in: box, clip: frame, into: &context)
+        }
         let wraps = (style.wrapsText && !isNumber) || style.isTextStacked
         // The width the text has, out to the far edge of its overflow.
         var room = box.width
@@ -509,6 +608,15 @@ enum CellPainter {
         // Turned text runs along its turned box rather than across the cell.
         if style.rotationDegrees != 0, !wraps {
             room = TextFitting.runLength(of: style, in: box.size, lineHeight: measured.height)
+        }
+        // Shrink to fit sets text too wide for its cell smaller until it fits.
+        let shrink = style.rotationDegrees != 0 ? 1
+            : TextFitting.shrinkScale(of: style, width: measured.width, room: box.width)
+        if shrink < 1 {
+            textZoom = zoom * shrink
+            resolved = context.resolve(make(string))
+            measured = resolved.measure(in: CGSize(width: unbounded, height: unbounded))
+            room = max(box.width, measured.width)
         }
         if isNumber, !wraps, measured.width > room {
             // A General number is rounded to fit before it gives way to #s.
@@ -583,6 +691,51 @@ enum CellPainter {
     private static func runs(
         of cell: Cell, in string: String, color: Color, zoom: Double, scheme: ColorScheme
     ) -> Text? {
+        runsAttributed(of: cell, in: string, color: color, zoom: zoom, scheme: scheme).map { Text($0) }
+    }
+
+    /// Justified or distributed text: wrapped to `box` and drawn in the
+    /// pieces `TextFitting.spreadPieces` places, each in the runs it has.
+    /// `text` is `string` set in the cell's fonts.
+    private static func paintSpread(
+        _ text: AttributedString, string: String, of cell: Cell, in box: CGRect, clip: CGRect,
+        into context: inout GraphicsContext
+    ) {
+        let characters = text.characters
+        let piece = { (range: Range<Int>) -> Text in
+            // From UTF-16 offsets in `string` to characters, which `text` shares.
+            let count = { (offset: Int) in
+                string.distance(from: string.startIndex, to: String.Index(utf16Offset: offset, in: string))
+            }
+            let lower = characters.index(characters.startIndex, offsetBy: count(range.lowerBound))
+            let upper = characters.index(characters.startIndex, offsetBy: count(range.upperBound))
+            return Text(AttributedString(text[lower..<upper]))
+        }
+        let unboundedSize = CGSize(width: unbounded, height: unbounded)
+        // Every line as tall as the text set on one line.
+        let hardLines = Double(string.split(separator: "\n", omittingEmptySubsequences: false).count)
+        let lineHeight = context.resolve(Text(text)).measure(in: unboundedSize).height / hardLines
+        let pieces = TextFitting.spreadPieces(
+            of: string, in: box.size, lineHeight: lineHeight, style: cell.style,
+            alignment: CellFormatter.alignment(for: cell),
+            rightToLeft: TextFitting.baseDirection(of: string) == .rightToLeft,
+            measure: { context.resolve(piece($0)).measure(in: unboundedSize).width }
+        )
+        context.drawLayer { layer in
+            layer.clip(to: Path(clip))
+            for placed in pieces {
+                layer.draw(
+                    layer.resolve(piece(placed.range)),
+                    at: CGPoint(x: box.minX + placed.origin.x, y: box.minY + placed.origin.y), anchor: .topLeading
+                )
+            }
+        }
+    }
+
+    /// `runs(of:in:color:zoom:scheme:)` as an attributed string.
+    private static func runsAttributed(
+        of cell: Cell, in string: String, color: Color, zoom: Double, scheme: ColorScheme
+    ) -> AttributedString? {
         guard let pieces = cell.styledPieces(of: string) else { return nil }
         var attributed = AttributedString()
         for piece in pieces {
@@ -600,7 +753,7 @@ enum CellPainter {
             if style.isStruckThrough { part.strikethroughStyle = .single }
             attributed += part
         }
-        return Text(attributed)
+        return attributed
     }
 
     /// Stands in for an unconstrained axis when measuring. A finite number

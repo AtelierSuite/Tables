@@ -122,8 +122,9 @@ public struct BorderResolver: Sendable {
         case .leading: address = CellAddress(row: line, column: region.start.column)
         case .trailing: address = CellAddress(row: line, column: region.end.column)
         }
-        guard let cell = sheet.cells[address] else { return sheet.inheritedStyle(at: address).borderSides[edge] }
-        return cell.style.borderSides[edge]
+        let own = sheet.cells[address]?.style ?? sheet.inheritedStyle(at: address)
+        // A table's style draws its borders where the cell has none of its own.
+        return own.borderSides[edge] ?? sheet.tableFormat(at: address)?.look(at: address)?.borderSides[edge]
     }
 
     /// The border drawn on one cell's `edge` once its neighbour's is weighed

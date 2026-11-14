@@ -3,8 +3,8 @@ import Foundation
 /// An Excel table (a ListObject): a named block of rows with a header row,
 /// which formulas refer to by name, as in `Sales[Amount]` or `[@Price]`.
 ///
-/// Tables are read from the file so their names resolve; the table parts
-/// themselves are carried through a save untouched.
+/// Tables are read from the file so their names resolve and their styles
+/// draw; the table parts themselves are carried through a save untouched.
 public struct TableDefinition: Hashable, Sendable {
     public var name: String
     public var sheetID: Worksheet.ID
@@ -13,6 +13,12 @@ public struct TableDefinition: Hashable, Sendable {
     public var headerRowCount: Int
     public var totalsRowCount: Int
     public var columns: [String]
+    /// The table's style and which of its parts are shown, or nil when the
+    /// file gives it none.
+    public var style: TableStyleInfo?
+    /// What each column's totals row cell shows and the formula of a
+    /// calculated column, in step with `columns`.
+    public var columnDetails: [TableColumnDetail] = []
 
     /// The rows between the header and the totals.
     public var dataRows: ClosedRange<Int>? {

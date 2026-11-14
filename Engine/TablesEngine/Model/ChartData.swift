@@ -137,6 +137,33 @@ public struct ResolvedChart: Hashable, Sendable {
         public var xValues: [Double?]
         public var colorHex: String
         public var pointColors: [Int: String]
+        /// Bubble charts only: the size of each point.
+        public var sizes: [Double?] = []
+        /// What the series is drawn as: the chart's kind, or its own in a
+        /// combination chart.
+        public var kind: ChartKind = .column
+        public var usesSecondaryAxis = false
+        public var dataLabels = ChartDataLabels()
+        public var trendlines: [Trendline] = []
+        public var errorBars: [ErrorBars] = []
+    }
+
+    /// A trendline ready to draw. On a chart with categories its X values
+    /// count them from 1, as Excel fits them.
+    public struct Trendline: Hashable, Sendable {
+        public var name: String
+        public var points: [ChartPoint]
+        /// The equation and R², one to a line, when the trendline shows them.
+        public var label: String?
+        public var colorHex: String
+        public var lineWidth: Double?
+    }
+
+    public struct ErrorBars: Hashable, Sendable {
+        public var direction: ChartErrorBars.Direction
+        public var hasEndCaps: Bool
+        public var colorHex: String?
+        public var bars: [ChartErrorBars.Bar]
     }
 
     public var title: String?
@@ -173,13 +200,22 @@ extension Chart {
             }
             let name = entry.name.text(in: workbook)
                 ?? String(format: String(localized: "Chart.Series.DefaultName", bundle: .engine), index + 1)
-            series.append(ResolvedChart.Series(
+            var resolved = ResolvedChart.Series(
                 name: name,
                 values: values,
                 xValues: categoryCells.map(\.value.chartNumber),
                 colorHex: entry.colorHex ?? ChartPalette.color(at: index, accents: palette),
                 pointColors: entry.pointColors
-            ))
+            )
+            resolved.kind = entry.plotKind ?? kind
+            resolved.usesSecondaryAxis = entry.usesSecondaryAxis && secondaryValueAxis != nil
+            resolved.dataLabels = entry.dataLabels ?? dataLabels
+            if resolved.kind == .bubble {
+                resolved.sizes = entry.bubbleSizes.cells(in: workbook, visibleOnly: plotsVisibleCellsOnly)
+                    .map(\.value.chartNumber)
+            }
+            resolve(entry, into: &resolved, workbook: workbook)
+            series.append(resolved)
         }
 
         // Excel plots as many points as the longest series has, labelling any
@@ -205,6 +241,86 @@ extension Chart {
             categoryFormat: categoryFormat,
             accents: palette
         )
+    }
+}
+
+extension Chart {
+    /// Fits the series' trendlines and sizes its error bars.
+    private func resolve(_ entry: ChartSeries, into series: inout ResolvedChart.Series, workbook: Workbook) {
+        guard !entry.trendlines.isEmpty || !entry.errorBars.isEmpty else { return }
+        let plotsXY = series.kind.plotsXY
+        // The points a line can be fitted to: both coordinates present. A
+        // chart with categories counts them from 1.
+        var xs: [Double] = []
+        var ys: [Double] = []
+        for (index, value) in series.values.enumerated() {
+            guard let value else { continue }
+            if plotsXY {
+                guard series.xValues.indices.contains(index), let x = series.xValues[index] else { continue }
+                xs.append(x)
+            } else {
+                xs.append(Double(index + 1))
+            }
+            ys.append(value)
+        }
+
+        for trendline in entry.trendlines {
+            let fit = trendline.fit(x: xs, y: ys)
+            let positions = plotsXY ? nil : series.values.indices.map { Double($0 + 1) }
+            let points = trendline.points(x: xs, y: ys, fit: fit, positions: positions)
+            guard !points.isEmpty else { continue }
+            var lines: [String] = []
+            if let fit {
+                if trendline.showsEquation { lines.append(fit.equation) }
+                if trendline.showsRSquared { lines.append(fit.rSquaredText) }
+            }
+            series.trendlines.append(ResolvedChart.Trendline(
+                name: trendline.name ?? series.name,
+                points: points,
+                label: lines.isEmpty ? nil : lines.joined(separator: "\n"),
+                colorHex: trendline.colorHex ?? series.colorHex,
+                lineWidth: trendline.lineWidth
+            ))
+        }
+
+        for bars in entry.errorBars {
+            // Only a chart of numbers against numbers has an X to be unsure of.
+            guard bars.direction == .y || plotsXY else { continue }
+            func amounts(_ source: ChartSource) -> [Double?] {
+                source.cells(in: workbook, visibleOnly: plotsVisibleCellsOnly).map(\.value.chartNumber)
+            }
+            let resolved = bars.bars(
+                for: bars.direction == .x ? series.xValues : series.values,
+                plus: amounts(bars.plus), minus: amounts(bars.minus)
+            )
+            guard !resolved.isEmpty else { continue }
+            series.errorBars.append(ResolvedChart.ErrorBars(
+                direction: bars.direction, hasEndCaps: bars.hasEndCaps, colorHex: bars.colorHex, bars: resolved
+            ))
+        }
+    }
+}
+
+extension ResolvedChart {
+    /// The values one of the chart's value axes has to cover: the series
+    /// measured along it, stacked as the chart stacks them, with their error
+    /// bars and trendlines.
+    public func valueExtent(secondary: Bool, grouping: ChartGrouping, kind: ChartKind) -> [Double] {
+        let onAxis = series.filter { $0.usesSecondaryAxis == secondary }
+        var values = onAxis.flatMap { $0.values.compactMap { $0 } }
+        values += onAxis.flatMap { $0.errorBars.filter { $0.direction == .y }.flatMap { $0.bars.flatMap { [$0.low, $0.high] } } }
+        values += onAxis.flatMap { $0.trendlines.flatMap { $0.points.map(\.y) } }
+        guard !secondary, grouping != .standard else { return values }
+        // Only the series of the chart's own kind stack.
+        let stacked = onAxis.filter { $0.kind == kind }
+        if grouping == .percentStacked { return [0, 1] + values.filter { $0 >= 0 && $0 <= 1 } }
+        let count = stacked.map(\.values.count).max() ?? 0
+        for index in 0..<count {
+            let column = stacked.compactMap { $0.values.indices.contains(index) ? $0.values[index] : nil }
+            values.append(column.filter { $0 > 0 }.reduce(0, +))
+            values.append(column.filter { $0 < 0 }.reduce(0, +))
+        }
+        return values
     }
 }
 
@@ -284,6 +400,11 @@ extension Chart {
             swap(&series[index].name)
             swap(&series[index].categories)
             swap(&series[index].values)
+            swap(&series[index].bubbleSizes)
+            for bars in series[index].errorBars.indices {
+                swap(&series[index].errorBars[bars].plus)
+                swap(&series[index].errorBars[bars].minus)
+            }
         }
         if title?.reference?.sheetID == oldID { title?.reference?.sheetID = newID }
     }
@@ -301,6 +422,17 @@ extension Chart {
             series[index].values.follow(
                 operation, axis: axis, on: sheetID, in: workbook, visibleOnly: plotsVisibleCellsOnly
             )
+            series[index].bubbleSizes.follow(
+                operation, axis: axis, on: sheetID, in: workbook, visibleOnly: plotsVisibleCellsOnly
+            )
+            for bars in series[index].errorBars.indices {
+                series[index].errorBars[bars].plus.follow(
+                    operation, axis: axis, on: sheetID, in: workbook, visibleOnly: plotsVisibleCellsOnly
+                )
+                series[index].errorBars[bars].minus.follow(
+                    operation, axis: axis, on: sheetID, in: workbook, visibleOnly: plotsVisibleCellsOnly
+                )
+            }
         }
         if let reference = title?.reference, reference.sheetID == sheetID {
             title?.reference = reference.shifted(operation, axis: axis)
@@ -483,6 +615,7 @@ extension Workbook {
                 let scope = FormulaReferenceShifter.Scope(sheet: name, host: sheets[sheetIndex].name)
                 FormulaReferenceShifter.apply(operation, axis: axis, to: &sheets[sheetIndex].cells, scope: scope)
                 sheets[sheetIndex].shiftConditionalFormats(operation, axis: axis, scope: scope, movesRanges: false)
+                sheets[sheetIndex].shiftDataValidations(operation, axis: axis, scope: scope, movesRanges: false)
             }
         }
         for sheetIndex in sheets.indices {

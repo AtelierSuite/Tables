@@ -212,10 +212,31 @@ struct SheetTabBarView: View {
                 ))
             }
         }
+        // Protection is an XLSX file's to keep.
+        var protection: [HeaderMenuAction] = []
+        if state.allowsComments {
+            protection.append(.separator)
+            if !sheet.isChartSheet {
+                protection.append(HeaderMenuAction(
+                    title: String(localized: sheet.isProtected ? "Protection.UnprotectSheet" : "Protection.ProtectSheet"),
+                    symbol: sheet.isProtected ? "lock.open" : "lock"
+                ) {
+                    if state.activeSheet(in: workbook).id != sheet.id { state.selectSheet(sheet.id, in: workbook) }
+                    state.protectionRequest = state.sheetProtectionRequest(in: &workbook)
+                })
+            }
+            protection.append(HeaderMenuAction(
+                title: String(
+                    localized: workbook.isStructureLocked ? "Protection.UnprotectWorkbook" : "Protection.ProtectWorkbook"),
+                symbol: workbook.isStructureLocked ? "lock.open" : "lock.doc"
+            ) {
+                state.protectionRequest = state.workbookProtectionRequest(in: &workbook)
+            })
+        }
         // A canvas's tables are duplicated, hidden and deleted one by one,
         // from their names on it.
-        guard !isCanvas else { return rename + canvas }
-        return rename + canvas + [
+        guard !isCanvas else { return rename + canvas + protection }
+        return rename + canvas + protection + [
             .separator,
             HeaderMenuAction(
                 title: String(localized: "SheetTabBar.Menu.Duplicate"), symbol: "plus.square.on.square"
@@ -301,6 +322,7 @@ struct SheetTabBarView: View {
     }
 
     private func beginRename(_ sheet: Worksheet) {
+        guard state.allowsChangingSheets(in: workbook) else { return }
         draftName = tabName(for: sheet)
         renamingSheetID = sheet.id
         isRenaming = true
