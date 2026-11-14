@@ -18,6 +18,7 @@ struct WorkbookView: View {
     @State private var hasAllowedMacros = false
     @State private var macroInput = ""
     @State private var isShowingDocumentProperties = false
+    @State private var isShowingPageSetup = false
     /// A conversion waiting on the user's say-so because it would drop macros.
     @State private var pendingConversion: DocumentConversion.Target?
     /// A change to a Numbers document with what it couldn't keep taken out,
@@ -89,6 +90,17 @@ struct WorkbookView: View {
                 DocumentPropertiesPanel(properties: document.workbook.documentProperties) { edited in
                     if let edited { document.workbook.documentProperties = edited }
                     isShowingDocumentProperties = false
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingPageSetup) {
+            NavigationStack {
+                let sheetID = activeSheet.id
+                PageSetupPanel(
+                    setup: document.workbook.printSetup(of: sheetID), selection: state.selection
+                ) { edited in
+                    if let edited { document.workbook.setPrintSetup(edited, of: sheetID) }
+                    isShowingPageSetup = false
                 }
             }
         }
@@ -228,6 +240,9 @@ struct WorkbookView: View {
         if !document.isPlainText && !document.isNumbers {
             Button("TitleMenu.DocumentProperties", systemImage: "info.circle") {
                 isShowingDocumentProperties = true
+            }
+            Button("TitleMenu.PageSetup", systemImage: "doc.badge.gearshape") {
+                isShowingPageSetup = true
             }
         }
         if let fileURL, document.isNumbers {

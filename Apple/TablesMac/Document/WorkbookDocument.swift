@@ -152,8 +152,30 @@ final class WorkbookDocument: NSDocument {
 
     override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
         // Delimited text and Numbers documents have nowhere to keep them.
-        if item.action == #selector(showDocumentProperties(_:)) { return !file.isPlainText && !file.isNumbers }
+        if item.action == #selector(showDocumentProperties(_:)) || item.action == #selector(runPageLayout(_:)) {
+            return !file.isPlainText && !file.isNumbers
+        }
         return super.validateUserInterfaceItem(item)
+    }
+
+    // MARK: - Page setup
+
+    /// Shows the active sheet's page setup in a sheet on the window, in
+    /// place of the system's panel: the paper and orientation are the
+    /// sheet's, kept in the file, not the printer's.
+    override func runPageLayout(_ sender: Any?) {
+        guard let presenter = windowControllers.first?.window?.contentViewController else { return }
+        let sheetID = activeSheet.id
+        weak var sheet: NSViewController?
+        let host = NSHostingController(rootView: PageSetupPanel(
+            setup: workbook.printSetup(of: sheetID), selection: state.selection
+        ) { [weak self] edited in
+            if let edited { self?.edit { $0.setPrintSetup(edited, of: sheetID) } }
+            if let sheet { presenter.dismiss(sheet) }
+        })
+        host.sizingOptions = .preferredContentSize
+        sheet = host
+        presenter.presentAsSheet(host)
     }
 
     // MARK: - Printing
