@@ -374,24 +374,97 @@ function hashes(ctx, width) {
   return one > 0 ? "#".repeat(Math.max(Math.floor(width / one), 1)) : "";
 }
 
+/**
+ * Where each piece of a justified or distributed cell's lines goes, from the
+ * top-left of its text box: `op.hs` stretches lines across ("j" all but a
+ * paragraph's last, "d" every one), `op.vs` spreads them down. Mirrors the
+ * engine's `TextFitting.spreadPieces`.
+ */
+function spreadPieces(measure, text, width, height, lineHeight, op) {
+  const lines = wrapLines(measure, text, width).map((line) => {
+    const rest = text.slice(line.offset + line.text.length);
+    return { ...line, last: /^[^\S\n]*(\n|$)/.test(rest) };
+  });
+  const total = lines.length * lineHeight;
+  let top;
+  let leading = 0;
+  if (op.vs && lines.length > 1 && height > total) {
+    top = 0;
+    leading = (height - total) / (lines.length - 1);
+  } else {
+    top = op.v === "t" ? 0 : op.v === "b" ? height - total : (height - total) / 2;
+    if (op.vs) top = Math.max(top, 0);
+  }
+  const pieces = [];
+  for (const line of lines) {
+    const y = top;
+    top += lineHeight + leading;
+    if (line.text === "") continue;
+    const lineWidth = measure(line.text, line.offset);
+    let parts = [{ text: line.text, offset: line.offset }];
+    if (op.hs === "d" || (op.hs === "j" && !line.last)) {
+      const words = [...line.text.matchAll(/\S+/g)].map((m) => ({ text: m[0], offset: line.offset + m.index }));
+      if (words.length > 1) parts = words;
+      else if (op.hs === "d") {
+        let offset = line.offset;
+        const letters = Array.from(line.text).map((letter) => {
+          const part = { text: letter, offset };
+          offset += letter.length;
+          return part;
+        });
+        if (letters.length > 1) parts = letters;
+      }
+    }
+    if (parts.length > 1 && lineWidth < width) {
+      const extra = (width - lineWidth) / (parts.length - 1);
+      parts.forEach((part, index) => {
+        const before = measure(line.text.slice(0, part.offset - line.offset), line.offset) + extra * index;
+        const x = op.rtl ? width - before - measure(part.text, part.offset) : before;
+        pieces.push({ ...part, x, y });
+      });
+      continue;
+    }
+    const align = op.hs === "j" ? (op.rtl ? "r" : "l") : op.hs === "d" ? "c" : op.h;
+    const x = align === "r" ? width - lineWidth : align === "c" ? (width - lineWidth) / 2 : 0;
+    pieces.push({ text: line.text, offset: line.offset, x, y });
+  }
+  return pieces;
+}
+
 function drawText(ctx, op, palette) {
   const frame = op.r;
   if (frame[2] <= 0 || frame[3] <= 0) return;
-  const set = typesetter(ctx, op);
-  const measure = set.width;
+  let set = typesetter(ctx, op);
+  let measure = set.width;
   const color = cssColor(op.c) ?? (op.err ? palette.error : palette.text);
   // A cell with runs has every line as tall as its tallest run.
-  const ascent = set.ascent;
-  const lineHeight = ascent + set.descent;
+  let ascent = set.ascent;
+  let lineHeight = ascent + set.descent;
 
   // The same padding the cell editor has, so opening it does not shift the text.
   let box = [frame[0] + 6, frame[1] + 2, frame[2] - 12, frame[3] - 4];
   const indent = op.ind ?? 0;
   if (indent > 0) {
-    if (op.h !== "r") box[0] += indent;
-    box[2] -= indent;
+    if (op.h !== "r" || op.indb) box[0] += indent;
+    box[2] -= op.indb ? 2 * indent : indent;
   }
   if (box[2] <= 0 || box[3] <= 0) return;
+
+  // Justified and distributed text is set a line, word or character at a time.
+  if (op.hs || op.vs) {
+    const pieces = spreadPieces(measure, op.t, box[2], box[3], lineHeight, op);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(frame[0], frame[1], frame[2], frame[3]);
+    ctx.clip();
+    ctx.textBaseline = "alphabetic";
+    ctx.direction = op.rtl ? "rtl" : "ltr";
+    for (const piece of pieces) {
+      set.draw(piece.text, piece.offset, box[0] + piece.x, box[1] + piece.y + ascent, color);
+    }
+    ctx.restore();
+    return;
+  }
 
   const wraps = Boolean(op.wrap);
   let room = box[2];
@@ -419,6 +492,18 @@ function drawText(ctx, op, palette) {
     });
     const widest = () => Math.max(...lines.map((line) => measure(line.text, line.offset)));
     measuredWidth = widest();
+    // Shrink to fit sets text too wide for its cell smaller until it fits.
+    if (op.shrink && !op.rot && measuredWidth > box[2]) {
+      const scale = box[2] / measuredWidth;
+      const scaled = (entry) => ({ ...entry, fs: entry.fs * scale, ...(entry.dy ? { dy: entry.dy * scale } : {}) });
+      op = { ...scaled(op), ...(op.runs ? { runs: op.runs.map(scaled) } : {}) };
+      set = typesetter(ctx, op);
+      measure = set.width;
+      ascent = set.ascent;
+      lineHeight = ascent + set.descent;
+      measuredWidth = widest();
+      room = Math.max(box[2], measuredWidth);
+    }
     // Turned text runs along its turned box rather than across the cell.
     if (op.rot) room = runLength(box[2], box[3], op.rot, lineHeight * lines.length);
     // A number a hair too wide may take some of the cell's padding before it gives way to #s.

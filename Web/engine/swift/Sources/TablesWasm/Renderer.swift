@@ -85,7 +85,7 @@ struct Renderer {
             fill(entry.cell, in: metrics.frame(for: entry.address), openEdge: openEdges.contains(entry.address))
         }
         for entry in painted {
-            text(of: entry.cell, in: metrics.frame(for: entry.address), overflow: entry.overflow)
+            text(of: entry.cell, in: textFrame(of: entry.address), overflow: entry.overflow)
         }
         for merge in merges {
             let frame = metrics.frame(for: merge)
@@ -131,6 +131,16 @@ struct Renderer {
         for column in span.lowerBound..<span.upperBound {
             edges.insert(CellAddress(row: address.row, column: column))
         }
+        return metrics.frame(for: CellRange(
+            start: CellAddress(row: address.row, column: span.lowerBound),
+            end: CellAddress(row: address.row, column: span.upperBound)
+        ))
+    }
+
+    /// Where a cell's text is set: in its own frame, or across the selection
+    /// it is centred across.
+    private func textFrame(of address: CellAddress) -> CGRect {
+        guard let span = sheet.centerAcrossSpan(of: address) else { return metrics.frame(for: address) }
         return metrics.frame(for: CellRange(
             start: CellAddress(row: address.row, column: span.lowerBound),
             end: CellAddress(row: address.row, column: span.upperBound)
@@ -251,10 +261,27 @@ struct Renderer {
         if let textColor { operation["c"] = textColor } else if cell.value.errorValue != nil { operation["err"] = true }
         if isNumber { operation["num"] = true }
         if (style.wrapsText && !isNumber) || style.isTextStacked { operation["wrap"] = true }
+        if style.shrinksToFit, !style.wrapsText, !style.spreadsText { operation["shrink"] = true }
+        // Justified or distributed text, set line by line in the canvas.
+        if style.spreadsText, !isNumber, !style.isTextStacked, style.rotationDegrees == 0 {
+            operation["wrap"] = true
+            switch style.horizontalSpread {
+            case .justify: operation["hs"] = "j"
+            case .distributed: operation["hs"] = "d"
+            case .centerAcrossSelection, nil: break
+            }
+            if let spread = style.verticalSpread { operation["vs"] = spread == .justify ? "j" : "d" }
+        }
         // Read right to left, so the canvas sets it that way.
         if TextFitting.baseDirection(of: string) == .rightToLeft { operation["rtl"] = true }
         if style.rotationDegrees != 0 { operation["rot"] = style.rotationDegrees }
-        if style.indentPoints > 0 { operation["ind"] = style.indentPoints }
+        // Indented as `TextFitting.indented` has it: centred and justified
+        // text not at all, distributed text from both edges.
+        let indented = TextFitting.indented(
+            frame, by: style.indentPoints, alignment: horizontal, spread: style.horizontalSpread
+        )
+        if indented != frame { operation["ind"] = style.indentPoints }
+        if style.horizontalSpread == .distributed, style.indentPoints > 0 { operation["indb"] = true }
         if let overflow { operation["ov"] = frameArray(overflow) }
         if let parts = CellFormatter.filledText(for: cell) { operation["parts"] = [parts.leading, parts.trailing] }
         if let pieces = cell.styledPieces(of: string) { operation["runs"] = pieces.map(run) }
