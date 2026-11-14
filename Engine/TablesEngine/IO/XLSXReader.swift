@@ -22,6 +22,9 @@ public enum XLSXReader {
         let styleSheetElements = preservedStyleSheetElements(entries["xl/styles.xml"])
         let hasDifferentialFormats = styleSheetElements.contains { $0.name == "dxfs" }
         let differentialStyles = parseDifferentialStyles(entries["xl/styles.xml"], theme: theme)
+        let indexedPalette = ThemeColorPalette.indexedColors(
+            styleSheet: entries["xl/styles.xml"].flatMap { try? XMLLite.parse($0) }
+        )
 
         // Workbooks written on the classic Mac epoch count days from 1904.
         // Serials are normalized to the 1900 system on the way in so nothing
@@ -74,11 +77,14 @@ public enum XLSXReader {
                 sheet.preservedElements = preservedChildren(of: sheetXML, hasDifferentialFormats: false)
                     .filter { ChartWriter.chartSheetChildOrder.contains($0.name) }
             } else {
+                // Before the sheet is parsed: keeping its `extLst` takes the sparklines out of it.
+                let sparklines = SparklineParts.groups(in: sheetXML, theme: theme, palette: indexedPalette)
                 sheet = parseSheet(
                     sheetXML, name: name, sharedStrings: sharedStrings, styles: styles,
                     usesMacEpoch: usesMacEpoch, hasDifferentialFormats: hasDifferentialFormats,
                     differentialStyles: differentialStyles, theme: theme
                 )
+                sheet.sparklineGroups = sparklines
             }
             // The drawing is regenerated from the model on every save, so the
             // element naming it is too.
@@ -278,7 +284,6 @@ public enum XLSXReader {
                 // silently, as the other unremarkable sheet settings do.
                 let contents = Set(child.children(named: "ext").filter { !namesRelationship($0) }
                     .flatMap { $0.children.map(\.name) })
-                if contents.contains("sparklineGroups") { findings.append((.sparklines, child.name)) }
                 if contents.contains("conditionalFormattings") { findings.append((.conditionalFormatting, child.name)) }
                 if contents.contains("dataValidations") { findings.append((.dataValidation, child.name)) }
                 feature = nil
@@ -975,6 +980,10 @@ public enum XLSXReader {
                 // we regenerate; extensions that stand alone — sparklines,
                 // Excel 2010's conditional formats and validations — stay.
                 for ext in child.children(named: "ext") where namesRelationship(ext) { child.removeChild(ext) }
+                // Sparklines are read into the sheet and written from it.
+                for ext in child.children(named: "ext") where SparklineParts.isSparklineExtension(ext) {
+                    child.removeChild(ext)
+                }
                 guard !child.children.isEmpty else { return nil }
             }
             guard let xml = XMLLite.serialize(child) else { return nil }

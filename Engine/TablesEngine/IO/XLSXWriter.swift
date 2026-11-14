@@ -736,7 +736,7 @@ public enum XLSXWriter {
     /// written into the first sheet view — the one the file had, or one of
     /// our own.
     private static func preservedElements(of sheet: Worksheet) -> [PreservedElement] {
-        var elements = sheet.preservedElements
+        var elements = SparklineParts.addingSparklines(sheet.sparklineGroups, to: sheet.preservedElements)
         let isFrozen = sheet.frozenRows > 0 || sheet.frozenColumns > 0
         let options = viewOptions(of: sheet)
         let index = elements.firstIndex(where: { $0.name == "sheetViews" })

@@ -902,6 +902,12 @@ struct SheetGridView: View {
             painted.comments.append(CommentMark(
                 address: address, frame: metrics.frame(for: range), kind: comment.kind, isResolved: comment.isResolved))
         }
+        for address in sheet.sparklineLocations
+        where plan.rows.contains(address.row) && plan.columns.contains(address.column)
+            && !sheet.hiddenRows.contains(address.row) && !sheet.hiddenColumns.contains(address.column) {
+            let frame = metrics.frame(for: sheet.mergedRange(containing: address)?.normalized ?? CellRange(address))
+            painted.sparklines += sheet.sparklineShapes(at: address, in: frame, zoom: metrics.zoom)
+        }
         return painted
     }
 

@@ -186,10 +186,12 @@ final class GridView: NSView, NSTextFieldDelegate {
     func drawSheet(_ dirtyRect: NSRect, in context: CGContext) {
         guard let document else { return }
         let sheet = document.activeSheet
-        let renderer = CellRenderer(
+        var renderer = CellRenderer(
             sheet: sheet, metrics: document.state.metrics, appearance: effectiveAppearance,
             lookup: lookups.lookup(for: sheet)
         )
+        let workbook = document.workbook
+        renderer.sheets = { workbook.sheet(named: $0) }
         renderer.paper.setFill()
         dirtyRect.fill()
         renderer.draw(in: dirtyRect, context: context, gridLineColor: CellRenderer.gridLineColor(for: effectiveAppearance))

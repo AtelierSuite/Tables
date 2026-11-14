@@ -259,6 +259,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// address of the formula. Recalculation starts from this so that cells
     /// reading a spilled range see it on the first pass.
     public var spills: [CellAddress: CellRange] = [:]
+    /// The sparklines drawn in the sheet's cells, by group.
+    public var sparklineGroups: [SparklineGroup] = []
     /// The conditional formats the file set, highest priority first.
     public var conditionalRules: [ConditionalRule] = []
     /// What those rules settled on at the last recalculation, by cell.
@@ -524,6 +526,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         moveDrawings(.insert(index: index, count: count), axis: .row)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .row, scope: ownScope)
         shiftKeptReferences(.insert(index: index, count: count), axis: .row)
+        shiftSparklines(.insert(index: index, count: count), axis: .row)
         origins?.insertRows(count, at: index, rowCount: rowCount)
         rowCount += count
         // Rows inserted among the frozen ones join them, as in Excel.
@@ -543,6 +546,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         moveDrawings(.insert(index: index, count: count), axis: .column)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .column, scope: ownScope)
         shiftKeptReferences(.insert(index: index, count: count), axis: .column)
+        shiftSparklines(.insert(index: index, count: count), axis: .column)
         origins?.insertColumns(count, at: index, columnCount: columnCount)
         columnCount += count
         if index < frozenColumns { frozenColumns += count }
@@ -565,6 +569,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         moveDrawings(.remove(range: range), axis: .row)
         shiftConditionalFormats(.remove(range: range), axis: .row, scope: ownScope)
         shiftKeptReferences(.remove(range: range), axis: .row)
+        shiftSparklines(.remove(range: range), axis: .row)
         origins?.removeRows(range, rowCount: rowCount)
         rowCount -= count
         frozenRows -= Self.overlap(of: range, withFirst: frozenRows)
@@ -587,6 +592,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         moveDrawings(.remove(range: range), axis: .column)
         shiftConditionalFormats(.remove(range: range), axis: .column, scope: ownScope)
         shiftKeptReferences(.remove(range: range), axis: .column)
+        shiftSparklines(.remove(range: range), axis: .column)
         origins?.removeColumns(range, columnCount: columnCount)
         columnCount -= count
         frozenColumns -= Self.overlap(of: range, withFirst: frozenColumns)
