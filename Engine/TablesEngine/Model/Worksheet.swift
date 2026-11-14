@@ -241,6 +241,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public var conditionalRules: [ConditionalRule] = []
     /// What those rules settled on at the last recalculation, by cell.
     public var conditionalStyles: [CellAddress: ConditionalStyle] = [:]
+    /// The sheet's tables that have a style to draw, as the file set them.
+    public var tableFormats: [TableFormat] = []
     /// Notes and threaded comments, by the cell they belong to.
     public var comments: [CellAddress: CellComment] = [:]
     /// Shapes from the file's VML drawing that are neither notes nor form
@@ -297,7 +299,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// Whether a cell's style may come from its row or column, so that an
     /// address with no record can still have a fill or borders to draw.
     public func inheritsStyle(at address: CellAddress) -> Bool {
-        rowStyles[address.row] != nil || columnStyles[address.column] != nil
+        rowStyles[address.row] != nil || columnStyles[address.column] != nil || tableFormat(at: address) != nil
     }
 
     public func contains(_ address: CellAddress) -> Bool {
@@ -497,6 +499,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.row) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .row)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .row, scope: ownScope)
+        shiftTableFormats(.insert(index: index, count: count), axis: .row)
         shiftKeptReferences(.insert(index: index, count: count), axis: .row)
         origins?.insertRows(count, at: index, rowCount: rowCount)
         rowCount += count
@@ -515,6 +518,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.column) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .column)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .column, scope: ownScope)
+        shiftTableFormats(.insert(index: index, count: count), axis: .column)
         shiftKeptReferences(.insert(index: index, count: count), axis: .column)
         origins?.insertColumns(count, at: index, columnCount: columnCount)
         columnCount += count
@@ -535,6 +539,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.row) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .row)
         shiftConditionalFormats(.remove(range: range), axis: .row, scope: ownScope)
+        shiftTableFormats(.remove(range: range), axis: .row)
         shiftKeptReferences(.remove(range: range), axis: .row)
         origins?.removeRows(range, rowCount: rowCount)
         rowCount -= count
@@ -555,6 +560,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.column) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .column)
         shiftConditionalFormats(.remove(range: range), axis: .column, scope: ownScope)
+        shiftTableFormats(.remove(range: range), axis: .column)
         shiftKeptReferences(.remove(range: range), axis: .column)
         origins?.removeColumns(range, columnCount: columnCount)
         columnCount -= count
