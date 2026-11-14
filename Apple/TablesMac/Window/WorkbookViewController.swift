@@ -196,6 +196,7 @@ final class WorkbookViewController: NSViewController {
         syncCommentPopover(in: document)
         syncSortFilterPopover(in: document)
         showErrorIfNeeded(in: document)
+        showValidationAlertIfNeeded(in: document)
     }
 
     private func updateTitleSubtitle(for sheet: Worksheet) {

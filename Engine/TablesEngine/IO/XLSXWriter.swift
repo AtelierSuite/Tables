@@ -709,6 +709,9 @@ public enum XLSXWriter {
             add("mergeCells", xml)
         }
 
+        if let validations = DataValidationParts.element(for: sheet.dataValidations) {
+            add("dataValidations", validations)
+        }
         if let filter = sheet.autoFilter { add("autoFilter", filter.xml) }
 
         for element in preservedElements(of: sheet) {

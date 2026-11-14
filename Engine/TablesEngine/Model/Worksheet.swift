@@ -268,6 +268,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public var conditionalRules: [ConditionalRule] = []
     /// What those rules settled on at the last recalculation, by cell.
     public var conditionalStyles: [CellAddress: ConditionalStyle] = [:]
+    /// The data validation rules: what may be entered where.
+    public var dataValidations: [DataValidation] = []
     /// Notes and threaded comments, by the cell they belong to.
     public var comments: [CellAddress: CellComment] = [:]
     /// Links, by the cell they are on. A link the file set on a range is on
@@ -528,6 +530,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.row) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .row)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .row, scope: ownScope)
+        shiftDataValidations(.insert(index: index, count: count), axis: .row, scope: ownScope)
         shiftKeptReferences(.insert(index: index, count: count), axis: .row)
         shiftSparklines(.insert(index: index, count: count), axis: .row)
         origins?.insertRows(count, at: index, rowCount: rowCount)
@@ -548,6 +551,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.column) { Self.span($0, insertingAt: index, count: count) }
         moveDrawings(.insert(index: index, count: count), axis: .column)
         shiftConditionalFormats(.insert(index: index, count: count), axis: .column, scope: ownScope)
+        shiftDataValidations(.insert(index: index, count: count), axis: .column, scope: ownScope)
         shiftKeptReferences(.insert(index: index, count: count), axis: .column)
         shiftSparklines(.insert(index: index, count: count), axis: .column)
         origins?.insertColumns(count, at: index, columnCount: columnCount)
@@ -571,6 +575,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.row) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .row)
         shiftConditionalFormats(.remove(range: range), axis: .row, scope: ownScope)
+        shiftDataValidations(.remove(range: range), axis: .row, scope: ownScope)
         shiftKeptReferences(.remove(range: range), axis: .row)
         shiftSparklines(.remove(range: range), axis: .row)
         origins?.removeRows(range, rowCount: rowCount)
@@ -594,6 +599,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         remapMerges(along: \.column) { Self.span($0, removing: range) }
         moveDrawings(.remove(range: range), axis: .column)
         shiftConditionalFormats(.remove(range: range), axis: .column, scope: ownScope)
+        shiftDataValidations(.remove(range: range), axis: .column, scope: ownScope)
         shiftKeptReferences(.remove(range: range), axis: .column)
         shiftSparklines(.remove(range: range), axis: .column)
         origins?.removeColumns(range, columnCount: columnCount)

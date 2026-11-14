@@ -94,6 +94,44 @@ struct WorkbookView: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(
+            get: { state.isEditingDataValidation }, set: { state.isEditingDataValidation = $0 }
+        )) {
+            NavigationStack {
+                DataValidationPanel(rule: state.selectedDataValidation(in: document.workbook)) { outcome in
+                    switch outcome {
+                    case .cancel: break
+                    case .clear: state.setDataValidation(nil, in: &document.workbook)
+                    case .apply(let rule): state.setDataValidation(rule, in: &document.workbook)
+                    }
+                    state.isEditingDataValidation = false
+                }
+            }
+        }
+        .alert(
+            state.validationAlert?.title ?? "",
+            isPresented: Binding(
+                get: { state.validationAlert != nil },
+                set: { if !$0 { state.validationAlert = nil } }
+            ),
+            presenting: state.validationAlert
+        ) { alert in
+            // A stop only says so; the other two ask whether to keep the entry.
+            switch alert.style {
+            case .stop:
+                Button("Common.OK", role: .cancel) {}
+            case .warning:
+                Button("DataValidation.Alert.Yes") { state.keepEntry(of: alert, in: &document.workbook) }
+                Button("DataValidation.Alert.No", role: .cancel) {}
+            case .information:
+                Button("Common.OK") { state.keepEntry(of: alert, in: &document.workbook) }
+                Button("DataValidation.Alert.Cancel", role: .cancel) {}
+            }
+        } message: { alert in
+            Text(alert.style == .warning
+                 ? alert.message + "\n\n" + String(localized: "DataValidation.Alert.Continue")
+                 : alert.message)
+        }
         .confirmationDialog(
             "Convert.DropMacros.Title",
             isPresented: Binding(get: { pendingConversion != nil }, set: { if !$0 { pendingConversion = nil } }),
@@ -108,6 +146,7 @@ struct WorkbookView: View {
             state.allowsComments = !document.isPlainText && !document.isNumbers
             state.allowsDefinedNames = !document.isPlainText && !document.isNumbers
             state.allowsFreezingPanes = !document.isPlainText && !document.isNumbers
+            state.allowsDataValidation = !document.isPlainText && !document.isNumbers
             state.allowsArrangingCanvases = !document.isPlainText && !document.isNumbers
             state.allowsLayingOutTables = !document.isPlainText
             state.isNumbersDocument = document.isNumbers
@@ -282,6 +321,7 @@ struct WorkbookView: View {
             state.formatting = document.formatting(in: state.activeSheetID)
             state.allowsComments = true
             state.allowsFreezingPanes = true
+            state.allowsDataValidation = true
             state.allowsArrangingCanvases = true
             state.allowsLayingOutTables = true
             state.isNumbersDocument = false

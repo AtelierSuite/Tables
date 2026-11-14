@@ -521,6 +521,10 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
         menu.addItem(MainMenu.item(String(localized: "Format.Merge.Merge"), #selector(mergeCells(_:))))
         menu.addItem(MainMenu.item(String(localized: "Format.Merge.Unmerge"), #selector(unmergeCells(_:))))
         menu.addItem(MainMenu.item(String(localized: "CellMenu.ResetFormatting"), #selector(clearFormatting(_:))))
+        if let document, document.state.allowsDataValidation {
+            menu.addItem(.separator())
+            menu.addItem(MainMenu.item(String(localized: "DataValidation.Menu"), #selector(editDataValidation(_:))))
+        }
         return menu
     }
 
@@ -680,6 +684,8 @@ extension WorkbookViewController: NSMenuItemValidation, NSToolbarItemValidation 
                 && state.selection.normalized.start != CellAddress(row: 0, column: 0)
         case #selector(unfreezePanes(_:)):
             return isCells && state.allowsFreezingPanes && !onCanvas && (sheet.frozenRows > 0 || sheet.frozenColumns > 0)
+        case #selector(editDataValidation(_:)):
+            return isCells && state.allowsDataValidation
         case #selector(toggleGridLines(_:)), #selector(toggleHeadings(_:)), #selector(toggleZeros(_:)),
              #selector(toggleFormulas(_:)):
             return isCells && state.allowsFreezingPanes && !onCanvas

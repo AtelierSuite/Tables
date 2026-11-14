@@ -238,6 +238,7 @@ final class WorkbookDocument: NSDocument {
         state.allowsComments = !file.isPlainText && !file.isNumbers
         state.allowsDefinedNames = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
+        state.allowsDataValidation = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
         state.allowsLayingOutTables = !file.isPlainText
         state.isNumbersDocument = file.isNumbers
@@ -250,6 +251,7 @@ final class WorkbookDocument: NSDocument {
         state.allowsComments = !file.isPlainText && !file.isNumbers
         state.allowsDefinedNames = !file.isPlainText && !file.isNumbers
         state.allowsFreezingPanes = !file.isPlainText && !file.isNumbers
+        state.allowsDataValidation = !file.isPlainText && !file.isNumbers
         state.allowsArrangingCanvases = !file.isPlainText && !file.isNumbers
         state.allowsLayingOutTables = !file.isPlainText
         state.isNumbersDocument = file.isNumbers

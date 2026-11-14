@@ -44,6 +44,8 @@ struct SheetGridView: View {
     @State private var lastTap: (address: CellAddress, time: Date)?
     /// Bumped to raise the cell menu from a double tap or a long press.
     @State private var cellMenuTrigger = 0
+    /// Bumped to open the selected cell's validation list.
+    @State private var listMenuTrigger = 0
     /// The cell the menu was last raised from, which a long press inside a
     /// larger selection leaves somewhere other than the selection's corner.
     @State private var cellMenuAddress: CellAddress?
@@ -315,6 +317,7 @@ struct SheetGridView: View {
 
             tiles
             if !state.isTableUnfocused { selectionOverlay() }
+            validationOverlay
             floatingObjects(in: scrollingWindow, pane: nil)
             editorOverlay
             cellMenuAnchor
@@ -1083,6 +1086,59 @@ struct SheetGridView: View {
         )
             .frame(width: frame.width, height: frame.height)
             .offset(x: frame.minX, y: frame.minY)
+    }
+
+    // MARK: - Data validation
+
+    /// The arrow a list rule shows beside the selected cell, which opens the
+    /// list, and the rule's input message under the cell.
+    @ViewBuilder
+    private var validationOverlay: some View {
+        let frame = metrics.frame(for: activeSheet.expandedToMerges(CellRange(state.selectedAddress)))
+        if state.dropDownRule(in: workbook) != nil {
+            let side: Double = 28
+            Button {
+                listMenuTrigger += 1
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: side, height: side)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(Color.accentColor, lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("DataValidation.ChooseFromList"))
+            .accessibilityIdentifier("dataValidationDropDown")
+            // The list hangs from the button, and is built only when asked for.
+            .background {
+                NativeMenuPresenter(
+                    actions: { CellMenuBuilder.listActions(workbook: $workbook, state: state) },
+                    trigger: listMenuTrigger)
+            }
+            .offset(x: frame.maxX + 3, y: frame.midY - side / 2)
+        }
+        if state.editingAddress == nil, !state.isTableUnfocused, let message = state.inputMessage(in: workbook) {
+            VStack(alignment: .leading, spacing: 2) {
+                if !message.title.isEmpty { Text(message.title).fontWeight(.semibold) }
+                if !message.message.isEmpty { Text(message.message) }
+            }
+            .font(.caption)
+            .multilineTextAlignment(.leading)
+            .padding(8)
+            .frame(maxWidth: 240, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: true)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.gridLine, lineWidth: 1)
+            }
+            .allowsHitTesting(false)
+            .accessibilityIdentifier("dataValidationInputMessage")
+            .offset(x: frame.minX + 10, y: frame.maxY + 8)
+        }
     }
 
     // MARK: - Selection

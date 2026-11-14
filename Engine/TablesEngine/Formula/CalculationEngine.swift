@@ -129,6 +129,43 @@ public final class CalculationEngine: FormulaContext {
         }
     }
 
+    /// Evaluates a formula body as though it stood in the cell at `address`,
+    /// without storing anything.
+    public static func preview(
+        formula body: String, in workbook: Workbook, sheetIndex: Int, at address: CellAddress
+    ) -> CellValue {
+        withLargeStack {
+            let engine = CalculationEngine(workbook: workbook)
+            engine.activeSheetIndex = sheetIndex
+            return engine.evaluate(body: body, sheetIndex: sheetIndex, at: address).single
+        }
+    }
+
+    /// The cells a formula names, row by row and no further than their sheet
+    /// runs, so that each can be shown in its own format. A formula that
+    /// names none gives what it comes to, as plain cells.
+    public static func cells(
+        namedBy body: String, in workbook: Workbook, sheetIndex: Int, at address: CellAddress
+    ) -> [Cell] {
+        withLargeStack {
+            let engine = CalculationEngine(workbook: workbook)
+            engine.activeSheetIndex = sheetIndex
+            guard case .success(let node) = engine.parsed(body) else { return [] }
+            let evaluator = FormulaEvaluator(context: engine, currentAddress: address)
+            if let reference = evaluator.reference(node), let index = engine.resolveSheetIndex(reference.sheet) {
+                let sheet = workbook.sheets[index]
+                let box = reference.range.normalized
+                guard box.start.row < sheet.rowCount, box.start.column < sheet.columnCount else { return [] }
+                var cells: [Cell] = []
+                CellRange(start: box.start, end: CellAddress(
+                    row: min(box.end.row, sheet.rowCount - 1), column: min(box.end.column, sheet.columnCount - 1)
+                )).forEachAddress { cells.append(sheet[$0]) }
+                return cells
+            }
+            return evaluator.evaluate(node).rows.flatMap { $0 }.map { Cell(value: $0, formula: nil, style: .default) }
+        }
+    }
+
     /// Evaluation recurses once per cell in a chain of references and several
     /// times per LAMBDA call, so it runs on a thread whose stack is sized for
     /// that rather than on whichever thread asked: a secondary thread's half
