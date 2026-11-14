@@ -3,8 +3,9 @@ import Testing
 @testable import Tables
 @testable import TablesEngine
 
-/// A sheet's filter: read from a file, applied, changed and written back.
-@Suite("Filtering")
+/// Sorting rows by one or more columns, and a sheet's filter: read from a
+/// file, applied, changed and written back.
+@Suite("Sorting and filtering")
 struct SortFilterTests {
 
     // MARK: - Fixtures
@@ -99,6 +100,129 @@ struct SortFilterTests {
         return String(decoding: try #require(entries["xl/worksheets/sheet1.xml"]), as: UTF8.self)
     }
 
+    // MARK: - Sorting
+
+    @Test("Rows sort by one column, text without regard to case, and the header stays")
+    func sortsByOneColumn() throws {
+        var book = workbook()
+        try book.sheets[0].sortRows(in: range("A1:C6"), by: [SortKey(column: 0)], hasHeader: true)
+        let sheet = book.sheets[0]
+        #expect(column("A", rows: 1...6, in: sheet) == ["Name", "abe", "Endo", "Kato", "Mori", "Sato"])
+        // Whole rows move together.
+        #expect(column("C", rows: 2...6, in: sheet) == ["10", "40", "", "30", "20"])
+    }
+
+    @Test("Descending puts the largest first, and blanks still last")
+    func sortsDescendingWithBlanksLast() throws {
+        var book = workbook()
+        try book.sheets[0].sortRows(in: range("A1:C6"), by: [SortKey(column: 2, isAscending: false)], hasHeader: true)
+        #expect(column("C", rows: 2...6, in: book.sheets[0]) == ["40", "30", "20", "10", ""])
+        #expect(column("A", rows: 2...6, in: book.sheets[0]) == ["Endo", "Mori", "Sato", "abe", "Kato"])
+    }
+
+    @Test("A second column breaks ties in the first")
+    func sortsByTwoColumns() throws {
+        var book = workbook()
+        try book.sheets[0].sortRows(
+            in: range("A1:C6"), by: [SortKey(column: 1), SortKey(column: 2, isAscending: false)], hasHeader: true)
+        let sheet = book.sheets[0]
+        #expect(column("B", rows: 2...6, in: sheet) == ["Kyoto", "Osaka", "Osaka", "Tokyo", "Tokyo"])
+        #expect(column("A", rows: 2...6, in: sheet) == ["Kato", "Mori", "Sato", "Endo", "abe"])
+    }
+
+    @Test("Without a header the first row is sorted with the rest, and ties keep their order")
+    func sortsWithoutHeader() throws {
+        var book = workbook(["A1": "b", "B1": "1", "A2": "a", "B2": "2", "A3": "b", "B3": "3", "A4": "a", "B4": "4"])
+        try book.sheets[0].sortRows(in: range("A1:B4"), by: [SortKey(column: 0)], hasHeader: false)
+        #expect(column("A", rows: 1...4, in: book.sheets[0]) == ["a", "a", "b", "b"])
+        #expect(column("B", rows: 1...4, in: book.sheets[0]) == ["2", "4", "1", "3"])
+    }
+
+    @Test("Numbers sort before text, text before booleans")
+    func sortsMixedTypes() throws {
+        var book = workbook(["A1": "pear", "A2": "TRUE", "A3": "7", "A4": "apple", "A5": "-2"])
+        try book.sheets[0].sortRows(in: range("A1:A5"), by: [SortKey(column: 0)], hasHeader: false)
+        #expect(column("A", rows: 1...5, in: book.sheets[0]) == ["-2", "7", "apple", "pear", "TRUE"])
+    }
+
+    @Test("Styles move with their cells and a formula follows its row")
+    func sortMovesStylesAndFormulas() throws {
+        var book = workbook(["A1": "3", "B1": "=A1*2", "A2": "1", "B2": "=A2*2", "A3": "2", "B3": "=A3*2"])
+        book.sheets[0][CellAddress(a1: "A1")!].style.isBold = true
+        try book.sheets[0].sortRows(in: range("A1:B3"), by: [SortKey(column: 0)], hasHeader: false)
+        book.recalculate()
+        let sheet = book.sheets[0]
+        #expect(column("A", rows: 1...3, in: sheet) == ["1", "2", "3"])
+        #expect(column("B", rows: 1...3, in: sheet) == ["2", "4", "6"])
+        #expect(sheet[CellAddress(a1: "B3")!].formula == "A3*2")
+        #expect(sheet[CellAddress(a1: "A3")!].style.isBold)
+        #expect(!sheet[CellAddress(a1: "A1")!].style.isBold)
+    }
+
+    @Test("Cells outside the sorted range stay where they are")
+    func sortLeavesOtherCells() throws {
+        var entries = Self.entries
+        entries["E3"] = "fixed"
+        entries["A8"] = "below"
+        var book = workbook(entries)
+        try book.sheets[0].sortRows(in: range("A1:C6"), by: [SortKey(column: 0)], hasHeader: true)
+        #expect(column("E", rows: 3...3, in: book.sheets[0]) == ["fixed"])
+        #expect(column("A", rows: 8...8, in: book.sheets[0]) == ["below"])
+    }
+
+    @Test("A range holding merged cells is not sorted")
+    func sortRefusesMergedCells() throws {
+        var book = workbook()
+        book.sheets[0].merge(range("A3:B3"))
+        #expect(throws: SortFailure.mergedCells) {
+            try book.sheets[0].sortRows(in: range("A1:C6"), by: [SortKey(column: 0)], hasHeader: true)
+        }
+        #expect(column("A", rows: 2...3, in: book.sheets[0]) == ["Mori", "abe"])
+    }
+
+    @Test("One selected cell stands for the data around it, header noticed")
+    func dataRangeGrowsFromOneCell() {
+        var entries = Self.entries
+        entries["E9"] = "apart"
+        let book = workbook(entries)
+        let found = book.dataRange(for: range("B3"), onSheetAt: 0)
+        #expect(found.range == range("A1:C6"))
+        #expect(found.hasHeader)
+        let numbers = workbook(["A1": "1", "A2": "2"]).dataRange(for: range("A1"), onSheetAt: 0)
+        #expect(numbers.range == range("A1:A2"))
+        #expect(!numbers.hasHeader)
+        // A larger selection is taken as given.
+        #expect(book.dataRange(for: range("A2:B4"), onSheetAt: 0).range == range("A2:B4"))
+    }
+
+    @Test("A sort is remembered and written as the sheet's sort state")
+    func sortStateIsWritten() throws {
+        var book = workbook()
+        try book.sheets[0].sortRows(
+            in: range("A1:C6"), by: [SortKey(column: 1), SortKey(column: 2, isAscending: false)], hasHeader: true)
+        #expect(book.sheets[0].sortState == SortState(
+            range: range("A2:C6"), keys: [SortKey(column: 1), SortKey(column: 2, isAscending: false)]))
+        let xml = try savedSheet(book)
+        #expect(xml.contains(
+            "<sortState ref=\"A2:C6\"><sortCondition ref=\"B2:B6\"/>"
+                + "<sortCondition descending=\"1\" ref=\"C2:C6\"/></sortState>"))
+        let reopened = try XLSXReader.workbook(from: try XLSXWriter.data(from: book))
+        #expect(reopened.sheets[0].sortState == book.sheets[0].sortState)
+    }
+
+    @Test("A file's sort state is read, and a new sort replaces it")
+    func sortStateIsReadAndReplaced() throws {
+        let data = try cityPackage(
+            "<sortState ref=\"A2:B6\"><sortCondition descending=\"1\" ref=\"B2:B6\"/></sortState>")
+        var book = try XLSXReader.workbook(from: data)
+        #expect(book.sheets[0].sortState == SortState(
+            range: range("A2:B6"), keys: [SortKey(column: 1, isAscending: false)]))
+        try book.sheets[0].sortRows(in: range("A1:B6"), by: [SortKey(column: 0)], hasHeader: true)
+        let xml = try savedSheet(book)
+        #expect(xml.components(separatedBy: "<sortState").count == 2)
+        #expect(xml.contains("<sortState ref=\"A2:B6\"><sortCondition ref=\"A2:A6\"/></sortState>"))
+    }
+
     // MARK: - Filtering
 
     @Test("A value list hides the rows whose value is not in it")
@@ -190,6 +314,19 @@ struct SortFilterTests {
         book.sheets[0].setAutoFilter(on: nil)
         #expect(book.sheets[0].hiddenRows == [4, 7])
         #expect(book.sheets[0].autoFilter == nil)
+    }
+
+    @Test("Sorting a filtered range hides the rows the filter turns away, wherever they land")
+    func sortingReappliesFilter() throws {
+        var book = workbook()
+        book.sheets[0].setAutoFilter(on: range("A1:C6"))
+        book.sheets[0].setFilter(.values(["Tokyo"], includesBlanks: false), forColumn: 1)
+        try book.sheets[0].sortRows(in: range("A1:C6"), by: [SortKey(column: 1, isAscending: false)], hasHeader: true)
+        #expect(column("B", rows: 2...6, in: book.sheets[0]) == ["Tokyo", "Tokyo", "Osaka", "Osaka", "Kyoto"])
+        #expect(book.sheets[0].hiddenRows == [3, 4, 5])
+        // The sort belongs to the filter, as Excel writes it.
+        let xml = try savedSheet(book)
+        #expect(xml.contains("<sortState ref=\"A2:C6\"><sortCondition descending=\"1\" ref=\"B2:B6\"/></sortState></autoFilter>"))
     }
 
     @Test("SUBTOTAL passes over filtered rows but counts rows hidden by hand")
@@ -292,6 +429,21 @@ struct SortFilterTests {
         let book = try XLSXReader.workbook(from: try package(sheetData: rows, sheetBody: body))
         #expect(book.sheets[0].hiddenRows == [1])
         #expect(try savedSheet(book).contains(body))
+    }
+
+    @Test("A filter Tables cannot work out keeps the file's hidden rows and its XML")
+    func keepsUnknownCriteria() throws {
+        let body = "<autoFilter ref=\"A1:B6\"><filterColumn colId=\"1\">"
+            + "<colorFilter dxfId=\"0\"/></filterColumn>"
+            + "<sortState ref=\"A2:B6\"><sortCondition ref=\"A2:A6\"/></sortState></autoFilter>"
+        let book = try XLSXReader.workbook(from: try cityPackage(body, hidden: [4, 5]))
+        let sheet = book.sheets[0]
+        #expect(sheet.hiddenRows == [3, 4])
+        #expect(sheet.autoFilter?.filteredRows == [3, 4])
+        #expect(sheet.sortState == SortState(range: range("A2:B6"), keys: [SortKey(column: 0)]))
+        let xml = try savedSheet(book)
+        #expect(xml.contains(body))
+        #expect(xml.components(separatedBy: "<autoFilter").count == 2)
     }
 
     @Test("A filter set in the app is written in its schema slot and read back")
