@@ -577,10 +577,13 @@ public enum XLSXWriter {
         var outlineProperties = ""
         if !sheet.rowOutline.summaryAfter { outlineProperties += " summaryBelow=\"0\"" }
         if !sheet.columnOutline.summaryAfter { outlineProperties += " summaryRight=\"0\"" }
-        if sheet.codeName != nil || !outlineProperties.isEmpty {
+        if sheet.codeName != nil || !outlineProperties.isEmpty || sheet.printsFittedToPages {
             var xml = "<sheetPr"
             if let codeName = sheet.codeName { xml += " codeName=\"\(XMLLite.escape(codeName))\"" }
-            xml += outlineProperties.isEmpty ? "/>" : "><outlinePr\(outlineProperties)/></sheetPr>"
+            // The schema puts the outline's properties before the page setup's.
+            var children = outlineProperties.isEmpty ? "" : "<outlinePr\(outlineProperties)/>"
+            if sheet.printsFittedToPages { children += "<pageSetUpPr fitToPage=\"1\"/>" }
+            xml += children.isEmpty ? "/>" : ">\(children)</sheetPr>"
             add("sheetPr", xml)
         }
         add("dimension", "<dimension ref=\"A1:\(CellAddress(row: sheet.rowCount - 1, column: sheet.columnCount - 1).a1)\"/>")

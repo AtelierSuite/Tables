@@ -102,6 +102,8 @@ public enum XLSXReader {
             sheet.fileSheetID = element.attribute("sheetId").flatMap(Int.init)
             if sheet.kind == .worksheet {
                 sheet.codeName = sheetXML.firstChild(named: "sheetPr")?.attribute("codeName")
+                let fits = sheetXML.firstChild(named: "sheetPr")?.firstChild(named: "pageSetUpPr")?.attribute("fitToPage")
+                sheet.printsFittedToPages = fits == "1" || fits == "true"
                 // Protection is modelled, and written from the model.
                 sheet.protection = sheetXML.firstChild(named: "sheetProtection").map(SheetProtection.init)
                 sheet.preservedElements.removeAll { $0.name == "sheetProtection" }
@@ -267,7 +269,10 @@ public enum XLSXReader {
             case "conditionalFormatting": feature = .conditionalFormatting
             case "autoFilter": feature = .autoFilter
             case "tableParts": feature = .tables
-            case "printOptions", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "legacyDrawingHF":
+            case "rowBreaks", "colBreaks", "legacyDrawingHF":
+                // The page setup itself, its print options and the header
+                // and footer text are editable; breaks and pictures in a
+                // header are only kept.
                 feature = .printSetup
             case "protectedRanges": feature = .sheetProtection
             case "customSheetViews": feature = .customViews
