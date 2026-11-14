@@ -362,6 +362,41 @@
         }
       }
     },
+    "Automation.Error.NoWorkbooks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no workbooks to combine."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結合するワークブックがありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "결합할 통합 문서가 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有要合并的工作簿。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有要合併的活頁簿。"
+          }
+        }
+      }
+    },
     "Automation.Error.OutsideSheet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10335,6 +10370,111 @@
         }
       }
     },
+    "Intent.Combine.Description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copies the sheets of several workbooks into one, in order. Sheets whose names are already taken are renamed, and the formulas that refer to them follow."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数のワークブックのシートを順番に1つのワークブックにコピーします。名前が重複するシートは名前が変更され、そのシートを参照する数式も更新されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 통합 문서의 시트를 순서대로 하나의 통합 문서에 복사합니다. 이름이 겹치는 시트는 이름이 바뀌고, 해당 시트를 참조하는 수식도 함께 업데이트됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将多个工作簿的工作表按顺序复制到一个工作簿中。名称重复的工作表会被重命名，引用它们的公式也会随之更新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將多個活頁簿的工作表依序複製到一個活頁簿中。名稱重複的工作表會重新命名，參照它們的公式也會隨之更新。"
+          }
+        }
+      }
+    },
+    "Intent.Combine.Summary ${workbooks}" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Combine ${workbooks}"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${workbooks} を結合"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${workbooks} 결합"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合并 ${workbooks}"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併 ${workbooks}"
+          }
+        }
+      }
+    },
+    "Intent.Combine.Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Combine Workbooks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ワークブックを結合"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "통합 문서 결합"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合并工作簿"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併活頁簿"
+          }
+        }
+      }
+    },
     "Intent.Create.Description" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12687,6 +12827,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workbook"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ワークブック"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "통합 문서"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作簿"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活頁簿"
+          }
+        }
+      }
+    },
+    "Intent.Parameter.Workbooks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workbooks"
           }
         },
         "ja" : {
