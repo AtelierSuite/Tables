@@ -465,7 +465,9 @@ struct UnsupportedFeatureTests {
         #expect(sheet.contains("xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\""))
         #expect(!sheet.contains("slicer"))
         #expect(sheet.hasSuffix("</extLst></worksheet>"))
-        #expect(workbook.unsupportedFeatures.preserved.contains(.sparklines))
+        // Sparklines are read and drawn now, so nothing is reported about them.
+        #expect(!workbook.unsupportedFeatures.preserved.contains(.sparklines))
+        #expect(workbook.sheets[0].sparklineGroups.first?.sparklines.first?.location == CellAddress(row: 0, column: 1))
     }
 
     @Test("A sheet with a PivotTable or a slicer keeps its hyperlinks; the slicer is reported lost")
