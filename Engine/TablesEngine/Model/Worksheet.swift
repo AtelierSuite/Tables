@@ -204,6 +204,25 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     /// rest of the sheet scrolls — Excel's frozen panes. Zero for none.
     public var frozenRows = 0
     public var frozenColumns = 0
+    /// Whether the hairlines between cells are drawn — Excel's Gridlines
+    /// view option. Borders are drawn either way.
+    public var showsGridLines = true
+    /// Whether the column letters and row numbers round the grid are shown —
+    /// Excel's Headings view option.
+    public var showsHeadings = true
+    /// How far the sheet is zoomed when it opens, in percent — Excel's
+    /// `zoomScale`, from 10 to 400.
+    public var zoomScale = 100
+    /// Whether a cell whose value is zero shows it, or is left blank —
+    /// Excel's "Show a zero in cells that have zero value".
+    public var showsZeros = true
+    /// Whether cells with a formula show it in place of its result — Excel's
+    /// Show Formulas.
+    public var showsFormulas = false
+    /// Whether the sheet runs from right to left, column A at the right —
+    /// Excel's `rightToLeft`. Kept through a save; the grids do not lay a
+    /// sheet out that way yet.
+    public var isRightToLeft = false
     /// Rectangular regions drawn, selected and edited as a single cell. They
     /// never overlap, and only the top-left cell of each keeps its content.
     public var mergedRanges: [CellRange] = []
@@ -246,6 +265,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public var conditionalStyles: [CellAddress: ConditionalStyle] = [:]
     /// Notes and threaded comments, by the cell they belong to.
     public var comments: [CellAddress: CellComment] = [:]
+    /// Links, by the cell they are on. A link the file set on a range is on
+    /// each of its cells.
+    public var hyperlinks: [CellAddress: CellHyperlink] = [:]
     /// Shapes from the file's VML drawing that are neither notes nor form
     /// controls, carried verbatim into the drawing written with the notes.
     public var preservedVMLShapes: String?
@@ -532,6 +554,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         FormulaReferenceShifter.apply(.remove(range: range), axis: .row, to: &cells, scope: ownScope)
         cells = cells.filter { !range.contains($0.key.row) }
         comments = comments.filter { !range.contains($0.key.row) }
+        hyperlinks = hyperlinks.filter { !range.contains($0.key.row) }
         remapCells { $0.row > range.upperBound ? CellAddress(row: $0.row - count, column: $0.column) : $0 }
         rowHeights = Self.shift(rowHeights.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         fittedRows = Self.shift(fittedRows.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
@@ -553,6 +576,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         FormulaReferenceShifter.apply(.remove(range: range), axis: .column, to: &cells, scope: ownScope)
         cells = cells.filter { !range.contains($0.key.column) }
         comments = comments.filter { !range.contains($0.key.column) }
+        hyperlinks = hyperlinks.filter { !range.contains($0.key.column) }
         remapCells { $0.column > range.upperBound ? CellAddress(row: $0.row, column: $0.column - count) : $0 }
         columnWidths = Self.shift(columnWidths.filter { !range.contains($0.key) }, from: range.upperBound + 1, by: -count)
         hiddenColumns = Self.shift(hiddenColumns.filter { !range.contains($0) }, from: range.upperBound + 1, by: -count)
@@ -596,7 +620,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         hiddenColumns.removeAll()
     }
 
-    /// Moves cells, and the comments on them, to new addresses.
+    /// Moves cells, and the comments and links on them, to new addresses.
     private mutating func remapCells(_ transform: (CellAddress) -> CellAddress) {
         var moved: [CellAddress: Cell] = [:]
         moved.reserveCapacity(cells.count)
@@ -605,6 +629,9 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         var movedComments: [CellAddress: CellComment] = [:]
         for (address, comment) in comments { movedComments[transform(address)] = comment }
         comments = movedComments
+        var movedLinks: [CellAddress: CellHyperlink] = [:]
+        for (address, link) in hyperlinks { movedLinks[transform(address)] = link }
+        hyperlinks = movedLinks
         // Where arrays spilled is worked out again on the next recalculation.
         spills = [:]
     }

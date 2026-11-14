@@ -357,11 +357,11 @@ struct UnsupportedFeatureTests {
     @Test("A relationship-naming child needs its sheet's relationships to come too")
     func relationshipDependentChildNeedsItsRelationships() throws {
         // No `_rels` part for the sheet at all, so `rId9` resolves to nothing.
-        let data = try package(sheets: ["<hyperlinks><hyperlink ref=\"A1\" r:id=\"rId9\"/></hyperlinks>"])
+        let data = try package(sheets: ["<legacyDrawingHF r:id=\"rId9\"/>"])
         let (workbook, entries) = try roundTrip(data)
 
-        #expect(!(try text(entries, "xl/worksheets/sheet1.xml").contains("<hyperlinks")))
-        #expect(workbook.unsupportedFeatures.lost.contains(.hyperlinks))
+        #expect(!(try text(entries, "xl/worksheets/sheet1.xml").contains("<legacyDrawingHF")))
+        #expect(workbook.unsupportedFeatures.lost.contains(.printSetup))
     }
 
     @Test("A sheet's relationships follow it when the sheets are reordered")
@@ -503,7 +503,7 @@ struct UnsupportedFeatureTests {
         )
         let (workbook, entries) = try roundTrip(data)
         let sheet = try text(entries, "xl/worksheets/sheet1.xml")
-        #expect(sheet.contains("<hyperlinks") && sheet.contains("r:id=\"rId1\" ref=\"A1\""), "\(sheet)")
+        #expect(sheet.contains("<hyperlinks><hyperlink ref=\"A1\" r:id=\"rId"), "\(sheet)")
         #expect(!sheet.contains("slicer"))
         let relationships = try text(entries, "xl/worksheets/_rels/sheet1.xml.rels")
         #expect(relationships.contains("https://example.com"))
@@ -511,7 +511,7 @@ struct UnsupportedFeatureTests {
         #expect(entries["xl/slicers/slicer1.xml"] == nil)
 
         let report = workbook.unsupportedFeatures
-        #expect(report.preserved.contains(.hyperlinks))
+        #expect(workbook.sheets[0].hyperlinks[CellAddress(row: 0, column: 0)]?.address == "https://example.com")
         #expect(report.lost.contains(.slicers))
         #expect(report.lost.contains(.pivotTables))
     }
