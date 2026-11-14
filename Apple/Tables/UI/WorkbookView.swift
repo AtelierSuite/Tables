@@ -23,8 +23,6 @@ struct WorkbookView: View {
     /// A change to a Numbers document with what it couldn't keep taken out,
     /// written back in place of the change as made.
     @State private var pendingReconciliation: Workbook?
-    /// The password being typed into the protection alert.
-    @State private var protectionPassword = ""
     @Environment(\.undoManager) private var undoManager
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -212,25 +210,7 @@ struct WorkbookView: View {
             .presentationBackground(.regularMaterial)
         }
         #endif
-        .alert(
-            state.protectionRequest?.heading ?? "",
-            isPresented: Binding(
-                get: { state.protectionRequest != nil },
-                set: { if !$0 { state.protectionRequest = nil } }
-            ),
-            presenting: state.protectionRequest
-        ) { request in
-            SecureField(
-                String(localized: request.isProtecting ? "Protection.Password.Optional" : "Protection.Password"),
-                text: $protectionPassword)
-            Button(String(localized: request.isProtecting ? "Protection.Protect" : "Protection.Unprotect")) {
-                state.complete(request, password: protectionPassword, in: &document.workbook)
-                protectionPassword = ""
-            }
-            Button("Common.Cancel", role: .cancel) { protectionPassword = "" }
-        } message: { request in
-            Text(request.message)
-        }
+        .modifier(ProtectionPrompt(workbook: workbook, state: state))
         .alert(
             "Alert.Error.Title",
             isPresented: Binding(
@@ -937,5 +917,36 @@ private struct UnsupportedFeatureNotice: View {
         .frame(idealWidth: 300, maxWidth: 340, alignment: .leading)
         // iPhone turns a popover into a sheet unless it is told not to.
         .presentationCompactAdaptation(.popover)
+    }
+}
+
+/// Asks for the password, optional when protecting, while
+/// `state.protectionRequest` waits on an answer. A modifier of its own
+/// keeps the workbook view's body within what the type checker manages.
+private struct ProtectionPrompt: ViewModifier {
+    @Binding var workbook: Workbook
+    let state: EditorState
+    @State private var password = ""
+
+    func body(content: Content) -> some View {
+        content.alert(
+            state.protectionRequest?.heading ?? "",
+            isPresented: Binding(
+                get: { state.protectionRequest != nil },
+                set: { if !$0 { state.protectionRequest = nil } }
+            ),
+            presenting: state.protectionRequest
+        ) { request in
+            SecureField(
+                String(localized: request.isProtecting ? "Protection.Password.Optional" : "Protection.Password"),
+                text: $password)
+            Button(String(localized: request.isProtecting ? "Protection.Protect" : "Protection.Unprotect")) {
+                state.complete(request, password: password, in: &workbook)
+                password = ""
+            }
+            Button("Common.Cancel", role: .cancel) { password = "" }
+        } message: { request in
+            Text(request.message)
+        }
     }
 }
