@@ -86,43 +86,81 @@ public enum ChartWriter {
     /// part and match between the plot and its axes.
     private static let categoryAxisID = 500_000_001
     private static let valueAxisID = 500_000_002
+    private static let secondaryCategoryAxisID = 500_000_003
+    private static let secondaryValueAxisID = 500_000_004
 
-    /// `CT_PlotArea`: layout, the plot, then its axes.
+    /// The series that share a plot: one kind, on one pair of axes.
+    private struct Plot {
+        var kind: ChartKind
+        var isSecondary: Bool
+        var series: [(index: Int, series: ChartSeries)]
+    }
+
+    /// The chart's series sorted into plots, in the order each first appears.
+    /// A chart that is not a combination has the one.
+    private static func plots(of chart: Chart) -> [Plot] {
+        let series = chart.kind.isRadial ? Array(chart.series.prefix(1)) : chart.series
+        var plots: [Plot] = []
+        for (index, entry) in series.enumerated() {
+            let kind = entry.kind(in: chart)
+            let isSecondary = entry.usesSecondaryAxis && chart.secondaryValueAxis != nil
+            if let match = plots.firstIndex(where: { $0.kind == kind && $0.isSecondary == isSecondary }) {
+                plots[match].series.append((index, entry))
+            } else {
+                plots.append(Plot(kind: kind, isSecondary: isSecondary, series: [(index, entry)]))
+            }
+        }
+        if plots.isEmpty { plots.append(Plot(kind: chart.kind, isSecondary: false, series: [])) }
+        // The chart's own plot leads, as the reader takes its kind from the
+        // first plot on the main axes.
+        if let own = plots.firstIndex(where: { $0.kind == chart.kind && !$0.isSecondary }), own > 0 {
+            plots.insert(plots.remove(at: own), at: 0)
+        }
+        return plots
+    }
+
+    /// `CT_PlotArea`: layout, the plots, then their axes.
     private static func plotArea(_ chart: Chart, workbook: Workbook) -> String {
+        let plots = plots(of: chart)
         var xml = "<c:plotArea><c:layout/>"
-        xml += plot(chart, workbook: workbook)
+        for plot in plots { xml += self.plot(plot, chart: chart, workbook: workbook) }
         if !chart.kind.isRadial {
-            xml += axes(chart)
+            xml += axes(chart, hasSecondary: plots.contains { $0.isSecondary })
         }
         xml += "</c:plotArea>"
         return xml
     }
 
-    private static func plot(_ chart: Chart, workbook: Workbook) -> String {
-        let series = chart.kind.isRadial ? Array(chart.series.prefix(1)) : chart.series
-        let seriesXML = series.enumerated().map { index, entry in
-            seriesElement(entry, index: index, chart: chart, workbook: workbook)
+    private static func plot(_ plot: Plot, chart: Chart, workbook: Workbook) -> String {
+        let kind = plot.kind
+        let isOwn = kind == chart.kind && !plot.isSecondary
+        let seriesXML = plot.series.map { entry in
+            seriesElement(entry.series, index: entry.index, chart: chart, workbook: workbook)
         }.joined()
-        let varyColors = "<c:varyColors val=\"\(chart.variesColors ? 1 : 0)\"/>"
-        let axisIDs = "<c:axId val=\"\(categoryAxisID)\"/><c:axId val=\"\(valueAxisID)\"/>"
+        let varyColors = "<c:varyColors val=\"\(chart.variesColors && isOwn ? 1 : 0)\"/>"
+        let axisIDs = plot.isSecondary
+            ? "<c:axId val=\"\(secondaryCategoryAxisID)\"/><c:axId val=\"\(secondaryValueAxisID)\"/>"
+            : "<c:axId val=\"\(categoryAxisID)\"/><c:axId val=\"\(valueAxisID)\"/>"
+        // Only the chart's own plot stacks.
+        let grouping = isOwn ? chart.grouping : .standard
+        let labels = dataLabels(chart.dataLabels, kind: kind)
 
-        switch chart.kind {
+        switch kind {
         case .column, .bar:
             // `CT_BarChart`: barDir, grouping, varyColors, ser*, dLbls, gapWidth,
             // overlap, serLines*, axId+.
-            let grouping: String
-            switch chart.grouping {
-            case .standard: grouping = "clustered"
-            case .stacked: grouping = "stacked"
-            case .percentStacked: grouping = "percentStacked"
+            let groupingName: String
+            switch grouping {
+            case .standard: groupingName = "clustered"
+            case .stacked: groupingName = "stacked"
+            case .percentStacked: groupingName = "percentStacked"
             }
-            var xml = "<c:barChart><c:barDir val=\"\(chart.kind == .bar ? "bar" : "col")\"/>"
-            xml += "<c:grouping val=\"\(grouping)\"/>" + varyColors + seriesXML
-            xml += dataLabels(chart.dataLabels, kind: chart.kind)
+            var xml = "<c:barChart><c:barDir val=\"\(kind == .bar ? "bar" : "col")\"/>"
+            xml += "<c:grouping val=\"\(groupingName)\"/>" + varyColors + seriesXML + labels
             xml += "<c:gapWidth val=\"\(chart.gapWidth ?? 150)\"/>"
             // Stacked bars that do not overlap completely are drawn side by
             // side and offset, which is never what anybody wants.
-            if chart.grouping != .standard {
+            if grouping != .standard {
                 xml += "<c:overlap val=\"100\"/>"
             } else if let overlap = chart.overlap {
                 xml += "<c:overlap val=\"\(overlap)\"/>"
@@ -131,49 +169,77 @@ public enum ChartWriter {
         case .line:
             // `CT_LineChart`: grouping, varyColors, ser*, dLbls, …, marker,
             // smooth, axId+.
-            var xml = "<c:lineChart><c:grouping val=\"\(chart.grouping.rawValue)\"/>" + varyColors + seriesXML
-            xml += dataLabels(chart.dataLabels, kind: chart.kind)
+            var xml = "<c:lineChart><c:grouping val=\"\(grouping.rawValue)\"/>" + varyColors + seriesXML + labels
             xml += "<c:marker val=\"1\"/>"
             return xml + axisIDs + "</c:lineChart>"
         case .area:
             // `CT_AreaChart`: grouping, varyColors, ser*, dLbls, dropLines, axId+.
-            var xml = "<c:areaChart><c:grouping val=\"\(chart.grouping.rawValue)\"/>" + varyColors + seriesXML
-            xml += dataLabels(chart.dataLabels, kind: chart.kind)
+            let xml = "<c:areaChart><c:grouping val=\"\(grouping.rawValue)\"/>" + varyColors + seriesXML + labels
             return xml + axisIDs + "</c:areaChart>"
         case .pie:
             // `CT_PieChart`: varyColors, ser*, dLbls, firstSliceAng.
-            var xml = "<c:pieChart>" + varyColors + seriesXML
-            xml += dataLabels(chart.dataLabels, kind: chart.kind)
+            var xml = "<c:pieChart>" + varyColors + seriesXML + labels
             xml += "<c:firstSliceAng val=\"\(chart.firstSliceAngle)\"/>"
             return xml + "</c:pieChart>"
         case .doughnut:
             // `CT_DoughnutChart`: varyColors, ser*, dLbls, firstSliceAng, holeSize.
-            var xml = "<c:doughnutChart>" + varyColors + seriesXML
-            xml += dataLabels(chart.dataLabels, kind: chart.kind)
+            var xml = "<c:doughnutChart>" + varyColors + seriesXML + labels
             xml += "<c:firstSliceAng val=\"\(chart.firstSliceAngle)\"/>"
             xml += "<c:holeSize val=\"\(min(max(chart.holeSize, 10), 90))\"/>"
             return xml + "</c:doughnutChart>"
         case .scatter:
             // `CT_ScatterChart`: scatterStyle, varyColors, ser*, dLbls, axId+.
-            var xml = "<c:scatterChart><c:scatterStyle val=\"lineMarker\"/>" + varyColors + seriesXML
-            xml += dataLabels(chart.dataLabels, kind: chart.kind)
+            let xml = "<c:scatterChart><c:scatterStyle val=\"lineMarker\"/>" + varyColors + seriesXML + labels
             return xml + axisIDs + "</c:scatterChart>"
+        case .bubble:
+            // `CT_BubbleChart`: varyColors, ser*, dLbls, bubble3D, bubbleScale,
+            // showNegBubbles, sizeRepresents, axId+.
+            var xml = "<c:bubbleChart>" + varyColors + seriesXML + labels
+            xml += "<c:bubbleScale val=\"\(min(max(chart.bubbleScale, 0), 300))\"/><c:showNegBubbles val=\"0\"/>"
+            if chart.bubbleSizeIsWidth { xml += "<c:sizeRepresents val=\"w\"/>" }
+            return xml + axisIDs + "</c:bubbleChart>"
+        case .radar:
+            // `CT_RadarChart`: radarStyle, varyColors, ser*, dLbls, axId+.
+            let xml = "<c:radarChart><c:radarStyle val=\"\(chart.radarStyle.rawValue)\"/>" + varyColors
+            return xml + seriesXML + labels + axisIDs + "</c:radarChart>"
+        case .stock:
+            // `CT_StockChart`: ser{3,4}, dLbls, dropLines, hiLowLines,
+            // upDownBars, axId+.
+            var xml = "<c:stockChart>" + seriesXML + labels
+            if chart.hasHighLowLines { xml += "<c:hiLowLines/>" }
+            if let bars = chart.upDownBars {
+                // `CT_UpDownBars`: gapWidth, upBars, downBars.
+                xml += "<c:upDownBars><c:gapWidth val=\"\(bars.gapWidth)\"/>"
+                xml += "<c:upBars>" + (bars.upColorHex.map { "<c:spPr>" + solidFill($0) + "</c:spPr>" } ?? "") + "</c:upBars>"
+                xml += "<c:downBars>" + (bars.downColorHex.map { "<c:spPr>" + solidFill($0) + "</c:spPr>" } ?? "")
+                xml += "</c:downBars></c:upDownBars>"
+            }
+            return xml + axisIDs + "</c:stockChart>"
         }
     }
 
     /// The series types share their first few children and differ after:
-    /// `CT_BarSer` idx, order, tx, spPr, invertIfNegative, dPt*, cat, val;
-    /// `CT_LineSer` idx, order, tx, spPr, marker, dPt*, cat, val, smooth;
-    /// `CT_ScatterSer` … marker, dPt*, xVal, yVal, smooth;
-    /// `CT_PieSer` and `CT_AreaSer` … spPr, dPt*, cat, val.
+    /// `CT_BarSer` idx, order, tx, spPr, invertIfNegative, dPt*, dLbls,
+    /// trendline*, errBars, cat, val;
+    /// `CT_LineSer` idx, order, tx, spPr, marker, dPt*, dLbls, trendline*,
+    /// errBars, cat, val, smooth;
+    /// `CT_ScatterSer` … marker, dPt*, dLbls, trendline*, errBars*, xVal,
+    /// yVal, smooth;
+    /// `CT_BubbleSer` … invertIfNegative, dPt*, dLbls, trendline*, errBars*,
+    /// xVal, yVal, bubbleSize;
+    /// `CT_RadarSer` … marker, dPt*, dLbls, cat, val;
+    /// `CT_PieSer` and `CT_AreaSer` … spPr, dPt*, dLbls, cat, val.
     public static func seriesElement(
         _ series: ChartSeries, index: Int, chart: Chart, workbook: Workbook
     ) -> String {
-        let usesLine = chart.kind == .line || chart.kind == .scatter
+        let kind = series.kind(in: chart)
+        let usesLine = kind.drawsLines
         var xml = "<c:ser><c:idx val=\"\(index)\"/><c:order val=\"\(index)\"/>"
         xml += seriesName(series, chart: chart, workbook: workbook) ?? ""
 
-        if usesLine {
+        if kind == .radar, chart.radarStyle == .filled {
+            if let color = series.colorHex { xml += "<c:spPr>" + solidFill(color) + "</c:spPr>" }
+        } else if usesLine {
             if series.colorHex != nil || !series.showsLine || series.lineWidth != nil {
                 xml += "<c:spPr>" + lineProperties(series) + "</c:spPr>"
             }
@@ -181,10 +247,10 @@ public enum ChartWriter {
             xml += "<c:spPr>" + solidFill(color) + "</c:spPr>"
         }
 
-        switch chart.kind {
-        case .column, .bar:
+        switch kind {
+        case .column, .bar, .bubble:
             xml += "<c:invertIfNegative val=\"0\"/>"
-        case .line, .scatter:
+        case .line, .scatter, .radar, .stock:
             if series.showsMarkers {
                 xml += "<c:marker><c:symbol val=\"circle\"/><c:size val=\"5\"/>"
                 if let color = series.colorHex {
@@ -201,7 +267,7 @@ public enum ChartWriter {
         // `CT_DPt`: idx, invertIfNegative, marker, bubble3D, explosion, spPr.
         for (point, color) in series.pointColors.sorted(by: { $0.key < $1.key }) {
             xml += "<c:dPt><c:idx val=\"\(point)\"/>"
-            if chart.kind.isRadial { xml += "<c:bubble3D val=\"0\"/>" }
+            if kind.isRadial { xml += "<c:bubble3D val=\"0\"/>" }
             xml += "<c:spPr>"
             if usesLine {
                 xml += "<a:ln>" + solidFill(color) + "</a:ln>"
@@ -211,11 +277,67 @@ public enum ChartWriter {
             xml += "</c:spPr></c:dPt>"
         }
 
+        if let labels = series.dataLabels { xml += dataLabels(labels, kind: kind) }
+        if kind.takesTrendlines {
+            xml += series.trendlines.map(trendline).joined()
+            // One set of bars each way, and sideways only where X is a number.
+            var directions: Set<ChartErrorBars.Direction> = []
+            for bars in series.errorBars where directions.insert(bars.direction).inserted {
+                guard bars.direction == .y || kind.plotsXY else { continue }
+                xml += errorBars(bars, kind: kind, chart: chart, workbook: workbook)
+            }
+        }
+
         xml += seriesCategories(series, chart: chart, workbook: workbook) ?? ""
         xml += seriesValues(series, chart: chart, workbook: workbook)
-        if usesLine { xml += "<c:smooth val=\"\(series.isSmooth ? 1 : 0)\"/>" }
+        if kind == .bubble {
+            xml += seriesBubbleSizes(series, chart: chart, workbook: workbook) + "<c:bubble3D val=\"0\"/>"
+        }
+        if usesLine, kind != .radar { xml += "<c:smooth val=\"\(series.isSmooth ? 1 : 0)\"/>" }
         xml += "</c:ser>"
         return xml
+    }
+
+    /// `CT_Trendline`: name, spPr, trendlineType, order, period, forward,
+    /// backward, intercept, dispRSqr, dispEq.
+    public static func trendline(_ trendline: ChartTrendline) -> String {
+        var xml = "<c:trendline>"
+        if let name = trendline.name { xml += "<c:name>\(XMLLite.escape(name))</c:name>" }
+        if trendline.colorHex != nil || trendline.lineWidth != nil {
+            let width = Int(((trendline.lineWidth ?? 1.5) * emusPerPoint).rounded())
+            xml += "<c:spPr><a:ln w=\"\(width)\" cap=\"rnd\">" + (trendline.colorHex.map(solidFill) ?? "")
+            xml += "<a:prstDash val=\"sysDot\"/></a:ln></c:spPr>"
+        }
+        xml += "<c:trendlineType val=\"\(trendline.kind.rawValue)\"/>"
+        if trendline.kind == .polynomial { xml += "<c:order val=\"\(min(max(trendline.order, 2), 6))\"/>" }
+        if trendline.kind == .movingAverage { xml += "<c:period val=\"\(max(trendline.period, 2))\"/>" }
+        if trendline.forward > 0 { xml += "<c:forward val=\"\(numberText(trendline.forward))\"/>" }
+        if trendline.backward > 0 { xml += "<c:backward val=\"\(numberText(trendline.backward))\"/>" }
+        if let intercept = trendline.intercept { xml += "<c:intercept val=\"\(numberText(intercept))\"/>" }
+        xml += "<c:dispRSqr val=\"\(trendline.showsRSquared ? 1 : 0)\"/>"
+        xml += "<c:dispEq val=\"\(trendline.showsEquation ? 1 : 0)\"/>"
+        return xml + "</c:trendline>"
+    }
+
+    /// `CT_ErrBars`: errDir, errBarType, errValType, noEndCap, plus, minus,
+    /// val, spPr.
+    public static func errorBars(_ bars: ChartErrorBars, kind: ChartKind, chart: Chart, workbook: Workbook) -> String {
+        var xml = "<c:errBars>"
+        if kind.plotsXY { xml += "<c:errDir val=\"\(bars.direction.rawValue)\"/>" }
+        xml += "<c:errBarType val=\"\(bars.side.rawValue)\"/><c:errValType val=\"\(bars.amount.rawValue)\"/>"
+        xml += "<c:noEndCap val=\"\(bars.hasEndCaps ? 0 : 1)\"/>"
+        if bars.amount == .custom {
+            if !bars.plus.isEmpty {
+                xml += "<c:plus>" + source(bars.plus, asText: false, workbook: workbook, chart: chart) + "</c:plus>"
+            }
+            if !bars.minus.isEmpty {
+                xml += "<c:minus>" + source(bars.minus, asText: false, workbook: workbook, chart: chart) + "</c:minus>"
+            }
+        } else if bars.amount != .standardError {
+            xml += "<c:val val=\"\(numberText(bars.value))\"/>"
+        }
+        if let color = bars.colorHex { xml += "<c:spPr><a:ln w=\"9525\">" + solidFill(color) + "</a:ln></c:spPr>" }
+        return xml + "</c:errBars>"
     }
 
     /// A series' `tx`, or `nil` when it has no name. `CT_SerTx` takes a
@@ -232,15 +354,23 @@ public enum ChartWriter {
     /// A series' `cat` — `xVal` on a scatter chart — or `nil` when it has none.
     public static func seriesCategories(_ series: ChartSeries, chart: Chart, workbook: Workbook) -> String? {
         guard !series.categories.isEmpty else { return nil }
-        let name = chart.kind == .scatter ? "xVal" : "cat"
+        let plotsXY = series.kind(in: chart).plotsXY
+        let name = plotsXY ? "xVal" : "cat"
+        // X values are numbers whatever the cells hold; `xVal` takes text
+        // only as a reference, never as a literal.
         let asText = !isNumeric(series.categories, workbook: workbook, chart: chart)
         return "<c:\(name)>" + source(series.categories, asText: asText, workbook: workbook, chart: chart) + "</c:\(name)>"
     }
 
     /// A series' `val` — `yVal` on a scatter chart.
     public static func seriesValues(_ series: ChartSeries, chart: Chart, workbook: Workbook) -> String {
-        let name = chart.kind == .scatter ? "yVal" : "val"
+        let name = series.kind(in: chart).plotsXY ? "yVal" : "val"
         return "<c:\(name)>" + source(series.values, asText: false, workbook: workbook, chart: chart) + "</c:\(name)>"
+    }
+
+    /// A bubble series' `bubbleSize`.
+    public static func seriesBubbleSizes(_ series: ChartSeries, chart: Chart, workbook: Workbook) -> String {
+        "<c:bubbleSize>" + source(series.bubbleSizes, asText: false, workbook: workbook, chart: chart) + "</c:bubbleSize>"
     }
 
     /// `CT_LineProperties` for a line or scatter series.
@@ -302,7 +432,7 @@ public enum ChartWriter {
         xml += "<c:showCatName val=\"\(labels.showsCategoryName ? 1 : 0)\"/>"
         xml += "<c:showSerName val=\"\(labels.showsSeriesName ? 1 : 0)\"/>"
         xml += "<c:showPercent val=\"\(labels.showsPercentage && kind.isRadial ? 1 : 0)\"/>"
-        xml += "<c:showBubbleSize val=\"0\"/>"
+        xml += "<c:showBubbleSize val=\"\(labels.showsBubbleSize && kind == .bubble ? 1 : 0)\"/>"
         if kind.isRadial { xml += "<c:showLeaderLines val=\"1\"/>" }
         xml += "</c:dLbls>"
         return xml
@@ -310,16 +440,16 @@ public enum ChartWriter {
 
     // MARK: - Axes
 
-    private static func axes(_ chart: Chart) -> String {
+    private static func axes(_ chart: Chart, hasSecondary: Bool) -> String {
         let horizontalBars = chart.kind == .bar
         let categoryPosition = horizontalBars ? "l" : "b"
         let valuePosition = horizontalBars ? "b" : "l"
         // Area and scatter plots run edge to edge; bars and lines sit between
         // the tick marks.
-        let crossBetween = chart.kind == .area || chart.kind == .scatter ? "midCat" : "between"
+        let crossBetween = chart.kind == .area || chart.kind.plotsXY ? "midCat" : "between"
 
         var xml = ""
-        if chart.kind == .scatter {
+        if chart.kind.plotsXY {
             xml += valueAxis(
                 chart.categoryAxis, id: categoryAxisID, crossing: valueAxisID,
                 position: "b", crossBetween: crossBetween, isVertical: false
@@ -332,6 +462,22 @@ public enum ChartWriter {
             position: valuePosition, crossBetween: crossBetween, isVertical: !horizontalBars,
             percent: chart.grouping == .percentStacked
         )
+        if hasSecondary, let secondary = chart.secondaryValueAxis {
+            // The second pair: a category axis nobody sees, there because a
+            // value axis must cross something, and the value axis sent to the
+            // far side of the plot.
+            var hidden = chart.categoryAxis
+            hidden.isVisible = false
+            hidden.title = nil
+            hidden.showsMajorGridlines = false
+            xml += categoryAxis(
+                hidden, position: "b", isVertical: false, id: secondaryCategoryAxisID, crossing: secondaryValueAxisID
+            )
+            xml += valueAxis(
+                secondary, id: secondaryValueAxisID, crossing: secondaryCategoryAxisID,
+                position: "r", crossBetween: "between", isVertical: true, crosses: "max"
+            )
+        }
         return xml
     }
 
@@ -372,10 +518,13 @@ public enum ChartWriter {
     /// `CT_CatAx` (or `CT_DateAx`): … crossAx, crosses, auto, lblAlgn, lblOffset,
     /// noMultiLvlLbl — the date axis has baseTimeUnit where the category axis
     /// has lblAlgn.
-    private static func categoryAxis(_ axis: ChartAxis, position: String, isVertical: Bool) -> String {
+    private static func categoryAxis(
+        _ axis: ChartAxis, position: String, isVertical: Bool,
+        id: Int = categoryAxisID, crossing: Int = valueAxisID
+    ) -> String {
         let element = axis.isDateAxis ? "c:dateAx" : "c:catAx"
         var xml = "<\(element)>"
-        xml += axisHead(axis, id: categoryAxisID, crossing: valueAxisID, position: position, isVertical: isVertical)
+        xml += axisHead(axis, id: id, crossing: crossing, position: position, isVertical: isVertical)
         xml += "<c:crosses val=\"autoZero\"/><c:auto val=\"1\"/>"
         if axis.isDateAxis {
             xml += "<c:lblOffset val=\"100\"/><c:baseTimeUnit val=\"days\"/>"
@@ -389,14 +538,14 @@ public enum ChartWriter {
     /// `CT_ValAx`: … crossAx, crosses, crossBetween, majorUnit.
     private static func valueAxis(
         _ axis: ChartAxis, id: Int, crossing: Int, position: String, crossBetween: String,
-        isVertical: Bool, percent: Bool = false
+        isVertical: Bool, percent: Bool = false, crosses: String = "autoZero"
     ) -> String {
         var xml = "<c:valAx>"
         xml += axisHead(
             axis, id: id, crossing: crossing, position: position, isVertical: isVertical,
             defaultFormat: percent ? "0%" : nil
         )
-        xml += "<c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(crossBetween)\"/>"
+        xml += "<c:crosses val=\"\(crosses)\"/><c:crossBetween val=\"\(crossBetween)\"/>"
         if let unit = axis.majorUnit, unit > 0 { xml += "<c:majorUnit val=\"\(numberText(unit))\"/>" }
         xml += "</c:valAx>"
         return xml

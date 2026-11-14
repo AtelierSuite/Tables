@@ -4,10 +4,15 @@ import Foundation
 /// gallery produces: one plot of one type, a category axis and a value axis,
 /// a title, a legend, and series drawn from ranges of cells.
 ///
-/// Anything richer — combination charts, secondary axes, 3-D, trendlines — is
-/// not modelled at all. The reader leaves those charts as preserved drawing
-/// anchors instead, so a file is never saved with a chart that has been
-/// quietly simplified.
+/// Beyond that it holds bubble, radar and stock plots, combinations of
+/// column, line, area and stock plots with a second value axis, and the
+/// trendlines and error bars a series carries. 3-D charts are read as the
+/// 2-D chart of the same type.
+///
+/// Anything richer — surfaces, pie-of-pie, Excel 2016's waterfall and its
+/// kin — is not modelled at all. The reader leaves those charts as preserved
+/// drawing anchors instead, so a file is never saved with a chart that has
+/// been quietly simplified.
 public struct Chart: Identifiable, Hashable, Sendable {
     public var id = UUID()
     /// What Excel's selection pane calls the chart: "Chart 1".
@@ -28,6 +33,10 @@ public struct Chart: Identifiable, Hashable, Sendable {
     public var categoryAxis = ChartAxis()
     /// The axis the values are measured along — the Y axis of a scatter chart.
     public var valueAxis = ChartAxis(showsMajorGridlines: true)
+    /// The value axis on the far side of a combination chart, which the
+    /// series marked `usesSecondaryAxis` are measured along. `nil` when the
+    /// chart has only the one.
+    public var secondaryValueAxis: ChartAxis?
 
     /// `nil` hides the legend.
     public var legend: ChartLegendPosition? = .bottom
@@ -48,6 +57,20 @@ public struct Chart: Identifiable, Hashable, Sendable {
     /// The doughnut's hole, as a percentage of its diameter.
     public var holeSize = 50
     public var firstSliceAngle = 0
+    /// How a radar chart draws its series: as lines, lines with markers, or
+    /// filled shapes.
+    public var radarStyle: ChartRadarStyle = .standard
+    /// The largest bubble's size, as a percentage of Excel's default.
+    public var bubbleScale = 100
+    /// Whether a bubble's value is its width rather than its area.
+    public var bubbleSizeIsWidth = false
+    /// The line a stock chart draws from each day's low to its high.
+    public var hasHighLowLines = false
+    /// The bars a stock chart draws from open to close. `nil` when it has none.
+    public var upDownBars: ChartUpDownBars?
+    /// The file draws the chart in 3-D. It is drawn here as its 2-D
+    /// equivalent, and saved as the 3-D chart it was.
+    public var is3D = false
 
     /// The chart area's fill. `nil` is Excel's default white paper.
     public var backgroundColorHex: String?
@@ -83,6 +106,14 @@ public enum ChartKind: String, CaseIterable, Hashable, Sendable {
     case pie
     case doughnut
     case scatter
+    case bubble
+    case radar
+    case stock
+
+    /// The kinds a chart can be made as, or changed to, from a block of
+    /// cells. Stock charts need their series in a set order, so they are read
+    /// and drawn but not offered.
+    public static let creatable: [ChartKind] = [.column, .bar, .line, .area, .pie, .doughnut, .scatter, .bubble, .radar]
 
     public var label: String {
         switch self {
@@ -93,6 +124,9 @@ public enum ChartKind: String, CaseIterable, Hashable, Sendable {
         case .pie: return String(localized: "Chart.Kind.Pie", bundle: .engine)
         case .doughnut: return String(localized: "Chart.Kind.Doughnut", bundle: .engine)
         case .scatter: return String(localized: "Chart.Kind.Scatter", bundle: .engine)
+        case .bubble: return String(localized: "Chart.Kind.Bubble", bundle: .engine)
+        case .radar: return String(localized: "Chart.Kind.Radar", bundle: .engine)
+        case .stock: return String(localized: "Chart.Kind.Stock", bundle: .engine)
         }
     }
 
@@ -105,6 +139,9 @@ public enum ChartKind: String, CaseIterable, Hashable, Sendable {
         case .pie: return "chart.pie"
         case .doughnut: return "circle.circle"
         case .scatter: return "chart.dots.scatter"
+        case .bubble: return "circle.grid.cross"
+        case .radar: return "hexagon"
+        case .stock: return "chart.bar.doc.horizontal"
         }
     }
 
@@ -115,8 +152,52 @@ public enum ChartKind: String, CaseIterable, Hashable, Sendable {
     public var supportsGrouping: Bool {
         switch self {
         case .column, .bar, .line, .area: return true
-        case .pie, .doughnut, .scatter: return false
+        case .pie, .doughnut, .scatter, .bubble, .radar, .stock: return false
         }
+    }
+
+    /// Scatter and bubble charts plot numbers against numbers: their series
+    /// carry X values where the others carry categories.
+    public var plotsXY: Bool { self == .scatter || self == .bubble }
+
+    /// Drawn as a line through its points, so coloured by its line.
+    public var drawsLines: Bool { self == .line || self == .scatter || self == .radar || self == .stock }
+
+    /// Whether a series of this kind can carry trendlines and error bars.
+    public var takesTrendlines: Bool {
+        switch self {
+        case .column, .bar, .line, .area, .scatter, .bubble: return true
+        case .pie, .doughnut, .radar, .stock: return false
+        }
+    }
+
+    /// The kinds that can share a plot area in a combination chart.
+    public var combines: Bool {
+        switch self {
+        case .column, .line, .area, .stock: return true
+        case .bar, .pie, .doughnut, .scatter, .bubble, .radar: return false
+        }
+    }
+}
+
+public enum ChartRadarStyle: String, CaseIterable, Hashable, Sendable {
+    case standard
+    case marker
+    case filled
+}
+
+/// A stock chart's open-to-close bars. The file's defaults are a white bar
+/// for a day that closed up and a black one for a day that closed down.
+public struct ChartUpDownBars: Hashable, Sendable {
+    /// The space between bars, as a percentage of a bar's width.
+    public var gapWidth = 150
+    public var upColorHex: String?
+    public var downColorHex: String?
+
+    public init(gapWidth: Int = 150, upColorHex: String? = nil, downColorHex: String? = nil) {
+        self.gapWidth = gapWidth
+        self.upColorHex = upColorHex
+        self.downColorHex = downColorHex
     }
 }
 
@@ -237,7 +318,87 @@ public struct ChartDataLabels: Hashable, Sendable {
     public var showsCategoryName = false
     public var showsSeriesName = false
 
-    public var isVisible: Bool { showsValue || showsPercentage || showsCategoryName || showsSeriesName }
+    /// A bubble's size, on a bubble chart.
+    public var showsBubbleSize = false
+
+    public var isVisible: Bool {
+        showsValue || showsPercentage || showsCategoryName || showsSeriesName || showsBubbleSize
+    }
+}
+
+/// A trendline fitted to a series.
+public struct ChartTrendline: Hashable, Sendable {
+    public enum Kind: String, CaseIterable, Hashable, Sendable {
+        case linear
+        case exponential = "exp"
+        case logarithmic = "log"
+        case polynomial = "poly"
+        case power
+        case movingAverage = "movingAvg"
+    }
+
+    public var kind: Kind = .linear
+    /// The name its legend entry carries, when the author gave it one.
+    public var name: String?
+    /// A polynomial's order, from 2 to 6.
+    public var order = 2
+    /// How many points a moving average runs over.
+    public var period = 2
+    /// How far past the data the line is carried, in the X axis' units.
+    public var forward = 0.0
+    public var backward = 0.0
+    /// Where the line is made to cross the value axis. `nil` leaves it free.
+    public var intercept: Double?
+    public var showsEquation = false
+    public var showsRSquared = false
+    /// "AARRGGBB". `nil` takes the colour of its series.
+    public var colorHex: String?
+    /// Line width in points, when the file named one.
+    public var lineWidth: Double?
+
+    public init(kind: Kind = .linear) {
+        self.kind = kind
+    }
+}
+
+/// The error bars on a series, in one direction.
+public struct ChartErrorBars: Hashable, Sendable {
+    public enum Direction: String, Hashable, Sendable {
+        case x
+        case y
+    }
+
+    public enum Side: String, Hashable, Sendable {
+        case both
+        case plus
+        case minus
+    }
+
+    public enum Amount: String, Hashable, Sendable {
+        case fixed = "fixedVal"
+        case percentage
+        case standardDeviation = "stdDev"
+        case standardError = "stdErr"
+        case custom = "cust"
+    }
+
+    public var direction: Direction = .y
+    public var side: Side = .both
+    public var amount: Amount = .fixed
+    /// The fixed value, the percentage, or the number of deviations.
+    public var value = 0.0
+    public var hasEndCaps = true
+    /// The amounts of custom bars, one per point or one for all of them.
+    public var plus = ChartSource()
+    public var minus = ChartSource()
+    public var colorHex: String?
+
+    public init(direction: Direction = .y, side: Side = .both, amount: Amount = .fixed, value: Double = 0) {
+        self.direction = direction
+        self.side = side
+        self.amount = amount
+        self.value = value
+    }
 }
 
 public struct ChartSeries: Identifiable, Hashable, Sendable {
@@ -256,6 +417,17 @@ public struct ChartSeries: Identifiable, Hashable, Sendable {
     public var isSmooth = false
     /// Line width in points, when the file named one.
     public var lineWidth: Double?
+    /// The size of each bubble, on a bubble chart.
+    public var bubbleSizes = ChartSource()
+    /// The plot this series is drawn as in a combination chart, when it is
+    /// not the chart's own kind.
+    public var plotKind: ChartKind?
+    /// Measured along the chart's second value axis.
+    public var usesSecondaryAxis = false
+    /// Labels that differ from the chart's. `nil` follows the chart.
+    public var dataLabels: ChartDataLabels?
+    public var trendlines: [ChartTrendline] = []
+    public var errorBars: [ChartErrorBars] = []
 
     public init(
         id: UUID = UUID(),
@@ -280,6 +452,12 @@ public struct ChartSeries: Identifiable, Hashable, Sendable {
         self.isSmooth = isSmooth
         self.lineWidth = lineWidth
     }
+}
+
+extension ChartSeries {
+    /// What the series is drawn as in `chart`: its own plot in a combination
+    /// chart, the chart's kind otherwise.
+    public func kind(in chart: Chart) -> ChartKind { plotKind ?? chart.kind }
 }
 
 /// Where one dimension of a series — its name, categories or values — comes
