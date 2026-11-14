@@ -267,4 +267,187 @@ struct ProtectionTests {
         #expect(!(try part("xl/worksheets/sheet1.xml", of: read)).contains("sheetProtection"))
         #expect(!(try part("xl/workbook.xml", of: read)).contains("workbookProtection"))
     }
+
+    // MARK: - Enforcement
+
+    @Test("A locked cell can't be changed; an unlocked one can, and formulas follow it")
+    func lockedCells() throws {
+        let old = try protected()
+        var new = old
+        new.sheets[0][a1].value = .text("changed")
+        new.sheets[0][b1].value = .number(5)
+        new.sheets[0][CellAddress(row: 3, column: 0)].value = .text("new")
+        new.recalculate()
+
+        let (allowed, violation) = ProtectionPolicy.reconcile(new, from: old)
+        #expect(violation == .lockedCell)
+        #expect(allowed.sheets[0][a1].value == .text("locked"))
+        #expect(allowed.sheets[0][b1].value == .number(5))
+        // A cell nobody formatted is locked, as in Excel.
+        #expect(allowed.sheets[0][CellAddress(row: 3, column: 0)].isBlank)
+        // C1 is locked, but what its formula comes to is B1's doing.
+        #expect(allowed.sheets[0][c1].value == .number(10))
+
+        var formula = old
+        formula.sheets[0][c1].formula = "B1*3"
+        #expect(ProtectionPolicy.reconcile(formula, from: old).violation == .lockedCell)
+
+        var unlockedOnly = old
+        unlockedOnly.sheets[0][b1].value = .number(7)
+        unlockedOnly.recalculate()
+        let result = ProtectionPolicy.reconcile(unlockedOnly, from: old)
+        #expect(result.violation == nil)
+        #expect(result.workbook == unlockedOnly)
+    }
+
+    @Test("An unprotected sheet, or protection switched off, lets everything through")
+    func unprotectedSheets() throws {
+        let old = try XLSXReader.workbook(from: package())
+        var new = old
+        new.sheets[0][a1].value = .text("changed")
+        #expect(ProtectionPolicy.reconcile(new, from: old).violation == nil)
+
+        var disabled = old
+        disabled.sheets[0].protection = SheetProtection()
+        disabled.sheets[0].protection?.isEnforced = false
+        var edited = disabled
+        edited.sheets[0][a1].value = .text("changed")
+        #expect(ProtectionPolicy.reconcile(edited, from: disabled).workbook == edited)
+    }
+
+    @Test("Formatting needs its permission, except what typing a value brings")
+    func formatting() throws {
+        let old = try protected()
+        var bold = old
+        bold.sheets[0][b1].style.isBold = true
+        let refused = ProtectionPolicy.reconcile(bold, from: old)
+        #expect(refused.violation == .sheetAction)
+        #expect(refused.workbook == old)
+
+        var typed = old
+        typed.sheets[0][b1] = CellInputParser.cell(from: "50%", inheriting: old.sheets[0][b1].style)
+        typed.recalculate()
+        #expect(ProtectionPolicy.reconcile(typed, from: old).violation == nil)
+
+        let lenient = try protected(allowing: SheetProtection.defaultAllowed.union([.formatCells]))
+        var formatted = lenient
+        formatted.sheets[0][a1].style.isBold = true
+        #expect(ProtectionPolicy.reconcile(formatted, from: lenient).workbook == formatted)
+    }
+
+    @Test("Rows and columns are sized, hidden, inserted and deleted only where allowed")
+    func rowsAndColumns() throws {
+        let old = try protected()
+        var resized = old
+        resized.sheets[0].columnWidths[0] = 200
+        resized.sheets[0].hiddenRows.insert(2)
+        let refused = ProtectionPolicy.reconcile(resized, from: old)
+        #expect(refused.violation == .sheetAction)
+        #expect(refused.workbook == old)
+
+        var inserted = old
+        inserted.sheets[0].insertRows(1, at: 0)
+        #expect(ProtectionPolicy.reconcile(inserted, from: old).workbook == old)
+        var removed = old
+        removed.sheets[0].removeColumns(1...1)
+        #expect(ProtectionPolicy.reconcile(removed, from: old).violation == .sheetAction)
+
+        let lenient = try protected(allowing: [.formatColumns, .formatRows, .insertRows, .deleteColumns])
+        var all = lenient
+        all.sheets[0].columnWidths[0] = 200
+        all.sheets[0].hiddenRows.insert(2)
+        #expect(ProtectionPolicy.reconcile(all, from: lenient).workbook == all)
+        var grown = lenient
+        grown.sheets[0].insertRows(1, at: 0)
+        #expect(ProtectionPolicy.reconcile(grown, from: lenient).workbook == grown)
+        var shrunk = lenient
+        shrunk.sheets[0].removeColumns(1...1)
+        #expect(ProtectionPolicy.reconcile(shrunk, from: lenient).workbook == shrunk)
+        // Inserting columns and deleting rows were not among them.
+        var wider = lenient
+        wider.sheets[0].insertColumns(1, at: 0)
+        #expect(ProtectionPolicy.reconcile(wider, from: lenient).workbook == lenient)
+        var shorter = lenient
+        shorter.sheets[0].removeRows(5...5)
+        #expect(ProtectionPolicy.reconcile(shorter, from: lenient).workbook == lenient)
+    }
+
+    @Test("Merging and comments are refused on a protected sheet")
+    func mergesAndObjects() throws {
+        var old = try protected()
+        old.sheets[0].protection?.allowed.remove(.objects)
+        var merged = old
+        merged.sheets[0].mergedRanges.append(CellRange(start: b1, end: CellAddress(row: 1, column: 1)))
+        #expect(ProtectionPolicy.reconcile(merged, from: old).workbook == old)
+
+        var noted = old
+        noted.sheets[0].comments[b1] = CellComment(kind: .note, entries: [.init(author: "A", text: "note")])
+        let refused = ProtectionPolicy.reconcile(noted, from: old)
+        #expect(refused.violation == .sheetAction)
+        #expect(refused.workbook == old)
+    }
+
+    @Test("A range anyone may edit is open; one behind a password is not")
+    func editableRanges() throws {
+        let tail = "<sheetProtection sheet=\"1\"/><protectedRanges>"
+            + "<protectedRange sqref=\"A1:A2 D4\" name=\"Open\"/>"
+            + "<protectedRange password=\"83AF\" sqref=\"C1\" name=\"Closed\"/></protectedRanges>"
+        let old = try XLSXReader.workbook(from: package(sheetTail: tail))
+        #expect(!old.sheets[0].isReadOnly(at: a1))
+        #expect(!old.sheets[0].isReadOnly(at: CellAddress(row: 3, column: 3)))
+        #expect(old.sheets[0].isReadOnly(at: c1))
+        var new = old
+        new.sheets[0][a1].value = .text("changed")
+        #expect(ProtectionPolicy.reconcile(new, from: old).workbook == new)
+        new.sheets[0][c1].formula = "B1"
+        #expect(ProtectionPolicy.reconcile(new, from: old).violation == .lockedCell)
+    }
+
+    @Test("Turning protection off is let through, and so is what follows")
+    func unprotecting() throws {
+        let old = try protected()
+        var open = old
+        let unprotected6 = open.sheets[0].unprotect()
+        #expect(unprotected6)
+        #expect(ProtectionPolicy.reconcile(open, from: old).workbook == open)
+        var edited = open
+        edited.sheets[0][a1].value = .text("changed")
+        #expect(ProtectionPolicy.reconcile(edited, from: open).workbook == edited)
+    }
+
+    @Test("A protected workbook's sheets can't be added, deleted, renamed, hidden or moved")
+    func workbookStructure() throws {
+        var old = try XLSXReader.workbook(from: package())
+        _ = old.addSheet(named: "Second")
+        old.protect()
+
+        var added = old
+        _ = added.addSheet()
+        var removed = old
+        _ = removed.removeSheet(old.sheets[1].id)
+        var renamed = old
+        renamed.renameSheet(old.sheets[0].id, to: "Other")
+        var hidden = old
+        _ = hidden.setSheet(old.sheets[1].id, hidden: true)
+        var moved = old
+        moved.moveSheet(old.sheets[0].id, to: 1)
+        for change in [added, removed, renamed, hidden, moved] {
+            #expect(change != old)
+            let result = ProtectionPolicy.reconcile(change, from: old)
+            #expect(result.violation == .workbookStructure)
+            #expect(result.workbook == old)
+        }
+
+        // Cells are not the workbook's structure.
+        var edited = old
+        edited.sheets[0][a1].value = .text("changed")
+        #expect(ProtectionPolicy.reconcile(edited, from: old).workbook == edited)
+
+        var open = old
+        let unprotected7 = open.unprotect()
+        #expect(unprotected7)
+        #expect(ProtectionPolicy.reconcile(open, from: old).workbook == open)
+        _ = open.addSheet()
+        #expect(ProtectionPolicy.reconcile(open, from: old).violation == nil)
+    }
 }

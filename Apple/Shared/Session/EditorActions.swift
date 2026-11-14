@@ -13,8 +13,13 @@ extension EditorState {
         // A merged region has one editable cell: the one whose content it shows.
         let target = sheet.mergedRange(containing: address)?.normalized.start ?? address
         select(target, in: sheet)
+        // A locked cell on a protected sheet says so now, not after typing.
+        guard !sheet.isReadOnly(at: target) else {
+            errorMessage = ProtectionPolicy.Violation.lockedCell.localizedDescription
+            return
+        }
         editingAddress = target
-        editingText = seed ?? sheet[target].editableText
+        editingText = seed ?? sheet.editableText(at: target)
         scrollTarget = target
     }
 

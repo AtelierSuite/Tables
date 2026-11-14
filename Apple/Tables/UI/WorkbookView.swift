@@ -303,9 +303,16 @@ struct WorkbookView: View {
             pendingReconciliation = nil
             if reconciled == new { return }
         }
-        guard let source = document.numbersSource else { return history.record(from: old, to: new) }
-        let (allowed, violation) = NumbersEditPolicy.reconcile(new, from: old, source: source)
-        if let violation { state.errorMessage = violation.localizedDescription }
+        // An undo or redo puts back a workbook that was let through once already.
+        guard !history.isRestoring(new) else { return history.record(from: old, to: new) }
+        // Whatever a protected sheet or workbook doesn't allow is taken back out.
+        var (allowed, refusal) = ProtectionPolicy.reconcile(new, from: old)
+        if let refusal { state.errorMessage = refusal.localizedDescription }
+        if let source = document.numbersSource {
+            let (saveable, violation) = NumbersEditPolicy.reconcile(allowed, from: old, source: source)
+            if let violation { state.errorMessage = violation.localizedDescription }
+            allowed = saveable
+        }
         if allowed != new {
             // Putting it back is itself a change, reported in a moment; the
             // step it completes is the one recorded here.
