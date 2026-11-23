@@ -72,6 +72,18 @@ public struct Cell: Hashable, Sendable {
         }
     }
 
+    /// What the editor opens with: `editableText`, with a leading apostrophe
+    /// on text that would otherwise be read back as something else.
+    public var entryText: String {
+        let text = editableText
+        guard formula == nil, case .text = value else { return text }
+        if style.hasQuotePrefix || text.hasPrefix("'")
+            || CellInputParser.cell(from: text, inheriting: style).value != value {
+            return "'" + text
+        }
+        return text
+    }
+
     /// A date-formatted serial as text the input parser reads back:
     /// `2026-11-22`, `13:45:00`, `2026-11-22 13:45:00`, or `26:30:00` for elapsed time.
     private static func editableDateTime(_ serial: Double, format: String) -> String? {

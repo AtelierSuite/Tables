@@ -793,9 +793,12 @@ public enum CellInputParser {
     /// and its text's runs too when the text is what it already was, so
     /// stepping through a cell in the editor does not flatten it.
     public static func cell(from input: String, replacing existing: Cell) -> Cell {
+        // Committing what the editor opened with changes nothing, so a kept
+        // array block or saved result survives stepping through the cell.
+        if input == existing.entryText { return existing }
         var cell = cell(from: input, inheriting: existing.style)
-        if existing.formula == nil, cell.formula == nil, cell.value == existing.value {
-            cell.richText = existing.richText
+        if existing.formula == nil, cell.formula == nil, case .text(let text) = cell.value {
+            cell.richText = existing.richText?.edited(to: text)
         }
         return cell
     }
@@ -804,9 +807,19 @@ public enum CellInputParser {
     /// booleans, and everything else as text.
     public static func cell(from input: String, inheriting style: CellStyle) -> Cell {
         var cell = Cell(value: .empty, formula: nil, style: style)
+        cell.style.hasQuotePrefix = false
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if trimmed.isEmpty { return cell }
+
+        // A leading apostrophe keeps what follows as text, as in Excel.
+        if input.hasPrefix("'") {
+            let text = String(input.dropFirst())
+            guard !text.isEmpty else { return cell }
+            cell.value = .text(text)
+            cell.style.hasQuotePrefix = true
+            return cell
+        }
 
         if trimmed.hasPrefix("=") {
             cell.formula = String(trimmed.dropFirst())

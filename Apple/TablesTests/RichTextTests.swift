@@ -247,8 +247,23 @@ struct RichTextTests {
     func committingUnchangedTextKeepsRuns() {
         let rich = boldEnding("very ", "bold")
         #expect(CellInputParser.cell(from: "very bold", replacing: rich).richText == rich.richText)
-        #expect(CellInputParser.cell(from: "very bald", replacing: rich).richText == nil)
         #expect(CellInputParser.cell(from: "=A2", replacing: rich).richText == nil)
+        #expect(CellInputParser.cell(from: "12", replacing: rich).richText == nil)
+    }
+
+    @Test("Editing a cell's text keeps the runs around the change")
+    func editingTextKeepsRuns() {
+        let rich = boldEnding("very ", "bold")
+        let bold = rich.richText!.runs[1].font
+        #expect(CellInputParser.cell(from: "very bald", replacing: rich).richText?.runs
+            == [TextRun(text: "very "), TextRun(text: "bald", font: bold)])
+        #expect(CellInputParser.cell(from: "so very bold", replacing: rich).richText?.runs
+            == [TextRun(text: "so very "), TextRun(text: "bold", font: bold)])
+        #expect(CellInputParser.cell(from: "very bold!", replacing: rich).richText?.runs
+            == [TextRun(text: "very "), TextRun(text: "bold!", font: bold)])
+        #expect(CellInputParser.cell(from: "very ", replacing: rich).richText == nil)
+        #expect(CellInputParser.cell(from: "not bold", replacing: rich).richText?.runs
+            == [TextRun(text: "not "), TextRun(text: "bold", font: bold)])
     }
 
     @Test("Stepping through a cell in the editor keeps its runs")

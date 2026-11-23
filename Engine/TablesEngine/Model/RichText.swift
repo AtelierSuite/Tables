@@ -63,6 +63,45 @@ public struct RichText: Hashable, Sendable {
         flush()
         return result
     }
+
+    /// The runs `text` keeps when it is an edit of `plainText`: the text
+    /// before and after the change keeps its fonts, and what was typed takes
+    /// the font of the text it follows. Nil when no run has a font left.
+    public func edited(to text: String) -> RichText? {
+        var oldFonts: [RunFont?] = []
+        for run in runs {
+            oldFonts.append(contentsOf: repeatElement(run.font, count: run.text.unicodeScalars.count))
+        }
+        let old = Array(plainText.unicodeScalars)
+        let new = Array(text.unicodeScalars)
+        guard !old.isEmpty else { return nil }
+
+        var prefix = 0
+        while prefix < min(old.count, new.count), old[prefix] == new[prefix] { prefix += 1 }
+        var suffix = 0
+        while suffix < min(old.count, new.count) - prefix,
+              old[old.count - 1 - suffix] == new[new.count - 1 - suffix] { suffix += 1 }
+
+        let typedFont = oldFonts[prefix > 0 ? prefix - 1 : min(prefix, old.count - 1)]
+        var result: [TextRun] = []
+        for (index, scalar) in new.enumerated() {
+            let font: RunFont?
+            if index < prefix {
+                font = oldFonts[index]
+            } else if index >= new.count - suffix {
+                font = oldFonts[index - new.count + old.count]
+            } else {
+                font = typedFont
+            }
+            if let last = result.last, last.font == font {
+                result[result.count - 1].text.unicodeScalars.append(scalar)
+            } else {
+                result.append(TextRun(text: String(scalar), font: font))
+            }
+        }
+        guard result.contains(where: { $0.font != nil }) else { return nil }
+        return RichText(runs: result)
+    }
 }
 
 /// One stretch of a cell's text.
