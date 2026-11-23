@@ -115,6 +115,7 @@ public enum ProtectionPolicy {
         }
         if !protection.allows(.formatCells), sheet.conditionalRules != previous.conditionalRules {
             result.conditionalRules = previous.conditionalRules
+            result.preservedElements = previous.preservedElements
             refuse(.sheetAction)
         }
 
