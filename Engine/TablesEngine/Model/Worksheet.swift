@@ -526,8 +526,10 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
 
     public mutating func addRows(_ count: Int) {
         let added = min(Self.maximumRowCount, rowCount + max(1, count)) - rowCount
-        origins?.appendRows(added)
+        let source = bodyRows.last
+        origins?.appendRows(added, rowCount: rowCount, formattedLike: source)
         rowCount += added
+        if let source { copyFormatting(ofRow: source, to: (rowCount - added)..<rowCount) }
     }
 
     public mutating func addColumns(_ count: Int) {
@@ -546,6 +548,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public mutating func insertRows(_ count: Int, at index: Int) {
         let count = max(1, count)
         guard rowCount + count <= Self.maximumRowCount else { return }
+        let body = bodyRows
+        let source = body.contains(index - 1) ? index - 1 : origins != nil && body.contains(index) ? index : nil
         FormulaReferenceShifter.apply(.insert(index: index, count: count), axis: .row, to: &cells, scope: ownScope)
         remapCells { $0.row >= index ? CellAddress(row: $0.row + count, column: $0.column) : $0 }
         rowHeights = Self.shift(rowHeights, from: index, by: count)
@@ -560,10 +564,37 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         shiftDataValidations(.insert(index: index, count: count), axis: .row, scope: ownScope)
         shiftKeptReferences(.insert(index: index, count: count), axis: .row)
         shiftSparklines(.insert(index: index, count: count), axis: .row)
-        origins?.insertRows(count, at: index, rowCount: rowCount)
+        origins?.insertRows(count, at: index, rowCount: rowCount, formattedLike: source)
         rowCount += count
         // Rows inserted among the frozen ones join them, as in Excel.
         if index < frozenRows { frozenRows += count }
+        if let source { copyFormatting(ofRow: source < index ? source : source + count, to: index..<(index + count)) }
+    }
+
+    /// The rows whose formatting a row added beside them takes: all of a
+    /// sheet's, or the body of a Numbers table.
+    private var bodyRows: Range<Int> {
+        let edges = tableEdges ?? TableEdges()
+        return edges.headerRows..<max(edges.headerRows, rowCount - edges.footerRows)
+    }
+
+    /// Gives `rows` the styles and highlighting of the row at `source`.
+    private mutating func copyFormatting(ofRow source: Int, to rows: Range<Int>) {
+        // A Numbers table keeps formatting only in its cells.
+        if origins == nil {
+            for row in rows {
+                rowStyles[row] = rowStyles[source]
+                if !fittedRows.contains(source) { rowHeights[row] = rowHeights[source] }
+            }
+        }
+        for column in 0..<columnCount {
+            guard var style = cells[CellAddress(row: source, column: column)]?.style else { continue }
+            style.showsCheckbox = false
+            for row in rows {
+                self[CellAddress(row: row, column: column)] = Cell(style: style)
+            }
+        }
+        extendConditionalFormats(fromRow: source, to: rows)
     }
 
     public mutating func insertColumns(_ count: Int, at index: Int) {

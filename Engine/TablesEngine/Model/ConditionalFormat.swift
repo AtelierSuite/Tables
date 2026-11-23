@@ -272,4 +272,68 @@ extension Worksheet {
             return PreservedElement(name: element.name, xml: xml)
         }
     }
+
+    /// Extends conditional formats covering the row at `source` over `rows`,
+    /// in the rules and in the XML a save writes.
+    mutating func extendConditionalFormats(fromRow source: Int, to rows: Range<Int>) {
+        func rebased(_ formula: String, from old: [CellRange], to new: [CellRange]) -> String {
+            guard let before = ConditionalRule.base(of: old), let after = ConditionalRule.base(of: new),
+                  after != before else { return formula }
+            return FormulaReferenceShifter.translated(
+                formula, rowDelta: after.row - before.row, columnDelta: after.column - before.column
+            )
+        }
+
+        conditionalRules = conditionalRules.map { rule in
+            let ranges = ConditionalRule.extended(rule.ranges, fromRow: source, to: rows)
+            guard ranges != rule.ranges else { return rule }
+            var extended = rule
+            extended.formulas = rule.formulas.map { rebased($0, from: rule.ranges, to: ranges) }
+            extended.ranges = ranges
+            return extended
+        }
+
+        preservedElements = preservedElements.map { element in
+            guard element.name == "conditionalFormatting",
+                  let root = try? XMLLite.parse(Data(element.xml.utf8)),
+                  let sqref = root.attribute("sqref") else { return element }
+            let old = ConditionalRule.ranges(sqref: sqref)
+            let new = ConditionalRule.extended(old, fromRow: source, to: rows)
+            guard new != old else { return element }
+            root.setAttribute("sqref", new.map(\.a1).joined(separator: " "))
+            for rule in root.children(named: "cfRule") {
+                for formula in rule.children(named: "formula") {
+                    formula.setText(rebased(formula.text, from: old, to: new))
+                }
+            }
+            guard let xml = XMLLite.serialize(root) else { return element }
+            return PreservedElement(name: element.name, xml: xml)
+        }
+    }
+}
+
+extension ConditionalRule {
+    /// `ranges` grown over `rows` wherever they cover the row at `source`:
+    /// a range next to them stretches, any other gains a range beside it.
+    static func extended(_ ranges: [CellRange], fromRow source: Int, to rows: Range<Int>) -> [CellRange] {
+        var result = ranges
+        for (index, range) in ranges.enumerated() {
+            var box = range.normalized
+            guard box.start.row <= source, source <= box.end.row,
+                  !(box.start.row <= rows.lowerBound && rows.upperBound - 1 <= box.end.row) else { continue }
+            if box.end.row == rows.lowerBound - 1 {
+                box.end.row = rows.upperBound - 1
+                result[index] = box
+            } else if box.start.row == rows.upperBound {
+                box.start.row = rows.lowerBound
+                result[index] = box
+            } else {
+                result.append(CellRange(
+                    start: CellAddress(row: rows.lowerBound, column: box.start.column),
+                    end: CellAddress(row: rows.upperBound - 1, column: box.end.column)
+                ))
+            }
+        }
+        return result
+    }
 }
