@@ -797,8 +797,8 @@ public enum CellInputParser {
         // array block or saved result survives stepping through the cell.
         if input == existing.entryText { return existing }
         var cell = cell(from: input, inheriting: existing.style)
-        if existing.formula == nil, cell.formula == nil, cell.value == existing.value {
-            cell.richText = existing.richText
+        if existing.formula == nil, cell.formula == nil, case .text(let text) = cell.value {
+            cell.richText = existing.richText?.edited(to: text)
         }
         return cell
     }
