@@ -2,22 +2,21 @@ import AppKit
 import SwiftUI
 import TablesEngine
 
-/// Data validation: the rule editor, and the alert a failed entry raises.
+/// Cell rules: the conditional format and validation editor, and the alert a failed entry raises.
 extension WorkbookViewController {
-    /// Shows the rule of the selected cells in a sheet on the window.
-    @objc func editDataValidation(_ sender: Any?) {
+    /// Shows the conditional formats and validation rule of the selected
+    /// cells in a sheet on the window.
+    @objc func editCellRules(_ sender: Any?) {
         guard let document else { return }
         let state = document.state
         if state.editingAddress != nil { grid.commitEditing(then: nil) }
         weak var sheet: NSViewController?
-        let host = NSHostingController(rootView: DataValidationPanel(
-            rule: state.selectedDataValidation(in: document.workbook)
-        ) { [weak self, weak document] outcome in
-            switch outcome {
-            case .cancel: break
-            case .clear: document?.edit { state.setDataValidation(nil, in: &$0) }
-            case .apply(let rule): document?.edit { state.setDataValidation(rule, in: &$0) }
-            }
+        let workbook = document.workbook
+        let host = NSHostingController(rootView: CellRulesPanel(
+            workbook: workbook, sheetIndex: state.activeIndex(in: workbook),
+            draft: state.cellRulesDraft(in: workbook)
+        ) { [weak self, weak document] draft in
+            if let draft { document?.edit { state.applyCellRules(draft, in: &$0) } }
             if let sheet { self?.dismiss(sheet) }
         })
         host.sizingOptions = .preferredContentSize
