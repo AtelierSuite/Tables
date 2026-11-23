@@ -64,11 +64,29 @@ public struct Cell: Hashable, Sendable {
         if let formula { return "=" + formula }
         switch value {
         case .empty: return ""
-        case .number(let number): return CellValue.plainNumberString(number)
+        case .number(let number):
+            return Self.editableDateTime(number, format: style.numberFormat) ?? CellValue.plainNumberString(number)
         case .text(let text): return text
         case .boolean(let flag): return flag ? "TRUE" : "FALSE"
         case .error(let error): return error.rawValue
         }
+    }
+
+    /// A date-formatted serial as text the input parser reads back:
+    /// `2026-11-22`, `13:45:00`, `2026-11-22 13:45:00`, or `26:30:00` for elapsed time.
+    private static func editableDateTime(_ serial: Double, format: String) -> String? {
+        guard CellFormatter.isDateFormat(format), serial >= 0, serial < 2_958_466 else { return nil }
+        var totalSeconds = Int((serial * 86_400).rounded())
+        if format.range(of: #"\[(h+|m+|s+)\]"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return String(format: "%d:%02d:%02d", totalSeconds / 3600, totalSeconds / 60 % 60, totalSeconds % 60)
+        }
+        let whole = totalSeconds / 86_400
+        totalSeconds %= 86_400
+        let time = String(format: "%d:%02d:%02d", totalSeconds / 3600, totalSeconds / 60 % 60, totalSeconds % 60)
+        guard whole >= 1 else { return time }
+        let day = FormulaDates.components(fromSerial: Double(whole))
+        let date = String(format: "%04d-%02d-%02d", day.year, day.month, day.day)
+        return totalSeconds == 0 ? date : date + " " + time
     }
 }
 

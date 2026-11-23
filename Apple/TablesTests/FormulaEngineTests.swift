@@ -197,6 +197,40 @@ struct CellInputTests {
         let cell = CellInputParser.cell(from: "=SUM(A1:A2)", inheriting: .default)
         #expect(cell.formula == "SUM(A1:A2)")
     }
+
+    @Test("Dates and times typed in become date serials with a date format")
+    func datesAndTimes() {
+        let date = CellInputParser.cell(from: "2026-11-22", inheriting: .default)
+        #expect(date.value == .number(FormulaDates.serial(year: 2026, month: 11, day: 22)))
+        #expect(date.style.numberFormat == NumberFormatPreset.date.code)
+
+        let time = CellInputParser.cell(from: "13:30", inheriting: .default)
+        #expect(time.value == .number(13.5 / 24))
+        #expect(time.style.numberFormat == NumberFormatPreset.time.code)
+
+        let both = CellInputParser.cell(from: "11/22/2026 6:00 PM", inheriting: .default)
+        #expect(both.value == .number(FormulaDates.serial(year: 2026, month: 11, day: 22) + 0.75))
+        #expect(both.style.numberFormat == NumberFormatPreset.dateTime.code)
+
+        #expect(CellInputParser.cell(from: "1.2.3", inheriting: .default).value == .text("1.2.3"))
+    }
+
+    @Test("Date-formatted cells edit as dates and read back unchanged", arguments: [
+        ("yyyy-mm-dd", 46_348.0, "2026-11-22"),
+        ("m/d/yy h:mm", 46_348.75, "2026-11-22 18:00:00"),
+        ("h:mm:ss", 0.5, "12:00:00"),
+        ("[h]:mm", 1.25, "30:00:00"),
+        ("0.00", 46_348.0, "46348"),
+    ])
+    func editableDates(format: String, serial: Double, text: String) {
+        var style = CellStyle.default
+        style.numberFormat = format
+        let cell = Cell(value: .number(serial), formula: nil, style: style)
+        #expect(cell.editableText == text)
+        let typed = CellInputParser.cell(from: cell.editableText, replacing: cell)
+        #expect(typed.value == .number(serial))
+        #expect(typed.style.numberFormat == format)
+    }
 }
 
 @Suite("Number formatting")
