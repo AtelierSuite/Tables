@@ -531,7 +531,7 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         let count = max(1, count)
         guard rowCount + count <= Self.maximumRowCount else { return }
         let body = bodyRows
-        let source = body.contains(index - 1) ? index - 1 : body.contains(index) ? index : nil
+        let source = body.contains(index - 1) ? index - 1 : origins != nil && body.contains(index) ? index : nil
         FormulaReferenceShifter.apply(.insert(index: index, count: count), axis: .row, to: &cells, scope: ownScope)
         remapCells { $0.row >= index ? CellAddress(row: $0.row + count, column: $0.column) : $0 }
         rowHeights = Self.shift(rowHeights, from: index, by: count)
@@ -553,16 +553,22 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         if let source { copyFormatting(ofRow: source < index ? source : source + count, to: index..<(index + count)) }
     }
 
-    /// The body rows of a Numbers table, whose formatting a row added to it
-    /// takes from its neighbour, as in Numbers; none for any other sheet.
+    /// The rows whose formatting a row added beside them takes: all of a
+    /// sheet's, or the body of a Numbers table.
     private var bodyRows: Range<Int> {
-        guard origins != nil else { return 0..<0 }
         let edges = tableEdges ?? TableEdges()
         return edges.headerRows..<max(edges.headerRows, rowCount - edges.footerRows)
     }
 
     /// Gives `rows` the styles and highlighting of the row at `source`.
     private mutating func copyFormatting(ofRow source: Int, to rows: Range<Int>) {
+        // A Numbers table keeps formatting only in its cells.
+        if origins == nil {
+            for row in rows {
+                rowStyles[row] = rowStyles[source]
+                if !fittedRows.contains(source) { rowHeights[row] = rowHeights[source] }
+            }
+        }
         for column in 0..<columnCount {
             guard var style = cells[CellAddress(row: source, column: column)]?.style else { continue }
             style.showsCheckbox = false
