@@ -568,6 +568,56 @@ struct NumbersMovingTests {
         #expect(result.sheets[0] == edited.sheets[0])
     }
 
+    @Test("A row inserted takes the formatting of the row above, through a save")
+    func insertedRowFormatting() throws {
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [
+            [.text("Item")], [.boldText("Rent")], [.text("Food")],
+        ])
+        table.headerRows = 1
+        table.hasStyles = true
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [table])
+        let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        var edited = workbook
+        edited.sheets[0].insertRows(1, at: 2)
+        #expect(edited.sheets[0][CellAddress(a1: "A3")!].style.isBold)
+        #expect(edited.sheets[0][CellAddress(a1: "A3")!].isBlank)
+        let (result, violation) = NumbersEditPolicy.reconcile(edited, from: workbook, source: source)
+        #expect(violation == nil)
+        #expect(result.sheets[0] == edited.sheets[0])
+
+        let (reread, saved) = try NumbersReader.document(from: save(result, source))
+        let sheet = reread.sheets[0]
+        #expect(sheet[CellAddress(a1: "A3")!].style.isBold)
+        #expect(sheet[CellAddress(a1: "A3")!].isBlank)
+        #expect(!sheet[CellAddress(a1: "A4")!].style.isBold)
+        let stored = try #require(saved.tables.values.first?.storage[CellAddress(a1: "A3")!].flatMap(NumbersCellStorage.init))
+        #expect(stored.type == NumbersCellStorage.CellType.empty)
+        #expect(stored.field(0x40) == [1, 0, 0, 0])
+        let styles = try #require(saved.archive[model(in: saved).message(4)?.message(5)]?.message)
+        #expect(styles.messages(3).first { $0.uint(1) == 1 }?.uint(2) == 2, "the bold style counts the new cell")
+    }
+
+    @Test("A row added below the last is formatted like it")
+    func appendedRowFormatting() throws {
+        var table = NumbersDocumentBuilder.Table(name: "Table 1", rows: [
+            [.text("Item")], [.text("Rent")], [.boldText("Food")],
+        ])
+        table.headerRows = 1
+        table.hasStyles = true
+        var document = NumbersDocumentBuilder()
+        document.addSheet("Budget", tables: [table])
+        let (workbook, source) = try NumbersReader.document(from: document.singleFile())
+        var edited = workbook
+        edited.sheets[0].addRows(1)
+        edited.sheets[0][CellAddress(a1: "A4")!].value = .text("Fuel")
+        let (result, violation) = NumbersEditPolicy.reconcile(edited, from: workbook, source: source)
+        #expect(violation == nil)
+        let reread = try NumbersReader.workbook(from: save(result, source))
+        #expect(reread.sheets[0][CellAddress(a1: "A4")!].value == .text("Fuel"))
+        #expect(reread.sheets[0][CellAddress(a1: "A4")!].style.isBold)
+    }
+
     @Test("Deleting rows drops their cells and counts the formulas gone")
     func deleteRows() throws {
         var (workbook, source) = try NumbersReader.document(from: document())

@@ -73,12 +73,15 @@ public enum NumbersEditPolicy {
                     violation = violation ?? reason
                 } else {
                     // The formatting a cell had where it was when the table
-                    // was read; none for one in a row or column inserted since.
+                    // was read, or for one in a row added since, the cell
+                    // it took its formatting from.
                     let origin = fileAddress(of: address, in: sheet)
-                    let style = NumbersStyles.keepingWhatCanBeSaved(
-                        cell.style, imported: origin.map { imported[$0].style } ?? Cell().style,
+                    let formattedLike = formattingAddress(of: address, in: sheet)
+                    var style = NumbersStyles.keepingWhatCanBeSaved(
+                        cell.style, imported: formattedLike.map { imported[$0].style } ?? Cell().style,
                         canFormat: table.canFormat, isRichText: origin.map { isRichText($0, in: table) } ?? false
                     )
+                    if origin == nil { style.showsCheckbox = cell.style.showsCheckbox }
                     if style != cell.style {
                         var coerced = cell
                         coerced.style = style
@@ -132,6 +135,12 @@ public enum NumbersEditPolicy {
     private static func fileAddress(of address: CellAddress, in sheet: Worksheet) -> CellAddress? {
         let origins = sheet.origins ?? SheetOrigins()
         guard let row = origins.row(address.row), let column = origins.column(address.column) else { return nil }
+        return CellAddress(row: row, column: column)
+    }
+
+    private static func formattingAddress(of address: CellAddress, in sheet: Worksheet) -> CellAddress? {
+        let origins = sheet.origins ?? SheetOrigins()
+        guard let row = origins.formatRow(address.row), let column = origins.column(address.column) else { return nil }
         return CellAddress(row: row, column: column)
     }
 
