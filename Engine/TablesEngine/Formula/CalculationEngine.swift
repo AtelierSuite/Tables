@@ -804,9 +804,19 @@ public enum CellInputParser {
     /// booleans, and everything else as text.
     public static func cell(from input: String, inheriting style: CellStyle) -> Cell {
         var cell = Cell(value: .empty, formula: nil, style: style)
+        cell.style.hasQuotePrefix = false
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if trimmed.isEmpty { return cell }
+
+        // A leading apostrophe keeps what follows as text, as in Excel.
+        if input.hasPrefix("'") {
+            let text = String(input.dropFirst())
+            guard !text.isEmpty else { return cell }
+            cell.value = .text(text)
+            cell.style.hasQuotePrefix = true
+            return cell
+        }
 
         if trimmed.hasPrefix("=") {
             cell.formula = String(trimmed.dropFirst())

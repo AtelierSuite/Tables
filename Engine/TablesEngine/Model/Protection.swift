@@ -261,7 +261,7 @@ extension Worksheet {
     /// What the formula bar shows for the cell at `address`, and what editing
     /// it starts from: nothing where the formula is hidden.
     public func editableText(at address: CellAddress) -> String {
-        hidesFormula(at: address) ? "" : self[address].editableText
+        hidesFormula(at: address) ? "" : self[address].entryText
     }
 
     /// The ranges Excel's "Allow Users to Edit Ranges" opens to everyone:

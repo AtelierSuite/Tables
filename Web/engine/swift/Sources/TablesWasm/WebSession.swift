@@ -314,7 +314,7 @@ final class WebSession {
     var editableText: String {
         let sheet = activeSheet
         let target = sheet.mergedRange(containing: selectedAddress)?.normalized.start ?? selectedAddress
-        return sheet[target].editableText
+        return sheet.editableText(at: target)
     }
 
     /// Writes typed text into the selected cell and recalculates, then moves on.

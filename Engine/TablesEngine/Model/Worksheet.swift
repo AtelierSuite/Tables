@@ -70,6 +70,18 @@ public struct Cell: Hashable, Sendable {
         case .error(let error): return error.rawValue
         }
     }
+
+    /// What the editor opens with: `editableText`, with a leading apostrophe
+    /// on text that would otherwise be read back as something else.
+    public var entryText: String {
+        let text = editableText
+        guard formula == nil, case .text = value else { return text }
+        if style.hasQuotePrefix || text.hasPrefix("'")
+            || CellInputParser.cell(from: text, inheriting: style).value != value {
+            return "'" + text
+        }
+        return text
+    }
 }
 
 /// The size of a legacy array formula's block.
