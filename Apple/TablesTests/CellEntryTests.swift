@@ -24,7 +24,7 @@ struct CellEntryTests {
         for text in ["00123", "TRUE", "50%", "1,000", "=A1", "#N/A", "'quoted"] {
             let cell = Cell(value: .text(text))
             #expect(cell.entryText == "'" + text)
-            #expect(commitUnchanged(cell).value == cell.value)
+            #expect(commitUnchanged(cell) == cell)
             let retyped = CellInputParser.cell(from: "'" + text, replacing: Cell())
             #expect(retyped.value == .text(text))
             #expect(retyped.style.hasQuotePrefix)
@@ -43,5 +43,18 @@ struct CellEntryTests {
         let number = CellInputParser.cell(from: "8", replacing: cell)
         #expect(number.value == .number(8))
         #expect(!number.style.hasQuotePrefix)
+    }
+
+    @Test("Stepping through an array formula keeps its block")
+    func unchangedArrayFormulaKeepsExtent() {
+        let cell = Cell(value: .number(3), formula: "SUM(A1:A3*1)", arrayExtent: ArrayExtent(rows: 2, columns: 1))
+        #expect(commitUnchanged(cell).arrayExtent == ArrayExtent(rows: 2, columns: 1))
+    }
+
+    @Test("Stepping through a formula keeps its saved result")
+    func unchangedFormulaKeepsSavedResult() {
+        let cell = Cell(value: .number(42), formula: "1+1", savedResultInputs: 7)
+        let kept = CellInputParser.cell(from: "=1+1", replacing: cell)
+        #expect(kept == cell)
     }
 }
