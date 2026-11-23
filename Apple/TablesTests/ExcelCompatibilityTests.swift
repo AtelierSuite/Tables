@@ -198,6 +198,16 @@ struct ExcelCompatibilityTests {
         #expect(windows.sheets[0][CellAddress(a1: "A1")!].value == .number(43904))
     }
 
+    @Test("Minutes after an hour and a separator are minutes, not the month", arguments: [
+        ("h:mm", "18:00"),
+        ("yyyy-mm-dd h:mm", "2026-11-22 18:00"),
+        ("h:mm AM/PM", "6:00 PM"),
+        ("m/d/yy", "11/22/26"),
+    ])
+    func minutesAfterHours(format: String, text: String) {
+        #expect(CellFormatter.displayText(for: .number(46_348.75), format: format) == text)
+    }
+
     @Test("Date formats are told apart from numeric ones")
     func dateFormatDetection() {
         #expect(CellFormatter.isDateFormat("yyyy-mm-dd"))
