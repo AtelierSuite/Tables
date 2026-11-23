@@ -852,8 +852,24 @@ public enum CellInputParser {
             }
             return cell
         }
+        if let dateTime = dateTime(from: trimmed) {
+            cell.value = .number(dateTime.serial)
+            if !CellFormatter.isDateFormat(cell.style.numberFormat) {
+                cell.style.numberFormat = dateTime.format.code
+            }
+            return cell
+        }
         cell.value = .text(input)
         return cell
+    }
+
+    private static func dateTime(from text: String) -> (serial: Double, format: NumberFormatPreset)? {
+        // Dotted text like `1.2.3` is a version number far more often than a date.
+        guard !text.contains(".") || text.contains(":") else { return nil }
+        if let time = FormulaValueParser.time(from: text) { return (time, .time) }
+        if let date = FormulaValueParser.date(from: text) { return (date, .date) }
+        if let both = FormulaValueParser.dateTime(from: text) { return (both, .dateTime) }
+        return nil
     }
 
     private struct ParsedNumber {

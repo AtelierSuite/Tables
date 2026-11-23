@@ -115,8 +115,8 @@ final class EditorState {
     var allowsDataValidation = true
     /// An entry its cell's rule turned away, waiting on the person's answer.
     var validationAlert: ValidationAlert?
-    /// Whether the data validation editor is up, where it is shown as a sheet.
-    var isEditingDataValidation = false
+    /// Whether the cell rules editor is up, where it is shown as a sheet.
+    var isEditingCellRules = false
     /// Delimited text and Numbers documents have nowhere to keep grouped
     /// rows and columns either.
     var allowsOutlines: Bool { allowsFreezingPanes }

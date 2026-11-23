@@ -64,7 +64,8 @@ public struct Cell: Hashable, Sendable {
         if let formula { return "=" + formula }
         switch value {
         case .empty: return ""
-        case .number(let number): return CellValue.plainNumberString(number)
+        case .number(let number):
+            return Self.editableDateTime(number, format: style.numberFormat) ?? CellValue.plainNumberString(number)
         case .text(let text): return text
         case .boolean(let flag): return flag ? "TRUE" : "FALSE"
         case .error(let error): return error.rawValue
@@ -81,6 +82,23 @@ public struct Cell: Hashable, Sendable {
             return "'" + text
         }
         return text
+    }
+
+    /// A date-formatted serial as text the input parser reads back:
+    /// `2026-11-22`, `13:45:00`, `2026-11-22 13:45:00`, or `26:30:00` for elapsed time.
+    private static func editableDateTime(_ serial: Double, format: String) -> String? {
+        guard CellFormatter.isDateFormat(format), serial >= 0, serial < 2_958_466 else { return nil }
+        var totalSeconds = Int((serial * 86_400).rounded())
+        if format.range(of: #"\[(h+|m+|s+)\]"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return String(format: "%d:%02d:%02d", totalSeconds / 3600, totalSeconds / 60 % 60, totalSeconds % 60)
+        }
+        let whole = totalSeconds / 86_400
+        totalSeconds %= 86_400
+        let time = String(format: "%d:%02d:%02d", totalSeconds / 3600, totalSeconds / 60 % 60, totalSeconds % 60)
+        guard whole >= 1 else { return time }
+        let day = FormulaDates.components(fromSerial: Double(whole))
+        let date = String(format: "%04d-%02d-%02d", day.year, day.month, day.day)
+        return totalSeconds == 0 ? date : date + " " + time
     }
 }
 
@@ -520,8 +538,10 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
 
     public mutating func addRows(_ count: Int) {
         let added = min(Self.maximumRowCount, rowCount + max(1, count)) - rowCount
-        origins?.appendRows(added)
+        let source = bodyRows.last
+        origins?.appendRows(added, rowCount: rowCount, formattedLike: source)
         rowCount += added
+        if let source { copyFormatting(ofRow: source, to: (rowCount - added)..<rowCount) }
     }
 
     public mutating func addColumns(_ count: Int) {
@@ -540,6 +560,8 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
     public mutating func insertRows(_ count: Int, at index: Int) {
         let count = max(1, count)
         guard rowCount + count <= Self.maximumRowCount else { return }
+        let body = bodyRows
+        let source = body.contains(index - 1) ? index - 1 : origins != nil && body.contains(index) ? index : nil
         FormulaReferenceShifter.apply(.insert(index: index, count: count), axis: .row, to: &cells, scope: ownScope)
         remapCells { $0.row >= index ? CellAddress(row: $0.row + count, column: $0.column) : $0 }
         rowHeights = Self.shift(rowHeights, from: index, by: count)
@@ -554,10 +576,37 @@ public struct Worksheet: Identifiable, Hashable, Sendable {
         shiftDataValidations(.insert(index: index, count: count), axis: .row, scope: ownScope)
         shiftKeptReferences(.insert(index: index, count: count), axis: .row)
         shiftSparklines(.insert(index: index, count: count), axis: .row)
-        origins?.insertRows(count, at: index, rowCount: rowCount)
+        origins?.insertRows(count, at: index, rowCount: rowCount, formattedLike: source)
         rowCount += count
         // Rows inserted among the frozen ones join them, as in Excel.
         if index < frozenRows { frozenRows += count }
+        if let source { copyFormatting(ofRow: source < index ? source : source + count, to: index..<(index + count)) }
+    }
+
+    /// The rows whose formatting a row added beside them takes: all of a
+    /// sheet's, or the body of a Numbers table.
+    private var bodyRows: Range<Int> {
+        let edges = tableEdges ?? TableEdges()
+        return edges.headerRows..<max(edges.headerRows, rowCount - edges.footerRows)
+    }
+
+    /// Gives `rows` the styles and highlighting of the row at `source`.
+    private mutating func copyFormatting(ofRow source: Int, to rows: Range<Int>) {
+        // A Numbers table keeps formatting only in its cells.
+        if origins == nil {
+            for row in rows {
+                rowStyles[row] = rowStyles[source]
+                if !fittedRows.contains(source) { rowHeights[row] = rowHeights[source] }
+            }
+        }
+        for column in 0..<columnCount {
+            guard var style = cells[CellAddress(row: source, column: column)]?.style else { continue }
+            style.showsCheckbox = false
+            for row in rows {
+                self[CellAddress(row: row, column: column)] = Cell(style: style)
+            }
+        }
+        extendConditionalFormats(fromRow: source, to: rows)
     }
 
     public mutating func insertColumns(_ count: Int, at index: Int) {

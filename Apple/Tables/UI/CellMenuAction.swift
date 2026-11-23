@@ -105,10 +105,10 @@ struct CellMenuBuilder {
                     children: Self.listActions(workbook: workbook, state: state)))
             }
             actions.append(HeaderMenuAction(
-                title: String(localized: "DataValidation.Menu"), symbol: "checkmark.shield"
+                title: String(localized: "CellRules.Menu"), symbol: "checkmark.shield"
             ) {
                 target()
-                state.isEditingDataValidation = true
+                state.isEditingCellRules = true
             })
         }
         return actions

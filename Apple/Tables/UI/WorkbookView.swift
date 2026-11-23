@@ -107,17 +107,14 @@ struct WorkbookView: View {
             }
         }
         .sheet(isPresented: Binding(
-            get: { state.isEditingDataValidation }, set: { state.isEditingDataValidation = $0 }
+            get: { state.isEditingCellRules }, set: { state.isEditingCellRules = $0 }
         )) {
-            NavigationStack {
-                DataValidationPanel(rule: state.selectedDataValidation(in: document.workbook)) { outcome in
-                    switch outcome {
-                    case .cancel: break
-                    case .clear: state.setDataValidation(nil, in: &document.workbook)
-                    case .apply(let rule): state.setDataValidation(rule, in: &document.workbook)
-                    }
-                    state.isEditingDataValidation = false
-                }
+            CellRulesPanel(
+                workbook: document.workbook, sheetIndex: state.activeIndex(in: document.workbook),
+                draft: state.cellRulesDraft(in: document.workbook)
+            ) { draft in
+                if let draft { state.applyCellRules(draft, in: &document.workbook) }
+                state.isEditingCellRules = false
             }
         }
         .alert(

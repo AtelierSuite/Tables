@@ -443,12 +443,27 @@ private struct TableWriter {
 
         // The new storage of every changed cell; nil where it is now empty.
         var changedCells: [CellAddress: [UInt8]?] = [:]
+        // Rows added past the last start out formatted like the row they
+        // were added after.
+        var addedRows = AddedRowFormatting(store: store, patch: patch)
+        var addedCells: [CellAddress: (stored: ArraySlice<UInt8>?, original: Cell)] = [:]
+        let origins = sheet.origins ?? SheetOrigins()
+        for row in table.rowCount..<max(table.rowCount, sheet.rowCount) {
+            guard let source = origins.formatRow(row), source < table.rowCount else { continue }
+            for column in 0..<min(sheet.columnCount, table.columnCount) {
+                let from = CellAddress(row: source, column: column), address = CellAddress(row: row, column: column)
+                let stored = addedRows.storage(formattedLike: table.storage[from], formatting: &formatting)
+                addedCells[address] = (stored, Cell(style: imported[from].style))
+                if let stored { changedCells[address] = Array(stored) }
+            }
+        }
         for address in Set(sheet.cells.keys).union(imported.cells.keys)
         where address.row < sheet.rowCount && address.column < sheet.columnCount {
-            let cell = sheet[address], original = imported[address]
+            let cell = sheet[address], added = addedCells[address]
+            let original = added?.original ?? imported[address]
             guard Self.differs(cell, from: original) else { continue }
             let updated = try storage(
-                for: cell, at: address, was: original, stored: table.storage[address],
+                for: cell, at: address, was: original, stored: added.map(\.stored) ?? table.storage[address],
                 strings: &strings, formulas: &formulas, formatting: &formatting, patch: &patch
             )
             changedCells.updateValue(updated, forKey: address)
@@ -466,6 +481,7 @@ private struct TableWriter {
         try strings.save(into: &patch)
         try formulas.save(into: &patch)
         try formatting.save(into: &patch)
+        try addedRows.save(into: &patch)
         try writeRowHeaders(rowCount: rowCount, rowCellCounts: rowCellCounts, store: store, patch: &patch)
         try writeColumnHeaders(changedCells, columnCount: columnCount, store: store, patch: &patch)
 
@@ -710,6 +726,8 @@ private extension TableWriter {
         let columnCount: Int
         let fileRows: [Int?]
         let fileColumns: [Int?]
+        /// For each row added since, the file row it is formatted like.
+        let formatRows: [Int?]
         let rowNow: [Int: Int]
         let columnNow: [Int: Int]
 
@@ -719,6 +737,9 @@ private extension TableWriter {
             columnCount = sheet.columnCount
             fileRows = (0..<rowCount).map { origins.row($0).flatMap { $0 < table.rowCount ? $0 : nil } }
             fileColumns = (0..<columnCount).map { origins.column($0).flatMap { $0 < table.columnCount ? $0 : nil } }
+            formatRows = fileRows.enumerated().map { now, file in
+                file == nil ? origins.formatRow(now).flatMap { $0 < table.rowCount ? $0 : nil } : nil
+            }
             rowNow = Dictionary(fileRows.enumerated().compactMap { now, file in file.map { ($0, now) } }, uniquingKeysWith: { $1 })
             columnNow = Dictionary(fileColumns.enumerated().compactMap { now, file in file.map { ($0, now) } }, uniquingKeysWith: { $1 })
         }
@@ -745,12 +766,23 @@ private extension TableWriter {
             }
             cells[CellAddress(row: row, column: column)] = bytes
         }
+        var addedRows = AddedRowFormatting(store: store, patch: patch)
+        var formattedLike: [CellAddress: Cell] = [:]
+        for (row, source) in moves.formatRows.enumerated() {
+            guard let source else { continue }
+            for (column, fileColumn) in moves.fileColumns.enumerated() {
+                guard let fileColumn else { continue }
+                let from = CellAddress(row: source, column: fileColumn), address = CellAddress(row: row, column: column)
+                cells[address] = addedRows.storage(formattedLike: table.storage[from], formatting: &formatting)
+                formattedLike[address] = Cell(style: imported[from].style)
+            }
+        }
         // Then the changes made to them. Every formula is written again: its
         // references count from its cell, and either may have moved.
         for address in Set(cells.keys).union(sheet.cells.keys)
         where address.row < moves.rowCount && address.column < moves.columnCount {
             let cell = sheet[address]
-            let original = moves.fileAddress(address).map { imported[$0] } ?? Cell()
+            let original = moves.fileAddress(address).map { imported[$0] } ?? formattedLike[address] ?? Cell()
             guard cell.formula != nil || Self.differs(cell, from: original) else { continue }
             let updated = try storage(
                 for: cell, at: address, was: original, stored: cells[address],
@@ -771,6 +803,7 @@ private extension TableWriter {
         try strings.save(into: &patch)
         try formulas.save(into: &patch)
         try formatting.save(into: &patch)
+        try addedRows.save(into: &patch)
         if let bucket = store.message(1)?.messages(2).first?.uint(1) {
             try rewriteHeaders(
                 bucket, count: moves.rowCount, fileIndices: moves.fileRows,
@@ -1165,6 +1198,14 @@ private struct TableFormatting {
         return made
     }
 
+    /// Counts one more cell using the style `key` names, if the list has it.
+    mutating func retain(_ key: UInt64) -> Bool {
+        let key = UInt32(truncatingIfNeeded: key)
+        guard references[key] != nil else { return false }
+        added[key, default: 0] += 1
+        return true
+    }
+
     /// The key a style has in the table's list, added if it isn't there.
     private mutating func key(for style: UInt64, patch: inout Patch) -> UInt32 {
         let key: UInt32
@@ -1201,6 +1242,81 @@ private struct TableFormatting {
         }
         list.set(3, messages: entries)
         list.set(2, uint: UInt64(nextKey))
+        try patch.change(identifier, to: list)
+    }
+}
+
+/// What a cell of a row added to a table starts out as: the styles, number
+/// formats and highlighting of the cell it is formatted like, without its
+/// value, each key counting one more cell using it.
+private struct AddedRowFormatting {
+    private var ruleSets: KeyCounts
+    private var formats: KeyCounts
+    private var legacyFormats: KeyCounts
+
+    private static let styleFields = [NumbersStyles.Field.cellStyle, NumbersStyles.Field.textStyle]
+    /// The number, currency, date, duration, text and checkbox formats.
+    private static let formatFields: [UInt32] = [0x2000, 0x4000, 0x8000, 0x10000, 0x20000, 0x40000]
+
+    init(store: ProtobufMessage, patch: Patch) {
+        ruleSets = KeyCounts(reference: store.message(18), patch: patch)
+        formats = KeyCounts(reference: store.message(22), patch: patch)
+        legacyFormats = KeyCounts(reference: store.message(11), patch: patch)
+    }
+
+    mutating func storage(
+        formattedLike source: ArraySlice<UInt8>?, formatting: inout TableFormatting
+    ) -> ArraySlice<UInt8>? {
+        guard let source = source.flatMap(NumbersCellStorage.init) else { return nil }
+        var storage = NumbersCellStorage(type: NumbersCellStorage.CellType.empty)
+        for field in Self.styleFields {
+            if let key = source.key(of: field), formatting.retain(key) { storage.setKey(UInt32(truncatingIfNeeded: key), of: field) }
+        }
+        if let key = source.key(of: NumbersConditionalFormats.cellField), ruleSets.retain(key) {
+            storage.setKey(UInt32(truncatingIfNeeded: key), of: NumbersConditionalFormats.cellField)
+        }
+        for field in Self.formatFields {
+            guard let key = source.key(of: field), formats.retain(key) || legacyFormats.retain(key) else { continue }
+            storage.setKey(UInt32(truncatingIfNeeded: key), of: field)
+        }
+        return storage.isBare ? nil : storage.encoded[...]
+    }
+
+    func save(into patch: inout Patch) throws {
+        try ruleSets.save(into: &patch)
+        try formats.save(into: &patch)
+        try legacyFormats.save(into: &patch)
+    }
+}
+
+/// One of a table's `TST.TableDataList`s, counting the cells that take keys
+/// already in it.
+private struct KeyCounts {
+    private let identifier: UInt64?
+    private let keys: Set<UInt32>
+    private var added: [UInt32: UInt64] = [:]
+
+    init(reference: ProtobufMessage?, patch: Patch) {
+        identifier = reference?.uint(1)
+        let list = identifier.flatMap { patch[$0] } ?? ProtobufMessage()
+        keys = Set(list.messages(3).compactMap { $0.uint(1).map(UInt32.init(truncatingIfNeeded:)) })
+    }
+
+    mutating func retain(_ key: UInt64) -> Bool {
+        let key = UInt32(truncatingIfNeeded: key)
+        guard keys.contains(key) else { return false }
+        added[key, default: 0] += 1
+        return true
+    }
+
+    func save(into patch: inout Patch) throws {
+        guard let identifier, !added.isEmpty, var list = patch[identifier] else { return }
+        list.set(3, messages: list.messages(3).map { entry in
+            guard let key = entry.uint(1).map(UInt32.init(truncatingIfNeeded:)), let count = added[key] else { return entry }
+            var entry = entry
+            entry.set(2, uint: (entry.uint(2) ?? 0) + count)
+            return entry
+        })
         try patch.change(identifier, to: list)
     }
 }

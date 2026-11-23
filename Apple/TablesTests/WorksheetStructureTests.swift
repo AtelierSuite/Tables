@@ -54,6 +54,34 @@ struct WorksheetStructureTests {
         #expect(sheet[CellAddress(a1: "D1")!].formula == "SUM(A5:A7)")
     }
 
+    @Test("A row inserted or added takes the formatting of the row above, without its values")
+    func insertedRowFormatting() {
+        var sheet = grid()
+        var bold = CellStyle.default
+        bold.isBold = true
+        bold.fillColorHex = "FFFFFF00"
+        sheet[CellAddress(a1: "B2")!].style = bold
+        sheet.rowStyles[1] = bold
+        sheet.rowHeights[1] = 40
+
+        sheet.insertRows(2, at: 2)
+        for reference in ["B3", "B4"] {
+            #expect(sheet[CellAddress(a1: reference)!].isBlank)
+            #expect(sheet[CellAddress(a1: reference)!].style == bold)
+        }
+        #expect(sheet.rowStyles[2] == bold && sheet.rowHeights[3] == 40)
+        #expect(sheet[CellAddress(a1: "B5")!].value == .text("B3"))
+        #expect(!sheet[CellAddress(a1: "B5")!].style.isBold)
+
+        sheet.insertRows(1, at: 0)
+        #expect(!sheet[CellAddress(a1: "B1")!].style.isBold, "the top row has none above to take from")
+
+        sheet.removeRows(0...0)
+        sheet.rowHeights[sheet.rowCount - 1] = 30
+        sheet.addRows(1)
+        #expect(sheet.rowHeights[sheet.rowCount - 1] == 30)
+    }
+
     @Test("Deleting rows removes cells and breaks references into them")
     func deleteRows() {
         var sheet = grid()

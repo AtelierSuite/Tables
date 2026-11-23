@@ -620,7 +620,6 @@ public enum CellFormatter {
             guard "ymdhs".contains(lower) else {
                 if character != "\\" { result.append(character) }
                 index += 1
-                previousWasHour = false
                 continue
             }
 

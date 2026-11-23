@@ -186,6 +186,23 @@ struct ConditionalFormatTests {
         #expect(try fill("A1", in: book) == nil)
     }
 
+    @Test("A row inserted below a rule's range joins it, through a save")
+    func insertedRowJoinsRule() throws {
+        var book = try workbook(
+            cells: ["A1": .number(1), "A2": .number(2)],
+            formats: [format("A1:A2", rule("expression", "A1>100"))]
+        )
+        book.sheets[0].insertRows(1, at: 2)
+        book.sheets[0][try #require(CellAddress(a1: "A3"))].value = .number(200)
+        book.recalculate()
+        #expect(try fill("A3", in: book) == Self.red)
+        #expect(try sheetXML(of: book).contains("sqref=\"A1:A3\""))
+
+        let reopened = try XLSXReader.workbook(from: try XLSXWriter.data(from: book))
+        #expect(try fill("A3", in: reopened) == Self.red)
+        #expect(try fill("A2", in: reopened) == nil)
+    }
+
     @Test("A whole column is tested no further than the sheet")
     func wholeColumn() throws {
         let book = try workbook(

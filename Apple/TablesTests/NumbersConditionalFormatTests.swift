@@ -172,6 +172,31 @@ struct NumbersConditionalFormatTests {
         #expect(style("A1", in: workbook.sheets[0]).fillColorHex == nil)
     }
 
+    @Test("A row inserted or added takes the highlighting of the row above, through a save")
+    func addedRowsTakeRules() throws {
+        let original = try document(
+            [[.highlighted(150, ruleSet: 1)], [.highlighted(50, ruleSet: 1)]],
+            ruleSets: [[Rule(nodes: Self.above(100), fill: Self.red)]]
+        )
+        for inserting in [true, false] {
+            var (workbook, source) = try NumbersReader.document(from: original)
+            let row = inserting ? "A2" : "A3"
+            if inserting { workbook.sheets[0].insertRows(1, at: 1) } else { workbook.sheets[0].addRows(1) }
+            workbook.sheets[0][CellAddress(a1: row)!].value = .number(200)
+            workbook.recalculate()
+            #expect(style(row, in: workbook.sheets[0]).fillColorHex == Self.red)
+
+            let saved = try #require(NumbersWriter.fileWrapper(for: workbook, source: source, existing: nil).regularFileContents)
+            let (reopened, reread) = try NumbersReader.document(from: saved)
+            #expect(reopened.sheets[0][CellAddress(a1: row)!].value == .number(200))
+            #expect(style(row, in: reopened.sheets[0]).fillColorHex == Self.red)
+            let table = try #require(reread.tables.values.first)
+            let model = try #require(reread.archive[table.modelIdentifier]?.message)
+            let ruleSets = try #require(reread.archive[model.message(4)?.message(18)]?.message)
+            #expect(ruleSets.messages(3).first?.uint(2) == 2, "the rule set counts the new cell")
+        }
+    }
+
     @Test("A document with highlighting saves unchanged, and a cell changed keeps its rules")
     func saving() throws {
         let original = try document(

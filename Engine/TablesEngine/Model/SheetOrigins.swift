@@ -9,6 +9,10 @@ public struct SheetOrigins: Hashable, Sendable {
     /// while no row has moved, when rows past the file's last are new.
     public private(set) var rows: [Int?]?
     public private(set) var columns: [Int?]?
+    /// The file row each row takes its formatting from: its own, or for one
+    /// added since, that of the row it was added beside. Nil while no row
+    /// has been added with formatting.
+    public private(set) var formatRows: [Int?]?
 
     public var hasMoved: Bool { rows != nil || columns != nil }
 
@@ -16,11 +20,17 @@ public struct SheetOrigins: Hashable, Sendable {
         rows.map { index < $0.count ? $0[index] : nil } ?? index
     }
 
+    public func formatRow(_ index: Int) -> Int? {
+        formatRows.map { index < $0.count ? $0[index] : nil } ?? row(index)
+    }
+
     public func column(_ index: Int) -> Int? {
         columns.map { index < $0.count ? $0[index] : nil } ?? index
     }
 
-    public mutating func insertRows(_ count: Int, at index: Int, rowCount: Int) {
+    /// Rows inserted at `index`, formatted like the row now at `source`.
+    public mutating func insertRows(_ count: Int, at index: Int, rowCount: Int, formattedLike source: Int? = nil) {
+        insertFormatRows(count, at: index, rowCount: rowCount, formattedLike: source)
         Self.insert(count, at: index, into: &rows, total: rowCount)
     }
 
@@ -29,6 +39,7 @@ public struct SheetOrigins: Hashable, Sendable {
     }
 
     public mutating func removeRows(_ range: ClosedRange<Int>, rowCount: Int) {
+        if formatRows != nil { Self.remove(range, from: &formatRows, total: rowCount) }
         Self.remove(range, from: &rows, total: rowCount)
     }
 
@@ -37,8 +48,17 @@ public struct SheetOrigins: Hashable, Sendable {
     }
 
     /// Rows added at the end, which are new wherever the rest have moved.
-    public mutating func appendRows(_ count: Int) {
+    public mutating func appendRows(_ count: Int, rowCount: Int, formattedLike source: Int? = nil) {
+        insertFormatRows(count, at: rowCount, rowCount: rowCount, formattedLike: source)
         rows?.append(contentsOf: [Int?](repeating: nil, count: count))
+    }
+
+    private mutating func insertFormatRows(_ count: Int, at index: Int, rowCount: Int, formattedLike source: Int?) {
+        let template = source.flatMap(formatRow)
+        guard formatRows != nil || template != nil else { return }
+        var list = formatRows ?? (0..<rowCount).map(formatRow)
+        list.insert(contentsOf: [Int?](repeating: template, count: count), at: min(index, list.count))
+        formatRows = list
     }
 
     public mutating func appendColumns(_ count: Int) {
