@@ -548,8 +548,24 @@ struct SheetGridView: View {
                 )
                 .offset(x: -barWidth, y: metrics.y(ofRow: row))
             }
+            addColumnButton(height: barHeight)
+                .offset(x: metrics.totalWidth, y: -barHeight)
+            addRowButton(width: barWidth)
+                .offset(x: -barWidth, y: metrics.totalHeight)
             tableHandle(for: sheet, width: barWidth, height: barHeight)
                 .offset(x: -barWidth, y: -barHeight)
+        }
+    }
+
+    private func addColumnButton(height: Double) -> some View {
+        HeaderAddButton(width: 32, height: height, accessibilityTitle: "HeaderMenu.Column.AddAtEnd") {
+            state.addColumns(in: &workbook)
+        }
+    }
+
+    private func addRowButton(width: Double) -> some View {
+        HeaderAddButton(width: width, height: 28, accessibilityTitle: "HeaderMenu.Row.AddAtEnd") {
+            state.addRows(in: &workbook)
         }
     }
 
@@ -1656,6 +1672,14 @@ struct SheetGridView: View {
             }
 
             if activeSheet.showsHeadings {
+                if visibleGridWidth < proxy.size.width - rowHeaderWidth {
+                    addColumnButton(height: columnLabelHeight)
+                        .offset(x: rowHeaderWidth + visibleGridWidth, y: columnOutlineGutter)
+                }
+                if visibleGridHeight < proxy.size.height - columnHeaderHeight {
+                    addRowButton(width: rowLabelWidth)
+                        .offset(x: rowOutlineGutter, y: columnHeaderHeight + visibleGridHeight)
+                }
                 cornerButton
             }
         }

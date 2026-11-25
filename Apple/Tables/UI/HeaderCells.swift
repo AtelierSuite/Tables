@@ -179,3 +179,25 @@ private struct ResizeGrip: View {
             #endif
     }
 }
+
+/// The "+" at the far end of a header strip, adding one more line there.
+struct HeaderAddButton: View {
+    let width: Double
+    let height: Double
+    let accessibilityTitle: LocalizedStringKey
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "plus")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 20, height: 20)
+                .background(Color.accentColor.opacity(0.16), in: .circle)
+                .frame(width: width, height: height)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityTitle)
+    }
+}
