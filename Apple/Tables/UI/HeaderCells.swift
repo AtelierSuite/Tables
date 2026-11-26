@@ -32,9 +32,6 @@ struct ColumnHeaderCell: View {
             .frame(width: width, height: height)
             .background(isSelected ? Color.accentColor.opacity(0.16) : .clear)
             .contentShape(.rect)
-            .onTapGesture(count: 2) { menuTrigger += 1 }
-            .onTapGesture(perform: onSelect)
-            .contextMenu { HeaderActionMenu(actions: actions()) }
             .background { NativeMenuPresenter(actions: actions, trigger: menuTrigger) }
             .overlay(alignment: .bottom) { Rectangle().fill(Color.gridLine).frame(height: 1) }
             .overlay(alignment: .trailing) { HiddenSeam(isVertical: true, isVisible: isHiddenNeighbor) }
@@ -44,6 +41,10 @@ struct ColumnHeaderCell: View {
             .overlay(alignment: .leading) {
                 if let onResizePrevious { ResizeGrip(isVertical: true, extent: width, onResize: onResizePrevious) }
             }
+            // After the grips, so taps that land on them still reach the header.
+            .onTapGesture(count: 2) { menuTrigger += 1 }
+            .onTapGesture(perform: onSelect)
+            .contextMenu { HeaderActionMenu(actions: actions()) }
             .accessibilityLabel(title)
             .accessibilityAddTraits(.isButton)
     }
@@ -73,9 +74,6 @@ struct RowHeaderCell: View {
             .frame(width: width, height: height)
             .background(isSelected ? Color.accentColor.opacity(0.16) : .clear)
             .contentShape(.rect)
-            .onTapGesture(count: 2) { menuTrigger += 1 }
-            .onTapGesture(perform: onSelect)
-            .contextMenu { HeaderActionMenu(actions: actions()) }
             .background { NativeMenuPresenter(actions: actions, trigger: menuTrigger) }
             .overlay(alignment: .trailing) { Rectangle().fill(Color.gridLine).frame(width: 1) }
             .overlay(alignment: .bottom) { HiddenSeam(isVertical: false, isVisible: isHiddenNeighbor) }
@@ -85,6 +83,10 @@ struct RowHeaderCell: View {
             .overlay(alignment: .top) {
                 if let onResizePrevious { ResizeGrip(isVertical: false, extent: height, onResize: onResizePrevious) }
             }
+            // After the grips, so taps that land on them still reach the header.
+            .onTapGesture(count: 2) { menuTrigger += 1 }
+            .onTapGesture(perform: onSelect)
+            .contextMenu { HeaderActionMenu(actions: actions()) }
             .accessibilityLabel(String(format: Self.labelFormat, title))
             .accessibilityAddTraits(.isButton)
     }
@@ -159,7 +161,7 @@ private struct ResizeGrip: View {
                 // Global space: the grip itself moves as the line resizes, so a
                 // local-space translation would jump by the amount the view just
                 // moved and the delta feedback loop would oscillate.
-                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                DragGesture(minimumDistance: 4, coordinateSpace: .global)
                     .onChanged { value in
                         let total = isVertical ? value.translation.width : value.translation.height
                         onResize(total - lastTranslation)
